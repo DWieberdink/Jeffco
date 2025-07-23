@@ -1,0 +1,85 @@
+index.html
+scss
+Copy
+Edit
+├── embeds → <iframe> (which loads indexDecisionLogic.html)
+├── loads → script.js (Mapbox control, side panel toggling)
+├── uses → iframeControl.js (popup + iframe management)
+├── uses → iframeMessaging.js (parent↔iframe↔popup communication)
+└── manages initial threshold broadcasting
+indexDecisionLogic.html
+scss
+Copy
+Edit
+├── loads → FlowchartLogic.js (draws flowchart)
+├── loads → DecisionLogic.js (controls sliders, tables, thresholds)
+├── reads → Decision Data Export.csv (school decision dataset)
+├── uses PapaParse (CSV parsing)
+└── adapts behavior based on context (iframe vs popup via window.opener)
+iframeControl.js
+pgsql
+Copy
+Edit
+├── opens popup window (popupWindow = indexDecisionLogic.html)
+├── listens for iframe/popup load events
+├── broadcasts thresholds to iframe + popup
+├── handles initial state syncing
+└── listens for schoolData responses from iframe or popup
+iframeMessaging.js
+less
+Copy
+Edit
+├── defines FrameMessenger abstraction
+├── sends and receives postMessage events:
+│    ├─ parent ↔ iframe (thresholds, school selections)
+│    └─ parent ↔ popup (thresholds, school selections)
+├── listens and applies incoming thresholds
+└── ensures iframe and popup stay synchronized with parent
+DecisionLogic.js
+sql
+Copy
+Edit
+├── loads and parses Decision Data Export.csv (via PapaParse)
+├── builds and controls all threshold sliders
+├── listens for slider changes and broadcasts updated thresholds
+├── recalculates school decisions dynamically
+├── renders both:
+│    ├─ Full Results table (school by school)
+│    └─ Summary Results table (decisions count)
+├── listens to postMessage (incoming thresholds or school selections)
+└── updates flowchart highlighting based on current selection
+FlowchartLogic.js
+pgsql
+Copy
+Edit
+├── draws D3 flowchart (nodes, links, markers)
+├── highlights flow paths based on evaluation
+├── dynamically relabels nodes when thresholds change
+├── listens for updated window.thresholds via postMessage
+└── keeps viewBox adjusted (autoscales based on node extents)
+script.js
+css
+Copy
+Edit
+├── loads Mapbox map (displays schools)
+├── parses NHPSSchools.geojson
+├── shows locations of all schools
+├── manages OD matrix modeling (future-ready)
+├── toggles sidebar panels
+└── independent from iframe/popup communication for now
+Decision Data Export.csv
+css
+Copy
+Edit
+└── Input data for decision evaluation (loaded in DecisionLogic.js)
+OD_Draft.csv
+arduino
+Copy
+Edit
+└── NOT yet directly used
+   (future potential for OD modeling — origin/destination analysis)
+NHPSSchools.geojson
+java
+Copy
+Edit
+└── Map layer containing school locations (plotted in script.js)

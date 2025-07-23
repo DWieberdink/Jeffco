@@ -1,0 +1,13 @@
+{
+    "name": "k12-school-decision-assistant",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Offline-ready tool for strategic school decision modeling.",
+    "scripts": {
+      "start": "http-server ./www -p 8080"
+    },
+    "devDependencies": {
+      "http-server": "^14.1.1"
+    }
+  }
+  

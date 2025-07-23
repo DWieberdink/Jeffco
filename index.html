@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>JeffCo Schools Map</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- CSS Librarie -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.0/nouislider.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
+
+  <!-- JS Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.0/nouislider.min.js" defer></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js" defer></script>
+  <script src="https://d3js.org/d3.v7.min.js" defer></script>
+  <script src="DecisionLogic.js" defer></script>
+  <script src="FlowchartLogic.js" defer></script>
+  <script src="script.js" defer></script>
+  
+
+
+  <style>
+    /* General Layout */
+   
+    body, html, input, select, button, textarea, table, th, td, h1, h2, h3, h4, h5, h6, p, span, div, label, summary, details, ul, ol, li {
+      font-family: 'Franklin Gothic Book', 'Franklin Gothic' !important;
+    }
+
+    body {
+      margin: 0;
+      display: flex;
+      height: 100vh;
+      overflow: hidden; /* Prevent the whole page from scrolling */
+    }
+
+    #container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  position: relative; /* For positioning child elements like buttons */
+}
+
+    #sidebar { 
+      width: 35%; 
+      padding: 10px; 
+      background: #fff; 
+      border-right: 1px solid #ddd; 
+      overflow-y: auto; 
+      box-sizing: border-box; 
+      display: flex;
+      flex-direction: column;
+    }
+    
+    #map-container {
+  flex-grow: 1;
+  height: 100vh;
+  position: relative;
+  transition: margin-right 0.3s ease;
+}
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Sidebar Elements */
+    #sidebar h3 { margin-top: 20px; font-size: 16px; font-weight: bold; color: #333; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+    select, input[type="range"], input[type="number"] {
+      width: 100%; padding: 8px; margin: 6px 0 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; box-sizing: border-box;
+    }
+    button {
+      padding: 6px 12px; margin-top: 4px; margin-right: 6px;
+      font-size: 14px; border: none; border-radius: 4px; cursor: pointer;
+      background-color: #007cbf; color: white;
+    }
+    button:hover { background-color: #005e93; }
+
+    /* Map Legend */
+    .legend {
+  position: absolute;
+  bottom: 60px;
+  left: 20px;
+  background: white;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 13px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  
+  display: flex;
+  flex-wrap: wrap; /* allow wrapping if space is tight */
+  gap: 12px;
+  align-items: center;
+}
+
+.legend h4 {
+  display: none; /* Hide the vertical header if desired */
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.legend-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  border: 1px solid #ccc;
+}
+
+
+
+    /* Map Sidebar */
+    #map-sidebar {
+  width: 400px;
+  flex-shrink: 0;
+  display: flex; /* Use flexbox to manage child elements */
+  flex-direction: column; /* Stack children vertically */
+  height: 100vh; /* Make sidebar full viewport height */
+  box-sizing: border-box;
+  overflow-y: auto; /* Allow sidebar to scroll if content is too tall */
+} 
+
+/* Ensure the container inside the sidebar allows the iframe to grow */
+#map-sidebar > div {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  padding: 0; /* Remove padding to allow full width */
+}
+
+/*map resizing based on user*/
+#map-sidebar.hidden {
+  width: 0 !important;
+  padding: 0;
+  overflow: hidden;
+}
+
+#map-sidebar.wide {
+  width: 800px !important;
+}
+
+#map-sidebar-toggle { 
+  position: absolute; 
+  top: 10px; 
+  right: 10px; 
+  z-index: 1001; 
+  transition: right 0.3s ease; 
+  min-width: 100px;
+}
+#map-sidebar-toggle.hidden { right: 10px; }
+ 
+   #map-sidebar {
+  width: 400px;
+  flex-shrink: 0;
+} 
+
+    /* Table & Range Sliders */
+    #enrollmentRange, #seatsRange { margin: 10px 0; }
+    #isoTable { width: 100%; overflow-x: auto; display: block; }
+    #isoTable th, #isoTable td { padding: 6px; border: 1px solid #ccc; text-align: center; }
+    .percent-cell { display: flex; justify-content: center; align-items: center; gap: 4px; }
+    .assign-percent {
+      width: 50px;
+      padding: 2px 4px;
+      font-size: 14px;
+      text-align: center;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      margin: 0;
+    }
+
+    /* Add after existing button styles or near the table styles */
+.assign-percent-up, .assign-percent-down {
+  font-size: 12px !important;
+  color: #888 !important;
+  background: none !important;
+  border: none !important;
+  padding: 0 3px !important;
+  box-shadow: none !important;
+  line-height: 1;
+  vertical-align: middle;
+  cursor: pointer;
+}
+.assign-percent-up:hover, .assign-percent-down:hover {
+  color: #333 !important;
+  background: none !important;
+}
+
+    /* ✅ Styling for details/summary to create hierarchy */
+    details {
+      margin-top: 1rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 0.5rem;
+    }
+    details summary {
+      font-weight: bold;
+      cursor: pointer;
+      padding: 0.5rem;
+      margin: -0.5rem; /* Counteract padding to fill area */
+      background-color: #f7f7f7;
+      border-radius: 4px;
+    }
+    details[open] > summary {
+      border-bottom: 1px solid #ddd;
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+    }
+    
+    /* Move triangle right and question mark left for specific sections */
+    #decision-input-panel > summary.custom-summary {
+      padding-left: 0.6em; 
+    }
+    #decision-input-panel .help-icon {
+      margin-left: -30px; 
+    }
+    
+    #scenario-input-panel > summary.custom-summary {
+      padding-left: 0.6em; 
+    }
+    #scenario-input-panel .help-icon {
+      margin-left: -30px; 
+    }
+    
+    .nested-details {
+      margin-left: 1rem;
+      border: none;
+      border-top: 1px solid #eee;
+      border-radius: 0;
+      padding-left: 0;
+      padding-right: 0;
+    }
+    .nested-details summary {
+      background-color: transparent;
+      font-weight: normal;
+    }
+
+    /* ✅ Slider styling for consistency */
+    .slider-container {
+      margin-bottom: 0.5rem;
+    }
+    .slider-container label {
+      display: block;
+      font-weight: normal;
+      margin-bottom: 0.1rem;
+    }
+    .slider-container span {
+      float: right;
+      font-weight: normal;
+      background-color: #e9ecef;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    /* Loading Modal */
+    #loadingModal {
+      display: none; position: fixed; z-index: 2000; top: 0; left: 0; width: 100%; height: 100%;
+      background-color: rgba(255, 255, 255, 0.8);
+      justify-content: center; align-items: center;
+      font-size: 20px; font-weight: bold; color: #333;
+    }
+
+    /* Consistent close button for all help tooltips */
+    .close-tooltip-btn {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      background: none;
+      border: none;
+      color: #007cbf;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+      z-index: 10;
+    }
+    .close-tooltip-btn:hover {
+      color: #e74c3c;
+      background: none;
+    }
+
+    /* Ensure tooltip content does not overlap with close button */
+    .draggable-tooltip, .tooltip, [id$='-help-tooltip'] {
+      padding-top: 18px !important;
+      padding-right: 18px !important;
+      box-sizing: border-box;
+    }
+
+    /* Flowchart Styles */
+    .ellipse-node {fill: #007cbf; stroke: #ccc; stroke-width: 1.5;}
+    .node rect.ellipse-node { fill: #007cbf; stroke: #ccc; stroke-width: 1.5; }
+    .node .ellipse-node + foreignObject div { color: #fff; }
+    .node rect { fill: #fff; stroke: #999; stroke-width: 1.5px; }
+    .node.highlight rect { fill: #ffeeba; stroke: #f0ad4e; }
+    .node.special-highlight rect { fill: #dd00ff; stroke: #9900cc; }
+    .node.special-highlight ellipse,
+    .node.special-highlight rect {stroke: #000000; stroke-width: 3; fill: #eb77fd;}
+    .link { stroke: #ccc; fill: none; stroke-width: 2px; }
+    .link.active { stroke: #f0ad4e; stroke-width: 3px; marker-end: url(#arrow-active); }
+    .link-label.active-label { fill: red; font-size: 14px; font-weight: bold; pointer-events: none;}
+
+    /* ✅ Styles for the main flowchart container to fit in the layout */
+    #main-flowchart-container {
+      flex-grow: 1;
+      position: relative;
+      background: #fdfdfd; 
+      display: none;
+      flex-direction: column; /* Arrange header and SVG vertically */
+      padding: 1rem; /* Give some spacing around the content */
+      box-sizing: border-box;
+    }
+
+    .flowchart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      flex-shrink: 0;
+    }
+
+    .flowchart-header h2 {
+      margin: 0; 
+      color: #333;
+    }
+
+    .school-select-container {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .school-select-container label {
+      margin: 0; 
+      font-weight: bold;
+    }
+
+    #mainFlowchartSchoolSelect {
+      margin-top: 6px !important;
+      margin-left: 0 !important;
+      width: auto !important;
+      min-width: 0 !important;
+    }
+
+    .sidebar-toggle-btn {
+      white-space: nowrap;
+    }
+
+    .flowchart-svg-container {
+      flex-grow: 1; /* Take up remaining space */
+      position: relative;
+      overflow: hidden;
+    }
+
+    #main-flowchart-svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Sidebar Footer */
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 10px; /* Halved padding */
+      text-align: center;
+      border-top: 1px solid #ddd;
+    }
+    .footer-text {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+    .footer-logos {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      gap: 20px;
+      margin-bottom: 12px;
+      min-height: 50px;
+    }
+    .client-logo {
+      height: 45px;
+      width: auto;
+    }
+    .pe-logo {
+      width: 70%; /* Control by width instead of height */
+      max-width: 200px; /* Set a max-width for very large screens */
+      height: auto;
+    }
+
+    /* ✅ Styles for map-overlay filter panel */
+    #filter-panel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      background: white;
+      border-radius: 4px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
+    #filter-panel summary {
+      padding: 10px 15px;
+      background-color: #fff;
+    }
+    #filter-panel-content {
+      padding: 0 15px 15px 15px;
+      width: 250px;
+    }
+    #filter-panel-content h3 {
+      font-size: 1em;
+      margin-top: 15px;
+      margin-bottom: 5px;
+    }
+    #filter-panel .nouislider-container {
+      margin-top: 10px;
+    }
+    /* Make noUiSlider match the theme */
+    #filter-panel .noUi-connect {
+        background: #007cbf;
+    }
+    #filter-panel .noUi-handle {
+        border-radius: 50%;
+        border: 1px solid #ccc;
+        box-shadow: none;
+    }
+    #filter-panel .noUi-handle:after, #filter-panel .noUi-handle:before {
+        display: none;
+    }
+    #filter-panel .toggle-buttons {
+      display: flex;
+      gap: 0;
+      border: 1px solid #007cbf;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 5px;
+    }
+    #filter-panel .toggle-buttons button {
+      flex-grow: 1;
+      margin: 0;
+      border: none;
+      background-color: #fff;
+      color: #007cbf;
+      border-radius: 0;
+    }
+    #filter-panel .toggle-buttons button.active {
+      background-color: #007cbf;
+      color: white;
+    }
+    
+    /* ✅ General toggle buttons styling for sidebar and other areas */
+    .toggle-buttons {
+      display: flex;
+      gap: 0;
+      border: 1px solid #007cbf;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 5px;
+    }
+    .toggle-buttons button {
+      flex-grow: 1;
+      margin: 0;
+      border: none;
+      background-color: #fff;
+      color: #007cbf;
+      border-radius: 0;
+      padding: 8px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.2s, color 0.2s;
+    }
+    .toggle-buttons button:hover {
+      background-color: #f0f8ff;
+    }
+    .toggle-buttons button.active {
+      background-color: #007cbf;
+      color: white;
+    }
+
+    /* Custom colors for Map/Flowchart toggle */
+    .toggle-buttons.map-flowchart-toggle {
+      border-color: #007cbf;
+    }
+    .toggle-buttons.map-flowchart-toggle button {
+      color: #007cbf;
+      background-color: #fff;
+      transition: background 0.2s, color 0.2s;
+    }
+    .toggle-buttons.map-flowchart-toggle button#toggleMapFlowchartMap,
+    .toggle-buttons.map-flowchart-toggle button#toggleMapFlowchartMap2 {
+      background-color: #fff5f5;
+      color: #c0392b;
+    }
+    .toggle-buttons.map-flowchart-toggle button#toggleMapFlowchartMap.active,
+    .toggle-buttons.map-flowchart-toggle button#toggleMapFlowchartMap2.active {
+      background-color: #fff5f5;
+      color: #c0392b;
+      font-weight: bold;
+    }
+    .toggle-buttons.map-flowchart-toggle button#toggleMapFlowchartFlowchart,
+    .toggle-buttons.map-flowchart-toggle button#toggleMapFlowchartFlowchart2 {
+      background-color: #fff;
+      color: #007cbf;
+    }
+    .toggle-buttons.map-flowchart-toggle button#toggleMapFlowchartFlowchart.active,
+    .toggle-buttons.map-flowchart-toggle button#toggleMapFlowchartFlowchart2.active {
+      background-color: #007cbf;
+      color: #fff;
+      font-weight: bold;
+    }
+    .toggle-buttons.map-flowchart-toggle button:hover {
+      filter: brightness(0.97);
+    }
+
+    /* Style for the "How to use" section */
+    .how-to-use-summary {
+      background-color: #004d40 !important; /* Dark Green */
+      color: white !important;
+    }
+    .how-to-use-summary:hover {
+      background-color: #0e6e34 !important;
+    }
+
+    /* Welcome Popup Styles */
+    .welcome-popup-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+    }
+
+    .welcome-popup {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      max-width: 500px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .welcome-popup h2 {
+      color: #0033A0;
+      margin-bottom: 20px;
+      font-size: 24px;
+    }
+
+    .welcome-popup p {
+      color: #333;
+      line-height: 1.6;
+      margin-bottom: 25px;
+      font-size: 16px;
+    }
+
+    .password-input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #ddd;
+      border-radius: 5px;
+      font-size: 16px;
+      margin-bottom: 15px;
+      text-align: center;
+      margin-left: -10px;
+    }
+
+    .password-input:focus {
+      outline: none;
+      border-color: #0033A0;
+    }
+
+    .enter-btn {
+      background-color: #0033A0;
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    .enter-btn:hover {
+      background-color: #002266;
+    }
+
+    .enter-btn:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+
+    .error-message {
+      color: #e74c3c;
+      font-size: 14px;
+      margin-top: 10px;
+      display: none;
+    }
+
+    /* Sidebar Toggle Button Group */
+    .sidebar-toggle-group {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1001;
+      display: flex;
+      gap: 2px;
+      background: white;
+      border-radius: 4px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      padding: 2px;
+    }
+
+    .sidebar-toggle-btn {
+      padding: 6px 12px;
+      font-size: 12px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      background-color: #f8f9fa;
+      color: #495057;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .sidebar-toggle-btn:hover {
+      background-color: #e9ecef;
+    }
+
+    .sidebar-toggle-btn.active {
+      background-color: #007cbf;
+      color: white;
+    }
+
+    /* Positioning for the map view toggle group */
+    #map-toggle-group {
+      position: fixed;
+      top: 10px;
+      right: 410px; /* Default for normal sidebar */
+      transition: right 0.3s ease-in-out;
+    }
+
+    #map-toggle-group.state-wide {
+      right: 810px;
+    }
+
+    #map-toggle-group.state-hidden {
+      right: 10px;
+    }
+
+    /* Styles from DecisionPanel.html */
+    .decision-panel-body { font-family: 'Franklin Gothic Book', 'Franklin Gothic', 'Arial Narrow', Arial, sans-serif; padding: 0; margin: 0; }
+    .decision-panel-body label { display: block; margin-top: 1rem; }
+    .decision-panel-body table { border-collapse: collapse; width: 100%; }
+    .decision-panel-body th, .decision-panel-body td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+    .decision-panel-body th { background-color: #f2f2f2; }
+    .decision-panel-body tr.ProgramInvestment { background-color: #d1f7e1; }
+    .decision-panel-body tr.BuildingInvestment { background-color: #d1e7f7; }
+    .decision-panel-body tr.BuildingProgramInvestment { background-color: #f7d1f1; }
+    .decision-panel-body tr.BuildingAddition { background-color: #f9f9d1; }
+    .decision-panel-body tr.Evaluation { background-color: #e6d1f7; }
+    .decision-panel-body tr.Unknown { background-color: #fdd; }
+    .decision-panel-body input[type=range] { width: 100%; }
+    .decision-panel-body #main { max-width: 1200px; margin: 0 auto; padding: 0; }
+    .decision-panel-body #container { display: flex; gap: 2rem; flex-wrap: wrap; }
+    .decision-panel-body #sliders { flex: 1; min-width: 300px; }
+    .decision-panel-body #summary { flex: 1; }
+    .decision-panel-body #results { margin-top: 1rem; }
+    .decision-panel-body tfoot tr th { font-weight: bold; background-color: #e8e8e8; }
+    .decision-panel-body details { margin-top: 1rem; border: 1px solid #ddd; border-radius: 4px; padding: 0; }
+    .decision-panel-body details summary { font-weight: bold; cursor: pointer; padding: 0.5rem; margin: 0; background-color: #f7f7f7; border-radius: 4px; }
+    .decision-panel-body details[open] > summary { border-bottom: 1px solid #ddd; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+    .decision-panel-body #summary table { margin-top: 0; border: none; }
+    .decision-panel-body #summary th { background-color: #f7f7f7; }
+    .decision-panel-body .summary-table-container { padding-left: 0 !important; padding-right: 0 !important; }
+    .truncate-cell { max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }
+    .truncate-cell:hover { overflow: visible; white-space: normal; height: auto; }
+    .truncate-cell:hover::after { content: attr(data-tooltip); position: absolute; left: 0; top: 100%; background-color: #333; color: white; padding: 5px; border-radius: 4px; z-index: 100; white-space: normal; width: max-content; max-width: 300px; }
+    /* .truncate-cell:hover::after { content: none !important; } */
+    .decision-panel-body th.sortable-header { cursor: pointer; position: relative; }
+    .decision-panel-body th.sortable-header:hover { background-color: #e2e2e2; }
+    .decision-panel-body th.sortable-header::after { content: ''; position: absolute; right: 8px; top: 50%; margin-top: -8px; border-left: 5px solid transparent; border-right: 5px solid transparent; }
+    .decision-panel-body th.sort-asc::after { border-bottom: 5px solid #666; }
+    .decision-panel-body th.sort-desc::after { border-top: 5px solid #666; }
+
+    /* Color-coding for related panels */
+    #decision-input-panel, #decision-output-panel {
+      border-left: 3px solid #b3c7ff; /* Lighter JeffCo Blue */
+    }
+    #decision-input-panel > summary, #decision-output-panel > summary {
+      background-color: #f0f4ff; /* Very Subtle JeffCo Blue */
+    }
+
+    #scenario-input-panel, #scenario-output-panel {
+      border-left: 3px solid #ffb3b3; /* Lighter JeffCo Red */
+    }
+    #scenario-input-panel > summary, #scenario-output-panel > summary {
+      background-color: #fff5f5; /* Very Subtle JeffCo Red */
+    }
+
+    /* Generic styles for all data tables */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .data-table th, .data-table td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    .data-table th {
+      background-color: #f2f2f2;
+    }
+    .data-table .text-center {
+      text-align: center;
+    }
+
+    /* Specific padding for the isochrone table to keep row height normal */
+    #isoTable td {
+      padding-top: 2px;
+      padding-bottom: 2px;
+    }
+
+    #summary table {
+      margin-top: 0;
+    }
+
+    .tooltip.draggable-tooltip {
+      cursor: grab;
+      z-index: 10000;
+    }
+
+    /* Make the summary a horizontal flex container */
+    .custom-summary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      position: relative;
+      list-style: none;
+      padding: 0.5em 0;
+    }
+
+    /* Add triangle arrow before text */
+    .custom-summary::before {
+      content: '▶';
+      transition: transform 0.2s ease;
+      font-size: 0.8em;
+      margin-right: 6px;
+    }
+
+    /* Rotate arrow when open */
+    details[open] > .custom-summary::before {
+      content: '▼';
+    }
+
+    /* Wrap the main header text */
+    .summary-text {
+      flex-grow: 1;
+      display: flex;
+      align-items: center;
+    }
+
+    /* Position help icon & tooltip to the far right */
+    .help-container {
+      position: relative;
+      display: flex;
+      align-items: center;
+      margin-left: auto;
+    }
+
+    /* Icon style */
+    .help-icon {
+      cursor: pointer;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    /* Tooltip style */
+    .tooltip {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      background: #fff;
+      color: #222;
+      border: 1px solid #007cbf;
+      border-radius: 6px;
+      padding: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      font-size: 14px;
+      width: 300px;
+      right: 0;
+      top: 28px;
+    }
+
+    .tooltip .close-tooltip-btn {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      background: none;
+      border: none;
+      color: #007cbf;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+    .tooltip .close-tooltip-btn:hover {
+      color: #e74c3c;
+    }
+
+    /* Highlight Choices.js group headers */
+    .choices__list--dropdown .choices__group {
+      background: #e0e0e0 !important;
+      border-radius: 3px;
+      margin: 0;
+      padding: 6px 12px;
+    }
+    .choices__list--dropdown .choices__heading {
+      color: #000 !important;
+      font-size: .9em !important;
+      font-weight: bold;
+    }
+    #flowchart-toggle-group .sidebar-toggle-btn {
+      font-size: 11px !important;
+      padding: 3px 8px !important;
+      min-width: 40px !important;
+      height: 22px !important;
+    }
+    #excludedSchools {
+      max-width: 220px;
+      width: 100%;
+      min-width: 120px;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Welcome Popup -->
+  <div id="welcomePopup" class="welcome-popup-overlay">
+    <div class="welcome-popup">
+      <h2>JeffCo Public Schools<br>Facility Planning Tool</h2>
+      <p>This tool is intended to support JeffCo facility planning initiatives. Users can explore conditions data and model school choice scenarios to better understand the potential impact of facility decisions.</p>
+      <input type="password" id="passwordInput" class="password-input" placeholder="Enter password" />
+      <button id="enterBtn" class="enter-btn">Enter</button>
+      <div id="errorMessage" class="error-message">Incorrect password. Please try again.</div>
+    </div>
+  </div>
+
+<div id="sidebar">
+  <details>
+    <summary class="how-to-use-summary"><strong>How to use the JeffCo Planning Tool</strong></summary>
+    <h3>JeffCo Facility Planning Dashboard</h3>
+    <p>This tool is intended to support JeffCo facility planning initiatives. Users can explore conditions data and model school choice scenarios to better understand the potential impact of facility decisions.</p>
+  </details>
+
+  
+  <script>
+  function switchControlIframe(url) {
+    document.getElementById('controlIframe').src = url;
+  }
+  </script>
+
+  <details id="decision-input-panel">
+      <summary class="custom-summary">
+  <span class="summary-text">
+        <strong>School Decision Evaluation</strong>
+        </span>
+          <span class = "help-container">
+          <span id = "decision-help-icon" class = "help-icon">
+            <svg width="18" height="18" viewBox="0 0 20 20"  xmlns="http://www.w3.org/2000/svg">
+              <circle cx="10" cy="10" r="10" fill="#007cbf"/>
+              <text x="10" y="15" text-anchor="middle" font-size="13" font-family="Franklin Gothic Book, Franklin Gothic, Arial Narrow, Arial, sans-serif" fill="white" font-weight="bold">?</text>
+            </svg>
+          </span>
+          <span id="decision-help-tooltip" class ="tooltip">
+            <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+            Use the sliders to adjust how schools are evaluated across multiple factors, which is reflected in <strong>School Decision Evaluation: Results</strong> on the right sidebar.<br>
+            The flowchart allows you to visualize the decision logic dynamically by school.<br><br>
+            <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
+              <li><strong>Enrollment</strong><br>
+                Minimum number of enrolled students</li>
+              <li><strong>Utilization</strong><br>
+              Sets the minimum percentage of a school's capacity that should be used before it's considered underutilized.</li>
+              <li><strong>High Utilization</strong><br>
+              Defines when a school is considered highly utilized or potentially overcrowded.</li>
+              <li><strong>Enrollment Growth</strong><br>
+              Minimum expected change in student enrollment (as a percentage).</li>
+              <li><strong>Projected Utilization</strong><br>
+              Target for future utilization based on projected enrollment.</li>
+              <li><strong>Distance to Underutilized Schools</strong><br>
+              Maximum distance to look for nearby underutilized schools for reassignment.</li>
+              <li><strong>Building Quality</strong><br>
+              Minimum required building condition score.</li>
+              <li><strong>Adequate Program Offer Minimum</strong><br>
+              Minimum number of programs (academic or extracurricular) a school should offer.</li>
+            </ul>
+          </span>
+        </span>
+      </span>
+    </summary>
+    <div id="decision-sliders" style="padding-top: 1rem;">
+      <label>Enrollment: <span id="enrollmentOut">200</span>
+        <input type="range" id="enrollmentSlider" min="0" max="500" step="10" value="200">
+      </label>
+      <label>Utilization: <span id="utilOut">65</span>%
+        <input type="range" id="utilSlider" min="0" max="100" step="1" value="65">
+      </label>
+      <label>High Utilization: <span id="utilHighOut">95</span>%
+        <input type="range" id="utilHighSlider" min="0" max="120" step="1" value="95">
+      </label>
+      <label>Enrollment Growth: <span id="growthOut">0</span>%
+        <input type="range" id="growthSlider" min="-50" max="50" step="1" value="0">
+      </label>
+      <label>Projected Utilization: <span id="projUtilOut">95</span>%
+        <input type="range" id="projUtilSlider" min="0" max="150" step="1" value="95">
+      </label>
+      <label>Distance to Underutilized Schools: <span id="distOut">1.0</span>
+        <input type="range" id="distSlider" min="0" max="5" step="0.1" value="1.0">
+      </label>
+      <label>Building Quality (Lower is better): <span id="buildOut">1.5</span>
+        <input type="range" id="buildSlider" min="0" max="3" step="0.1" value="1.5">
+      </label>
+      <label>Adequate Program Offer Minimum: <span id="progOut">2</span>
+        <input type="range" id="progSlider" min="0" max="10" step="1" value="2">
+      </label>
+    </div>
+  </details>
+
+  <details id="scenario-input-panel">
+      <summary class="custom-summary">
+  <span class="summary-text">
+        <strong>Scenario Modeling</strong>
+        </span>
+        <span class= "help-container">
+          <span id="scenario-help-icon" class= "help-icon">
+            <svg width="18" height="18" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" padding= 20px>
+              <circle cx="10" cy="10" r="10" fill="#007cbf"/>
+              <text x="10" y="15" text-anchor="middle" font-size="13" font-family="Franklin Gothic Book, Franklin Gothic, Arial Narrow, Arial, sans-serif" fill="white" font-weight="bold">?</text>
+            </svg>
+          </span>
+          <span id="scenario-help-tooltip" class = "tooltip";>
+            <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+            Use this section to test and evaluate the impact of different decision types. Adjust settings and run simulations to see scenario outcomes.
+          </span>
+        </span>
+      </summary>
+    <div class="details-content-wrapper" style="padding: 0.5rem;">
+      <h3>Filter by Decision Type</h3>
+      <select id="decisionFilter">
+        <option value="">-- All Decisions --</option>
+      </select>
+
+      <div id="scenarioOptionsContainer" style="display:none;">
+        <div id="ongoingMonitoringContainer" style="display:none; margin-bottom: 1em;">
+          <div id="ongoingMonitoringMessage" style="font-weight: bold; margin-bottom: 0.5em;"></div>
+          <ul id="ongoingMonitoringList" style="margin:0; padding-left: 1.2em;"></ul>
+        </div>
+      <h3>Select a School for Evaluation</h3>
+      <select id="schoolSelect">
+        <option value="">-- Select --</option>
+      </select>
+    </div>
+
+    <details open class="nested-details" id="assignmentModeDetails" style="display:none;">
+      <summary><strong>Assignment Mode</strong></summary>
+
+      <div id="modeToggle" style="padding-top: 10px;">
+        <div class="toggle-buttons">
+          <button id="manualBtn" class="active">Manual Entry</button>
+          <button id="modelBtn">Model Simulation</button>
+        </div>
+      </div>
+
+      <!-- Manual Entry View -->
+      <div id="manualView">
+        <h3>Select Distance for Analysis</h3>
+        <select id="isoDistance">
+          <option value="2413">1.5 miles</option>
+          <option value="1609">1 mile</option>
+          <option value="804">0.5 mile</option>
+        </select>
+
+        <h3>Schools within Selected Distance</h3>
+        <table id="isoTable" class="data-table">
+          <thead>
+            <tr>
+              <th>School Name</th>
+              <th class="text-center">% Assigned</th>
+              <th class="text-center"># Assigned</th>
+              <th class="text-center">Available Seats</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <!-- Model Simulation View -->
+      <div id="modelView" style="display: none;">
+        <h4>Rate the importance of each factor (0 = not important, 10 = very important)</h4>
+        
+        <div class="slider-container">
+          <label for="distanceWeightSlider">Distance Weighting <span id="distanceWeightLabel">5</span></label>
+          <input type="range" id="distanceWeightSlider" min="0" max="10" value="5" />
+        </div>
+
+        <div class="slider-container">
+          <label for="enrollmentWeightSlider">Enrollment Demand<span id="enrollmentWeightLabel">5</span></label>
+          <input type="range" id="enrollmentWeightSlider" min="0" max="10" value="5" />
+        </div>
+
+        <div class="slider-container">
+          <label for="buildingWeightSlider">Building Quality<span id="buildingWeightLabel">5</span></label>
+          <input type="range" id="buildingWeightSlider" min="0" max="10" value="5" />
+        </div>
+        
+        <div class="slider-container">
+          <label for="scorecardWeightSlider">Scorecard Weighting<span id="scorecardWeightLabel">5</span></label>
+          <input type="range" id="scorecardWeightSlider" min="0" max="10" value="5" />
+        </div>
+
+          <h3>Exclude Schools from Assignment</h3>
+          <select id="excludedSchools" multiple style="height: 100px;">
+            <!-- Options will be dynamically added -->
+          </select>
+
+        <br /><br />
+        <button id="assignButton" onclick="console.log('🔘 Assign button clicked via inline handler!')">Assign Students</button>
+      </div>
+    </details>
+  </div>
+  </details>
+
+  <div class="sidebar-footer">
+    <p class="footer-text">Developed by</p>
+    <div class="footer-logos">
+      <img src="client-logo.png" alt="Client Logo" class="client-logo">
+      <img src="PerkinsEastmanLogo.svg" alt="Perkins Eastman Logo" class="pe-logo">
+    </div>
+    <p class="footer-text">School Facility Planning Webtool</p>
+  </div>
+</div>
+
+<div id="container">
+  
+  <div id="map-container">
+    <div id="map"></div>
+
+    <!-- Start Tour Button -->
+    <button id="startTourBtn" class="tour-btn" style="position: absolute; top: 50px; right: 16px; z-index: 1200; background: #FFD600; color: #222; font-weight: bold; border: none; border-radius: 6px; padding: 8px 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.12); cursor: pointer;">Start Tour</button>
+
+     <div id="map-legend" class="legend">
+      <h4>Legend</h4>
+      <div id="legend-content"></div>
+    </div>
+    
+    <!-- Decisions/Assignments Toggle positioned below legend -->
+    <div class="toggle-buttons" style="position: absolute; bottom: 20px; left: 20px; z-index: 999; align-items: center; gap: 8px;">
+      <button id="toggleViewDecisions" class="active">Show Decisions</button>
+      <button id="toggleViewAssignments">Show Assignments</button>
+    </div>
+    <span style="position: absolute; bottom: 25px; left: 290px; z-index: 1000; display: flex; align-items: center;">
+      <span id="map-toggle-help-icon" class="help-icon" style="cursor:pointer;display:inline-block;vertical-align:middle;">
+        <svg width="18" height="18" viewBox="0 0 20 20" style="border-radius:50%;background:#007cbf;" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="10" cy="10" r="10" fill="#007cbf"/>
+          <text x="10" y="15" text-anchor="middle" font-size="13" font-family="Franklin Gothic Book, Franklin Gothic, Arial Narrow, Arial, sans-serif" fill="white" font-weight="bold">?</text>
+        </svg>
+      </span>
+      <span id="map-toggle-help-tooltip" style="display:none;position:absolute;z-index:1000;background:#fff;color:#222;border:1px solid #007cbf;border-radius:6px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:14px;width:300px;left:37px;bottom:10px;">
+        <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+        Show Decisions / Show Assignments:<br>
+        Toggle between viewing the current decision type for each school (color-coded) and the results of student assignment simulations. "Show Decisions" displays the recommended action for each school, while "Show Assignments" highlights schools that receive new students in your scenario.
+      </span>
+    </span>
+   
+    <details id="filter-panel">
+        <summary><strong>Map Filters</strong></summary>
+        <div id="filter-panel-content">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <h3>School Type</h3>
+              <button id="unselectAllSchoolsBtn" style="font-size: 11px; padding: 2px 5px; margin: 0; border-radius: 3px; cursor: pointer;">Unselect All</button>
+            </div>
+            <select id="schoolTypeFilter" multiple size="4">
+                <option value="Elementary and K-8 Schools">ES & K8</option>
+                <option value="Middle School">MS</option>
+                <option value="High School">HS</option>
+                <option value="Early Childhood Program">ECP</option>
+            </select>
+
+            <h3>Enrollment Range</h3>
+            <div id="enrollmentRangeSlider"></div>
+            <div>Min: <span id="minEnrollDisplay">0</span> – Max: <span id="maxEnrollDisplay">2000</span></div>
+
+            <h3>Available Seats</h3>
+            <div id="seatsRangeSlider"></div>
+            <div>Min: <span id="minSeatsDisplay">0</span> – Max: <span id="maxSeatsDisplay">500</span></div>
+
+            <h3>Show Size by Seats</h3>
+            <div class="toggle-buttons">
+                <button id="toggleYes">Yes</button>
+                <button id="toggleNo" class="active">No</button>
+            </div>
+        </div>
+    </details>
+
+    <!-- Right Sidebar -->
+    <div class="sidebar-toggle-group" id="map-toggle-group">
+      <button id="sidebar-wide-btn" class="sidebar-toggle-btn">Wide</button>
+      <button id="sidebar-normal-btn" class="sidebar-toggle-btn active">Normal</button>
+      <button id="sidebar-hidden-btn" class="sidebar-toggle-btn">Hidden</button>
+    </div>
+    
+    <!-- Map/Flowchart Toggle for Map View -->
+    <div class="toggle-buttons map-flowchart-toggle" style="position: absolute; bottom: 20px; right: 20px; z-index: 999;">
+      <button id="toggleMapFlowchartMap" class="active">Show Map</button>
+      <button id="toggleMapFlowchartFlowchart">Show Flowchart</button>
+    </div>
+  </div>
+
+  <!-- 👇 Flowchart Container - Centered with Flexbox -->
+  <div id="main-flowchart-container">
+      <div class="flowchart-header">
+        <div class="school-select-container" style="display: flex; align-items: center; gap: 8px;">
+          <label for="mainFlowchartSchoolSelect" style="display:block;">Select<br>School:</label>
+          <select id="mainFlowchartSchoolSelect">
+            <option value="">-- Select School --</option>
+          </select>
+             <span style="position: relative; display: flex; align-items: center;">
+            <span id="flowchart-help-icon" style="display:inline-block;vertical-align:middle;cursor:pointer;">
+              <svg width="18" height="18" viewBox="0 0 20 20" style="border-radius:50%;background:#007cbf;" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="10" cy="10" r="10" fill="#007cbf"/>
+                <text x="10" y="15" text-anchor="middle" font-size="13" font-family="Franklin Gothic Book, Franklin Gothic, Arial Narrow, Arial, sans-serif" fill="white" font-weight="bold">?</text>
+              </svg>
+            </span>
+            <span id="flowchart-help-tooltip" style="display:none;position:absolute;z-index:1000;background:#fff;color:#222;border:1px solid #007cbf;border-radius:6px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:14px;width:300px;right:0;top:28px;">
+              <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+              Select a school to view its decision flowchart. The flowchart visualizes how the evaluation criteria lead to the recommended action for the selected school.
+            </span>
+          </span>
+        </div>
+        <div class="sidebar-toggle-group" id="flowchart-toggle-group" style="margin-top: 15px;">
+          <button id="flowchart-sidebar-wide-btn" class="sidebar-toggle-btn">Wide</button>
+          <button id="flowchart-sidebar-normal-btn" class="sidebar-toggle-btn active">Normal</button>
+          <button id="flowchart-sidebar-hidden-btn" class="sidebar-toggle-btn">Hidden</button>
+        </div>
+      </div>
+      
+      <div class="flowchart-svg-container">
+        <svg id="main-flowchart-svg"></svg>
+      </div>
+      
+      <!-- Map/Flowchart Toggle for Flowchart View -->
+      <div class="toggle-buttons map-flowchart-toggle" style="position: absolute; bottom: 20px; right: 20px; z-index: 999;">
+        <button id="toggleMapFlowchartMap2">Show Map</button>
+        <button id="toggleMapFlowchartFlowchart2" class="active">Show Flowchart</button>
+      </div>
+  </div>
+
+  <div id="map-sidebar">
+    <div style="padding: 0.5rem; display: flex; flex-direction: column; flex-grow: 1;">
+      <details>
+        <summary class="how-to-use-summary"><strong>How to interpret the outcomes</strong></summary>
+        <div style="padding: 0.5rem;">
+          <h3>School & Student Decisions</h3>
+          <p>In this section you see the results of your choices. It has two key functions:</p>
+          <ul style="margin-top:0.5em; margin-bottom:0.5em;">
+            <li><strong>Evaluation Results:</strong> When you adjust the evaluation sliders on the left (like utilization or building condition), this section instantly updates to show recommended actions for each school—both in summary and detailed views.</li>
+            <li><strong>Scenario Impact Analysis:</strong> After running a simulation (like closing a school), this section displays the effects—such as where students will go, how enrollment shifts, and how travel distances change.</li>
+          </ul>
+        </div>
+      </details>
+
+      <!-- Content from DecisionPanel.html -->
+      <div id="decision-panel-content" class="decision-panel-body">
+        <div id="main">
+          <details id="decision-output-panel">
+
+        <summary class="custom-summary">
+        <span class="summary-text">
+           <strong>School Decision Evaluation: Results</strong>
+         </span>
+         <span class="help-container">
+         <span id="decision-results-help-icon" class="help-icon">
+           <svg width="18" height="18" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="10" cy="10" r="10" fill="#007cbf"/>
+        <text x="10" y="15" text-anchor="middle" font-size="13" font-family="Franklin Gothic Book, Franklin Gothic, Arial Narrow, Arial, sans-serif" fill="white" font-weight="bold">?</text>
+           </svg>
+        </span>
+       <span id="decision-results-help-tooltip" class="tooltip" style="display:none;">
+         <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+         This section shows the results of the school decision evaluation based on your selected criteria.
+        </span>
+         </span>
+        </summary>
+
+            <div class="details-content-wrapper" style="padding: 0.5rem;">
+              <div style="position: relative; min-height: 40px;">
+                <details id="summary-table-details">
+                  <summary class="custom-summary" style="display: flex; align-items: center;"><strong>Summary Table</strong></summary>
+                  <div class="details-content-wrapper" style="padding: 0.5rem;">
+                    <div id="summary" style="padding: 0;"></div>
+                  </div>
+                </details>
+                <span id="summary-table-help-icon" class="help-icon" style="position: absolute; top: 10px; right: 10px; cursor:pointer; display:inline-block; vertical-align:middle; z-index: 1001;">
+                  <svg width="16" height="16" viewBox="0 0 20 20" style="border-radius:50%;background:#007cbf;" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="10" cy="10" r="10" fill="#007cbf"/>
+                    <text x="10" y="15" text-anchor="middle" font-size="11" font-family="Franklin Gothic Book, Franklin Gothic, Arial Narrow, Arial, sans-serif" fill="white" font-weight="bold">?</text>
+                  </svg>
+                </span>
+                <span id="summary-table-help-tooltip" style="display:none;position:absolute;z-index:1000;background:#fff;color:#222;border:1px solid #007cbf;border-radius:6px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:13px;width:240px;right:10px;top:30px;" onclick="event.stopPropagation();">
+                  <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+                  This table provides a summary of recommended actions for all schools based on your selected evaluation criteria.
+                </span>
+              </div>
+              <div style="position: relative; min-height: 40px;">
+                <details id="decision-by-school-details">
+                  <summary class="custom-summary" style="display: flex; align-items: center;"><strong>Decision by School</strong></summary>
+                  <div class="details-content-wrapper" style="padding: 0.5rem;">
+                    <div id="results" style="padding: 0;"></div>
+                  </div>
+                </details>
+                <span id="decision-by-school-help-icon" class="help-icon" style="position: absolute; top: 10px; right: 10px; cursor:pointer; display:inline-block; vertical-align:middle; z-index: 1001;">
+                  <svg width="16" height="16" viewBox="0 0 20 20" style="border-radius:50%;background:#007cbf;" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="10" cy="10" r="10" fill="#007cbf"/>
+                    <text x="10" y="15" text-anchor="middle" font-size="11" font-family="Franklin Gothic Book, Franklin Gothic, Arial Narrow, Arial, sans-serif" fill="white" font-weight="bold">?</text>
+                  </svg>
+                </span>
+                <span id="decision-by-school-help-tooltip" style="display:none;position:absolute;z-index:1000;background:#fff;color:#222;border:1px solid #007cbf;border-radius:6px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:13px;width:240px;right:10px;top:30px;" onclick="event.stopPropagation();">
+                  <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+                  This table lists the recommended action for each individual school, allowing you to review and compare decisions at the school level.
+                </span>
+              </div>
+            </div>
+          </details>
+          <details id="scenario-output-panel">
+                   <summary class="custom-summary">
+  <span class="summary-text">
+              <span style="display: flex; align-items: center; gap: 8px; width: 100%; justify-content: space-between;">
+                <strong>Model Output: Impact Analysis</strong>
+                <span style="position: relative; display: flex; align-items: center;">
+                  <span id="model-output-help-icon" style="display:inline-block;vertical-align:middle;cursor:pointer;">
+                    <svg width="18" height="18" viewBox="0 0 20 20" style="border-radius:50%;background:#007cbf;" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="10" cy="10" r="10" fill="#007cbf"/>
+                      <text x="10" y="15" text-anchor="middle" font-size="13" font-family="Franklin Gothic Book, Franklin Gothic, Arial Narrow, Arial, sans-serif" fill="white" font-weight="bold">?</text>
+                    </svg>
+                  </span>
+                  <span id="model-output-help-tooltip" style="display:none;position:absolute;z-index:1000;background:#fff;color:#222;border:1px solid #007cbf;border-radius:6px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:14px;width:300px;right:0;top:28px;">
+                    <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+                    This section displays the impact analysis of your scenario, including enrollment, utilization, and travel distance changes.
+                  </span>
+                </span>
+              </span>
+            </summary>
+            <div class="details-content-wrapper" style="padding: 1rem;">
+                <h3>Enrollment and Utilization Impact</h3>
+                <div id="enrollmentChartPlaceholder" style="text-align:center; color:#888; margin-bottom:8px;">Run student assignments to see data.</div>
+                <canvas id="assignmentChart" width="100%" height="180"></canvas>
+                <h3>Travel Distance Impact</h3>
+                <div id="distanceChartPlaceholder" style="text-align:center; color:#888; margin-bottom:8px;">Run student assignments to see data.</div>
+                <canvas id="distanceCompareChart" width="100%" height="50"></canvas>
+                <div id="assignmentSummary" style="margin-top: 10px;"></div>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div> <!-- end of style="padding:10px;" -->
+  </div> <!-- end of #map-sidebar -->
+
+</div> <!-- end of #container -->
+
+<!-- Student Assignment Count Popup (overlay) -->
+<div id="assignmentProgress" style="
+  display: none;
+  position: fixed;
+  top: 20%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,0.85);
+  color: white;
+  padding: 40px 60px;
+  border-radius: 12px;
+  font-size: 32px;
+  font-weight: bold;
+  z-index: 2001;
+  text-align: center;
+  box-shadow: 0 0 20px rgba(0,0,0,0.6);
+">
+  Running Student Assignment Scenarios<br/>
+  <span id="assignedCount" style="font-size: 48px; display: block; margin-top: 12px;">0</span>
+  <button id="cancelAssignment" style="
+    margin-top: 20px;
+    padding: 10px 20px;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    cursor: pointer;
+  ">Cancel Assignment</button>
+</div>
+
+<!-- Outside: Loading Modal -->
+<div id="loadingModal">Please wait, assignment algorithm is running...</div>
+
+<!-- Scripts -->
+<!-- The script tags have been moved to the <head> for better dependency management -->
+
+<!-- Assignment Results Modal -->
+<div id="assignmentResultsModal" style="display:none; position:fixed; top:20%; left:50%; transform:translate(-50%,0); background:white; border:2px solid #333; padding:30px; z-index:2000; min-width:350px; box-shadow:0 4px 24px rgba(0,0,0,0.2);">
+  <div id="assignmentResultsContent"></div>
+  <button onclick="document.getElementById('assignmentResultsModal').style.display='none'" style="margin-top:20px; padding:8px 18px; background:#007cbf; color:white; border:none; border-radius:4px;">Close</button>
+</div>
+<!-- End Assignment Results Modal -->
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var helpIcon = document.getElementById('decision-help-icon');
+  var helpTooltip = document.getElementById('decision-help-tooltip');
+  if (helpIcon && helpTooltip) {
+    helpTooltip.classList.add('draggable-tooltip');
+    helpIcon.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (helpTooltip.style.display === 'none' || helpTooltip.style.display === '') {
+        // Position the tooltip near the help icon
+        const iconRect = helpIcon.getBoundingClientRect();
+        helpTooltip.style.left = (iconRect.right + 10) + 'px';
+        helpTooltip.style.top = (iconRect.top - 10) + 'px';
+        helpTooltip.style.right = 'auto';
+        helpTooltip.style.display = 'block';
+      } else {
+        helpTooltip.style.display = 'none';
+      }
+    });
+    document.addEventListener('click', function(e) {
+      if (helpTooltip.style.display === 'block' && !helpTooltip.contains(e.target) && e.target !== helpIcon) {
+        helpTooltip.style.display = 'none';
+      }
+    });
+    // --- DRAGGABLE LOGIC ---
+    let isMouseDown = false, offset = [0, 0];
+    helpTooltip.addEventListener('mousedown', function(e) {
+      isMouseDown = true;
+      offset = [
+        helpTooltip.offsetLeft - e.clientX,
+        helpTooltip.offsetTop - e.clientY
+      ];
+      helpTooltip.style.cursor = 'move';
+      e.preventDefault();
+    }, true);
+    document.addEventListener('mouseup', function() {
+      isMouseDown = false;
+      helpTooltip.style.cursor = '';
+    }, true);
+    document.addEventListener('mousemove', function(e) {
+      if (!isMouseDown) return;
+      helpTooltip.style.left = (e.clientX + offset[0]) + 'px';
+      helpTooltip.style.top = (e.clientY + offset[1]) + 'px';
+      helpTooltip.style.right = 'auto';
+    }, true);
+  }
+   // Scenario Modeling help icon logic
+  var scenarioHelpIcon = document.getElementById('scenario-help-icon');
+  var scenarioHelpTooltip = document.getElementById('scenario-help-tooltip');
+  if (scenarioHelpIcon && scenarioHelpTooltip) {
+    scenarioHelpTooltip.classList.add('draggable-tooltip');
+    scenarioHelpIcon.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (scenarioHelpTooltip.style.display === 'none' || scenarioHelpTooltip.style.display === '') {
+        // Position the tooltip near the help icon
+        const iconRect = scenarioHelpIcon.getBoundingClientRect();
+        scenarioHelpTooltip.style.left = (iconRect.right + 10) + 'px';
+        scenarioHelpTooltip.style.top = (iconRect.top - 10) + 'px';
+        scenarioHelpTooltip.style.right = 'auto';
+        scenarioHelpTooltip.style.display = 'block';
+      } else {
+        scenarioHelpTooltip.style.display = 'none';
+      }
+    });
+    document.addEventListener('click', function(e) {
+      if (scenarioHelpTooltip.style.display === 'block' && !scenarioHelpTooltip.contains(e.target) && e.target !== scenarioHelpIcon) {
+        scenarioHelpTooltip.style.display = 'none';
+      }
+    });
+    // --- DRAGGABLE LOGIC ---
+    let isMouseDown2 = false, offset2 = [0, 0];
+    scenarioHelpTooltip.addEventListener('mousedown', function(e) {
+      isMouseDown2 = true;
+      offset2 = [
+        scenarioHelpTooltip.offsetLeft - e.clientX,
+        scenarioHelpTooltip.offsetTop - e.clientY
+      ];
+      scenarioHelpTooltip.style.cursor = 'move';
+      e.preventDefault();
+    }, true);
+    document.addEventListener('mouseup', function() {
+      isMouseDown2 = false;
+      scenarioHelpTooltip.style.cursor = '';
+    }, true);
+    document.addEventListener('mousemove', function(e) {
+      if (!isMouseDown2) return;
+      scenarioHelpTooltip.style.left = (e.clientX + offset2[0]) + 'px';
+      scenarioHelpTooltip.style.top = (e.clientY + offset2[1]) + 'px';
+      scenarioHelpTooltip.style.right = 'auto';
+    }, true);
+  }
+  // Decision Results help icon logic
+  var decisionResultsHelpIcon = document.getElementById('decision-results-help-icon');
+  var decisionResultsHelpTooltip = document.getElementById('decision-results-help-tooltip');
+  if (decisionResultsHelpIcon && decisionResultsHelpTooltip) {
+    decisionResultsHelpIcon.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (decisionResultsHelpTooltip.style.display === 'none' || decisionResultsHelpTooltip.style.display === '') {
+        decisionResultsHelpTooltip.style.display = 'block';
+      } else {
+        decisionResultsHelpTooltip.style.display = 'none';
+      }
+    });
+    document.addEventListener('click', function(e) {
+      if (decisionResultsHelpTooltip.style.display === 'block' && !decisionResultsHelpTooltip.contains(e.target) && e.target !== decisionResultsHelpIcon) {
+        decisionResultsHelpTooltip.style.display = 'none';
+      }
+    });
+  }
+  // Model Output help icon logic
+  var modelOutputHelpIcon = document.getElementById('model-output-help-icon');
+  var modelOutputHelpTooltip = document.getElementById('model-output-help-tooltip');
+  if (modelOutputHelpIcon && modelOutputHelpTooltip) {
+    modelOutputHelpIcon.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (modelOutputHelpTooltip.style.display === 'none' || modelOutputHelpTooltip.style.display === '') {
+        modelOutputHelpTooltip.style.display = 'block';
+      } else {
+        modelOutputHelpTooltip.style.display = 'none';
+      }
+    });
+    document.addEventListener('click', function(e) {
+      if (modelOutputHelpTooltip.style.display === 'block' && !modelOutputHelpTooltip.contains(e.target) && e.target !== modelOutputHelpIcon) {
+        modelOutputHelpTooltip.style.display = 'none';
+      }
+    });
+  }
+  // Flowchart help icon logicp
+  var flowchartHelpIcon = document.getElementById('flowchart-help-icon');
+  var flowchartHelpTooltip = document.getElementById('flowchart-help-tooltip');
+  if (flowchartHelpIcon && flowchartHelpTooltip) {
+    flowchartHelpIcon.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (flowchartHelpTooltip.style.display === 'none' || flowchartHelpTooltip.style.display === '') {
+        flowchartHelpTooltip.style.display = 'block';
+      } else {
+        flowchartHelpTooltip.style.display = 'none';
+      }
+    });
+    document.addEventListener('click', function(e) {
+      if (flowchartHelpTooltip.style.display === 'block' && !flowchartHelpTooltip.contains(e.target) && e.target !== flowchartHelpIcon) {
+        flowchartHelpTooltip.style.display = 'none';
+      }
+    });
+  }
+  // Make all question mark tooltips draggable
+  function makeTooltipDraggable(tooltip) {
+    if (!tooltip) return;
+    tooltip.classList.add('draggable-tooltip');
+    let isMouseDown = false, offset = [0, 0];
+    tooltip.addEventListener('mousedown', function(e) {
+      isMouseDown = true;
+      offset = [
+        tooltip.offsetLeft - e.clientX,
+        tooltip.offsetTop - e.clientY
+      ];
+      tooltip.style.cursor = 'move';
+      e.preventDefault();
+    }, true);
+    document.addEventListener('mouseup', function() {
+      isMouseDown = false;
+      tooltip.style.cursor = '';
+    }, true);
+    document.addEventListener('mousemove', function(e) {
+      if (!isMouseDown) return;
+      tooltip.style.left = (e.clientX + offset[0]) + 'px';
+      tooltip.style.top = (e.clientY + offset[1]) + 'px';
+      tooltip.style.right = 'auto';
+    }, true);
+  }
+  // Find all tooltips and make them draggable
+  setTimeout(() => {
+    // By class 'tooltip'
+    document.querySelectorAll('.tooltip').forEach(makeTooltipDraggable);
+    // By style (for those not using class)
+    document.querySelectorAll('span,div').forEach(el => {
+      const style = el.getAttribute('style') || '';
+      if (style.includes('position:absolute') && style.includes('z-index:1000')) {
+        makeTooltipDraggable(el);
+      }
+    });
+  }, 500);
+});
+</script>
+
+<!-- === GLOBAL HELP TOOLTIPS (moved out of details/summary for independence) === -->
+<span id="decision-help-tooltip" class="tooltip" style="display:none;">
+  <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+  School Decision Evaluation: Results<br>
+  The sliders below adjust how schools are evaluated across multiple factors, which is reflected in <strong>School Decision Evaluation: Results</strong> on the right side of the screen.<br>
+  The flowchart allows you to explore the decision logic dynamically by school.<br><br>
+  <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
+    <li><strong>Utilization</strong><br>
+    Sets the minimum percentage of a school's capacity that should be used before it's considered underutilized.</li>
+    <li><strong>High Utilization</strong><br>
+    Defines when a school is considered highly utilized or potentially overcrowded.</li>
+    <li><strong>Enrollment Growth</strong><br>
+    Minimum expected change in student enrollment (as a percentage).</li>
+    <li><strong>Projected Utilization</strong><br>
+    Target for future utilization based on projected enrollment.</li>
+    <li><strong>Distance to Underutilized Schools</strong><br>
+    Maximum distance to look for nearby underutilized schools for reassignment.</li>
+    <li><strong>Building Quality Score</strong><br>
+    Minimum required building condition score.</li>
+    <li><strong>Adequate Program Offer Minimum</strong><br>
+    Minimum number of programs (academic or extracurricular) a school should offer.</li>
+  </ul>
+</span>
+<span id="scenario-help-tooltip" class="tooltip" style="display:none;">
+  <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+  Use this section to test and evaluate the impact of portfolio decisions. Adjust settings and run simulations to see scenario outcomes.
+</span>
+<span id="decision-results-help-tooltip" class="tooltip" style="display:none;">
+  <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+  This section shows the results of the school decision evaluation based on your selected criteria.
+</span>
+<span id="model-output-help-tooltip" class="tooltip" style="display:none;">
+  <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+  This section displays the impact analysis of your scenario, including enrollment, utilization, and travel distance changes.
+</span>
+<span id="flowchart-help-tooltip" class="tooltip" style="display:none;">
+  <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
+  Select a school to view its decision flowchart. The flowchart visualizes how the evaluation criteria lead to the recommended action for the selected school.
+</span>
+</body>
+</html>
