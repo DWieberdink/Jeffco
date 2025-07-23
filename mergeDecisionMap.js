@@ -1,31 +1,7 @@
 let mapExportLookup = {}; // 📦 global lookup
 let pendingSchoolData = null; // 💾 waiting schoolData if CSV loads late
 
-// 📦 Load static Map_Export.csv
-document.addEventListener("DOMContentLoaded", () => {
-  Papa.parse("Map_Export.csv", {
-    download: true,
-    header: true,
-    skipEmptyLines: true,
-    complete: function (csvResult) {
-      csvResult.data.forEach(row => {
-        const buildingName = row["Building Name"]?.trim();
-        const schoolLevel = row["School Level"]?.trim();
-        if (buildingName) {
-          mapExportLookup[buildingName] = schoolLevel || "Unknown";
-        }
-      });
-      console.log("✅ Finished loading Map_Export.csv!");
-
-      if (pendingSchoolData) {
-        console.log("📦 Processing pending schoolData...");
-        startMerging(pendingSchoolData);
-        pendingSchoolData = null;
-      }
-    },
-    error: err => console.error("❌ Error loading Map_Export.csv:", err)
-  });
-});
+// Map_Export.csv references removed
 
 // 🔵 Listen for live updates (from iframe/postMessage)
 window.addEventListener("message", (event) => {

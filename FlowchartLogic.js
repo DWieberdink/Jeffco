@@ -652,7 +652,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // Add this utility to get enrollment from Map_Export.csv
 function loadMapExportData(callback) {
   if (mapExportData) { callback && callback(); return; }
-  Papa.parse("https://raw.githubusercontent.com/DWieberdink/JeffCo/main/Map_Export.csv", {
+  Papa.parse("https://raw.githubusercontent.com/DWieberdink/Jeffco/main/Map_Export.csv", {
     download: true,
     header: true,
     skipEmptyLines: true,
