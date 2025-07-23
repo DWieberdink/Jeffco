@@ -302,9 +302,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 const map = new mapboxgl.Map({
   container: 'map',
-  style: 'mapbox://styles/mapbox/light-v11',
-  center: [-72.9279, 41.3083], // New Haven, CT
-  zoom: 12
+  style: 'mapbox://styles/mapbox/light-v11'
+  // center and zoom will be set dynamically after loading GeoJSON
 });
 
 let geojsonData;
@@ -478,6 +477,28 @@ map.on('load', () => {
         type: 'geojson',
         data: geojsonData
       });
+
+      // Fit map to the extent of the loaded GeoJSON
+      if (geojsonData.features && geojsonData.features.length > 0) {
+        const coordinates = geojsonData.features
+          .filter(f => f.geometry && f.geometry.coordinates) // Only features with valid geometry
+          .map(f => f.geometry.coordinates);
+        console.log("🔍 Found coordinates:", coordinates.length);
+        if (coordinates.length > 0) {
+          const lats = coordinates.map(c => c[1]);
+          const lngs = coordinates.map(c => c[0]);
+          const bounds = [
+            [Math.min(...lngs), Math.min(...lats)],
+            [Math.max(...lngs), Math.max(...lats)]
+          ];
+          console.log("🗺️ Calculated bounds:", bounds);
+          // Add a small delay to ensure map is ready
+          setTimeout(() => {
+            map.fitBounds(bounds, { padding: 40 });
+            console.log("✅ Map should now be focused on Jeffco area");
+          }, 100);
+        }
+      }
 
       // Add a source and layer for the selected school's "halo" highlight
       map.addSource('selected-school', {
@@ -891,11 +912,7 @@ map.on('load', () => {
   mapContainer.style.flexBasis = `calc(100% - ${sidebarWidth}px)`;
   map.resize();
 
-  setTimeout(() => {
-    requestAnimationFrame(() => {
-      map.setCenter([-72.9279, 41.3083]);
-    });
-  }, 300);
+  // Removed hardcoded New Haven center - map will be set by fitBounds
 
   // --- IFRAME COMMUNICATION ---
   // The iframe has been removed. All communication is now direct function calls.

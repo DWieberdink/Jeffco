@@ -1,41 +1,168 @@
-Building Name,Capacity,Enrollment,Available Seats,Utilization,2014-2024_EnrollmentGrowth,ExpectedUtilization10yrs,DistanceUnderutilizedschools,BuildingTreshhold,AdequateProgramOffer,SiteCapacity,Scorecard,SquareFt,Enrollment,2014Enrollment,BuildingScore,School Level
-John S. Martinez Sea & Sky STEM Magnet School,540,486,54,0.9,-0.043307087,0.82962963,0.69,1.87202381,5,No,3,101529,486,508,1.87202381,Elementary and K-8 Schools
-Wilbur Cross High School,1784.15,1742,42.15,0.98,0.279001468,0.700053247,4.19,1.866071429,7,Yes,3,258300,1742,1362,1.866071429,High School
-New Haven Academy Magnet,481.95,321,160.95,0.67,0.215909091,0.524950721,0.49,1.089285714,2,No,3,67100,321,264,1.089285714,High School
-James Hillhouse High School,1615,1124,491,0.7,0.081809432,0.577708978,1.24,2.074404762,8,No,5,216000,1124,1039,2.074404762,High School
-Engineering & Science University Magnet School,616,608,8,1.32,0.064798599,0.441558442,0.5,0.916666667,5,No,3,109186,608,571,0.916666667,High School
-Davis Academy for Arts & Design Innovation,540,489,51,0.91,0.060737527,0.951851852,0.74,1.580357143,5,Yes,3,77240,489,461,1.580357143,Elementary and K-8 Schools
-John C. Daniels School of International Communication,560,522,38,0.93,0,0.878571429,0.47,1.758928571,4,Yes,3,90700,522,522,1.758928571,Elementary and K-8 Schools
-Family Academy of Multilingual Exploration,572,441,131,0.77,-0.022172949,0.863636364,0.43,1.803571429,4,Yes,3,74600,441,451,1.803571429,Elementary and K-8 Schools
-Sound School,619.65,322,297.65,0.51,-0.024242424,0.450254176,3.5,2.066666667,1,0,3,63541,322,330,2.066666667,Sounds School
-Metropolitan Business Academy,619.65,380,239.65,0.61,-0.028132992,0.476075204,0.16,1.25,3,No,4,78768,380,391,1.25,High School
-Worthington Hooker School (3-8),324,278,46,0.44,-0.04137931,0.811728395,0.73,1.654761905,5,No,2,61003,278,290,1.654761905,Elementary and K-8 Schools
-Truman School,655,460,195,0.7,-0.047619048,0.732824427,0.53,1.800595238,4,No,3,101700,460,483,1.800595238,Elementary and K-8 Schools
-Worthington Hooker School (K-2),156,142,14,1.78,-0.059602649,0.826923077,0.47,1.5,2,No,2,24000,142,151,1.5,Elementary and K-8 Schools
-Benjamin Jepson Magnet,540,483,57,0.89,-0.065764023,0.907407407,1.28,1.782738095,4,Yes,3,90200,483,517,1.782738095,Elementary and K-8 Schools
-Fair Haven School,1013,734,279,0.72,-0.066157761,0.713721619,0.51,1.758928571,6,No,3,180362,734,786,1.758928571,Elementary and K-8 Schools
-Hill Regional Career Magnet,1308.15,625,683.15,0.48,-0.074074074,0.639497629,0.78,1.895833333,3,Yes,3,165000,625,675,1.895833333,High School
-LW Beecher Museum School of Arts & Sciences Interdistrict Magnet,560,462,98,0.83,-0.079681275,0.841071429,0.28,1.776785714,4,Yes,3,90740,462,502,1.776785714,Elementary and K-8 Schools
-Nathan Hale School,604,506,98,0.84,-0.083333333,0.854304636,2.42,1.892857143,4,Yes,2,94853,506,552,1.892857143,Elementary and K-8 Schools
-Cooperative Arts & Humanities High School,940.95,560,380.95,0.6,-0.087947883,0.641975309,0.54,1.392857143,12,No,3,145000,560,614,1.392857143,High School
-Celentano Biotech Health & Medical Magnet,540,328,212,0.61,-0.093922652,0.644444444,0.47,1.75,2,No,3,92530,328,362,1.75,Elementary and K-8 Schools
-Edgewood Creative Thinking Through STEAM Magnet School,480,397,83,0.83,-0.095671982,0.877083333,1.03,2.270833333,4,No,3,47688,397,439,2.270833333,Elementary and K-8 Schools
-Hill Central Music Academy,573,430,143,0.75,-0.096638655,0.766143106,0.54,1.55952381,3,Yes,3,78768,430,476,1.55952381,Elementary and K-8 Schools
-High School In The Community,504.9,251,253.9,0.5,-0.109929078,0.402059814,0.16,1.791666667,4,Yes,3,72000,251,282,1.791666667,High School
-"Mauro Sheridan Science, Technology & Communications School",673,482,191,0.72,-0.112338858,0.722139673,0.58,1.744047619,5,No,4,101322,482,543,1.744047619,Elementary and K-8 Schools
-Barnard Environment Studies Interdistrict Magnet School,673,496,177,0.74,-0.114285714,0.711738484,0.86,1.541666667,5,Yes,3,90000,496,560,1.541666667,Elementary and K-8 Schools
-East Rock Community & Cultural Studies Magnet School,629,442,187,0.7,-0.12992126,0.710651828,0.7,1.5625,4,No,3,77598,442,508,1.5625,Elementary and K-8 Schools
-Ross Woodward Classical Studies Magnet School,859,562,297,0.65,-0.167407407,0.696158324,1.23,1.678571429,3,Yes,3,108000,562,675,1.678571429,Elementary and K-8 Schools
-Bishop Woods Architecture & Design Magnet,490,408,82,0.83,-0.180722892,0.751020408,1.39,1.556547619,4,Yes,3,72240,408,498,1.556547619,Elementary and K-8 Schools
-Barack H. Obama Magnet University School,476,343,133,0.72,-0.2004662,0.68487395,0.28,0.089285714,3,No,3,64000,343,429,0.089285714,Elementary and K-8 Schools
-Harry A. Conte West Hills Magnet School,840,496,344,0.59,-0.225,0.823809524,0.71,2.306547619,3,No,3,110000,496,640,2.306547619,Elementary and K-8 Schools
-Betsy Ross Arts and Design Academy,711.45,348,363.45,0.49,-0.241830065,0.576287863,No Data,2.044642857,9,No,3,98475,348,459,2.044642857,Middle School
-Clinton Avenue School,676,446,230,0.66,-0.25542571,0.569526627,1.06,1.964285714,4,Yes,3,100960,446,599,1.964285714,Elementary and K-8 Schools
-King Robinson Interdistrict Magnet School,520,412,108,0.79,-0.269503546,0.846153846,0.79,1.916666667,5,Yes,3,105900,412,564,1.916666667,Elementary and K-8 Schools
-Riverside Academy,229.5,78,151.5,0.34,-0.333333333,0.470588235,1.4,1.523809524,1,Yes,3,30400,78,117,1.678571429,Elementary and K-8 Schools
-Lincoln Bassett Community School,521,236,285,0.45,-0.365591398,0.648752399,0.79,2.43452381,4,No,3,94749,236,372,2.43452381,Elementary and K-8 Schools
-Augusta Lewis Troup School,552,300,252,0.54,-0.387755102,0.695652174,0.65,1.75297619,3,Yes,5,113200,300,490,1.75297619,Elementary and K-8 Schools
-Wexler Grant School,490,194,296,0.4,-0.517412935,0.514285714,0.99,2.157738095,4,Yes,5,91866,194,402,2.157738095,Elementary and K-8 Schools
-Brennan Rogers School of Communication and Media,273,203,70,0.74,-0.601178782,1.018315018,0.12,1.87202381,3,Yes,5,57216,203,509,1.87202381,Elementary and K-8 Schools
-Clemente Leadership Academy,650,434,216,0.67,,0.58,0.35,1.94047619,2,Yes,4,79177,434,,1.94047619,Elementary and K-8 Schools
-Dr. Reginald Mayo Early Learning Center,620,358,262,0.58,,0.448387097,0.04,1.226190476,0,No,#N/A,77606,358,,1.226190476,Early Childhood Program
+UniqueID,Building Name,Status,School Level,Capacity,Enrollment,Available Seats,Utilization,2014-2024_EnrollmentGrowth,ExpectedUtilization10yrs,DistanceUnderutilizedschools,BuildingTreshhold,AdequateProgramOffer,SiteCapacity,Scorecard,SquareFt,Enrollment,2014Enrollment,BuildingScore
+CO-1420-5623,Long View High School,Active,Alternative,,,,,,,,,,,,,,,0.89
+CO-1420-5972,Molholm Elementary,Closed,Elementary,,,,,,,,,,,,,,,0.42
+CO-1420-1730,Jefferson Academy at Coal Creek Canyon,Active,Charter,,,,,,,,,,,,,,,0.39
+CO-1420-9154,New Classical Academy at Vivian,Closed,Elementary,,,,,,,,,,,,,,,0.38
+CO-1420-8276,Stober Elementary,Active,Elementary,,,,,,,,,,,,,,,0.38
+CO-1420-7282,Red Rocks Elementary,Active,Elementary,,,,,,,,,,,,,,,0.34
+CO-1420-1244,Campbell Early Learning Center,Active,Option,,,,,,,,,,,,,,,0.34
+CO-1420-3088,Foster Dual Language PK-8,Active,Option,,,,,,,,,,,,,,,0.34
+CO-1420-7962,Slater Elementary,Active,Elementary,619.65,322,297.65,0.51,-0.024242424,0.450254176,3.5,2.066666667,1,0,3,63541,322,330,0.33
+CO-1420-4802,Kullerstrand Elementary,Closed,Elementary,619.65,380,239.65,0.61,-0.028132992,0.476075204,0.16,1.25,3,No,4,78768,380,391,0.32
+CO-1420-6806,Parr Elementary,Closed,Elementary,324,278,46,0.44,-0.04137931,0.811728395,0.73,1.654761905,5,No,2,61003,278,290,0.32
+CO-1420-9052,Van Arsdale Elementary,Active,Elementary,655,460,195,0.7,-0.047619048,0.732824427,0.53,1.800595238,4,No,3,101700,460,483,0.32
+CO-1420-1790,Colorow Elementary,Closed,Elementary,156,142,14,1.78,-0.059602649,0.826923077,0.47,1.5,2,No,2,24000,142,151,0.31
+CO-1420-7190,Prospect Valley Elementary,Active,Elementary,540,483,57,0.89,-0.065764023,0.907407407,1.28,1.782738095,4,Yes,3,90200,483,517,0.31
+CO-1420-3622,Green Gables Elementary,Active,Elementary,1013,734,279,0.72,-0.066157761,0.713721619,0.51,1.758928571,6,No,3,180362,734,786,0.3
+CO-1420-5580,Marshdale Elementary,Active,Elementary,1308.15,625,683.15,0.48,-0.074074074,0.639497629,0.78,1.895833333,3,Yes,3,165000,625,675,0.3
+CO-1420-7468,Rose Stein International Elementary,Active,Elementary,560,462,98,0.83,-0.079681275,0.841071429,0.28,1.776785714,4,Yes,3,90740,462,502,0.3
+CO-1420-6848,Peak Expeditionary at Pennington,Active,Elementary,604,506,98,0.84,-0.083333333,0.854304636,2.42,1.892857143,4,Yes,2,94853,506,552,0.29
+CO-1420-0499,Jeffco Transition Services,Active,Alternative,940.95,560,380.95,0.6,-0.087947883,0.641975309,0.54,1.392857143,12,No,3,145000,560,614,0.28
+CO-1420-5222,Little Elementary,Active,Elementary,540,328,212,0.61,-0.093922652,0.644444444,0.47,1.75,2,No,3,92530,328,362,0.28
+CO-1420-6828,Peck Elementary,Closed,Elementary,480,397,83,0.83,-0.095671982,0.877083333,1.03,2.270833333,4,No,3,47688,397,439,0.28
+CO-1420-9058,Vanderhoof Elementary,Active,Elementary,573,430,143,0.75,-0.096638655,0.766143106,0.54,1.55952381,3,Yes,3,78768,430,476,0.28
+CO-1420-2866,Fairmount Elementary,Active,Elementary,504.9,251,253.9,0.5,-0.109929078,0.402059814,0.16,1.791666667,4,Yes,3,72000,251,282,0.27
+CO-1420-4478,Sheridan Green Elementary,Closed,Elementary,673,482,191,0.72,-0.112338858,0.722139673,0.58,1.744047619,5,No,4,101322,482,543,0.27
+CO-1420-9342,Welchester Elementary,Active,Elementary,673,496,177,0.74,-0.114285714,0.711738484,0.86,1.541666667,5,Yes,3,90000,496,560,0.27
+CO-1420-8432,Swanson Elementary,Active,Elementary,629,442,187,0.7,-0.12992126,0.710651828,0.7,1.5625,4,No,3,77598,442,508,0.26
+CO-1420-3216,Fremont Elementary,Active,Elementary,859,562,297,0.65,-0.167407407,0.696158324,1.23,1.678571429,3,Yes,3,108000,562,675,0.25
+CO-1420-6808,Patterson Elementary,Active,Elementary,490,408,82,0.83,-0.180722892,0.751020408,1.39,1.556547619,4,Yes,3,72240,408,498,0.25
+CO-1420-0965,Brady Exploration School,Active,Alternative,476,343,133,0.72,-0.2004662,0.68487395,0.28,0.089285714,3,No,3,64000,343,429,0.24
+CO-1420-8090,Deane Elementary,Active,Elementary,840,496,344,0.59,-0.225,0.823809524,0.71,2.306547619,3,No,3,110000,496,640,0.24
+CO-1420-2946,Fitzmorris Elementary,Closed,Elementary,711.45,348,363.45,0.49,-0.241830065,0.576287863,No Data,2.044642857,9,No,3,98475,348,459,0.24
+CO-1420-3624,Green Mountain Elementary,Closed,Elementary,676,446,230,0.66,-0.25542571,0.569526627,1.06,1.964285714,4,Yes,3,100960,446,599,0.24
+CO-1420-4830,Kyffin Elementary,Active,Elementary,520,412,108,0.79,-0.269503546,0.846153846,0.79,1.916666667,5,Yes,3,105900,412,564,0.24
+CO-1420-9678,Witt Elementary,Closed,Elementary,229.5,78,151.5,0.34,-0.333333333,0.470588235,1.4,1.523809524,1,Yes,3,30400,78,117,0.24
+CO-1420-1861,Columbine Hills Elementary,Active,Elementary,521,236,285,0.45,-0.365591398,0.648752399,0.79,2.43452381,4,No,3,94749,236,372,0.23
+CO-1420-2322,Dutch Creek Elementary,Active,Elementary,552,300,252,0.54,-0.387755102,0.695652174,0.65,1.75297619,3,Yes,5,113200,300,490,0.23
+CO-1420-4190,Hutchinson Elementary,Active,Elementary,490,194,296,0.4,-0.517412935,0.514285714,0.99,2.157738095,4,Yes,5,91866,194,402,0.23
+CO-1420-4549,Kendallvue Elementary,Active,Elementary,273,203,70,0.74,-0.601178782,1.018315018,0.12,1.87202381,3,Yes,5,57216,203,509,0.23
+CO-1420-8300,Stott Elementary,Active,Elementary,650,434,216,0.67,,0.58,0.35,1.94047619,2,Yes,4,79177,434,,0.23
+CO-1420-5892,Fletcher Miller Special Education School,Active,Alternative,620,358,262,0.58,,0.448387097,0.04,1.226190476,0,No,#N/A,77606,358,,0.22
+CO-1420-9232,Warder Elementary,Active,Elementary,,,,,,,,,,,,,,,0.22
+CO-1420-9429,West Woods Elementary,Active,Elementary,,,,,,,,,,,,,,,0.22
+CO-1420-9638,Wilmore-Davis Elementary,Closed,Elementary,,,,,,,,,,,,,,,0.22
+CO-1420-3536,Governor's Ranch Elementary,Active,Elementary,,,,,,,,,,,,,,,0.21
+CO-1420-7833,Shelton Elementary,Active,Elementary,,,,,,,,,,,,,,,0.21
+CO-1420-9008,Ute Meadows Elementary,Active,Elementary,,,,,,,,,,,,,,,0.21
+CO-1420-9510,Wheat Ridge High School,Active,High,,,,,,,,,,,,,,,0.21
+CO-1420-0030,Adams Elementary,Active,Elementary,,,,,,,,,,,,,,,0.19
+CO-1420-5036,Leawood Elementary,Active,Elementary,,,,,,,,,,,,,,,0.19
+CO-1420-5524,Maple Grove Elementary,Active,Elementary,,,,,,,,,,,,,,,0.19
+CO-1420-9432,Dennison Elementary,Active,Option,,,,,,,,,,,,,,,0.19
+CO-1420-9328,Weber Elementary,Active,Elementary,,,,,,,,,,,,,,,0.19
+CO-1420-9412,Westgate Elementary,Active,Elementary,,,,,,,,,,,,,,,0.19
+CO-1420-0776,Bergen Meadow Primary School,Closed,Elementary,,,,,,,,,,,,,,,0.18
+CO-1420-6286,Normandy Elementary,Active,Elementary,,,,,,,,,,,,,,,0.18
+CO-1420-6470,Oberon Middle School,Active,Middle,,,,,,,,,,,,,,,0.18
+CO-1420-9245,Warren Tech North,Active,Option,,,,,,,,,,,,,,,0.18
+CO-1420-8280,Stony Creek Elementary,Active,Elementary,,,,,,,,,,,,,,,0.18
+CO-1420-0109,Arvada K-8,Closed,Multi-Level,,,,,,,,,,,,,,,0.17
+CO-1420-0724,Belmar School of Integrated Arts,Active,Elementary,,,,,,,,,,,,,,,0.17
+CO-1420-3450,Glennon Heights Elementary,Closed,Elementary,,,,,,,,,,,,,,,0.17
+CO-1420-7708,Secrest Elementary,Active,Elementary,,,,,,,,,,,,,,,0.17
+CO-1420-8102,South Lakewood Elementary,Active,Elementary,,,,,,,,,,,,,,,0.17
+CO-1420-8209,Standley Lake High School,Active,High,,,,,,,,,,,,,,,0.17
+CO-1420-1876,Coronado Elementary,Active,Elementary,,,,,,,,,,,,,,,0.16
+CO-1420-2550,Eiber Elementary,Active,Elementary,,,,,,,,,,,,,,,0.16
+CO-1420-3726,Hackberry Hill Elementary,Active,Elementary,,,,,,,,,,,,,,,0.16
+CO-1420-7128,Powderhorn Elementary,Active,Elementary,,,,,,,,,,,,,,,0.16
+CO-1420-5472,Manning School of Academics and Arts,Active,Option,,,,,,,,,,,,,,,0.16
+CO-1420-0952,Bradford K8 North,Active,Multi-Level,,,,,,,,,,,,,,,0.15
+CO-1420-3025,Foothills Elementary,Active,Elementary,,,,,,,,,,,,,,,0.15
+CO-1420-5004,Lasley Elementary,Active,Elementary,,,,,,,,,,,,,,,0.15
+CO-1420-7753,Semper Elementary,Active,Elementary,,,,,,,,,,,,,,,0.15
+CO-1420-9428,West Jefferson Middle School,Active,Middle,,,,,,,,,,,,,,,0.15
+CO-1420-9490,Westridge Elementary,Active,Elementary,,,,,,,,,,,,,,,0.15
+CO-1420-0148,Allendale Elementary,Closed,Elementary,,,,,,,,,,,,,,,0.14
+CO-1420-2496,Edgewater Elementary,Active,Elementary,,,,,,,,,,,,,,,0.14
+CO-1420-2616,Elk Creek Elementary,Active,Elementary,,,,,,,,,,,,,,,0.14
+CO-1420-2820,Everitt Middle School,Active,Middle,,,,,,,,,,,,,,,0.14
+CO-1420-4548,Ken Caryl Middle School,Active,Middle,,,,,,,,,,,,,,,0.14
+CO-1420-5024,Lawrence Elementary,Active,Elementary,,,,,,,,,,,,,,,0.14
+CO-1420-6844,Peiffer Elementary,Closed,Elementary,,,,,,,,,,,,,,,0.14
+CO-1420-0951,Blue Heron Elementary,Active,Elementary,,,,,,,,,,,,,,,0.13
+CO-1420-6133,Mortensen Elementary,Active,Elementary,,,,,,,,,,,,,,,0.13
+CO-1420-6135,Mount Carbon Elementary,Active,Elementary,,,,,,,,,,,,,,,0.13
+CO-1420-7114,Pomona Junior/Senior High School,Active,Multi-Level,,,,,,,,,,,,,,,0.13
+CO-1420-8036,Sobesky Academy,Active,Alternative,,,,,,,,,,,,,,,0.13
+CO-1420-2194,Devinny Elementary,Active,Elementary,,,,,,,,,,,,,,,0.12
+CO-1420-8248,Emory Elementary,Closed,Elementary,,,,,,,,,,,,,,,0.12
+CO-1420-5944,Mitchell Elementary,Active,Elementary,,,,,,,,,,,,,,,0.12
+CO-1420-9234,Warren Tech,Active,Option,,,,,,,,,,,,,,,0.12
+CO-1420-6804,Parmalee Elementary,Active,Elementary,,,,,,,,,,,,,,,0.12
+CO-1420-7483,Rooney Ranch Elementary,Active,Elementary,,,,,,,,,,,,,,,0.12
+CO-1420-0694,Bell Middle School,Active,Middle,,,,,,,,,,,,,,,0.11
+CO-1420-0950,Bradford K8 South,Active,Multi-Level,,,,,,,,,,,,,,,0.11
+CO-1420-1318,Carmody Middle School,Active,Middle,,,,,,,,,,,,,,,0.11
+CO-1420-1864,Columbine High School,Active,High,,,,,,,,,,,,,,,0.11
+CO-1420-5354,Lumberg Elementary,Active,Elementary,,,,,,,,,,,,,,,0.11
+CO-1420-6090,Moore Middle School,Closed,Middle,,,,,,,,,,,,,,,0.11
+CO-1420-3201,Free Horizon Montessori PK-8,Active,Option,,,,,,,,,,,,,,,0.11
+CO-1420-6330,North Arvada Middle School,Active,Middle,,,,,,,,,,,,,,,0.11
+CO-1420-0370,Arvada High School,Active,High,,,,,,,,,,,,,,,0.1
+CO-1420-1886,Conifer High School,Active,High,,,,,,,,,,,,,,,0.1
+CO-1420-3628,Green Mountain High School,Active,High,,,,,,,,,,,,,,,0.1
+CO-1420-7529,Ryan Elementary,Active,Elementary,,,,,,,,,,,,,,,0.1
+CO-1420-7780,Shaffer Elementary,Active,Elementary,,,,,,,,,,,,,,,0.1
+CO-1420-9424,West Jefferson Elementary,Active,Elementary,,,,,,,,,,,,,,,0.1
+CO-1420-1976,Creighton Middle,Active,Middle,,,,,,,,,,,,,,,0.09
+CO-1420-2130,Deer Creek Middle School,Active,Middle,,,,,,,,,,,,,,,0.09
+CO-1420-2288,Drake Middle School,Active,Middle,,,,,,,,,,,,,,,0.09
+CO-1420-4942,Lakewood High School,Active,High,,,,,,,,,,,,,,,0.09
+CO-1420-8381,Summit Ridge Middle School,Active,Middle,,,,,,,,,,,,,,,0.09
+CO-1420-9648,Wilmot Elementary,Active,Elementary,,,,,,,,,,,,,,,0.09
+CO-1420-0779,Bergen Elementary School,Active,Elementary,,,,,,,,,,,,,,,0.08
+CO-1420-4798,Connections Learning Center,Active,Alternative,,,,,,,,,,,,,,,0.08
+CO-1420-3502,Golden High School,Active,High,,,,,,,,,,,,,,,0.08
+CO-1420-4422,Jefferson Junior/Senior High School,Active,Multi-Level,,,,,,,,,,,,,,,0.08
+CO-1420-5350,Lukas Elementary,Active,Elementary,,,,,,,,,,,,,,,0.08
+CO-1420-5454,Mandalay Middle School,Active,Middle,,,,,,,,,,,,,,,0.08
+CO-1420-6539,Jefferson County Open Elementary School,Active,Option,,,,,,,,,,,,,,,0.08
+CO-1420-6541,Jefferson County Open Secondary,Active,Option,,,,,,,,,,,,,,,0.08
+CO-1420-8223,Stevens Elementary,Active,Elementary,,,,,,,,,,,,,,,0.08
+CO-1420-8834,Thomson Elementary,Closed,Elementary,,,,,,,,,,,,,,,0.08
+CO-1420-0378,Arvada West High School,Active,High,,,,,,,,,,,,,,,0.07
+CO-1420-2093,Dakota Ridge High School,Active,High,,,,,,,,,,,,,,,0.07
+CO-1420-2836,Evergreen High School,Active,High,,,,,,,,,,,,,,,0.07
+CO-1420-2832,Evergreen Middle School,Active,Middle,,,,,,,,,,,,,,,0.07
+CO-1420-4307,Irwin Preschool,Closed,Option,,,,,,,,,,,,,,,0.07
+CO-1420-4127,Jeffco Remote Learning Program,Active,Option,,,,,,,,,,,,,,,0.07
+CO-1420-4408,Jeffco Virtual Academy,Active,Option,,,,,,,,,,,,,,,0.07
+CO-1420-5758,Meiklejohn Elementary,Active,Elementary,,,,,,,,,,,,,,,0.07
+CO-1420-7238,Ralston Elementary,Active,Elementary,,,,,,,,,,,,,,,0.07
+CO-1420-7239,Ralston Valley High School,Active,High,,,,,,,,,,,,,,,0.07
+CO-1420-0108,Alameda International Junior/Senior High School,Active,Multi-Level,,,,,,,,,,,,,,,0.06
+CO-1420-0664,Bear Creek High School,Active,High,,,,,,,,,,,,,,,0.06
+CO-1420-1522,Chatfield Senior High School,Active,High,,,,,,,,,,,,,,,0.06
+CO-1420-2963,Falcon Bluffs Middle School,Active,Middle,,,,,,,,,,,,,,,0.06
+CO-1420-2120,D'Evelyn Junior/Senior High School,Active,Option,,,,,,,,,,,,,,,0.06
+CO-1420-0033,McLain Community High School,Active,Alternative,,,,,,,,,,,,,,,0.06
+CO-1420-0660,Bear Creek K-8,Active,Multi-Level,,,,,,,,,,,,,,,0.05
+CO-1420-2300,Dunstan Middle School,Active,Middle,,,,,,,,,,,,,,,0.04
+CO-1420-7870,Sierra Elementary,Active,Elementary,,,,,,,,,,,,,,,0.03
+CO-1420-9299,Wayne Carle Middle School,Active,Middle,,,,,,,,,,,,,,,0.03
+CO-1420-1451,Addenbrooke Classical Academy,Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-0491,Addenbrooke Classical Academy (PK - 8th),Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-7701,Collegiate Academy,Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-1880,Compass Montessori,Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-1869,Compass Montessori Wheat Ridge,Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-2189,Doral Academy of Colorado,Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-2799,Excel Academy,Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-3691,Great Work Montessori,Closed,Charter,,,,,,,,,,,,,,,0
+CO-1420-9980,Jeffco Central Services,Active,Option,,,,,,,,,,,,,,,0
+CO-1420-4404,Jefferson Academy,Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-4402,Jefferson Academy Elementary,Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-4410,Jefferson Academy Secondary,Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-5145,Lincoln Academy,Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-5994,Montessori Peaks Academy,Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-6139,Mountain Phoenix Community School,Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-6237,New America School,Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-7462,Rocky Mountain Academy of Evergreen,Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-5415,Rocky Mountain Deaf School,Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-8793,Two Roads Charter School,Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-1001,Warren Tech South,Active,Option,,,,,,,,,,,,,,,0
+CO-1420-9427,Woodrow Wilson Academy,Active,Charter,,,,,,,,,,,,,,,0
+CO-1420-4550,Kendrick Lakes Elementary,Active,Elementary,,,,,,,,,,,,,,,0
+CO-1420-8856,Three Creeks K-8,Active,Multi-Level,,,,,,,,,,,,,,,0
+CO-1420-6285,Norma Anderson Early Learning Center,Active,Option,,,,,,,,,,,,,,,0
