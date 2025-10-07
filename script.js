@@ -3,8 +3,8 @@ mapboxgl.accessToken = 'pk.eyJ1IjoicGF0d2QwNSIsImEiOiJjbTZ2bGVhajIwMTlvMnFwc2owa
 
 // Application initialization
 document.addEventListener('DOMContentLoaded', function() {
-  // Start onboarding walkthrough immediately
-  startOnboardingWalkthrough();
+  // Tour now starts after password authentication (see index.html password overlay)
+  // startOnboardingWalkthrough();
 
   // Auto-open "School Decision Evaluation: Results" when "School Decision Evaluation" is opened
   const decisionInputPanel = document.getElementById('decision-input-panel');
