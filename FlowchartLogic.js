@@ -65,8 +65,8 @@ window.initializeFlowchartFromScript = function(svgElement) {
     .attr("fill", "#6c757d")
     .attr("stroke", "#6c757d");
 
-  // Get current zoom level from localStorage or use default
-  let currentTransform = d3.zoomIdentity.translate(50, 50).scale(0.85);
+  // Get current zoom level from localStorage or use default (updated with saved layout)
+  let currentTransform = d3.zoomIdentity.translate(349.82689171669284, 477.94759411049654).scale(0.9944701686732141);
   const savedTransform = localStorage.getItem('flowchartZoom');
   if (savedTransform) {
     try {
@@ -1639,8 +1639,8 @@ document.addEventListener("DOMContentLoaded", () => {
     g.append("g").attr("class", "nodes");
     g.append("g").attr("class", "link-labels");
 
-    // Get current zoom level from localStorage or use default
-    let currentTransform = d3.zoomIdentity.translate(50, 50).scale(0.85);
+    // Get current zoom level from localStorage or use default (updated with saved layout)
+    let currentTransform = d3.zoomIdentity.translate(349.82689171669284, 477.94759411049654).scale(0.9944701686732141);
     const savedTransform = localStorage.getItem('flowchartZoom');
     if (savedTransform) {
       try {
