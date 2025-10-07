@@ -1,0 +1,3157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Jeffco Dashboard - Data & Logic</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+    <!-- Updated: EducationalAdequacy and DepartmentalDeficiency columns -->
+    <!-- CACHE BUST: 2024-01-15-tab-fix-v2 -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f8f9fa;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .back-button {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-bottom: 1rem;
+            transition: background 0.3s;
+        }
+
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Tab Styles */
+        .tab-container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .tab-buttons {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e5e7eb;
+            overflow-x: auto;
+        }
+
+        .tab-button {
+            background: none;
+            border: none;
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #6b7280;
+            transition: all 0.3s;
+            white-space: nowrap;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab-button:hover {
+            background: #e5e7eb;
+            color: #374151;
+        }
+
+        .tab-button.active {
+            background: white;
+            color: #1e3a8a;
+            border-bottom-color: #3b82f6;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 2rem;
+            min-height: 600px;
+        }
+
+        .tab-content.active {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+
+        .section h2 {
+            color: #1e3a8a;
+            margin-bottom: 1rem;
+            border-bottom: 3px solid #3b82f6;
+            padding-bottom: 0.5rem;
+        }
+
+        .section h3 {
+            color: #374151;
+            margin: 1.5rem 0 1rem 0;
+        }
+
+        .section h4 {
+            color: #4b5563;
+            margin: 1rem 0 0.5rem 0;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            background: white;
+        }
+
+        .data-table th,
+        .data-table td {
+            border: 1px solid #e5e7eb;
+            padding: 12px;
+            text-align: left;
+        }
+
+        .data-table th {
+            background: #f3f4f6;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .data-table tr:nth-child(even) {
+            background: #f9fafb;
+        }
+
+        .flow-step {
+            background: #f8fafc;
+            border-left: 4px solid #3b82f6;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 5px 5px 0;
+        }
+
+        .decision-category {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            border-radius: 5px;
+        }
+
+        .formula-box {
+            background: #f0f9ff;
+            border: 1px solid #0ea5e9;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+        }
+
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .card {
+            background: #f8fafc;
+            border: 1px solid #e5e7eb;
+            padding: 1rem;
+            border-radius: 5px;
+        }
+
+        .emoji {
+            font-size: 1.2em;
+            margin-right: 0.5rem;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .tab-buttons {
+                flex-direction: column;
+            }
+            
+            .tab-button {
+                text-align: left;
+                border-bottom: 1px solid #e5e7eb;
+                border-right: none;
+            }
+            
+            .tab-button.active {
+                border-bottom-color: #e5e7eb;
+                border-left: 3px solid #3b82f6;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="index.html" class="back-button">← Back to Dashboard</a>
+            <h1>📊 Jeffco Dashboard Data & Logic</h1>
+            <p>Comprehensive view of all data sources, calculations, and decision logic</p>
+        </div>
+
+        <div class="tab-container">
+            <div class="tab-buttons">
+                <button class="tab-button active" onclick="showTab('overview')">📋 Dashboard Overview</button>
+                <button class="tab-button" onclick="showTab('decision-data')">📊 Decision Data Export.csv</button>
+                <button class="tab-button" onclick="showTab('map-data')">🗺️ Schools.geojson</button>
+                <button class="tab-button" onclick="showTab('decision-logic')">🔧 Decision Logic Flow</button>
+                <button class="tab-button" onclick="showTab('flowchart-logic')">📊 Flowchart Logic</button>
+                <button class="tab-button" onclick="showTab('formulas')">🧮 Formulas & Calculations</button>
+            </div>
+
+            <!-- Dashboard Overview Tab -->
+            <div id="overview" class="tab-content active">
+                <h2>📋 Dashboard Overview</h2>
+                <p>The Jeffco Dashboard uses multiple data sources to evaluate schools and provide strategic decision recommendations for Jefferson County School District.</p>
+
+                <h3>🎯 Primary Data Sources</h3>
+                <ul>
+                    <li><strong>Decision Data Export.csv</strong> - Contains evaluation metrics, growth data, and building scores</li>
+                    <li><strong>Schools.geojson</strong> - Contains geographic data and school locations for mapping</li>
+                    <li><strong>Map_Export.csv</strong> - Contains additional geographic and capacity data</li>
+                </ul>
+
+                <h3>📧 Key Features</h3>
+                <ul>
+                    <li><strong>School Decision Evaluation</strong> - Evaluates schools based on multiple criteria</li>
+                    <li><strong>Interactive Map</strong> - Visualizes school locations and decision categories</li>
+                    <li><strong>Interactive Flowchart</strong> - Visualizes decision logic for individual schools</li>
+                    <li><strong>Flow-based Filtering</strong> - Filter schools by decision flow categories</li>
+                    <li><strong>Geographic Analysis</strong> - Maps schools and analyzes spatial relationships</li>
+                </ul>
+
+                <h3>📊 Decision Categories</h3>
+                <div class="grid">
+                    <div class="decision-category">
+                        <strong>Building Addition</strong><br>
+                        Schools that could expand on their current site
+                    </div>
+                    <div class="decision-category">
+                        <strong>Policy Change & Re-sort</strong><br>
+                        Schools requiring policy adjustments and student reassignment
+                    </div>
+                    <div class="decision-category">
+                        <strong>Replacement</strong><br>
+                        Schools needing complete replacement
+                    </div>
+                    <div class="decision-category">
+                        <strong>Building Addition & Major Capital</strong><br>
+                        Schools needing both expansion and major capital investment
+                    </div>
+                    <div class="decision-category">
+                        <strong>Target Capital Investment</strong><br>
+                        Schools requiring targeted capital improvements
+                    </div>
+                    <div class="decision-category">
+                        <strong>Standard Maintenance</strong><br>
+                        Schools needing routine maintenance
+                    </div>
+                    <div class="decision-category">
+                        <strong>Major Capital Investment</strong><br>
+                        Schools requiring significant capital improvements
+                    </div>
+                    <div class="decision-category">
+                        <strong>Consolidation (Welcoming)</strong><br>
+                        Welcoming schools that receive students from other schools
+                    </div>
+                    <div class="decision-category">
+                        <strong>Consolidation with Capital</strong><br>
+                        Schools to be consolidated with capital improvements
+                    </div>
+                    <div class="decision-category">
+                        <strong>Closure (Goes Into Welcoming)</strong><br>
+                        Schools to be closed and students moved to welcoming schools
+                    </div>
+                    <div class="decision-category">
+                        <strong>Closure & Replacement</strong><br>
+                        Schools to be closed and replaced
+                    </div>
+                    <div class="decision-category">
+                        <strong>Other / Unknown</strong><br>
+                        Schools requiring further evaluation
+                    </div>
+                </div>
+            </div>
+
+            <!-- Decision Data Export Tab -->
+            <div id="decision-data" class="tab-content">
+                <h2>📊 Decision Data Export.csv</h2>
+                <p>This file contains the primary evaluation metrics used in the decision logic.</p>
+
+                <h3>🗺️ Complete CSV Structure & Usage</h3>
+                <p>This table shows all columns in the Decision Data Export.csv file and their usage status:</p>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Column Name</th>
+                            <th>Sample Value</th>
+                            <th>Used in Decision Logic</th>
+                            <th>Usage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>UniqueID</strong></td>
+                            <td>CO-1420-5623</td>
+                            <td>❌ No</td>
+                            <td>Not used in application</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Building Name</strong></td>
+                            <td>Long View High School</td>
+                            <td>✅ Yes</td>
+                            <td>School identification and display</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Status</strong></td>
+                            <td>Active</td>
+                            <td>❌ No</td>
+                            <td>Display only (not in decision logic)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>School Level</strong></td>
+                            <td>Alternative</td>
+                            <td>❌ No</td>
+                            <td>Display in school info popup</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Capacity</strong></td>
+                            <td>167</td>
+                            <td>❌ No</td>
+                            <td>Map filtering and display</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Enrollment</strong></td>
+                            <td><strong>20</strong></td>
+                            <td><strong>✅ Yes</strong></td>
+                            <td><strong>Primary threshold check</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Available Seats</strong></td>
+                            <td>147</td>
+                            <td>❌ No</td>
+                            <td>Map filtering and display</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Utilization</strong></td>
+                            <td><strong>0.12</strong></td>
+                            <td><strong>✅ Yes</strong></td>
+                            <td><strong>Two threshold checks in Flow 1</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Future_EnrollmentGrowth</strong></td>
+                            <td><strong>-0.58</strong></td>
+                            <td><strong>✅ Yes</strong></td>
+                            <td><strong>Growth threshold check</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>DistanceUnderutilizedschools</strong></td>
+                            <td><strong>3.5</strong></td>
+                            <td><strong>✅ Yes</strong></td>
+                            <td><strong>Two distance checks (Flow 1 & 4)</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>BuildingTreshhold</strong></td>
+                            <td>2.07</td>
+                            <td>❌ No</td>
+                            <td>Display in school info popup</td>
+                        </tr>
+                        <tr>
+                            <td><strong>EducationalAdequacy</strong></td>
+                            <td><strong>1</strong></td>
+                            <td><strong>✅ Yes</strong></td>
+                            <td><strong>Program adequacy check (3 flows)</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>DepartmentalDeficiency</strong></td>
+                            <td>N/A</td>
+                            <td>❌ No</td>
+                            <td>Available in CSV - not yet used in decision logic (planned for OR function with EducationalAdequacy)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>SiteCapacity</strong></td>
+                            <td><strong>0</strong></td>
+                            <td><strong>✅ Yes</strong></td>
+                            <td><strong>Expansion feasibility check (Flow 2)</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Scorecard</strong></td>
+                            <td>3</td>
+                            <td>❌ No</td>
+                            <td>Map display and filtering</td>
+                        </tr>
+                        <tr>
+                            <td><strong>SquareFt</strong></td>
+                            <td>6,808</td>
+                            <td>❌ No</td>
+                            <td>Cost calculations</td>
+                        </tr>
+                        <tr>
+                            <td><strong>BuildingScore</strong></td>
+                            <td><strong>0.84</strong></td>
+                            <td><strong>✅ Yes</strong></td>
+                            <td><strong>Multiple building quality checks</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>RecentInvestments</strong></td>
+                            <td><strong>No</strong></td>
+                            <td><strong>✅ Yes</strong></td>
+                            <td><strong>Investment priority check (Flow 4)</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="card" style="margin: 1rem 0; background: #fef3c7; border: 1px solid #f59e0b;">
+                    <h4>📊 Summary</h4>
+                    <p><strong>9 out of 18 columns</strong> are used in the decision logic (marked with ✅ Yes). The remaining 9 columns are used for display, filtering, or are not currently utilized by the application.</p>
+                </div>
+
+                <div class="card" style="margin: 1rem 0; background: #f0f9ff; border: 1px solid #0ea5e9;">
+                    <h4>📋 Decision Logic Usage Legend</h4>
+                    <p>Values marked with ✅ Yes are used in the decision logic. Values marked with ❌ No are used for display and filtering but not in the core decision algorithm.</p>
+                </div>
+
+                <h3>🗺️ Data Fields Used in Decision Logic</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Column Name</th>
+                            <th>Purpose</th>
+                            <th>Usage in Decision Logic</th>
+                            <th>Threshold/Logic</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Building Name</strong></td>
+                            <td>School identifier</td>
+                            <td>Display and identification</td>
+                            <td>N/A</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Enrollment</strong></td>
+                            <td>Current school enrollment</td>
+                            <td>Primary threshold check</td>
+                            <td>If ? threshold ← "Closure & Replacement"</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Utilization</strong></td>
+                            <td>School utilization rate (0-1 scale)</td>
+                            <td>Two threshold checks in Flow 1</td>
+                            <td>util1: > threshold, util2: > high threshold</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Future_EnrollmentGrowth</strong></td>
+                            <td>Enrollment growth rate over 10 years</td>
+                            <td>Growth threshold check</td>
+                            <td>Growth > threshold ← "Yes/No"</td>
+                        </tr>
+                        <tr>
+                            <td><strong>DistanceUnderutilizedschools</strong></td>
+                            <td>Distance to nearest underutilized school</td>
+                            <td>Two distance checks (Flow 1 & 4)</td>
+                            <td>Distance ? threshold ← "Yes/No"</td>
+                        </tr>
+                        <tr>
+                            <td><strong>SiteCapacity</strong></td>
+                            <td>Available site capacity for expansion</td>
+                            <td>Expansion feasibility check (Flow 2)</td>
+                            <td>SiteCapacity ? threshold ← "Yes/No"</td>
+                        </tr>
+                        <tr>
+                            <td><strong>EducationalAdequacy</strong></td>
+                            <td>Number of educational programs offered</td>
+                            <td>Program adequacy check (3 flows)</td>
+                            <td>EducationalAdequacy ? minimum ← "Yes/No"</td>
+                        </tr>
+                        <tr>
+                            <td><strong>BuildingScore</strong></td>
+                            <td>Building quality/condition score</td>
+                            <td>Multiple building quality checks</td>
+                            <td>BuildingScore ? threshold ← "Yes/No"</td>
+                        </tr>
+                        <tr>
+                            <td><strong>RecentInvestments</strong></td>
+                            <td>Recent investment status (Yes/No)</td>
+                            <td>Investment priority check (Flow 4)</td>
+                            <td>RecentInvestments ? threshold ← "Yes/No"</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>📊 Complete School Data</h3>
+                <p>Here are ALL 167 schools from the CSV file with their complete data:</p>
+                
+                <div style="max-height: 600px; overflow-y: auto; border: 1px solid #e5e5e5; border-radius: 8px;">
+                    <table class="data-table" style="margin: 0;">
+                        <thead style="position: sticky; top: 0; background: #f8f9fa; z-index: 10;">
+                            <tr>
+                                <th>School Name</th>
+                                <th>Status</th>
+                                <th>School Level</th>
+                                <th>Capacity</th>
+                                <th>Enrollment</th>
+                                <th>Available Seats</th>
+                                <th>Utilization</th>
+                                <th>Growth (2014-2024)</th>
+                                <th>Distance to Underutilized</th>
+                                <th>Building Score</th>
+                                <th>Recent Investments</th>
+                                <th>Square Ft</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Long View High School</strong></td>
+                                <td>Active</td>
+                                <td>Alternative</td>
+                                <td>167</td>
+                                <td><strong>20</strong></td>
+                                <td>147</td>
+                                <td><strong>12.0%</strong></td>
+                                <td><strong>-58.3%</strong></td>
+                                <td><strong>3.5</strong></td>
+                                <td><strong>1</strong></td>
+                                <td><strong>No</strong></td>
+                                <td>6,808</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Molholm Elementary</strong></td>
+                                <td>Closed</td>
+                                <td>Elementary</td>
+                                <td>454</td>
+                                <td><strong>0</strong></td>
+                                <td>454</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong>3.5</strong></td>
+                                <td><strong>1</strong></td>
+                                <td><strong>No</strong></td>
+                                <td>46,524</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Jefferson Academy at Coal Creek Canyon</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>68</strong></td>
+                                <td>-68</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-54.1%</strong></td>
+                                <td><strong>3.5</strong></td>
+                                <td><strong>1</strong></td>
+                                <td><strong>No</strong></td>
+                                <td>25,361</td>
+                            </tr>
+                            <tr>
+                                <td><strong>New Classical Academy at Vivian</strong></td>
+                                <td>Closed</td>
+                                <td>Elementary</td>
+                                <td>302</td>
+                                <td><strong>0</strong></td>
+                                <td>302</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong>3.5</strong></td>
+                                <td><strong>4</strong></td>
+                                <td><strong>No</strong></td>
+                                <td>33,138</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Stober Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>454</td>
+                                <td><strong>348</strong></td>
+                                <td>106</td>
+                                <td><strong>76.7%</strong></td>
+                                <td><strong>9.1%</strong></td>
+                                <td><strong>3.5</strong></td>
+                                <td><strong>3</strong></td>
+                                <td><strong>Yes</strong></td>
+                                <td>32,633</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Red Rocks Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>324</td>
+                                <td><strong>292</strong></td>
+                                <td>32</td>
+                                <td><strong>90.1%</strong></td>
+                                <td><strong>-6.1%</strong></td>
+                                <td><strong>3.5</strong></td>
+                                <td><strong>4</strong></td>
+                                <td><strong>No</strong></td>
+                                <td>29,176</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Campbell Early Learning Center</strong></td>
+                                <td>Active</td>
+                                <td>Option</td>
+                                <td>312</td>
+                                <td><strong>198</strong></td>
+                                <td>114</td>
+                                <td><strong>63.5%</strong></td>
+                                <td><strong>52.3%</strong></td>
+                                <td><strong>3.5</strong></td>
+                                <td><strong>4</strong></td>
+                                <td><strong>Yes</strong></td>
+                                <td>43,487</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Foster Dual Language PK-8</strong></td>
+                                <td>Active</td>
+                                <td>Option</td>
+                                <td>454</td>
+                                <td><strong>454</strong></td>
+                                <td>0</td>
+                                <td><strong>100.0%</strong></td>
+                                <td><strong>-13.7%</strong></td>
+                                <td><strong>3.5</strong></td>
+                                <td><strong>3</strong></td>
+                                <td><strong>Yes</strong></td>
+                                <td>42,486</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Slater Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>310</td>
+                                <td><strong>280</strong></td>
+                                <td>30</td>
+                                <td><strong>90.3%</strong></td>
+                                <td><strong>-12.8%</strong></td>
+                                <td><strong>3.5</strong></td>
+                                <td><strong>1</strong></td>
+                                <td><strong>Yes</strong></td>
+                                <td>46,085</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Kullerstrand Elementary</strong></td>
+                                <td>Closed</td>
+                                <td>Elementary</td>
+                                <td>302</td>
+                                <td><strong>0</strong></td>
+                                <td>302</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong>0.16</strong></td>
+                                <td><strong>2</strong></td>
+                                <td><strong>No</strong></td>
+                                <td>35,533</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Parr Elementary</strong></td>
+                                <td>Closed</td>
+                                <td>Elementary</td>
+                                <td>302</td>
+                                <td><strong>0</strong></td>
+                                <td>302</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong>0.73</strong></td>
+                                <td><strong>3</strong></td>
+                                <td><strong>No</strong></td>
+                                <td>33,602</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Van Arsdale Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>583</td>
+                                <td><strong>492</strong></td>
+                                <td>91</td>
+                                <td><strong>84.4%</strong></td>
+                                <td><strong>5.6%</strong></td>
+                                <td><strong>0.53</strong></td>
+                                <td><strong>1</strong></td>
+                                <td><strong>No</strong></td>
+                                <td>50,511</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Colorow Elementary</strong></td>
+                                <td>Closed</td>
+                                <td>Elementary</td>
+                                <td>475</td>
+                                <td><strong>0</strong></td>
+                                <td>475</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong>0.47</strong></td>
+                                <td><strong>2</strong></td>
+                                <td><strong>Yes</strong></td>
+                                <td>44,227</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Prospect Valley Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>562</td>
+                                <td><strong>583</strong></td>
+                                <td>-21</td>
+                                <td><strong>103.7%</strong></td>
+                                <td><strong>15.0%</strong></td>
+                                <td><strong>1.28</strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong>Yes</strong></td>
+                                <td>46,229</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Green Gables Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>346</td>
+                                <td><strong>315</strong></td>
+                                <td>31</td>
+                                <td><strong>91.0%</strong></td>
+                                <td><strong>5.4%</strong></td>
+                                <td><strong>0.51</strong></td>
+                                <td><strong>1</strong></td>
+                                <td><strong>No</strong></td>
+                                <td>36,920</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Marshdale Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>396</td>
+                                <td><strong>375</strong></td>
+                                <td>21</td>
+                                <td><strong>94.7%</strong></td>
+                                <td><strong>24.2%</strong></td>
+                                <td><strong>0.78</strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong>Yes</strong></td>
+                                <td>44,120</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Rose Stein International Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>468</td>
+                                <td><strong>336</strong></td>
+                                <td>132</td>
+                                <td><strong>71.8%</strong></td>
+                                <td><strong>30.2%</strong></td>
+                                <td><strong>0.28</strong></td>
+                                <td><strong>1</strong></td>
+                                <td><strong>No</strong></td>
+                                <td>47,094</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Peak Expeditionary at Pennington</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>331</td>
+                                <td><strong>316</strong></td>
+                                <td>15</td>
+                                <td><strong>95.5%</strong></td>
+                                <td><strong>34.5%</strong></td>
+                                <td><strong>2.42</strong></td>
+                                <td><strong>3</strong></td>
+                                <td><strong>Yes</strong></td>
+                                <td>36,877</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Jeffco Transition Services</strong></td>
+                                <td>Active</td>
+                                <td>Alternative</td>
+                                <td>95</td>
+                                <td><strong>116</strong></td>
+                                <td>-21</td>
+                                <td><strong>122.1%</strong></td>
+                                <td><strong>-10.1%</strong></td>
+                                <td><strong>0.54</strong></td>
+                                <td><strong>1</strong></td>
+                                <td><strong>Yes</strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Little Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>410</td>
+                                <td><strong>310</strong></td>
+                                <td>100</td>
+                                <td><strong>75.6%</strong></td>
+                                <td><strong>-23.6%</strong></td>
+                                <td><strong>0.47</strong></td>
+                                <td><strong>1</strong></td>
+                                <td><strong>No</strong></td>
+                                <td>40,712</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Peck Elementary</strong></td>
+                                <td>Closed</td>
+                                <td>Elementary</td>
+                                <td>432</td>
+                                <td><strong>0</strong></td>
+                                <td>432</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong>1.03</strong></td>
+                                <td><strong>4</strong></td>
+                                <td><strong>No</strong></td>
+                                <td>42,834</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Vanderhoof Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>490</td>
+                                <td><strong>403</strong></td>
+                                <td>87</td>
+                                <td><strong>82.2%</strong></td>
+                                <td><strong>-14.3%</strong></td>
+                                <td><strong>0.54</strong></td>
+                                <td><strong>1</strong></td>
+                                <td><strong>No</strong></td>
+                                <td>44,082</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Fairmount Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>605</td>
+                                <td><strong>601</strong></td>
+                                <td>4</td>
+                                <td><strong>99.3%</strong></td>
+                                <td><strong>-9.8%</strong></td>
+                                <td><strong>0.16</strong></td>
+                                <td><strong>1</strong></td>
+                                <td><strong>Yes</strong></td>
+                                <td>65,146</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Sheridan Green Elementary</strong></td>
+                                <td>Closed</td>
+                                <td>Elementary</td>
+                                <td>0</td>
+                                <td><strong>0</strong></td>
+                                <td>0</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong>0.58</strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong>Yes</strong></td>
+                                <td>46,466</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Welchester Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>410</td>
+                                <td><strong>293</strong></td>
+                                <td>117</td>
+                                <td><strong>71.5%</strong></td>
+                                <td><strong>4.3%</strong></td>
+                                <td><strong>0.86</strong></td>
+                                <td><strong>5</strong></td>
+                                <td><strong>Yes</strong></td>
+                                <td>42,093</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Swanson Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>518</td>
+                                <td><strong>283</strong></td>
+                                <td>235</td>
+                                <td><strong>54.6%</strong></td>
+                                <td><strong>-29.2%</strong></td>
+                                <td><strong>0.7</strong></td>
+                                <td><strong>1</strong></td>
+                                <td><strong>No</strong></td>
+                                <td>54,462</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Fremont Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>360</td>
+                                <td><strong>268</strong></td>
+                                <td>92</td>
+                                <td><strong>74.4%</strong></td>
+                                <td><strong>-23.6%</strong></td>
+                                <td><strong>1.23</strong></td>
+                                <td><strong>2</strong></td>
+                                <td><strong>Yes</strong></td>
+                                <td>45,920</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Patterson Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>410</td>
+                                <td><strong>346</strong></td>
+                                <td>64</td>
+                                <td><strong>84.4%</strong></td>
+                                <td><strong>-33.7%</strong></td>
+                                <td><strong>1.39</strong></td>
+                                <td><strong>2</strong></td>
+                                <td><strong>Yes</strong></td>
+                                <td>48,895</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Brady Exploration School</strong></td>
+                                <td>Active</td>
+                                <td>Alternative</td>
+                                <td>405</td>
+                                <td><strong>294</strong></td>
+                                <td>111</td>
+                                <td><strong>72.6%</strong></td>
+                                <td><strong>5.0%</strong></td>
+                                <td><strong>0.28</strong></td>
+                                <td><strong>1</strong></td>
+                                <td><strong>Yes</strong></td>
+                                <td>68,612</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Deane Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>482</td>
+                                <td><strong>341</strong></td>
+                                <td>141</td>
+                                <td><strong>70.7%</strong></td>
+                                <td><strong>-28.8%</strong></td>
+                                <td><strong>0.71</strong></td>
+                                <td><strong>1</strong></td>
+                                <td><strong>Yes</strong></td>
+                                <td>46,118</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Fitzmorris Elementary</strong></td>
+                                <td>Closed</td>
+                                <td>Elementary</td>
+                                <td>454</td>
+                                <td><strong>0</strong></td>
+                                <td>454</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong>No Data</strong></td>
+                                <td><strong>5</strong></td>
+                                <td><strong>No</strong></td>
+                                <td>51,259</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Green Mountain Elementary</strong></td>
+                                <td>Closed</td>
+                                <td>Elementary</td>
+                                <td>324</td>
+                                <td><strong>0</strong></td>
+                                <td>324</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong>1.06</strong></td>
+                                <td><strong>3</strong></td>
+                                <td><strong></strong></td>
+                                <td>40,301</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Kyffin Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>540</td>
+                                <td><strong>503</strong></td>
+                                <td>37</td>
+                                <td><strong>93.1%</strong></td>
+                                <td><strong>-9.5%</strong></td>
+                                <td><strong>0.79</strong></td>
+                                <td><strong>4</strong></td>
+                                <td><strong></strong></td>
+                                <td>49,472</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Witt Elementary</strong></td>
+                                <td>Closed</td>
+                                <td>Elementary</td>
+                                <td>475</td>
+                                <td><strong>0</strong></td>
+                                <td>475</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong>1.4</strong></td>
+                                <td><strong>2</strong></td>
+                                <td><strong></strong></td>
+                                <td>44,341</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Columbine Hills Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>432</td>
+                                <td><strong>315</strong></td>
+                                <td>117</td>
+                                <td><strong>72.9%</strong></td>
+                                <td><strong>-25.5%</strong></td>
+                                <td><strong>0.79</strong></td>
+                                <td><strong>3</strong></td>
+                                <td><strong></strong></td>
+                                <td>47,268</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Dutch Creek Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>562</td>
+                                <td><strong>286</strong></td>
+                                <td>276</td>
+                                <td><strong>50.9%</strong></td>
+                                <td><strong>-9.8%</strong></td>
+                                <td><strong>0.65</strong></td>
+                                <td><strong>1</strong></td>
+                                <td><strong></strong></td>
+                                <td>49,780</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Hutchinson Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>475</td>
+                                <td><strong>328</strong></td>
+                                <td>147</td>
+                                <td><strong>69.1%</strong></td>
+                                <td><strong>-21.3%</strong></td>
+                                <td><strong>0.99</strong></td>
+                                <td><strong>2</strong></td>
+                                <td><strong></strong></td>
+                                <td>44,976</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Kendallvue Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>497</td>
+                                <td><strong>370</strong></td>
+                                <td>127</td>
+                                <td><strong>74.4%</strong></td>
+                                <td><strong>-26.1%</strong></td>
+                                <td><strong>0.12</strong></td>
+                                <td><strong>3</strong></td>
+                                <td><strong></strong></td>
+                                <td>45,418</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Stott Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>432</td>
+                                <td><strong>288</strong></td>
+                                <td>144</td>
+                                <td><strong>66.7%</strong></td>
+                                <td><strong>-20.0%</strong></td>
+                                <td><strong>0.35</strong></td>
+                                <td><strong>3</strong></td>
+                                <td><strong></strong></td>
+                                <td>45,525</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Fletcher Miller Special Education School</strong></td>
+                                <td>Active</td>
+                                <td>Alternative</td>
+                                <td>109</td>
+                                <td><strong>97</strong></td>
+                                <td>12</td>
+                                <td><strong>89.0%</strong></td>
+                                <td><strong>4.3%</strong></td>
+                                <td><strong>0.04</strong></td>
+                                <td><strong>6</strong></td>
+                                <td><strong></strong></td>
+                                <td>51,184</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Warder Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>475</td>
+                                <td><strong>432</strong></td>
+                                <td>43</td>
+                                <td><strong>90.9%</strong></td>
+                                <td><strong>11.9%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>2</strong></td>
+                                <td><strong></strong></td>
+                                <td>41,934</td>
+                            </tr>
+                            <tr>
+                                <td><strong>West Woods Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>648</td>
+                                <td><strong>542</strong></td>
+                                <td>106</td>
+                                <td><strong>83.6%</strong></td>
+                                <td><strong>-17.6%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>2</strong></td>
+                                <td><strong></strong></td>
+                                <td>53,379</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Wilmore-Davis Elementary</strong></td>
+                                <td>Closed</td>
+                                <td>Elementary</td>
+                                <td>367</td>
+                                <td><strong>0</strong></td>
+                                <td>367</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>2</strong></td>
+                                <td><strong></strong></td>
+                                <td>38,596</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Governor's Ranch Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>497</td>
+                                <td><strong>458</strong></td>
+                                <td>39</td>
+                                <td><strong>92.2%</strong></td>
+                                <td><strong>7.5%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>3</strong></td>
+                                <td><strong></strong></td>
+                                <td>46,907</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Shelton Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>540</td>
+                                <td><strong>394</strong></td>
+                                <td>146</td>
+                                <td><strong>73.0%</strong></td>
+                                <td><strong>-8.8%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>4</strong></td>
+                                <td><strong></strong></td>
+                                <td>53,530</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Ute Meadows Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>540</td>
+                                <td><strong>374</strong></td>
+                                <td>166</td>
+                                <td><strong>69.3%</strong></td>
+                                <td><strong>-17.8%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>3</strong></td>
+                                <td><strong></strong></td>
+                                <td>46,266</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Wheat Ridge High School</strong></td>
+                                <td>Active</td>
+                                <td>High</td>
+                                <td>1820</td>
+                                <td><strong>932</strong></td>
+                                <td>888</td>
+                                <td><strong>51.2%</strong></td>
+                                <td><strong>-26.8%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>1</strong></td>
+                                <td><strong></strong></td>
+                                <td>211,311</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Adams Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>497</td>
+                                <td><strong>310</strong></td>
+                                <td>187</td>
+                                <td><strong>62.4%</strong></td>
+                                <td><strong>-38.2%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>2</strong></td>
+                                <td><strong></strong></td>
+                                <td>47,737</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Leawood Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>518</td>
+                                <td><strong>321</strong></td>
+                                <td>197</td>
+                                <td><strong>62.0%</strong></td>
+                                <td><strong>-23.2%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>4</strong></td>
+                                <td><strong></strong></td>
+                                <td>48,383</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Maple Grove Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>353</td>
+                                <td><strong>390</strong></td>
+                                <td>-37</td>
+                                <td><strong>110.5%</strong></td>
+                                <td><strong>7.7%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>3</strong></td>
+                                <td><strong></strong></td>
+                                <td>42,408</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Dennison Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Option</td>
+                                <td>648</td>
+                                <td><strong>575</strong></td>
+                                <td>73</td>
+                                <td><strong>88.7%</strong></td>
+                                <td><strong>-7.9%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>5</strong></td>
+                                <td><strong></strong></td>
+                                <td>43,420</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Weber Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>518</td>
+                                <td><strong>312</strong></td>
+                                <td>206</td>
+                                <td><strong>60.2%</strong></td>
+                                <td><strong>-35.7%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>3</strong></td>
+                                <td><strong></strong></td>
+                                <td>51,052</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Westgate Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>626</td>
+                                <td><strong>305</strong></td>
+                                <td>321</td>
+                                <td><strong>48.7%</strong></td>
+                                <td><strong>-52.1%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>2</strong></td>
+                                <td><strong></strong></td>
+                                <td>51,207</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Bergen Meadow Primary School</strong></td>
+                                <td>Closed</td>
+                                <td>Elementary</td>
+                                <td>518</td>
+                                <td><strong>0</strong></td>
+                                <td>518</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>2</strong></td>
+                                <td><strong></strong></td>
+                                <td>50,555</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Normandy Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>540</td>
+                                <td><strong>262</strong></td>
+                                <td>278</td>
+                                <td><strong>48.5%</strong></td>
+                                <td><strong>-55.2%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>2</strong></td>
+                                <td><strong></strong></td>
+                                <td>55,702</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Oberon Middle School</strong></td>
+                                <td>Active</td>
+                                <td>Middle</td>
+                                <td>756</td>
+                                <td><strong>704</strong></td>
+                                <td>52</td>
+                                <td><strong>93.1%</strong></td>
+                                <td><strong>23.9%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>4</strong></td>
+                                <td><strong></strong></td>
+                                <td>90,839</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Warren Tech North</strong></td>
+                                <td>Active</td>
+                                <td>Option</td>
+                                <td>524</td>
+                                <td><strong>0</strong></td>
+                                <td>524</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>2</strong></td>
+                                <td><strong></strong></td>
+                                <td>34,593</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Stony Creek Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>497</td>
+                                <td><strong>349</strong></td>
+                                <td>148</td>
+                                <td><strong>70.2%</strong></td>
+                                <td><strong>-30.2%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>4</strong></td>
+                                <td><strong></strong></td>
+                                <td>45,230</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Arvada K-8</strong></td>
+                                <td>Closed</td>
+                                <td>Multi-Level</td>
+                                <td>763</td>
+                                <td><strong>0</strong></td>
+                                <td>763</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>4</strong></td>
+                                <td><strong></strong></td>
+                                <td>114,795</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Belmar School of Integrated Arts</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>396</td>
+                                <td><strong>293</strong></td>
+                                <td>103</td>
+                                <td><strong>74.0%</strong></td>
+                                <td><strong>-9.6%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>7</strong></td>
+                                <td><strong></strong></td>
+                                <td>40,873</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Glennon Heights Elementary</strong></td>
+                                <td>Closed</td>
+                                <td>Elementary</td>
+                                <td>302</td>
+                                <td><strong>0</strong></td>
+                                <td>302</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>34,702</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Secrest Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>418</td>
+                                <td><strong>334</strong></td>
+                                <td>84</td>
+                                <td><strong>79.9%</strong></td>
+                                <td><strong>-13.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>3</strong></td>
+                                <td><strong></strong></td>
+                                <td>46,373</td>
+                            </tr>
+                            <tr>
+                                <td><strong>South Lakewood Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>497</td>
+                                <td><strong>393</strong></td>
+                                <td>104</td>
+                                <td><strong>79.1%</strong></td>
+                                <td><strong>-26.1%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>4</strong></td>
+                                <td><strong></strong></td>
+                                <td>51,794</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Standley Lake High School</strong></td>
+                                <td>Active</td>
+                                <td>High</td>
+                                <td>1867</td>
+                                <td><strong>1123</strong></td>
+                                <td>744</td>
+                                <td><strong>60.1%</strong></td>
+                                <td><strong>-12.9%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>3</strong></td>
+                                <td><strong></strong></td>
+                                <td>193,706</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Coronado Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>475</td>
+                                <td><strong>384</strong></td>
+                                <td>91</td>
+                                <td><strong>80.8%</strong></td>
+                                <td><strong>-38.9%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>5</strong></td>
+                                <td><strong></strong></td>
+                                <td>46,544</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Eiber Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>396</td>
+                                <td><strong>255</strong></td>
+                                <td>141</td>
+                                <td><strong>64.4%</strong></td>
+                                <td><strong>-43.2%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>4</strong></td>
+                                <td><strong></strong></td>
+                                <td>52,018</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Hackberry Hill Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>432</td>
+                                <td><strong>430</strong></td>
+                                <td>2</td>
+                                <td><strong>99.5%</strong></td>
+                                <td><strong>-14.5%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>3</strong></td>
+                                <td><strong></strong></td>
+                                <td>52,414</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Powderhorn Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>569</td>
+                                <td><strong>522</strong></td>
+                                <td>47</td>
+                                <td><strong>91.7%</strong></td>
+                                <td><strong>-19.6%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>6</strong></td>
+                                <td><strong></strong></td>
+                                <td>52,135</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Manning School of Academics and Arts</strong></td>
+                                <td>Active</td>
+                                <td>Option</td>
+                                <td>655</td>
+                                <td><strong>685</strong></td>
+                                <td>-30</td>
+                                <td><strong>104.6%</strong></td>
+                                <td><strong>50.5%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>4</strong></td>
+                                <td><strong></strong></td>
+                                <td>72,678</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Bradford K8 North</strong></td>
+                                <td>Active</td>
+                                <td>Multi-Level</td>
+                                <td>410</td>
+                                <td><strong>350</strong></td>
+                                <td>60</td>
+                                <td><strong>85.4%</strong></td>
+                                <td><strong>6.1%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>6</strong></td>
+                                <td><strong></strong></td>
+                                <td>46,070</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Foothills Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>418</td>
+                                <td><strong>363</strong></td>
+                                <td>55</td>
+                                <td><strong>86.8%</strong></td>
+                                <td><strong>4.9%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>6</strong></td>
+                                <td><strong></strong></td>
+                                <td>40,063</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Lasley Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>691</td>
+                                <td><strong>576</strong></td>
+                                <td>115</td>
+                                <td><strong>83.4%</strong></td>
+                                <td><strong>12.7%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>8</strong></td>
+                                <td><strong></strong></td>
+                                <td>66,927</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Semper Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>518</td>
+                                <td><strong>314</strong></td>
+                                <td>204</td>
+                                <td><strong>60.6%</strong></td>
+                                <td><strong>-29.3%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>2</strong></td>
+                                <td><strong></strong></td>
+                                <td>53,756</td>
+                            </tr>
+                            <tr>
+                                <td><strong>West Jefferson Middle School</strong></td>
+                                <td>Active</td>
+                                <td>Middle</td>
+                                <td>655</td>
+                                <td><strong>499</strong></td>
+                                <td>156</td>
+                                <td><strong>76.2%</strong></td>
+                                <td><strong>-11.2%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>5</strong></td>
+                                <td><strong></strong></td>
+                                <td>104,165</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Westridge Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>497</td>
+                                <td><strong>400</strong></td>
+                                <td>97</td>
+                                <td><strong>80.5%</strong></td>
+                                <td><strong>-22.2%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>6</strong></td>
+                                <td><strong></strong></td>
+                                <td>47,105</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Allendale Elementary</strong></td>
+                                <td>Closed</td>
+                                <td>Elementary</td>
+                                <td>324</td>
+                                <td><strong>0</strong></td>
+                                <td>324</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>5</strong></td>
+                                <td><strong></strong></td>
+                                <td>40,646</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Edgewater Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>497</td>
+                                <td><strong>335</strong></td>
+                                <td>162</td>
+                                <td><strong>67.4%</strong></td>
+                                <td><strong>-35.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>4</strong></td>
+                                <td><strong></strong></td>
+                                <td>45,204</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Elk Creek Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>475</td>
+                                <td><strong>324</strong></td>
+                                <td>151</td>
+                                <td><strong>68.2%</strong></td>
+                                <td><strong>11.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>5</strong></td>
+                                <td><strong></strong></td>
+                                <td>51,181</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Everitt Middle School</strong></td>
+                                <td>Active</td>
+                                <td>Middle</td>
+                                <td>738</td>
+                                <td><strong>456</strong></td>
+                                <td>282</td>
+                                <td><strong>61.8%</strong></td>
+                                <td><strong>31.4%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>6</strong></td>
+                                <td><strong></strong></td>
+                                <td>103,698</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Ken Caryl Middle School</strong></td>
+                                <td>Active</td>
+                                <td>Middle</td>
+                                <td>907</td>
+                                <td><strong>725</strong></td>
+                                <td>182</td>
+                                <td><strong>79.9%</strong></td>
+                                <td><strong>11.2%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>5</strong></td>
+                                <td><strong></strong></td>
+                                <td>101,389</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Lawrence Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>367</td>
+                                <td><strong>412</strong></td>
+                                <td>-45</td>
+                                <td><strong>112.3%</strong></td>
+                                <td><strong>13.2%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>5</strong></td>
+                                <td><strong></strong></td>
+                                <td>47,139</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Peiffer Elementary</strong></td>
+                                <td>Closed</td>
+                                <td>Elementary</td>
+                                <td>475</td>
+                                <td><strong>0</strong></td>
+                                <td>475</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>3</strong></td>
+                                <td><strong></strong></td>
+                                <td>44,016</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Blue Heron Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>518</td>
+                                <td><strong>325</strong></td>
+                                <td>193</td>
+                                <td><strong>62.7%</strong></td>
+                                <td><strong>-38.4%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>7</strong></td>
+                                <td><strong></strong></td>
+                                <td>55,083</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Mortensen Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>540</td>
+                                <td><strong>260</strong></td>
+                                <td>280</td>
+                                <td><strong>48.1%</strong></td>
+                                <td><strong>-45.7%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>5</strong></td>
+                                <td><strong></strong></td>
+                                <td>52,158</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Mount Carbon Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>540</td>
+                                <td><strong>367</strong></td>
+                                <td>173</td>
+                                <td><strong>68.0%</strong></td>
+                                <td><strong>-21.4%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>5</strong></td>
+                                <td><strong></strong></td>
+                                <td>51,928</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Pomona Junior/Senior High School</strong></td>
+                                <td>Active</td>
+                                <td>Multi-Level</td>
+                                <td>2105</td>
+                                <td><strong>1252</strong></td>
+                                <td>853</td>
+                                <td><strong>59.5%</strong></td>
+                                <td><strong>-13.5%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>4</strong></td>
+                                <td><strong></strong></td>
+                                <td>203,945</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Sobesky Academy</strong></td>
+                                <td>Active</td>
+                                <td>Alternative</td>
+                                <td>449</td>
+                                <td><strong>101</strong></td>
+                                <td>348</td>
+                                <td><strong>22.5%</strong></td>
+                                <td><strong>42.3%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>5</strong></td>
+                                <td><strong></strong></td>
+                                <td>53,724</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Devinny Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>518</td>
+                                <td><strong>505</strong></td>
+                                <td>13</td>
+                                <td><strong>97.5%</strong></td>
+                                <td><strong>-7.3%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>6</strong></td>
+                                <td><strong></strong></td>
+                                <td>52,618</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Emory Elementary</strong></td>
+                                <td>Closed</td>
+                                <td>Elementary</td>
+                                <td>713</td>
+                                <td><strong>0</strong></td>
+                                <td>713</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>6</strong></td>
+                                <td><strong></strong></td>
+                                <td>107,786</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Mitchell Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>518</td>
+                                <td><strong>478</strong></td>
+                                <td>40</td>
+                                <td><strong>92.3%</strong></td>
+                                <td><strong>-9.3%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>3</strong></td>
+                                <td><strong></strong></td>
+                                <td>53,034</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Warren Tech</strong></td>
+                                <td>Active</td>
+                                <td>Option</td>
+                                <td>762</td>
+                                <td><strong>32</strong></td>
+                                <td>730</td>
+                                <td><strong>4.2%</strong></td>
+                                <td><strong>-22.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>7</strong></td>
+                                <td><strong></strong></td>
+                                <td>166,995</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Parmalee Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>346</td>
+                                <td><strong>278</strong></td>
+                                <td>68</td>
+                                <td><strong>80.3%</strong></td>
+                                <td><strong>7.8%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>5</strong></td>
+                                <td><strong></strong></td>
+                                <td>37,239</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Rooney Ranch Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>583</td>
+                                <td><strong>492</strong></td>
+                                <td>91</td>
+                                <td><strong>84.4%</strong></td>
+                                <td><strong>-8.6%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>6</strong></td>
+                                <td><strong></strong></td>
+                                <td>53,635</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Bell Middle School</strong></td>
+                                <td>Active</td>
+                                <td>Middle</td>
+                                <td>1008</td>
+                                <td><strong>774</strong></td>
+                                <td>234</td>
+                                <td><strong>76.8%</strong></td>
+                                <td><strong>24.4%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>6</strong></td>
+                                <td><strong></strong></td>
+                                <td>125,740</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Bradford K8 South</strong></td>
+                                <td>Active</td>
+                                <td>Multi-Level</td>
+                                <td>497</td>
+                                <td><strong>371</strong></td>
+                                <td>126</td>
+                                <td><strong>74.6%</strong></td>
+                                <td><strong>-18.1%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>7</strong></td>
+                                <td><strong></strong></td>
+                                <td>48,682</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Carmody Middle School</strong></td>
+                                <td>Active</td>
+                                <td>Middle</td>
+                                <td>839</td>
+                                <td><strong>550</strong></td>
+                                <td>289</td>
+                                <td><strong>65.6%</strong></td>
+                                <td><strong>-6.3%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>6</strong></td>
+                                <td><strong></strong></td>
+                                <td>99,694</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Columbine High School</strong></td>
+                                <td>Active</td>
+                                <td>High</td>
+                                <td>2207</td>
+                                <td><strong>1710</strong></td>
+                                <td>497</td>
+                                <td><strong>77.5%</strong></td>
+                                <td><strong>1.2%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>6</strong></td>
+                                <td><strong></strong></td>
+                                <td>238,149</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Lumberg Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>540</td>
+                                <td><strong>526</strong></td>
+                                <td>14</td>
+                                <td><strong>97.4%</strong></td>
+                                <td><strong>-4.7%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>6</strong></td>
+                                <td><strong></strong></td>
+                                <td>64,020</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Moore Middle School</strong></td>
+                                <td>Closed</td>
+                                <td>Middle</td>
+                                <td>662</td>
+                                <td><strong>0</strong></td>
+                                <td>662</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>5</strong></td>
+                                <td><strong></strong></td>
+                                <td>83,756</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Free Horizon Montessori PK-8</strong></td>
+                                <td>Active</td>
+                                <td>Option</td>
+                                <td>425</td>
+                                <td><strong>382</strong></td>
+                                <td>43</td>
+                                <td><strong>89.9%</strong></td>
+                                <td><strong>0.8%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>5</strong></td>
+                                <td><strong></strong></td>
+                                <td>49,079</td>
+                            </tr>
+                            <tr>
+                                <td><strong>North Arvada Middle School</strong></td>
+                                <td>Active</td>
+                                <td>Middle</td>
+                                <td>756</td>
+                                <td><strong>464</strong></td>
+                                <td>292</td>
+                                <td><strong>61.4%</strong></td>
+                                <td><strong>10.5%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>6</strong></td>
+                                <td><strong></strong></td>
+                                <td>113,554</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Arvada High School</strong></td>
+                                <td>Active</td>
+                                <td>High</td>
+                                <td>1748</td>
+                                <td><strong>754</strong></td>
+                                <td>994</td>
+                                <td><strong>43.1%</strong></td>
+                                <td><strong>-15.8%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>4</strong></td>
+                                <td><strong></strong></td>
+                                <td>236,196</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Conifer High School</strong></td>
+                                <td>Active</td>
+                                <td>High</td>
+                                <td>1398</td>
+                                <td><strong>821</strong></td>
+                                <td>577</td>
+                                <td><strong>58.7%</strong></td>
+                                <td><strong>0.9%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>7</strong></td>
+                                <td><strong></strong></td>
+                                <td>166,224</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Green Mountain High School</strong></td>
+                                <td>Active</td>
+                                <td>High</td>
+                                <td>1939</td>
+                                <td><strong>1071</strong></td>
+                                <td>868</td>
+                                <td><strong>55.2%</strong></td>
+                                <td><strong>-4.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>6</strong></td>
+                                <td><strong></strong></td>
+                                <td>199,223</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Ryan Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>590</td>
+                                <td><strong>511</strong></td>
+                                <td>79</td>
+                                <td><strong>86.6%</strong></td>
+                                <td><strong>5.4%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>8</strong></td>
+                                <td><strong></strong></td>
+                                <td>50,545</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Shaffer Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>518</td>
+                                <td><strong>497</strong></td>
+                                <td>21</td>
+                                <td><strong>95.9%</strong></td>
+                                <td><strong>-8.5%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>7</strong></td>
+                                <td><strong></strong></td>
+                                <td>53,368</td>
+                            </tr>
+                            <tr>
+                                <td><strong>West Jefferson Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>410</td>
+                                <td><strong>252</strong></td>
+                                <td>158</td>
+                                <td><strong>61.5%</strong></td>
+                                <td><strong>-30.2%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>8</strong></td>
+                                <td><strong></strong></td>
+                                <td>48,100</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Creighton Middle</strong></td>
+                                <td>Active</td>
+                                <td>Middle</td>
+                                <td>914</td>
+                                <td><strong>741</strong></td>
+                                <td>173</td>
+                                <td><strong>81.1%</strong></td>
+                                <td><strong>9.5%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>7</strong></td>
+                                <td><strong></strong></td>
+                                <td>133,082</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Deer Creek Middle School</strong></td>
+                                <td>Active</td>
+                                <td>Middle</td>
+                                <td>1058</td>
+                                <td><strong>541</strong></td>
+                                <td>517</td>
+                                <td><strong>51.1%</strong></td>
+                                <td><strong>-14.1%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>7</strong></td>
+                                <td><strong></strong></td>
+                                <td>120,366</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Drake Middle School</strong></td>
+                                <td>Active</td>
+                                <td>Middle</td>
+                                <td>990</td>
+                                <td><strong>1003</strong></td>
+                                <td>-13</td>
+                                <td><strong>101.3%</strong></td>
+                                <td><strong>52.9%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>8</strong></td>
+                                <td><strong></strong></td>
+                                <td>123,953</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Lakewood High School</strong></td>
+                                <td>Active</td>
+                                <td>High</td>
+                                <td>2041</td>
+                                <td><strong>1735</strong></td>
+                                <td>306</td>
+                                <td><strong>85.0%</strong></td>
+                                <td><strong>-18.3%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>7</strong></td>
+                                <td><strong></strong></td>
+                                <td>248,135</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Summit Ridge Middle School</strong></td>
+                                <td>Active</td>
+                                <td>Middle</td>
+                                <td>1008</td>
+                                <td><strong>851</strong></td>
+                                <td>157</td>
+                                <td><strong>84.4%</strong></td>
+                                <td><strong>7.4%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>7</strong></td>
+                                <td><strong></strong></td>
+                                <td>133,587</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Wilmot Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>454</td>
+                                <td><strong>327</strong></td>
+                                <td>127</td>
+                                <td><strong>72.0%</strong></td>
+                                <td><strong>-17.2%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>8</strong></td>
+                                <td><strong></strong></td>
+                                <td>56,727</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Bergen Elementary School</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>454</td>
+                                <td><strong>456</strong></td>
+                                <td>-2</td>
+                                <td><strong>100.4%</strong></td>
+                                <td><strong>58.9%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>8</strong></td>
+                                <td><strong></strong></td>
+                                <td>42,281</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Connections Learning Center</strong></td>
+                                <td>Active</td>
+                                <td>Alternative</td>
+                                <td>282</td>
+                                <td><strong>22</strong></td>
+                                <td>260</td>
+                                <td><strong>7.8%</strong></td>
+                                <td><strong>-35.3%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>7</strong></td>
+                                <td><strong></strong></td>
+                                <td>20,500</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Golden High School</strong></td>
+                                <td>Active</td>
+                                <td>High</td>
+                                <td>1534</td>
+                                <td><strong>1469</strong></td>
+                                <td>65</td>
+                                <td><strong>95.8%</strong></td>
+                                <td><strong>12.9%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>7</strong></td>
+                                <td><strong></strong></td>
+                                <td>187,259</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Jefferson Junior/Senior High School</strong></td>
+                                <td>Active</td>
+                                <td>Multi-Level</td>
+                                <td>1135</td>
+                                <td><strong>601</strong></td>
+                                <td>534</td>
+                                <td><strong>53.0%</strong></td>
+                                <td><strong>22.9%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>2</strong></td>
+                                <td><strong></strong></td>
+                                <td>123,773</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Lukas Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>446</td>
+                                <td><strong>402</strong></td>
+                                <td>44</td>
+                                <td><strong>90.1%</strong></td>
+                                <td><strong>-23.9%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>6</strong></td>
+                                <td><strong></strong></td>
+                                <td>47,742</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Mandalay Middle School</strong></td>
+                                <td>Active</td>
+                                <td>Middle</td>
+                                <td>630</td>
+                                <td><strong>443</strong></td>
+                                <td>187</td>
+                                <td><strong>70.3%</strong></td>
+                                <td><strong>8.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>7</strong></td>
+                                <td><strong></strong></td>
+                                <td>88,977</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Jefferson County Open Elementary School</strong></td>
+                                <td>Active</td>
+                                <td>Option</td>
+                                <td>904</td>
+                                <td><strong>551</strong></td>
+                                <td>353</td>
+                                <td><strong>61.0%</strong></td>
+                                <td><strong>1.3%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>8</strong></td>
+                                <td><strong></strong></td>
+                                <td>51,314</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Jefferson County Open Secondary</strong></td>
+                                <td>Active</td>
+                                <td>#N/A</td>
+                                <td>-</td>
+                                <td><strong>#N/A</strong></td>
+                                <td>-</td>
+                                <td><strong>-</strong></td>
+                                <td><strong>-</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Stevens Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>569</td>
+                                <td><strong>469</strong></td>
+                                <td>100</td>
+                                <td><strong>82.4%</strong></td>
+                                <td><strong>23.7%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>7</strong></td>
+                                <td><strong></strong></td>
+                                <td>111,703</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Thomson Elementary</strong></td>
+                                <td>Closed</td>
+                                <td>Elementary</td>
+                                <td>518</td>
+                                <td><strong>0</strong></td>
+                                <td>518</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>48,832</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Arvada West High School</strong></td>
+                                <td>Active</td>
+                                <td>High</td>
+                                <td>1946</td>
+                                <td><strong>1923</strong></td>
+                                <td>23</td>
+                                <td><strong>98.8%</strong></td>
+                                <td><strong>10.1%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>5</strong></td>
+                                <td><strong></strong></td>
+                                <td>237,052</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Dakota Ridge High School</strong></td>
+                                <td>Active</td>
+                                <td>High</td>
+                                <td>2041</td>
+                                <td><strong>1277</strong></td>
+                                <td>764</td>
+                                <td><strong>62.6%</strong></td>
+                                <td><strong>-17.1%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>7</strong></td>
+                                <td><strong></strong></td>
+                                <td>236,407</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Evergreen High School</strong></td>
+                                <td>Active</td>
+                                <td>High</td>
+                                <td>1589</td>
+                                <td><strong>909</strong></td>
+                                <td>680</td>
+                                <td><strong>57.2%</strong></td>
+                                <td><strong>-10.3%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>8</strong></td>
+                                <td><strong></strong></td>
+                                <td>209,129</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Evergreen Middle School</strong></td>
+                                <td>Active</td>
+                                <td>Middle</td>
+                                <td>706</td>
+                                <td><strong>478</strong></td>
+                                <td>228</td>
+                                <td><strong>67.7%</strong></td>
+                                <td><strong>-33.3%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>8</strong></td>
+                                <td><strong></strong></td>
+                                <td>111,715</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Irwin Preschool</strong></td>
+                                <td>Closed</td>
+                                <td>Option</td>
+                                <td>0</td>
+                                <td><strong>0</strong></td>
+                                <td>0</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>10,705</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Jeffco Remote Learning Program</strong></td>
+                                <td>Active</td>
+                                <td>Option</td>
+                                <td>0</td>
+                                <td><strong>399</strong></td>
+                                <td>-399</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-31.6%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Jeffco Virtual Academy</strong></td>
+                                <td>Active</td>
+                                <td>Option</td>
+                                <td>0</td>
+                                <td><strong>441</strong></td>
+                                <td>-441</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>20.8%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Meiklejohn Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>691</td>
+                                <td><strong>521</strong></td>
+                                <td>170</td>
+                                <td><strong>75.4%</strong></td>
+                                <td><strong>-34.9%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>6</strong></td>
+                                <td><strong></strong></td>
+                                <td>69,795</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Ralston Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>410</td>
+                                <td><strong>289</strong></td>
+                                <td>121</td>
+                                <td><strong>70.5%</strong></td>
+                                <td><strong>-26.5%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>8</strong></td>
+                                <td><strong></strong></td>
+                                <td>51,304</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Ralston Valley High School</strong></td>
+                                <td>Active</td>
+                                <td>High</td>
+                                <td>2303</td>
+                                <td><strong>1875</strong></td>
+                                <td>428</td>
+                                <td><strong>81.4%</strong></td>
+                                <td><strong>2.6%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>7</strong></td>
+                                <td><strong></strong></td>
+                                <td>239,199</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Alameda International Junior/Senior High School</strong></td>
+                                <td>Active</td>
+                                <td>Multi-Level</td>
+                                <td>1493</td>
+                                <td><strong>1002</strong></td>
+                                <td>491</td>
+                                <td><strong>67.1%</strong></td>
+                                <td><strong>20.3%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>8</strong></td>
+                                <td><strong></strong></td>
+                                <td>262,863</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Bear Creek High School</strong></td>
+                                <td>Active</td>
+                                <td>High</td>
+                                <td>2303</td>
+                                <td><strong>1344</strong></td>
+                                <td>959</td>
+                                <td><strong>58.4%</strong></td>
+                                <td><strong>-19.6%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>8</strong></td>
+                                <td><strong></strong></td>
+                                <td>255,986</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Chatfield Senior High School</strong></td>
+                                <td>Active</td>
+                                <td>High</td>
+                                <td>2415</td>
+                                <td><strong>1808</strong></td>
+                                <td>607</td>
+                                <td><strong>74.9%</strong></td>
+                                <td><strong>-3.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>8</strong></td>
+                                <td><strong></strong></td>
+                                <td>275,727</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Falcon Bluffs Middle School</strong></td>
+                                <td>Active</td>
+                                <td>Middle</td>
+                                <td>857</td>
+                                <td><strong>567</strong></td>
+                                <td>290</td>
+                                <td><strong>66.2%</strong></td>
+                                <td><strong>-7.5%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>8</strong></td>
+                                <td><strong></strong></td>
+                                <td>113,571</td>
+                            </tr>
+                            <tr>
+                                <td><strong>D'Evelyn Junior/Senior High School</strong></td>
+                                <td>Active</td>
+                                <td>Option</td>
+                                <td>1320</td>
+                                <td><strong>1212</strong></td>
+                                <td>108</td>
+                                <td><strong>91.8%</strong></td>
+                                <td><strong>19.1%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>8</strong></td>
+                                <td><strong></strong></td>
+                                <td>154,002</td>
+                            </tr>
+                            <tr>
+                                <td><strong>McLain Community High School</strong></td>
+                                <td>Active</td>
+                                <td>Alternative</td>
+                                <td>738</td>
+                                <td><strong>349</strong></td>
+                                <td>389</td>
+                                <td><strong>47.3%</strong></td>
+                                <td><strong>-10.7%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>5</strong></td>
+                                <td><strong></strong></td>
+                                <td>79,113</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Bear Creek K-8</strong></td>
+                                <td>Active</td>
+                                <td>Multi-Level</td>
+                                <td>1138</td>
+                                <td><strong>863</strong></td>
+                                <td>275</td>
+                                <td><strong>75.8%</strong></td>
+                                <td><strong>-21.3%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>8</strong></td>
+                                <td><strong></strong></td>
+                                <td>122,367</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Dunstan Middle School</strong></td>
+                                <td>Active</td>
+                                <td>Middle</td>
+                                <td>1008</td>
+                                <td><strong>798</strong></td>
+                                <td>210</td>
+                                <td><strong>79.2%</strong></td>
+                                <td><strong>29.8%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>135,745</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Sierra Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>655</td>
+                                <td><strong>493</strong></td>
+                                <td>162</td>
+                                <td><strong>75.3%</strong></td>
+                                <td><strong>-8.5%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>69,882</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Wayne Carle Middle School</strong></td>
+                                <td>Active</td>
+                                <td>Middle</td>
+                                <td>706</td>
+                                <td><strong>438</strong></td>
+                                <td>268</td>
+                                <td><strong>62.0%</strong></td>
+                                <td><strong>6.8%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>8</strong></td>
+                                <td><strong></strong></td>
+                                <td>105,483</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Addenbrooke Classical Academy</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>191</strong></td>
+                                <td>-191</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-14.3%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Addenbrooke Classical Academy (PK - 8th)</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>774</strong></td>
+                                <td>-774</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>263.4%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Collegiate Academy</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>304</strong></td>
+                                <td>-304</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-23.4%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Compass Montessori</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>425</strong></td>
+                                <td>-425</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>5.5%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Compass Montessori Wheat Ridge</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>288</strong></td>
+                                <td>-288</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>1.8%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Doral Academy of Colorado</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>168</strong></td>
+                                <td>-168</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Excel Academy</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>446</strong></td>
+                                <td>-446</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-13.9%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Great Work Montessori</strong></td>
+                                <td>Closed</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>0</strong></td>
+                                <td>0</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Jeffco Central Services</strong></td>
+                                <td>Active</td>
+                                <td>Option</td>
+                                <td>0</td>
+                                <td><strong>0</strong></td>
+                                <td>0</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Jefferson Academy</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>1198</strong></td>
+                                <td>-1198</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>39.4%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Jefferson Academy Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>737</strong></td>
+                                <td>-737</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>6.5%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Jefferson Academy Secondary</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>696</strong></td>
+                                <td>-696</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>72.3%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Lincoln Academy</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>824</strong></td>
+                                <td>-824</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>25.6%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Montessori Peaks Academy</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>479</strong></td>
+                                <td>-479</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-12.9%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Mountain Phoenix Community School</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>650</strong></td>
+                                <td>-650</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>15.2%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>New America School</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>74</strong></td>
+                                <td>-74</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-77.4%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Rocky Mountain Academy of Evergreen</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>350</strong></td>
+                                <td>-350</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-13.6%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Rocky Mountain Deaf School</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>82</strong></td>
+                                <td>-82</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>15.5%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Two Roads Charter School</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>630</strong></td>
+                                <td>-630</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>13.5%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Warren Tech South</strong></td>
+                                <td>Active</td>
+                                <td>Option</td>
+                                <td>143</td>
+                                <td><strong>0</strong></td>
+                                <td>143</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>-100.0%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Woodrow Wilson Academy</strong></td>
+                                <td>Active</td>
+                                <td>Charter</td>
+                                <td>0</td>
+                                <td><strong>852</strong></td>
+                                <td>-852</td>
+                                <td><strong>0.0%</strong></td>
+                                <td><strong>0.8%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>-</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Kendrick Lakes Elementary</strong></td>
+                                <td>Active</td>
+                                <td>Elementary</td>
+                                <td>461</td>
+                                <td><strong>443</strong></td>
+                                <td>18</td>
+                                <td><strong>96.1%</strong></td>
+                                <td><strong>0.2%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>58,511</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Three Creeks K-8</strong></td>
+                                <td>Active</td>
+                                <td>Multi-Level</td>
+                                <td>1001</td>
+                                <td><strong>1050</strong></td>
+                                <td>-49</td>
+                                <td><strong>104.9%</strong></td>
+                                <td><strong>165.2%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>9</strong></td>
+                                <td><strong></strong></td>
+                                <td>100,856</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Norma Anderson Early Learning Center</strong></td>
+                                <td>Active</td>
+                                <td>Option</td>
+                                <td>96</td>
+                                <td><strong>112</strong></td>
+                                <td>-16</td>
+                                <td><strong>116.7%</strong></td>
+                                <td><strong>57.7%</strong></td>
+                                <td><strong></strong></td>
+                                <td><strong>2</strong></td>
+                                <td><strong></strong></td>
+                                <td>13,742</td>
+                            </tr>
+
+                        
+                    </table>
+                </div>
+
+            <!-- Schools.geojson Tab -->
+            <div id="map-data" class="tab-content">
+                <h2>🗺️ Schools.geojson</h2>
+                <p>This file contains geographic data for mapping school locations and spatial analysis.</p>
+
+                <h3>🗺️ Geographic Data Structure</h3>
+                <div class="card">
+                    <h4>GeoJSON Feature Properties</h4>
+                    <ul>
+                        <li><strong>Building Name</strong> - School identifier</li>
+                        <li><strong>Latitude/Longitude</strong> - Geographic coordinates</li>
+                        <li><strong>Decision Type</strong> - Assigned decision category</li>
+                        <li><strong>School Level</strong> - Elementary, Middle, High, etc.</li>
+                        <li><strong>Utilization</strong> - School utilization rate</li>
+                        <li><strong>Capacity</strong> - School capacity</li>
+                        <li><strong>Available Seats</strong> - Available capacity</li>
+                        <li><strong>Scorecard</strong> - Overall school scorecard</li>
+                        <li><strong>Building Quality</strong> - Building condition score</li>
+                    </ul>
+                </div>
+
+                <h3>🗺️ Map Features</h3>
+                <ul>
+                    <li><strong>Interactive School Markers</strong> - Click to view school details</li>
+                    <li><strong>Color-coded by Decision Type</strong> - Visual representation of decisions</li>
+                    <li><strong>Flow-based Filtering</strong> - Filter by Expansion, Maintenance/Investment, Closure/Consolidation</li>
+                    <li><strong>Enrollment & Capacity Filtering</strong> - Filter by enrollment and seat availability</li>
+                    <li><strong>School Level Filtering</strong> - Filter by Elementary, Middle, High, etc.</li>
+                    <li><strong>Automatic Zoom</strong> - Automatically fits to show all Jeffco schools</li>
+                </ul>
+            </div>
+
+            <!-- Decision Logic Flow Tab -->
+            <div id="decision-logic" class="tab-content">
+                <h2>🔧 Decision Logic Flow</h2>
+                <p>The dashboard uses a multi-step evaluation process to determine the appropriate action for each school.</p>
+
+                <h3>🗺️ 4-Flow Decision Structure</h3>
+                <div class="flow-step">
+                    <h4>Flow 1: Decision Routing</h4>
+                    <p>Main routing based on utilization and growth patterns</p>
+                    <ul>
+                        <li>Check utilization against thresholds</li>
+                        <li>Evaluate enrollment growth trends</li>
+                        <li>Assess distance to underutilized schools</li>
+                        <li>Route to appropriate sub-flow (2, 3, or 4)</li>
+                    </ul>
+                </div>
+
+                <div class="flow-step">
+                    <h4>Flow 2: Building Addition (Expansion)</h4>
+                    <p>Schools that could expand on their current site</p>
+                    <ul>
+                        <li>Check site capacity for expansion</li>
+                        <li>Evaluate building quality</li>
+                        <li>Assess program adequacy</li>
+                        <li>Determine if expansion is feasible</li>
+                    </ul>
+                </div>
+
+                <div class="flow-step">
+                    <h4>Flow 3: Maintenance/Investment</h4>
+                    <p>Schools needing facility or program improvements</p>
+                    <ul>
+                        <li>Evaluate building condition scores</li>
+                        <li>Check program offerings</li>
+                        <li>Determine investment priority</li>
+                        <li>Classify as maintenance or major investment</li>
+                    </ul>
+                </div>
+
+                <div class="flow-step">
+                    <h4>Flow 4: Consolidation/Closure</h4>
+                    <p>Schools recommended for consolidation or closure</p>
+                    <ul>
+                        <li>Check recent investment status</li>
+                        <li>Evaluate program adequacy</li>
+                        <li>Assess composite building score</li>
+                        <li>Check distance to welcoming schools (varies by school level)</li>
+                        <li>Determine consolidation or closure path</li>
+                    </ul>
+                </div>
+
+                <h3>🎯 Decision Categories Explained</h3>
+                <div class="grid">
+                    <div class="card">
+                        <h4>🟢 Expansion Category</h4>
+                        <ul>
+                            <li><strong>Building Addition</strong> - Schools that can expand on-site</li>
+                            <li><strong>Replacement</strong> - Schools needing complete replacement</li>
+                            <li><strong>Building Addition & Major Capital</strong> - Expansion with major investment</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h4>🟠 Maintenance/Investment Category</h4>
+                        <ul>
+                            <li><strong>Target Capital Investment</strong> - Targeted improvements</li>
+                            <li><strong>Standard Maintenance</strong> - Routine maintenance needs</li>
+                            <li><strong>Major Capital Investment</strong> - Significant improvements</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h4>🗺️ Closure/Consolidation Category</h4>
+                        <ul>
+                            <li><strong>Consolidation (Welcoming)</strong> - Welcoming schools that receive students</li>
+                            <li><strong>Consolidation with Capital</strong> - Merge with improvements</li>
+                            <li><strong>Closure (Goes Into Welcoming)</strong> - Close and reassign students to welcoming schools</li>
+                            <li><strong>Closure & Replacement</strong> - Close and replace</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h4>⚪ Other Category</h4>
+                        <ul>
+                            <li><strong>Policy Change & Re-sort</strong> - Policy adjustments needed</li>
+                            <li><strong>Other / Unknown</strong> - Requires further evaluation</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flowchart Logic Tab -->
+            <div id="flowchart-logic" class="tab-content">
+                <h2>📊 Flowchart Logic</h2>
+                <p>The interactive flowchart visualizes the decision logic for individual schools, allowing users to trace the decision path.</p>
+
+                <h3>🗺️ Flowchart Features</h3>
+                <ul>
+                    <li><strong>Interactive Navigation</strong> - Click through decision nodes</li>
+                    <li><strong>School-specific Evaluation</strong> - Select any school to see its decision path</li>
+                    <li><strong>Real-time Updates</strong> - Reflects current threshold settings</li>
+                    <li><strong>Zoom and Pan</strong> - Navigate large flowchart with mouse controls</li>
+                    <li><strong>Persistent Settings</strong> - Remembers zoom level and position</li>
+                </ul>
+
+                <h3>🗺️ Flowchart Node Types</h3>
+                <div class="grid">
+                    <div class="card">
+                        <h4>🗺️ Decision Nodes</h4>
+                        <p>Blue nodes represent decision points with Yes/No outcomes (e.g., "Educational adequacy above threshold?")</p>
+                    </div>
+                    <div class="card">
+                        <h4>🟠 Routing Nodes</h4>
+                        <p>Orange nodes route to different flows (Building Addition, Maintenance, Consolidation)</p>
+                    </div>
+                    <div class="card">
+                        <h4>🟢 Start Nodes</h4>
+                        <p>Green nodes show the starting point of decision flows</p>
+                    </div>
+                    <div class="card">
+                        <h4>🟣 Outcome Nodes</h4>
+                        <p>Purple nodes show final decision categories</p>
+                    </div>
+                    <div class="card">
+                        <h4>⚫ Decision Nodes</h4>
+                        <p>Gray nodes display current threshold values and decision criteria</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formulas & Calculations Tab -->
+            <div id="formulas" class="tab-content">
+                <h2>🧮 Formulas & Calculations</h2>
+                <p>Detailed explanations of all calculations and thresholds used in the decision logic.</p>
+
+                <h3>🗺️ Utilization Rate</h3>
+                <div class="formula-box">
+                    Utilization = Current Enrollment / Capacity
+                </div>
+                <p><strong>Threshold:</strong> 60% (default)<br>
+                <strong>High Utilization Threshold:</strong> 100% (default)<br>
+                <strong>Purpose:</strong> Identifies underutilized and overcrowded schools</p>
+
+                <h3>📊 Enrollment Growth (2014-2024)</h3>
+                <div class="formula-box">
+                    Growth Rate = (2024 Enrollment - 2014 Enrollment) / 2014 Enrollment
+                </div>
+                <p><strong>Threshold:</strong> 0% (default)<br>
+                <strong>Purpose:</strong> Identifies schools with declining enrollment trends</p>
+
+                <h3>??????? Building Quality Score</h3>
+                <div class="formula-box">
+                    Lower scores = Better building condition
+                </div>
+                <p><strong>Threshold:</strong> 5 (1-10 scale, default)<br>
+                <strong>Purpose:</strong> Identifies schools needing facility improvements (lower scores = better condition)</p>
+
+                <h3>🗺️ Distance to Underutilized Schools</h3>
+                <div class="formula-box">
+                    Distance in miles to nearest underutilized school
+                </div>
+                <p><strong>Threshold:</strong> 3.5 miles (default)<br>
+                <strong>Purpose:</strong> Identifies schools that could serve students from nearby underutilized schools</p>
+
+                <h3>🗺️ Educational Adequacy</h3>
+                <div class="formula-box">
+                    Count of academic and extracurricular programs
+                </div>
+                <p><strong>Threshold:</strong> 2 programs (default)<br>
+                <strong>Purpose:</strong> Identifies schools needing program enhancements</p>
+
+                <h3>?? Adjustable Parameters</h3>
+                <p>All thresholds can be adjusted using the sliders in the dashboard:</p>
+                <ul>
+                    <li><strong>Enrollment Thresholds by School Level:</strong>
+                        <ul>
+                            <li>Elementary School: 100-500 students (default: 240)</li>
+                            <li>K-8 School: 200-600 students (default: 360)</li>
+                            <li>Middle School: 300-800 students (default: 500)</li>
+                            <li>High School: 400-1200 students (default: 700)</li>
+                            <li>6-12 School: 300-1000 students (default: 600)</li>
+                        </ul>
+                    </li>
+                    <li><strong>Utilization Threshold:</strong> 0-100% (default: 60%)</li>
+                    <li><strong>High Utilization Threshold:</strong> 0-120% (default: 100%)</li>
+                    <li><strong>Enrollment Growth Threshold:</strong> -50% to +50% (default: 0%)</li>
+                    <li><strong>Distance Threshold:</strong> 0-5 miles (default: 3.5)</li>
+                    <li><strong>Composite Building Score:</strong> 1-10 scale (default: 5)</li>
+                    <li><strong>Educational Adequacy Minimum:</strong> 0-10 programs (default: 2)</li>
+                    <li><strong>Recent Investment Threshold:</strong> 0-20 years (default: 5)</li>
+                    <li><strong>Distance to Welcoming Schools (by school level):</strong>
+                        <ul>
+                            <li>Elementary School: 1-10 miles (default: 4.0)</li>
+                            <li>K-8 School: 1-10 miles (default: 6.0)</li>
+                            <li>Middle School: 1-10 miles (default: 6.0)</li>
+                            <li>High School: 1-10 miles (default: 6.0)</li>
+                            <li>6-12 School: 1-10 miles (default: 6.0)</li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <h3>🎯 Flow-based Filtering</h3>
+                <p>The dashboard includes flow-based filtering that groups decision types into logical categories:</p>
+                <ul>
+                    <li><strong>Expansion:</strong> Building Addition, Replacement, Building Addition & Major Capital</li>
+                    <li><strong>Maintenance/Investment:</strong> Target Capital Investment, Standard Maintenance, Major Capital Investment</li>
+                    <li><strong>Closure/Consolidation:</strong> Consolidation (Goes Into Welcoming), Consolidation with Capital, Closure (Goes Into Welcoming), Closure & Replacement</li>
+                    <li><strong>Other:</strong> Policy Change & Re-sort, Other / Unknown</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showTab(tabName) {
+            console.log('Switching to tab:', tabName);
+            
+            // Hide all tab contents
+            const tabContents = document.querySelectorAll('.tab-content');
+            console.log('Found tab contents:', tabContents.length);
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+            });
+
+            // Remove active class from all tab buttons
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabButtons.forEach(button => {
+                button.classList.remove('active');
+            });
+
+            // Show selected tab content
+            const targetTab = document.getElementById(tabName);
+            console.log('Target tab element:', targetTab);
+            if (targetTab) {
+                targetTab.classList.add('active');
+                // Force the tab to be visible
+                targetTab.style.display = 'block';
+                targetTab.style.visibility = 'visible';
+                targetTab.style.opacity = '1';
+                console.log('Tab activated:', tabName);
+                console.log('Tab computed styles:', window.getComputedStyle(targetTab).display);
+            } else {
+                console.error('Tab not found:', tabName);
+            }
+
+            // Add active class to clicked button
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
+        }
+    </script>
+</body>
+</html>

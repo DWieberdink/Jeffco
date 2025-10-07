@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Manual Reset</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 15px 20px; margin: 10px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #c82333; }
+        .success { color: green; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Manual Flowchart Reset</h1>
+    
+    <button onclick="manualReset()">🚨 MANUAL RESET - Clear All Data</button>
+    
+    <div id="result"></div>
+    
+    <script>
+        function manualReset() {
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                // Clear localStorage completely
+                localStorage.removeItem('jeffco_flowchart_data');
+                
+                // Force reload the page to clear any cached data
+                resultDiv.innerHTML = '<p class="success">✅ Data cleared! Refreshing page...</p>';
+                
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+                
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: red;">❌ Error: ${error.message}</p>`;
+            }
+        }
+        
+        // Check current status on load
+        window.onload = function() {
+            const stored = localStorage.getItem('jeffco_flowchart_data');
+            if (stored) {
+                try {
+                    const data = JSON.parse(stored);
+                    const nodeCount = data.nodes ? data.nodes.length : 0;
+                    document.getElementById('result').innerHTML = 
+                        `<p>Current stored data has ${nodeCount} nodes</p>`;
+                } catch (e) {
+                    document.getElementById('result').innerHTML = 
+                        '<p style="color: orange;">⚠️ Stored data is corrupted</p>';
+                }
+            } else {
+                document.getElementById('result').innerHTML = 
+                    '<p style="color: green;">✅ No stored data found</p>';
+            }
+        };
+    </script>
+</body>
+</html> 

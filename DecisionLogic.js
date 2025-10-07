@@ -5,13 +5,30 @@ console.log("🚀 Initializing Decision Logic directly in the main document");
 window.decisionLogic = {
   thresholds: {
     enrollmentThreshold: 200,
-    utilization: 0.65,
-    utilizationHigh: 0.95,
+    utilization: 0.60,
+    utilizationHigh: 1.00,
     enrollmentGrowth: 0,
-    projectedUtilization: 0.95,
-    distanceUnderutilized: 1.0,
+    distanceUnderutilized: 3.5,
+    siteCapacity: "Yes",
     buildingThreshold: 1.5,
-    adequateProgramsMin: 2,
+    buildingThresholdAbove: 1.5,
+    buildingThresholdBelow: 1.5,
+    buildingThresholdFlow4: 1.5,
+    adequateProgramsMin: 50, // Changed to percentage (0-100)
+    recentInvestments: 5, // Changed to millions of dollars
+    distanceReceiving: 1.0,
+    // Enrollment thresholds by school level
+    elementaryEnrollment: 240,
+    k8Enrollment: 360,
+    middleEnrollment: 500,
+    highEnrollment: 700,
+    k12Enrollment: 600,
+    // Distance thresholds by school level
+    elementaryDistance: 3.5,
+    k8Distance: 3.5,
+    middleDistance: 5.0,
+    highDistance: 7.0,
+    k12Distance: 6.0,
   },
   schoolData: [],
   lastData: [],
@@ -37,52 +54,217 @@ document.addEventListener("DOMContentLoaded", () => {
     return "Unknown";
   }
 
-  function evaluateSchool(row, t = self.thresholds) {
-    // First check: Enrollment threshold
-    // Robust enrollment field lookup
-    const enrollmentRaw = row.Enrollment || row['Enrollment'] || row[' Enrollment'] || row['Enrollment '] || row['Enrollemnt'] || row['Enrolled'] || row['enrollment'] || row['enrollment_total'] || undefined;
-    const enrollment = parseFloat((enrollmentRaw || '').toString().replace(/,/g, '').trim());
-    if (enrollment <= t.enrollmentThreshold) {
-      console.log("🚨 Enrollment below threshold - immediate closure/merger");
-      return "Candidate for Closure/Merger";
+  // Helper function to determine enrollment decision based on school level
+  function getEnrollmentDecision(row, t) {
+    const utilization = +row.Utilization;
+    const enrollment = parseFloat((row.Enrollment || '').toString().replace(/,/g, '').trim());
+    const schoolLevel = (row["School Level"] || '').toLowerCase();
+    
+    // Get enrollment thresholds from slider values
+    let enrollmentThreshold;
+    if (schoolLevel.includes("elementary")) {
+      enrollmentThreshold = t.elementaryEnrollment || 240;
+    } else if (schoolLevel.includes("k-8")) {
+      enrollmentThreshold = t.k8Enrollment || 360;
+    } else if (schoolLevel.includes("middle")) {
+      enrollmentThreshold = t.middleEnrollment || 500;
+    } else if (schoolLevel.includes("high")) {
+      enrollmentThreshold = t.highEnrollment || 700;
+    } else if (schoolLevel.includes("6-12")) {
+      enrollmentThreshold = t.k12Enrollment || 600;
+    } else {
+      // Default threshold for unknown school types
+      enrollmentThreshold = 400;
     }
     
+    // Check if utilization below threshold OR enrollment below level-specific threshold
+    // Either condition must be true for the school to be considered underutilized (OR logic)
+    const utilizationBelowThreshold = utilization < t.utilization;
+    const enrollmentBelowThreshold = enrollment < enrollmentThreshold;
+    
+    console.log(`📊 DecisionLogic - Enrollment decision for ${row["Building Name"]}:`);
+    console.log(`  - School Level: "${schoolLevel}"`);
+    console.log(`  - Utilization: ${utilization} < ${t.utilization}? ${utilizationBelowThreshold}`);
+    console.log(`  - Enrollment: ${enrollment} < ${enrollmentThreshold}? ${enrollmentBelowThreshold}`);
+    console.log(`  - Final decision (either below): ${(utilizationBelowThreshold || enrollmentBelowThreshold) ? "Yes" : "No"}`);
+    
+    return (utilizationBelowThreshold || enrollmentBelowThreshold) ? "Yes" : "No";
+  }
+
+
+  function evaluateSchool(row, t = self.thresholds) {
+    // Use EXACTLY the same logic as FlowchartLogic.js evaluatePath
     const decisions = {
-      F: +row.Utilization > t.utilization ? "Yes" : "No",
-      G: +row.Utilization > t.utilizationHigh ? "Yes" : "No",
-      K: +row.ExpectedUtilization10yrs > t.projectedUtilization ? "Yes" : "No",
-      I: +row["2014-2024_EnrollmentGrowth"] > t.enrollmentGrowth ? "Yes" : "No",
-      M: +row.DistanceUnderutilizedschools <= t.distanceUnderutilized ? "Yes" : "No",
-      U: +row.BuildingTreshhold <= t.buildingThreshold ? "Yes" : "No",
-      X: +row.AdequateProgramOffer >= t.adequateProgramsMin ? "Yes" : "No",
-      W: +row.AdequateProgramOffer >= t.adequateProgramsMin ? "Yes" : "No",
-      Z: (row.SiteCapacity || "").toLowerCase().includes("yes") ? "Yes" : "No"
+      // Flow 1 - Main Decision (F1_UTIL1 now includes enrollment logic)
+      util1: getEnrollmentDecision(row, t),
+      util2: +row.Utilization > t.utilizationHigh ? "Yes" : "No",
+      dist: (() => {
+        const schoolLevel = (row["School Level"] || '').toLowerCase();
+        let distanceThreshold;
+        
+        if (schoolLevel.includes("elementary")) {
+          distanceThreshold = t.elementaryDistance;
+        } else if (schoolLevel.includes("k-8")) {
+          distanceThreshold = t.k8Distance;
+        } else if (schoolLevel.includes("middle")) {
+          distanceThreshold = t.middleDistance;
+        } else if (schoolLevel.includes("high")) {
+          distanceThreshold = t.highDistance;
+        } else if (schoolLevel.includes("6-12") || schoolLevel.includes("k-12")) {
+          distanceThreshold = t.k12Distance;
+        } else {
+          distanceThreshold = t.middleDistance; // Default fallback
+        }
+        
+        return +row.DistanceUnderutilizedschools <= distanceThreshold ? "Yes" : "No";
+      })(),
+      growth: +row["Future_EnrollmentGrowth"] > t.enrollmentGrowth ? "Yes" : "No",
+      
+      // Flow 2 - Building Addition
+      edu2: (+row.EducationalAdequacy * 100) >= t.adequateProgramsMin ? "Yes" : "No",
+      fac2: +row.BuildingScore <= t.buildingThreshold ? "Yes" : "No",
+      expand: (row.SiteCapacity === "Yes" || row.SiteCapacity === "yes" || row.SiteCapacity === "YES") ? "Yes" : "No",
+      
+      // Flow 3 - Maintenance/Investment
+      fac3_below: +row.BuildingScore <= t.buildingThresholdBelow ? "Yes" : "No",
+      edu3: (+row.EducationalAdequacy * 100) >= t.adequateProgramsMin ? "Yes" : "No",
+      edu3_2: (() => {
+        // OR function: Below 50% percentile EA category OR safety/security issues
+        const hasBelow50PercentileCategory = row["Below50PCTL_EA_Cat"];
+        const isBelow50Percentile = hasBelow50PercentileCategory === "Yes" || hasBelow50PercentileCategory === "yes" || hasBelow50PercentileCategory === "YES";
+        const hasSafetyIssues = (row.DepartmentalDeficiency && row.DepartmentalDeficiency.toLowerCase().includes('safety')) || 
+                               (row.DepartmentalDeficiency && row.DepartmentalDeficiency.toLowerCase().includes('security'));
+        return (isBelow50Percentile || hasSafetyIssues) ? "Yes" : "No";
+      })(),
+      fac3_above: +row.BuildingScore <= t.buildingThresholdAbove ? "Yes" : "No",
+      
+      // Flow 4 - Consolidation/Closure
+      invest: +row.RecentInvestments >= t.recentInvestments ? "Yes" : "No",
+      edu4: (+row.EducationalAdequacy * 100) >= t.adequateProgramsMin ? "Yes" : "No",
+      fac4: +row.BuildingScore <= t.buildingThresholdFlow4 ? "Yes" : "No",
+      dist4: (() => {
+        const schoolLevel = (row["School Level"] || '').toLowerCase();
+        let distanceThreshold;
+        
+        if (schoolLevel.includes("elementary")) {
+          distanceThreshold = t.elementaryDistance;
+        } else if (schoolLevel.includes("k-8")) {
+          distanceThreshold = t.k8Distance;
+        } else if (schoolLevel.includes("middle")) {
+          distanceThreshold = t.middleDistance;
+        } else if (schoolLevel.includes("high")) {
+          distanceThreshold = t.highDistance;
+        } else if (schoolLevel.includes("6-12")) {
+          distanceThreshold = t.k12Distance;
+        } else {
+          distanceThreshold = t.middleDistance; // Default to middle school distance
+        }
+        
+        return +row.DistanceUnderutilizedschools <= distanceThreshold ? "Yes" : "No";
+      })(),
     };
-    decisions.O = decisions.M;
-
-    if (decisions.F === "No") {
-      if (decisions.I === "No") {
-        if (decisions.M === "Yes") return "Candidate for Closure/Merger";
-        if (decisions.U === "Yes") return decisions.X === "Yes" ? "Ongoing Monitoring & Evaluation" : "Programmatic Investment";
-        return decisions.W === "Yes" ? "Building Investment" : "Building & Programmatic Investments";
+    
+    console.log("📊 Decisions for", row["Building Name"], ":", decisions);
+    console.log("📊 Raw data - Utilization:", row.Utilization, "BuildingScore:", row.BuildingScore, "EducationalAdequacy:", row.EducationalAdequacy);
+    console.log("📊 Raw data - DistanceUnderutilizedschools:", row.DistanceUnderutilizedschools, "Growth:", row["Future_EnrollmentGrowth"]);
+    
+    let currentFlow = 1;
+    let finalDecision = "Unknown";
+    
+    // FLOW 1 - Main Decision Tree (EXACTLY from FlowchartLogic.js)
+    if (decisions.util1 === "Yes") {
+      // School is below utilization OR enrollment threshold (or both)
+      if (decisions.dist === "Yes") {
+        if (decisions.growth === "Yes") {
+          currentFlow = 3;
+        } else {
+          currentFlow = 4;
+        }
+      } else {
+        currentFlow = 3;
       }
-      if (decisions.U === "Yes") return decisions.X === "Yes" ? "Ongoing Monitoring & Evaluation" : "Programmatic Investment";
-      return decisions.W === "Yes" ? "Building Investment" : "Building & Programmatic Investments";
+    } else {
+      // School does NOT meet both criteria (above at least one threshold)
+      if (decisions.util2 === "Yes") {
+        currentFlow = 2;
+      } else {
+        currentFlow = 3;
+      }
     }
-
-    if (decisions.G === "No") {
-      if (decisions.U === "Yes") return decisions.X === "Yes" ? "Ongoing Monitoring & Evaluation" : "Programmatic Investment";
-      return decisions.W === "Yes" ? "Building Investment" : "Building & Programmatic Investments";
+    
+    // FLOW 2 - Building Addition (EXACTLY from FlowchartLogic.js)
+    if (currentFlow === 2) {
+      if (decisions.expand === "Yes") {
+        if (decisions.fac2 === "Yes") {
+          if (decisions.edu2 === "Yes") {
+            finalDecision = "Building Addition"; // F2_OUT1
+          } else {
+            finalDecision = "Building Addition & Major Capital"; // F2_OUT4
+          }
+        } else {
+          if (decisions.edu2 === "Yes") {
+            finalDecision = "Building Addition & Major Capital"; // F2_OUT4
+          } else {
+            finalDecision = "Replacement"; // F2_OUT3
+          }
+        }
+      } else {
+        finalDecision = "Policy Change & Re-Sort"; // F2_OUT2
+      }
     }
-
-    if (decisions.K === "No") {
-      if (decisions.U === "Yes") return decisions.X === "Yes" ? "Ongoing Monitoring & Evaluation" : "Programmatic Investment";
-      return decisions.W === "Yes" ? "Building Investment" : "Building & Programmatic Investments";
+    
+    // FLOW 3 - Maintenance/Investment (EXACTLY from FlowchartLogic.js)
+    if (currentFlow === 3) {
+      if (decisions.fac3_above === "Yes") {
+        if (decisions.fac3_below === "Yes") {
+          finalDecision = "Target Capital Investment"; // F3_OUT1
+        } else {
+          if (decisions.edu3_2 === "Yes") {
+            finalDecision = "Standard Maintenance"; // F3_OUT2
+          } else {
+            finalDecision = "Target Capital Investment"; // F3_OUT1
+          }
+        }
+      } else {
+        if (decisions.edu3 === "Yes") {
+          finalDecision = "Major Capital Investment"; // F3_OUT3
+        } else {
+          finalDecision = "Replacement"; // F3_OUT4
+        }
+      }
     }
-
-    if (decisions.O === "Yes") return "School-specific evaluation of alternative options";
-    if (decisions.Z === "Yes") return "Candidate for Building Addition";
-    return "School-specific evaluation of alternative options";
+    
+    // FLOW 4 - Consolidation/Closure (EXACTLY from FlowchartLogic.js)
+    if (currentFlow === 4) {
+      if (decisions.invest === "Yes") {
+        finalDecision = "Consolidation (Welcoming)"; // F4_OUT1
+      } else {
+        if (decisions.edu4 === "Yes") {
+          if (decisions.fac4 === "Yes") {
+            finalDecision = "Consolidation (Welcoming)"; // F4_OUT1
+          } else {
+            finalDecision = "Consolidation With Capital"; // F4_OUT2
+          }
+        } else {
+          if (decisions.fac4 === "Yes") {
+            finalDecision = "Consolidation With Capital"; // F4_OUT2
+          } else {
+            if (decisions.dist4 === "Yes") {
+              finalDecision = "Closure (Goes Into Welcoming)"; // F4_OUT3
+            } else {
+              finalDecision = "Closure & Replacement"; // F4_OUT4
+            }
+          }
+        }
+      }
+    }
+    
+    console.log("🎯 Final decision for", row["Building Name"], ":", finalDecision, "(Flow", currentFlow, ")");
+    
+    // Store the flow number in the row for filtering
+    row.flow = currentFlow;
+    
+    return finalDecision;
   }
 
   function renderTable(data) {
@@ -96,13 +278,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     const allDecisions = [
-      "Ongoing Monitoring & Evaluation",
-      "Programmatic Investment",
-      "Building Investment",
-      "Building & Programmatic Investments",
-      "Candidate for Building Addition",
-      "School-specific evaluation of alternative options",
-      "Candidate for Closure/Merger"
+      "Building Addition",
+      "Policy Change & Re-Sort",
+      "Replacement",
+      "Building Addition & Major Capital",
+      "Target Capital Investment",
+      "Standard Maintenance",
+      "Major Capital Investment",
+      "Consolidation (Welcoming)",
+      "Consolidation With Capital",
+      "Closure (Goes Into Welcoming)",
+      "Closure & Replacement"
     ];
   
     const decisionCounts = {};
@@ -192,14 +378,33 @@ document.addEventListener("DOMContentLoaded", () => {
 
   self.initialize = function() {
     return new Promise((resolve, reject) => {
-      Papa.parse("https://raw.githubusercontent.com/DWieberdink/JeffCo/main/Decision%20Data%20Export.csv", {
+      Papa.parse("./Decision Data Export.csv", {
         download: true,
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
           console.log("✅ Decision data loaded and parsed.");
-          self.schoolData = results.data;
+          
+          // Filter out schools with Include_Flow_Chart = "No"
+          self.schoolData = results.data.filter(row => {
+            const includeFlowChart = row.Include_Flow_Chart;
+            const shouldInclude = includeFlowChart && 
+                                 includeFlowChart.toLowerCase() !== 'no' && 
+                                 includeFlowChart.trim() !== '';
+            if (!shouldInclude) {
+              console.log(`🚫 Excluding school from assessment: ${row["Building Name"]} (Include_Flow_Chart: "${includeFlowChart}")`);
+            }
+            return shouldInclude;
+          });
+          
+          console.log(`📊 Filtered school data: ${results.data.length} total schools → ${self.schoolData.length} included schools`);
           self.recalculateEverything(); // Perform initial calculation & render tables
+          
+          // Update flowchart dropdown with filtered data
+          if (typeof window.updateFlowchartDropdown === 'function') {
+            window.updateFlowchartDropdown();
+          }
+          
           resolve(self.schoolData);   // Resolve the promise with the processed data
         },
         error: (err) => {
@@ -223,7 +428,14 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log('📝', row['Building Name'], '| Raw:', enrollmentRaw, '| Parsed:', enrollmentParsed, '| Type:', typeof enrollmentParsed);
       const oldDecision = row.decision;
       const enrollment = enrollmentParsed;
-      row.decision = evaluateSchool({ ...row, Enrollment: enrollmentParsed }, self.thresholds);
+      
+      // Create temp row for evaluation
+      const tempRow = { ...row, Enrollment: enrollmentParsed };
+      row.decision = evaluateSchool(tempRow, self.thresholds);
+      
+      // Copy the flow number from the temp row back to the original
+      row.flow = tempRow.flow;
+      
       if (row.decision === "Candidate for Closure/Merger") {
         closureCount++;
         if (oldDecision !== row.decision) {
@@ -231,10 +443,19 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
       if (oldDecision !== row.decision) {
-        console.log("🔄 School decision changed:", row["Building Name"], "enrollment:", enrollment, oldDecision, "→", row.decision);
+        console.log("🔄 School decision changed:", row["Building Name"], "enrollment:", enrollment, oldDecision, "→", row.decision, "flow:", row.flow);
       }
     });
     console.log("📊 Total schools marked for closure/merger:", closureCount);
+    
+    // Log sample schools with flow numbers to verify they're set correctly
+    const sampleSchools = self.schoolData.slice(0, 3).map(row => ({
+      name: row["Building Name"],
+      decision: row.decision,
+      flow: row.flow
+    }));
+    console.log("🏫 Sample schools with flows:", sampleSchools);
+    
     self.lastData = [...self.schoolData];
     renderTable(self.schoolData);
   };
@@ -242,7 +463,12 @@ document.addEventListener("DOMContentLoaded", () => {
   self.updateThresholds = function(newThresholds) {
     if (newThresholds) {
       console.log("✅ DecisionLogic received new thresholds:", newThresholds);
-      console.log("📊 Enrollment threshold changed from", self.thresholds.enrollmentThreshold, "to", newThresholds.enrollmentThreshold);
+      console.log("📊 Enrollment thresholds changed:");
+      console.log("  - Elementary:", self.thresholds.elementaryEnrollment, "→", newThresholds.elementaryEnrollment);
+      console.log("  - K-8:", self.thresholds.k8Enrollment, "→", newThresholds.k8Enrollment);
+      console.log("  - Middle:", self.thresholds.middleEnrollment, "→", newThresholds.middleEnrollment);
+      console.log("  - High:", self.thresholds.highEnrollment, "→", newThresholds.highEnrollment);
+      console.log("  - K-12:", self.thresholds.k12Enrollment, "→", newThresholds.k12Enrollment);
       Object.assign(self.thresholds, newThresholds);
       window.thresholds = self.thresholds; // For flowchart logic
       self.recalculateEverything();
@@ -490,6 +716,20 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     console.log("✅ Distance chart rendered successfully!");
   }
+
+  // Test function for debugging
+  window.testDecisionLogic = function() {
+    console.log("🧪 Testing DecisionLogic with Stober Elementary");
+    const stober = self.schoolData.find(r => r["Building Name"] === "Stober Elementary");
+    if (stober) {
+      console.log("Stober data:", stober);
+      console.log("Current thresholds:", self.thresholds);
+      const decision = evaluateSchool(stober, self.thresholds);
+      console.log("Final decision:", decision);
+    } else {
+      console.log("Stober Elementary not found in school data");
+    }
+  };
 
   // Initial load is no longer started from here. It will be triggered by script.js.
 });

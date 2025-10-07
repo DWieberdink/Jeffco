@@ -1,40 +1,10 @@
 mapboxgl.accessToken = 'pk.eyJ1IjoicGF0d2QwNSIsImEiOiJjbTZ2bGVhajIwMTlvMnFwc2owa3BxZHRoIn0.moDNfqMUolnHphdwsIF87w';
 
 
-// Welcome Popup Password Functionality
+// Application initialization
 document.addEventListener('DOMContentLoaded', function() {
-  const welcomePopup = document.getElementById('welcomePopup');
-  const passwordInput = document.getElementById('passwordInput');
-  const enterBtn = document.getElementById('enterBtn');
-  const errorMessage = document.getElementById('errorMessage');
-  
-  function checkPassword() {
-    const password = passwordInput.value.trim();
-    if (password === 'JeffCo') {
-      welcomePopup.style.display = 'none';
-      errorMessage.style.display = 'none';
-      passwordInput.value = '';
-      // Start onboarding walkthrough after successful login
-      startOnboardingWalkthrough();
-    } else {
-      errorMessage.style.display = 'block';
-      passwordInput.value = '';
-      passwordInput.focus();
-    }
-  }
-  
-  // Enter button click
-  enterBtn.addEventListener('click', checkPassword);
-  
-  // Enter key press
-  passwordInput.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-      checkPassword();
-    }
-  });
-  
-  // Focus on password input when popup loads
-  passwordInput.focus();
+  // Start onboarding walkthrough immediately
+  startOnboardingWalkthrough();
 
   // Auto-open "School Decision Evaluation: Results" when "School Decision Evaluation" is opened
   const decisionInputPanel = document.getElementById('decision-input-panel');
@@ -307,6 +277,7 @@ const map = new mapboxgl.Map({
 });
 
 let geojsonData;
+let originalGeojsonData; // Keep a copy of the original unfiltered data
 let initialDecisionData = null; // Store data if it arrives before geojson
 let mapIsReady = false; // Flag to track if the map's core is loaded
 let selectedEnrollment = 0;
@@ -314,33 +285,161 @@ let odData = [];
 let selectedTypes = [];
 let minEnrollment = 0;
 let maxEnrollment = 2000;
-let minSeats = 0;
+let minSeats = -500;  // Allow negative seats (over capacity schools)
 let maxSeats = 500;
 let showVariableRadius = false;
+let selectedFlows = ['expansion', 'maintenance', 'closure', 'other']; // Track selected flows
 
 function updateLayer() {
-    if (!geojsonData) { return; } // Do not run if geojson data is not loaded yet
+    if (!originalGeojsonData) { 
+      console.log("⚠️ updateLayer called but originalGeojsonData not loaded yet");
+      return; 
+    }
 
-  const filteredFeatures = geojsonData.features.filter(f => {
+  console.log("🔄 Updating layer with filters:", { selectedFlows, selectedTypes, minEnrollment, maxEnrollment });
+
+  // Always filter from the original unfiltered data
+  let flow2Count = 0;
+  let flow2Filtered = 0;
+  
+  const filteredFeatures = originalGeojsonData.features.filter(f => {
     const enrollment = parseInt(f.properties['Enrollment']) || 0;
     const availableSeats = parseInt(f.properties['Available Seats']) || 0;
     const level = f.properties['School Level'];
+    const decisionType = f.properties['Decision Type'];
+    const flowNumber = f.properties['flow']; // Get the flow number stored during evaluation
 
     const matchesEnrollment = enrollment >= minEnrollment && enrollment <= maxEnrollment;
     const matchesSeats = availableSeats >= minSeats && availableSeats <= maxSeats;
     const matchesType = selectedTypes.length === 0 || selectedTypes.includes(level);
+    const matchesFlow = matchesFlowFilter(decisionType, flowNumber);
+    
+    // Track Flow 2 (expansion) schools
+    if (flowNumber === 2) {
+      flow2Count++;
+      if (matchesEnrollment && matchesSeats && matchesType && matchesFlow) {
+        flow2Filtered++;
+      } else {
+        console.log(`❌ Flow 2 school filtered out: ${f.properties['Building Name']}`, {
+          availableSeats: availableSeats,
+          seatsFilter: `${minSeats} to ${maxSeats}`,
+          matchesEnrollment,
+          matchesSeats,
+          matchesType,
+          matchesFlow
+        });
+      }
+    }
 
-    return matchesEnrollment && matchesSeats && matchesType;
+    return matchesEnrollment && matchesSeats && matchesType && matchesFlow;
   });
+  
+  console.log(`🟩 Flow 2 (Expansion): ${flow2Filtered} of ${flow2Count} schools passed all filters`);
+  
+  // Count how many schools per flow
+  const flowCounts = {};
+  const sampleSchools = [];
+  originalGeojsonData.features.forEach((f, idx) => {
+    const flowNumber = f.properties['flow'];
+    flowCounts[flowNumber] = (flowCounts[flowNumber] || 0) + 1;
+    
+    // Sample first 3 schools
+    if (idx < 3) {
+      sampleSchools.push({
+        name: f.properties['Building Name'],
+        flow: flowNumber,
+        decision: f.properties['Decision Type']
+      });
+    }
+  });
+  console.log("📊 Schools per flow:", flowCounts);
+  console.log("🏫 Sample schools:", sampleSchools);
 
-  const updatedData = { ...geojsonData, features: filteredFeatures };
-  map.getSource('schools').setData(updatedData);
+  console.log(`📍 Filtered ${originalGeojsonData.features.length} schools to ${filteredFeatures.length} schools`);
+
+  const updatedData = { ...originalGeojsonData, features: filteredFeatures };
+  
+  // Update both schools and halo layers
+  if (map.getSource('schools')) {
+    map.getSource('schools').setData(updatedData);
+  }
 
   map.setPaintProperty('schools-layer', 'circle-radius',
     showVariableRadius
-      ? ['interpolate', ['linear'], ['get', 'Available Seats'], 0, 4, 200, 20]
+      ? ['interpolate', ['linear'], ['get', 'Capacity'], 0, 4, 1000, 20]
       : 6
   );
+}
+
+// Flow filtering functions - now uses actual flow number from evaluation
+function matchesFlowFilter(decisionType, flowNumber) {
+  if (selectedFlows.length === 0) {
+    console.log("⚠️ No flows selected, filtering out all schools");
+    return false;
+  }
+  
+  // Map flow numbers (from decision logic) to category names
+  const flowNumberMapping = {
+    2: 'expansion',      // Flow 2: Building Addition
+    3: 'maintenance',    // Flow 3: Maintenance/Investment  
+    4: 'closure',        // Flow 4: Consolidation/Closure
+  };
+  
+  // If we have the flow number, use it directly (check for number, not truthiness)
+  if (flowNumber !== undefined && flowNumber !== null && flowNumberMapping[flowNumber]) {
+    const flowCategory = flowNumberMapping[flowNumber];
+    const matches = selectedFlows.includes(flowCategory);
+    // console.log(`🔍 Flow ${flowNumber} (${flowCategory}) matches:`, matches, "selectedFlows:", selectedFlows);
+    return matches;
+  }
+  
+  // Fallback to decision type mapping if flow number not available
+  console.log(`⚠️ No flow number for ${decisionType}, using fallback mapping`);
+  const flowMapping = {
+    'Building Addition': 'expansion',
+    'Policy Change & Re-Sort': 'expansion',
+    'Building Addition & Major Capital': 'expansion',
+    'Replacement': 'maintenance', // Default to maintenance since it's more common
+    'Target Capital Investment': 'maintenance',
+    'Standard Maintenance': 'maintenance',
+    'Major Capital Investment': 'maintenance',
+    'Consolidation (Welcoming)': 'closure',
+    'Consolidation With Capital': 'closure',
+    'Closure (Goes Into Welcoming)': 'closure',
+    'Closure & Replacement': 'closure',
+    'Other / Unknown': 'other'
+  };
+  
+  const flow = flowMapping[decisionType] || 'other';
+  return selectedFlows.includes(flow);
+}
+
+function updateFlowFilter() {
+  selectedFlows = [];
+  
+  console.log("🔍 Current checkbox states from storage:", flowCheckboxStates);
+  
+  // Use the stored state instead of querying DOM (in case DOM is stale)
+  if (flowCheckboxStates['flow-expansion']) {
+    selectedFlows.push('expansion');
+  }
+  if (flowCheckboxStates['flow-maintenance']) {
+    selectedFlows.push('maintenance');
+  }
+  if (flowCheckboxStates['flow-closure']) {
+    selectedFlows.push('closure');
+  }
+  if (flowCheckboxStates['flow-other']) {
+    selectedFlows.push('other');
+  }
+  
+  console.log("✅ Selected flows after update:", selectedFlows);
+  
+  if (map && map.getSource && map.getSource('schools')) {
+    updateLayer();
+  } else {
+    console.warn("⚠️ Map or schools source not ready yet");
+  }
 }
 
 function normalize(str) {
@@ -349,38 +448,146 @@ function normalize(str) {
 
 // ✅ Move updateLegend function outside map.on('load') for global access
 let showingAssignments = false;
+let flowCheckboxStates = {
+  'flow-expansion': true,
+  'flow-maintenance': true,
+  'flow-closure': true,
+  'flow-other': true
+};
+
 function updateLegend() {
+  console.log("🔄 updateLegend called, current checkbox states:", JSON.stringify(flowCheckboxStates));
+  
   const legendContent = document.getElementById('legend-content');
   if (!legendContent) return;
   
   legendContent.innerHTML = '';
+  legendContent.style.cssText = 'padding: 5px; line-height: 1.4; max-height: 80vh; overflow-y: auto;';
 
-  const decisionLegend = {
-    "Ongoing Monitoring & Evaluation": '#3498db',
-    "Programmatic Investment": '#27ae60',
-    "Building Investment": '#2ecc71',
-    "Building & Programmatic Investments": '#1abc9c',
-    "Candidate for Building Addition": '#9b59b6',
-    "School-specific evaluation of alternative options": '#f1c40f',
-    "Candidate for Closure/Merger": '#e74c3c',
-    "Other / Unknown": '#7f8c8d'
+  const decisionLegendGroups = {
+    "Expansion": {
+      "Building Addition": '#2E8B57',           // Emerald
+      "Policy Change & Re-Sort": '#66BB6A',     // Lime
+      "Building Addition & Major Capital": '#1B5E20', // Forest
+      "Replacement": '#4B830D'                  // Olive
+    },
+    "Maintenance/Investment": {
+      "Target Capital Investment": '#FFA726',   // Amber
+      "Standard Maintenance": '#FFD54F',        // Goldenrod
+      "Major Capital Investment": '#FB8C00'     // Burnt Orange
+    },
+    "Closure/Consolidation": {
+      "Consolidation (Welcoming)": '#C62828',   // Crimson
+      "Consolidation With Capital": '#E53935',  // Vermilion
+      "Closure (Goes Into Welcoming)": '#B71C1C', // Firebrick
+      "Closure & Replacement": '#8B0000'        // Deep Red Brown
+    }
   };
 
   const assignmentLegend = {
     "Assigned Students": '#FF530D'
   };
 
-  const items = showingAssignments ? assignmentLegend : decisionLegend;
-
   const title = document.createElement('div');
   title.innerHTML = `<strong>${showingAssignments ? 'Assignment View' : 'Decision Types'}</strong>`;
+  title.style.cssText = 'font-size: 16px; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 2px solid #007cbf; color: #333;';
   legendContent.appendChild(title);
 
-  for (const [label, color] of Object.entries(items)) {
-    const row = document.createElement('div');
-    row.className = 'legend-row';
-    row.innerHTML = `<span class="legend-swatch" style="background:${color};"></span>${label}`;
-    legendContent.appendChild(row);
+  if (showingAssignments) {
+    for (const [label, color] of Object.entries(assignmentLegend)) {
+      const row = document.createElement('div');
+      row.className = 'legend-row';
+      row.style.cssText = 'margin-bottom: 1px; padding: 0; display: flex; align-items: center;';
+      
+      // Create color swatch
+      const swatch = document.createElement('span');
+      swatch.className = 'legend-swatch';
+      swatch.style.cssText = `background:${color}; width: 12px; height: 12px; border-radius: 2px; margin-right: 4px; border: 1px solid #ccc; display: inline-block;`;
+      
+      // Create label text
+      const labelText = document.createElement('span');
+      labelText.textContent = label;
+      labelText.style.cssText = 'font-size: 13px; color: #555;';
+      
+      row.appendChild(swatch);
+      row.appendChild(labelText);
+      legendContent.appendChild(row);
+    }
+  } else {
+    for (const [groupName, items] of Object.entries(decisionLegendGroups)) {
+      // Add group header with checkbox
+      const groupHeader = document.createElement('div');
+      groupHeader.className = 'legend-group-header';
+      groupHeader.style.cssText = 'font-weight: bold; margin-top: 6px; margin-bottom: 2px; color: #333; border-bottom: 2px solid #ddd; padding-bottom: 2px; display: flex; align-items: center; background: #f8f9fa; padding: 2px 4px; border-radius: 4px;';
+      
+      // Create checkbox
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.style.cssText = 'margin-right: 4px; transform: scale(1.1); cursor: pointer;';
+      
+      // Map group names to flow IDs
+      const flowIdMap = {
+        'Expansion': 'flow-expansion',
+        'Maintenance/Investment': 'flow-maintenance',
+        'Closure/Consolidation': 'flow-closure',
+        'Other': 'flow-other'
+      };
+      
+      checkbox.id = flowIdMap[groupName];
+      // Restore checkbox state from saved state
+      const savedState = flowCheckboxStates[checkbox.id];
+      checkbox.checked = savedState !== undefined ? savedState : true;
+      console.log(`🔧 Restoring checkbox ${checkbox.id} to:`, checkbox.checked);
+      
+      if (checkbox.id) {
+        checkbox.addEventListener('change', (e) => {
+          const isChecked = e.target.checked;
+          console.log(`🔲 Checkbox ${checkbox.id} changed to:`, isChecked);
+          
+          // Save checkbox state
+          flowCheckboxStates[checkbox.id] = isChecked;
+          console.log("📦 All checkbox states:", JSON.stringify(flowCheckboxStates));
+          
+          updateFlowFilter();
+        });
+      }
+      
+      // Create label with emoji and text
+      const label = document.createElement('span');
+      const emojiMap = {
+        'Expansion': '🟩',
+        'Maintenance/Investment': '🛠️',
+        'Closure/Consolidation': '🚫',
+        'Other': '⚪'
+      };
+      label.textContent = `${emojiMap[groupName] || '⚪'} ${groupName}`;
+      label.style.cssText = 'font-size: 14px; letter-spacing: 0.5px;';
+      
+      groupHeader.appendChild(checkbox);
+      groupHeader.appendChild(label);
+      legendContent.appendChild(groupHeader);
+      
+      // Add items in this group
+      for (const [label, color] of Object.entries(items)) {
+        const row = document.createElement('div');
+        row.className = 'legend-row';
+        row.style.cssText = 'margin-left: 15px; margin-bottom: 1px; padding: 0; display: flex; align-items: center;';
+        
+        // Create color swatch
+        const swatch = document.createElement('span');
+        swatch.className = 'legend-swatch';
+        swatch.style.cssText = `background:${color}; width: 12px; height: 12px; border-radius: 2px; margin-right: 4px; border: 1px solid #ccc; display: inline-block;`;
+        
+        // Create label text
+        const labelText = document.createElement('span');
+        labelText.textContent = label;
+        labelText.style.cssText = 'font-size: 13px; color: #555;';
+        
+        row.appendChild(swatch);
+        row.appendChild(labelText);
+        legendContent.appendChild(row);
+      }
+    }
   }
 }
 
@@ -467,9 +674,36 @@ map.on('load', () => {
   Promise.all([geojsonPromise, decisionDataPromise])
     .then(([geojson, decisionData]) => {
       console.log("✅ Both GeoJSON and Decision Data are loaded.");
+      
+      // Filter out schools where Include_Flow_Chart is "No"
+      const includeFlowChartMap = new Map(
+        decisionData.map(row => [
+          normalizeName(row["Building Name"]), 
+          row["Include_Flow_Chart"]
+        ])
+      );
+      
+      geojson.features = geojson.features.filter(f => {
+        const name = normalizeName(f.properties["Building Name"]);
+        const includeValue = includeFlowChartMap.get(name);
+        const shouldInclude = includeValue && 
+                             includeValue.toLowerCase() !== 'no' && 
+                             includeValue.trim() !== '';
+        if (!shouldInclude) {
+          console.log(`🚫 Excluding ${f.properties["Building Name"]} from map (Include_Flow_Chart: ${includeValue})`);
+        }
+        return shouldInclude;
+      });
+      
+      console.log(`📍 Filtered geojson: ${geojson.features.length} schools included on map`);
       geojsonData = geojson;
       
       injectDecisionsIntoGeoJSON(geojsonData, decisionData);
+      
+      // Store a deep copy of the original data for filtering
+      originalGeojsonData = JSON.parse(JSON.stringify(geojsonData));
+      console.log("✅ Original GeoJSON data saved for filtering");
+      
       initializeDropdownFilters(decisionData);
 
       // Add the source for the school data
@@ -492,11 +726,9 @@ map.on('load', () => {
             [Math.max(...lngs), Math.max(...lats)]
           ];
           console.log("🗺️ Calculated bounds:", bounds);
-          // Add a small delay to ensure map is ready
-          setTimeout(() => {
-            map.fitBounds(bounds, { padding: 40 });
-            console.log("✅ Map should now be focused on Jeffco area");
-          }, 100);
+          // Automatically fit map to show all schools in Jeffco district
+          map.fitBounds(bounds, { padding: 40 });
+          console.log("✅ Map automatically zoomed to Jeffco district bounds");
         }
       }
 
@@ -528,13 +760,18 @@ map.on('load', () => {
           'circle-color': [
             'match',
             ['get', 'Decision Type'],
-            "Ongoing Monitoring & Evaluation", '#3498db',
-            "Programmatic Investment", '#27ae60',
-            "Building Investment", '#2ecc71',
-            "Building & Programmatic Investments", '#1abc9c',
-            "Candidate for Building Addition", '#9b59b6',
-            "School-specific evaluation of alternative options", '#f1c40f',
-            "Candidate for Closure/Merger", '#e74c3c',
+            "Building Addition", '#2E8B57',
+            "Policy Change & Re-Sort", '#66BB6A',
+            "Building Addition & Major Capital", '#1B5E20',
+            "Replacement", '#4B830D',
+            "Target Capital Investment", '#FFA726',
+            "Standard Maintenance", '#FFD54F',
+            "Major Capital Investment", '#FB8C00',
+            "Consolidation (Welcoming)", '#C62828',
+            "Consolidation With Capital", '#E53935',
+            "Closure (Goes Into Welcoming)", '#B71C1C',
+            "Closure & Replacement", '#8B0000',
+            "Other / Unknown", '#2F4F4F',
             '#7f8c8d'
           ]
         }
@@ -742,7 +979,7 @@ map.on('load', () => {
     start: [0, 2000], connect: true, step: 10, range: { min: 0, max: 2000 }
   });
   noUiSlider.create(seatsSlider, {
-    start: [0, 500], connect: true, step: 1, range: { min: 0, max: 500 }
+    start: [-500, 500], connect: true, step: 1, range: { min: -500, max: 500 }
   });
 
   enrollmentSlider.noUiSlider.on('update', values => {
@@ -801,13 +1038,18 @@ map.on('load', () => {
         'schools-layer',
         'circle-color',
         ['match', ['get', 'Decision Type'],
-          "Ongoing Monitoring & Evaluation", '#3498db',
-          "Programmatic Investment", '#27ae60',
-          "Building Investment", '#2ecc71',
-          "Building & Programmatic Investments", '#1abc9c',
-          "Candidate for Building Addition", '#9b59b6',
-          "School-specific evaluation of alternative options", '#f1c40f',
-          "Candidate for Closure/Merger", '#e74c3c',
+          "Building Addition", '#2E8B57',
+          "Policy Change & Re-Sort", '#66BB6A',
+          "Building Addition & Major Capital", '#1B5E20',
+          "Replacement", '#4B830D',
+          "Target Capital Investment", '#FFA726',
+          "Standard Maintenance", '#FFD54F',
+          "Major Capital Investment", '#FB8C00',
+          "Consolidation (Welcoming)", '#C62828',
+          "Consolidation With Capital", '#E53935',
+          "Closure (Goes Into Welcoming)", '#B71C1C',
+          "Closure & Replacement", '#8B0000',
+          "Other / Unknown", '#2F4F4F',
           '#7f8c8d']
       );
     }
@@ -893,12 +1135,17 @@ map.on('load', () => {
         map.setCenter(center);
       }, 350);
     }
-    // Zoom flowchart to fit if in wide view and flowchart is visible
+    // Zoom flowchart to fit if in wide view and flowchart is visible (only if no saved zoom level)
     if (newState === 'wide' && flowchartContainer && flowchartContainer.style.display !== 'none' && typeof window.zoomFlowchartToFit === 'function') {
-      console.log('[updateSidebarState] Triggering zoomFlowchartToFit. flowchartContainer display:', flowchartContainer.style.display);
-      setTimeout(() => {
-        window.zoomFlowchartToFit();
-      }, 400);
+      const savedTransform = localStorage.getItem('flowchartZoom');
+      if (!savedTransform) {
+        console.log('[updateSidebarState] No saved zoom level, triggering zoomFlowchartToFit. flowchartContainer display:', flowchartContainer.style.display);
+        setTimeout(() => {
+          window.zoomFlowchartToFit();
+        }, 400);
+      } else {
+        console.log('[updateSidebarState] Saved zoom level found, skipping zoomFlowchartToFit');
+      }
     }
   }
 
@@ -987,7 +1234,7 @@ map.on('load', () => {
     }
 
     svg.selectAll("*").remove();
-    svg.attr("viewBox", "20 -130 520 960").attr("preserveAspectRatio", "xMidYMid meet");
+    svg.attr("viewBox", "-50 -50 1000 1400").attr("preserveAspectRatio", "xMidYMid meet");
 
     if (typeof window.initializeFlowchartFromScript === 'function') {
       window.initializeFlowchartFromScript(svg);
@@ -997,17 +1244,47 @@ map.on('load', () => {
 
     if (geojsonData && geojsonData.features) {
       flowchartSchoolSelect.innerHTML = '<option value="">-- Select School --</option>';
-      geojsonData.features.forEach(feature => {
-        const option = document.createElement('option');
-        option.value = feature.properties['Building Name'];
-        option.textContent = feature.properties['Building Name'];
-        flowchartSchoolSelect.appendChild(option);
-      });
+      
+      // Use filtered school data from DecisionLogic instead of geojsonData
+      // This ensures we only include schools where Include_Flow_Chart is not "No"
+      if (window.decisionLogic && window.decisionLogic.schoolData) {
+        console.log("📊 Using filtered school data for flowchart dropdown");
+        const sortedSchools = window.decisionLogic.schoolData
+          .map(row => row["Building Name"])
+          .filter(name => name) // Remove any null/undefined names
+          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+        
+        sortedSchools.forEach(schoolName => {
+          const option = document.createElement('option');
+          option.value = schoolName;
+          option.textContent = schoolName;
+          flowchartSchoolSelect.appendChild(option);
+        });
+      } else {
+        console.log("⚠️ Using geojsonData for flowchart dropdown (filtered data not available yet)");
+        // Fallback to geojsonData if filtered data isn't available yet
+        const sortedSchools = geojsonData.features
+          .map(feature => feature.properties['Building Name'])
+          .filter(name => name) // Remove any null/undefined names
+          .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+        
+        sortedSchools.forEach(schoolName => {
+          const option = document.createElement('option');
+          option.value = schoolName;
+          option.textContent = schoolName;
+          flowchartSchoolSelect.appendChild(option);
+        });
+      }
 
       flowchartSchoolSelect.addEventListener('change', (e) => {
         const selectedSchool = e.target.value;
-        if (selectedSchool && typeof window.updateFlowForSchool === 'function') {
+        console.log("🎯 School selection changed to:", selectedSchool);
+        console.log("🎯 updateFlowForSchool function available:", typeof window.updateFlowForSchool === 'function');
+        console.log("🎯 Current thresholds:", window.thresholds);
+        if (typeof window.updateFlowForSchool === 'function') {
           window.updateFlowForSchool(selectedSchool, window.thresholds || {});
+        } else {
+          console.warn("⚠️ updateFlowForSchool function not available");
         }
       });
     }
@@ -1065,6 +1342,16 @@ function normalizeName(name) {
 }
 
 function injectDecisionsIntoGeoJSON(geojson, decisions) {
+  console.log("🔄 injectDecisionsIntoGeoJSON called with", decisions.length, "decision records");
+  
+  // Log sample decision data to see if flow is present
+  const sampleDecisions = decisions.slice(0, 3).map(row => ({
+    name: row["Building Name"],
+    decision: row["decision"],
+    flow: row["flow"]
+  }));
+  console.log("📋 Sample decision data:", sampleDecisions);
+  
   const decisionMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), row["decision"] || "Unknown"]));
   const scorecardMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), parseFloat(row["Scorecard"] || "0")]));
   const buildingQualityMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), parseFloat(row["BuildingTreshhold"] || "0")]));
@@ -1073,6 +1360,7 @@ function injectDecisionsIntoGeoJSON(geojson, decisions) {
   const capacityMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), parseFloat(row["Capacity"] || "0")]));
   const availableSeatsMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), parseFloat(row["Available Seats"] || "0")]));
   const schoolLevelMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), row["School Level"] || "Unknown"]));
+  const flowMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), row["flow"] || 0]));
 
   geojson.features.forEach(f => {
     const name = normalizeName(f.properties["Building Name"]);
@@ -1086,7 +1374,17 @@ function injectDecisionsIntoGeoJSON(geojson, decisions) {
     f.properties["Available Seats"] = availableSeatsMap.get(name) || 0;
     // Inject School Level
     f.properties["School Level"] = schoolLevelMap.get(name) || "Unknown";
+    // Inject Flow number
+    f.properties["flow"] = flowMap.get(name) || 0;
   });
+  
+  // Log sample GeoJSON features to verify flow was injected
+  const sampleFeatures = geojson.features.slice(0, 3).map(f => ({
+    name: f.properties["Building Name"],
+    decision: f.properties["Decision Type"],
+    flow: f.properties["flow"]
+  }));
+  console.log("🗺️ Sample GeoJSON features after injection:", sampleFeatures);
 }
 
 function initializeDropdownFilters(schoolData) {
@@ -1113,13 +1411,23 @@ function initializeDropdownFilters(schoolData) {
 
   function updateSchoolSelect(filterDecision = "") {
     schoolSelect.innerHTML = '<option value="">-- Select --</option>';
-    allSchoolData.forEach(row => {
-      if (!filterDecision || row.decision === filterDecision) {
-        const option = document.createElement("option");
-        option.value = row["Building Name"];
-        option.textContent = row["Building Name"];
-        schoolSelect.appendChild(option);
-      }
+    
+    // Filter schools based on decision if specified
+    const filteredSchools = allSchoolData.filter(row => {
+      return !filterDecision || row.decision === filterDecision;
+    });
+    
+    // Sort schools alphabetically by name
+    const sortedSchools = filteredSchools
+      .map(row => row["Building Name"])
+      .filter(name => name) // Remove any null/undefined names
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    
+    sortedSchools.forEach(schoolName => {
+      const option = document.createElement("option");
+      option.value = schoolName;
+      option.textContent = schoolName;
+      schoolSelect.appendChild(option);
     });
   }
 
@@ -1133,6 +1441,31 @@ function initializeDropdownFilters(schoolData) {
 
   // Expose globally so it can be called after slider changes
   window.updateSchoolSelect = updateSchoolSelect;
+  
+  // Function to update flowchart dropdown with filtered data
+  window.updateFlowchartDropdown = function() {
+    const flowchartSchoolSelect = document.getElementById('mainFlowchartSchoolSelect');
+    if (!flowchartSchoolSelect || !window.decisionLogic || !window.decisionLogic.schoolData) {
+      return;
+    }
+    
+    console.log("🔄 Updating flowchart dropdown with filtered data");
+    flowchartSchoolSelect.innerHTML = '<option value="">-- Select School --</option>';
+    
+    const sortedSchools = window.decisionLogic.schoolData
+      .map(row => row["Building Name"])
+      .filter(name => name)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+    
+    sortedSchools.forEach(schoolName => {
+      const option = document.createElement('option');
+      option.value = schoolName;
+      option.textContent = schoolName;
+      flowchartSchoolSelect.appendChild(option);
+    });
+    
+    console.log(`📊 Flowchart dropdown updated: ${sortedSchools.length} schools included`);
+  };
 }
 
 // ✅ Move slider setup inside DOMContentLoaded to ensure elements are loaded
@@ -1219,7 +1552,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const [lng, lat] = selectedFeatureForIsochrone.geometry.coordinates;
     selectedEnrollment = parseInt(selectedFeatureForIsochrone.properties['Enrollment']) || 0;
-    map.flyTo({ center: [lng, lat], zoom: 14 });
+    // Removed automatic flyTo to respect user-set zoom level
 
     // Only trigger isochrone update if in manual mode
     if (manualView.style.display !== 'none') {
@@ -1993,8 +2326,13 @@ function addPercentageListeners(visibleFeatures) {
 // ✅ New script to connect sidebar sliders to the DecisionLogic iframe - REPLACED
 document.addEventListener("DOMContentLoaded", function() {
     const sliderIds = [
-      "enrollmentSlider", "utilSlider", "utilHighSlider", "growthSlider", 
-      "projUtilSlider", "distSlider", "buildSlider", "progSlider"
+      "utilSlider", "utilHighSlider", "growthSlider", "distSlider", 
+      "buildSlider", "buildAboveSlider", "buildBelowSlider", "buildFlow4Slider", "progSlider",
+      "recentInvestSlider",
+      "elementaryEnrollmentSlider", "k8EnrollmentSlider", "middleEnrollmentSlider", 
+      "highEnrollmentSlider", "k12EnrollmentSlider",
+      "elementaryDistanceSlider", "k8DistanceSlider", "middleDistanceSlider", 
+      "highDistanceSlider", "k12DistanceSlider"
     ];
 
     const sliders = sliderIds.map(id => document.getElementById(id));
@@ -2004,14 +2342,29 @@ document.addEventListener("DOMContentLoaded", function() {
     function sendSliderData() {
       console.log("📊 sendSliderData called");
       const thresholds = {
-        enrollmentThreshold: parseInt(document.getElementById("enrollmentSlider").value, 10),
         utilization: parseFloat(document.getElementById("utilSlider").value)/100,
         utilizationHigh: parseFloat(document.getElementById("utilHighSlider").value)/100,
         enrollmentGrowth: parseFloat(document.getElementById("growthSlider").value)/100,
-        projectedUtilization: parseFloat(document.getElementById("projUtilSlider").value)/100,
         distanceUnderutilized: parseFloat(document.getElementById("distSlider").value),
+        siteCapacity: "Yes", // Default value - dropdown removed
         buildingThreshold: parseFloat(document.getElementById("buildSlider").value),
+        buildingThresholdAbove: parseFloat(document.getElementById("buildAboveSlider").value),
+        buildingThresholdBelow: parseFloat(document.getElementById("buildBelowSlider").value),
+        buildingThresholdFlow4: parseFloat(document.getElementById("buildFlow4Slider").value),
         adequateProgramsMin: parseInt(document.getElementById("progSlider").value, 10),
+        recentInvestments: parseInt(document.getElementById("recentInvestSlider").value, 10),
+        // Enrollment thresholds by school level
+        elementaryEnrollment: parseInt(document.getElementById("elementaryEnrollmentSlider").value, 10),
+        k8Enrollment: parseInt(document.getElementById("k8EnrollmentSlider").value, 10),
+        middleEnrollment: parseInt(document.getElementById("middleEnrollmentSlider").value, 10),
+        highEnrollment: parseInt(document.getElementById("highEnrollmentSlider").value, 10),
+        k12Enrollment: parseInt(document.getElementById("k12EnrollmentSlider").value, 10),
+        // Distance thresholds by school level
+        elementaryDistance: parseFloat(document.getElementById("elementaryDistanceSlider").value),
+        k8Distance: parseFloat(document.getElementById("k8DistanceSlider").value),
+        middleDistance: parseFloat(document.getElementById("middleDistanceSlider").value),
+        highDistance: parseFloat(document.getElementById("highDistanceSlider").value),
+        k12Distance: parseFloat(document.getElementById("k12DistanceSlider").value),
       };
       
       console.log("📊 New thresholds:", thresholds);
@@ -2067,8 +2420,9 @@ document.addEventListener("DOMContentLoaded", function() {
     sliders.forEach(slider => {
       if (slider) {
         console.log("✅ Adding event listener to slider:", slider.id);
-        // Use 'input' for real-time updates
-        slider.addEventListener("input", () => {
+        // Use 'input' for range sliders
+        const eventType = "input";
+        slider.addEventListener(eventType, () => {
           console.log("🎛️ Slider changed:", slider.id, "value:", slider.value);
           const outSpan = document.getElementById(slider.id.replace("Slider", "Out"));
           if (outSpan) outSpan.textContent = slider.value;
@@ -2081,7 +2435,19 @@ document.addEventListener("DOMContentLoaded", function() {
 
     // Set initial values on load
     if (sliders.every(s => s)) {
+      // Initialize output display values
+      sliders.forEach(slider => {
+        const outSpan = document.getElementById(slider.id.replace("Slider", "Out"));
+        if (outSpan) outSpan.textContent = slider.value;
+      });
+      
       sendSliderData();
+      
+      // Force refresh flowchart after a short delay to ensure everything is loaded
+      setTimeout(() => {
+        console.log("🔄 Force refreshing flowchart with current slider values");
+        sendSliderData();
+      }, 1000);
     }
 });
 
