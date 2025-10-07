@@ -1156,6 +1156,13 @@
       if (input.value === correctPassword) {
         overlay.style.display = 'none';
         sessionStorage.setItem('authenticated', 'true');
+        
+        // Start the tour after successful login
+        setTimeout(function() {
+          if (typeof startOnboardingWalkthrough === 'function') {
+            startOnboardingWalkthrough();
+          }
+        }, 300); // Small delay to ensure overlay is hidden
       } else {
         error.style.display = 'block';
         input.value = '';
