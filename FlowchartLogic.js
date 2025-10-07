@@ -114,42 +114,42 @@ window.initializeFlowchartFromScript = function(svgElement) {
 function drawFlowBoxes() {
   console.log("📦 Drawing flow boxes");
   
-  // Define flow box data (store globally)
+  // Define flow box data (store globally) - Updated with saved layout positions
   flowBoxes = [
     {
       id: "flow1",
       label: "FLOW 1 - MAIN DECISION",
-      x: 300,
-      y: 30,
-      width: 200,
-      height: 550,
+      x: -271.03200912475586,
+      y: -333.68441009521484,
+      width: 237.47534942626953,
+      height: 626.8837738037109,
       color: "#e3f2fd"
     },
     {
       id: "flow2", 
       label: "FLOW 2 - BUILDING ADDITION",
-      x: 50,
-      y: 630,
-      width: 300,
-      height: 550,
+      x: -29.000279426574707,
+      y: -456.79920959472656,
+      width: 699.0092468261719,
+      height: 370.4703483581543,
       color: "#fff3e0"
     },
     {
       id: "flow3",
       label: "FLOW 3 - MAINTENANCE",
-      x: 300,
-      y: 630,
-      width: 300,
-      height: 550,
+      x: -26.81069564819336,
+      y: -81.96510314941406,
+      width: 693.5711059570312,
+      height: 298.2346954345703,
       color: "#e8f5e8"
     },
     {
       id: "flow4",
       label: "FLOW 4 - CONSOLIDATION",
-      x: 550,
-      y: 630,
-      width: 300,
-      height: 550,
+      x: -26.216888427734375,
+      y: 220.00949096679688,
+      width: 688.54345703125,
+      height: 398.50335693359375,
       color: "#fce4ec"
     }
   ];
