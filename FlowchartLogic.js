@@ -118,7 +118,7 @@ function drawFlowBoxes() {
   flowBoxes = [
     {
       id: "flow1",
-      label: "FLOW 1 - MAIN DECISION",
+      label: "FLOW 1 - INITIAL SORTING",
       x: -271.03200912475586,
       y: -333.68441009521484,
       width: 237.47534942626953,
@@ -127,7 +127,7 @@ function drawFlowBoxes() {
     },
     {
       id: "flow2", 
-      label: "FLOW 2 - BUILDING ADDITION",
+      label: "FLOW 2 - CAPACITY\n INCREASE",
       x: -29.000279426574707,
       y: -456.79920959472656,
       width: 699.0092468261719,
@@ -136,7 +136,7 @@ function drawFlowBoxes() {
     },
     {
       id: "flow3",
-      label: "FLOW 3 - MAINTENANCE",
+      label: "FLOW 3 - BUILDING\n IMPROVEMENT",
       x: -26.81069564819336,
       y: -81.96510314941406,
       width: 693.5711059570312,
@@ -145,7 +145,7 @@ function drawFlowBoxes() {
     },
     {
       id: "flow4",
-      label: "FLOW 4 - CONSOLIDATION",
+      label: "FLOW 4 - SCHOOL\n CONSOLIDATION",
       x: -26.216888427734375,
       y: 220.00949096679688,
       width: 688.54345703125,
@@ -230,47 +230,47 @@ function initializeFlowchartData() {
         { id: "START", label: "START HERE", fx: -351.5224304199219, fy: 2.6905438899993896, type: "start" },
         
         // Flow 1 Decision Nodes (Vertical stack)
-        { id: "F1_UTIL1", label: "Enrollment below X students OR \nutilization below", fx: -150.195556640625, fy: -0.011830427683889866, thresholdKey: "utilSlider", flow: 1 },
-        { id: "F1_UTIL2", label: "Current utilization\nabove threshold?", fx: -150.195556640625, fy: -97.29730224609375, thresholdKey: "utilHighSlider", flow: 1 },
-        { id: "F1_GROWTH2", label: "Enrollment projected\nto grow?", fx: -151.3953399658203, fy: -196.53440856933594, thresholdKey: "growthSlider", flow: 1 },
+        { id: "F1_UTIL1", label: "Current enrollment or utilization\nbelow respective threshold", fx: -150.195556640625, fy: -0.011830427683889866, thresholdKey: "utilSlider", flow: 1 },
+        { id: "F1_UTIL2", label: "Current utilization rate\nabove threshold?", fx: -150.195556640625, fy: -97.29730224609375, thresholdKey: "utilHighSlider", flow: 1 },
+        { id: "F1_GROWTH2", label: "-N/A-Projected enrollment\ngrowth above threshold?", fx: -151.3953399658203, fy: -196.53440856933594, thresholdKey: "growthSlider", flow: 1 },
         { id: "F1_DIST", label: "Distance to\nUnderutilized Schools", fx: -159.65386962890625, fy: 110.78551483154297, thresholdKey: "distSlider", flow: 1 },
-        { id: "F1_GROWTH", label: "Enrollment projected\nto grow?", fx: -161.0050506591797, fy: 216.17811584472656, thresholdKey: "growthSlider", flow: 1 },
+        { id: "F1_GROWTH", label: "Projected enrollment growth\n above threshold?", fx: -161.0050506591797, fy: 216.17811584472656, thresholdKey: "growthSlider", flow: 1 },
         
         // Flow Routing Nodes (Horizontal spread)
-        { id: "TO_FLOW2", label: "Building Addition", fx: 52.85620880126953, fy: -138.92300415039062, type: "routing", targetFlow: 2 },
-        { id: "TO_FLOW3", label: "Maintenance", fx: 50.530696868896484, fy: -0.057380907237529755, type: "routing", targetFlow: 3 },
+        { id: "TO_FLOW2", label: "Capacity Increase", fx: 52.85620880126953, fy: -138.92300415039062, type: "routing", targetFlow: 2 },
+        { id: "TO_FLOW3", label: "Building Improvement", fx: 50.530696868896484, fy: -0.057380907237529755, type: "routing", targetFlow: 3 },
         { id: "TO_FLOW4", label: "Consolidation", fx: 58.2057991027832, fy: 293.67974853515625, type: "routing", targetFlow: 4 },
         
         // FLOW 2 - BUILDING ADDITION (Left column) - Updated with saved layout positions
         { id: "F2_EXPAND", label: "Property has\nspace to expand?", fx: 221.39076232910156, fy: -135.09266662597656, thresholdKey: "siteCapacitySlider", flow: 2 },
-        { id: "F2_FAC", label: "Facility condition\nabove threshold?", fx: 223.94432067871094, fy: -223.19027709960938, thresholdKey: "buildSlider", flow: 2 },
-        { id: "F2_EDU1", label: "Educational adequacy\nabove threshold?", fx: 225.22109985351562, fy: -312.5646667480469, thresholdKey: "progSlider", flow: 2 },
-        { id: "F2_EDU2", label: "Educational adequacy\nabove threshold?", fx: 415.46087646484375, fy: -221.91351318359375, thresholdKey: "progSlider", flow: 2 },
+        { id: "F2_FAC", label: "Composite Building Score\nabove threshold?", fx: 223.94432067871094, fy: -223.19027709960938, thresholdKey: "buildSlider", flow: 2 },
+        { id: "F2_EDU1", label: "Educational Adequacy\nabove threshold?", fx: 225.22109985351562, fy: -312.5646667480469, thresholdKey: "progSlider", flow: 2 },
+        { id: "F2_EDU2", label: "Educational Adequacy\nabove threshold?", fx: 415.46087646484375, fy: -221.91351318359375, thresholdKey: "progSlider", flow: 2 },
         { id: "F2_OUT1", label: "Building\nAddition", fx: 227.774658203125, fy: -396.8319396972656, type: "outcome", flow: 2 },
-        { id: "F2_OUT2", label: "Policy Change\n& Re-Sort", fx: 409.07696533203125, fy: -129.98556518554688, type: "outcome", flow: 2 },
-        { id: "F2_OUT3", label: "Replacement", fx: 590.3793334960938, fy: -216.806396484375, type: "outcome", flow: 2 },
-        { id: "F2_OUT4", label: "Building Addition\n& Major Capital", fx: 416.7376403808594, fy: -308.7343444824219, type: "outcome", flow: 2 },
+        { id: "F2_OUT2", label: "Policy Solution\nfor Overcrowding", fx: 409.07696533203125, fy: -129.98556518554688, type: "outcome", flow: 2 },
+        { id: "F2_OUT3", label: "Building Replacement", fx: 590.3793334960938, fy: -216.806396484375, type: "outcome", flow: 2 },
+        { id: "F2_OUT4", label: "Building Addition\nwith Capital Investment", fx: 416.7376403808594, fy: -308.7343444824219, type: "outcome", flow: 2 },
         
         // FLOW 3 - MAINTENANCE/INVESTMENT (Center column) - Updated with saved layout positions
-        { id: "F3_FAC_ABOVE", label: "Facility condition\nabove threshold?", fx: 220.6871337890625, fy: -0.8997395038604736, thresholdKey: "buildAboveSlider", flow: 3 },
-        { id: "F3_FAC_BELOW", label: "Facility condition\nbelow threshold?", fx: 406.35528564453125, fy: 1.3768327236175537, thresholdKey: "buildBelowSlider", flow: 3 },
-        { id: "F3_EDU1", label: "Educational adequacy\nabove threshold?", fx: 216.475341796875, fy: 87.54791259765625, thresholdKey: "progSlider", flow: 3 },
+        { id: "F3_FAC_ABOVE", label: "Composite Building Score\nabove threshold?", fx: 220.6871337890625, fy: -0.8997395038604736, thresholdKey: "buildAboveSlider", flow: 3 },
+        { id: "F3_FAC_BELOW", label: "Composite Building Score\nbelow threshold?", fx: 406.35528564453125, fy: 1.3768327236175537, thresholdKey: "buildBelowSlider", flow: 3 },
+        { id: "F3_EDU1", label: "Educational Adequacy\nabove threshold?", fx: 216.475341796875, fy: 87.54791259765625, thresholdKey: "progSlider", flow: 3 },
         { id: "F3_EDU2", label: "Below 50% percentile EA or\nsafety/security issues?", fx: 405.512939453125, fy: 88.98212432861328, flow: 3 },
-        { id: "F3_OUT1", label: "Target Capital\nInvestment", fx: 584.0929565429688, fy: 40.96768569946289, type: "outcome", flow: 3 },
+        { id: "F3_OUT1", label: "Targeted Capital\nInvestment", fx: 584.0929565429688, fy: 40.96768569946289, type: "outcome", flow: 3 },
         { id: "F3_OUT2", label: "Standard\nMaintenance", fx: 581.5658569335938, fy: 112.56816864013672, type: "outcome", flow: 3 },
         { id: "F3_OUT3", label: "Major Capital\nInvestment", fx: 403.8282165527344, fy: 169.8485565185547, type: "outcome", flow: 3 },
-        { id: "F3_OUT4", label: "Replacement", fx: 215.6329803466797, fy: 171.7837677001953, type: "outcome", flow: 3 },
+        { id: "F3_OUT4", label: "Building Replacement", fx: 215.6329803466797, fy: 171.7837677001953, type: "outcome", flow: 3 },
         
         // FLOW 4 - CONSOLIDATION/CLOSURE (Right column) - Updated with saved layout positions
-        { id: "F4_INVEST", label: "Investments in past 5 years\nin school?", fx: 238.26861572265625, fy: 290.3452453613281, thresholdKey: "recentInvestSlider", flow: 4 },
-        { id: "F4_EDU1", label: "Educational adequacy\nabove threshold?", fx: 239.38011169433594, fy: 379.26513671875, thresholdKey: "progSlider", flow: 4 },
+        { id: "F4_INVEST", label: "Investments over past 5\n years exceed threshold?", fx: 238.26861572265625, fy: 290.3452453613281, thresholdKey: "recentInvestSlider", flow: 4 },
+        { id: "F4_EDU1", label: "Educational Adequacy\nabove threshold?", fx: 239.38011169433594, fy: 379.26513671875, thresholdKey: "progSlider", flow: 4 },
         { id: "F4_FAC1", label: "Composite Building Score\nabove threshold?", fx: 435.00390625, fy: 375.9306640625, thresholdKey: "buildFlow4Slider", flow: 4 },
         { id: "F4_FAC2", label: "Composite Building Score\nabove threshold?", fx: 240.54241943359375, fy: 472.6531677246094, thresholdKey: "buildFlow4Slider", flow: 4 },
-        { id: "F4_DIST", label: "Distance to\nWelcoming Schools", fx: 237.98886108398438, fy: 565.8578491210938, thresholdKey: "elementaryDistanceSlider", flow: 4 },
-        { id: "F4_OUT1", label: "Consolidation\n(Welcoming)", fx: 436.11541748046875, fy: 285.89923095703125, type: "outcome", flow: 4 },
-        { id: "F4_OUT2", label: "Consolidation\nWith Capital", fx: 433.33575439453125, fy: 470.099609375, type: "outcome", flow: 4 },
-        { id: "F4_OUT3", label: "Closure\n(Goes Into Welcoming)", fx: 54.13298416137695, fy: 560.7507934570312, type: "outcome", flow: 4 },
-        { id: "F4_OUT4", label: "Closure &\nReplacement", fx: 432.0589599609375, fy: 562.0275268554688, type: "outcome", flow: 4 },
+        { id: "F4_DIST", label: "Within distance threshold\n of Underutilized School", fx: 237.98886108398438, fy: 565.8578491210938, thresholdKey: "elementaryDistanceSlider", flow: 4 },
+        { id: "F4_OUT1", label: "Welcoming\nSchool", fx: 436.11541748046875, fy: 285.89923095703125, type: "outcome", flow: 4 },
+        { id: "F4_OUT2", label: "Welcoming School with\nCapital Investment", fx: 433.33575439453125, fy: 470.099609375, type: "outcome", flow: 4 },
+        { id: "F4_OUT3", label: "Closure (Goes\n to Welcoming School)", fx: 54.13298416137695, fy: 560.7507934570312, type: "outcome", flow: 4 },
+        { id: "F4_OUT4", label: "Welcoming School\n with Building Replacement", fx: 432.0589599609375, fy: 562.0275268554688, type: "outcome", flow: 4 },
       ],
       links: [
                         // FLOW 1 LINKS
@@ -1824,7 +1824,7 @@ function updateFlowchartSchoolInfo(name) {
     School Type: <strong>${schoolType}</strong> &nbsp; | &nbsp; Utilization: <strong>${util}</strong> &nbsp; | &nbsp; Enrollment: <strong>${enroll}</strong> &nbsp; | &nbsp; Growth: <strong>${growth}</strong>
   </div>
   <div style='font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif; font-size:11px; margin-bottom:1px; line-height:1.3;'>
-    Educational Adequacy: <strong>${educationalAdequacy}</strong> &nbsp; | &nbsp; Building Score: <strong>${buildingScore}</strong> &nbsp; | &nbsp; Space to Expand: <strong>${siteCapacity}</strong> &nbsp; | &nbsp; Distance: <strong>${distanceUnderutilized}</strong>
+    Educational Adequacy: <strong>${educationalAdequacy}</strong> &nbsp; | &nbsp; Building Score: <strong>${buildingScore}</strong> &nbsp; | &nbsp; Site capacity for building expansion?: <strong>${siteCapacity}</strong> &nbsp; | &nbsp; Distance: <strong>${distanceUnderutilized}</strong>
   </div>
   <div style='font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif; font-size:11px; line-height:1.3;'>
     Departmental Deficiency: <strong>${departmentalDeficiency}</strong> &nbsp; | &nbsp; Below 50% Percentile EA: <strong>${below50PercentileEA}</strong> &nbsp; | &nbsp; Recent Investments: <strong>${recentInvestments}</strong>
