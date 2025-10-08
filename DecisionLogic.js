@@ -199,17 +199,17 @@ document.addEventListener("DOMContentLoaded", () => {
           if (decisions.edu2 === "Yes") {
             finalDecision = "Building Addition"; // F2_OUT1
           } else {
-            finalDecision = "Building Addition & Major Capital"; // F2_OUT4
+            finalDecision = "Building Addition with Capital Investment"; // F2_OUT4
           }
         } else {
           if (decisions.edu2 === "Yes") {
-            finalDecision = "Building Addition & Major Capital"; // F2_OUT4
+            finalDecision = "Building Addition with Capital Investment"; // F2_OUT4
           } else {
-            finalDecision = "Replacement"; // F2_OUT3
+            finalDecision = "Building Replacement"; // F2_OUT3
           }
         }
       } else {
-        finalDecision = "Policy Change & Re-Sort"; // F2_OUT2
+        finalDecision = "Policy Solution for Overcrowding"; // F2_OUT2
       }
     }
     
@@ -217,19 +217,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if (currentFlow === 3) {
       if (decisions.fac3_above === "Yes") {
         if (decisions.fac3_below === "Yes") {
-          finalDecision = "Target Capital Investment"; // F3_OUT1
+          finalDecision = "Targeted Capital Investment"; // F3_OUT1
         } else {
           if (decisions.edu3_2 === "Yes") {
             finalDecision = "Standard Maintenance"; // F3_OUT2
           } else {
-            finalDecision = "Target Capital Investment"; // F3_OUT1
+            finalDecision = "Targeted Capital Investment"; // F3_OUT1
           }
         }
       } else {
         if (decisions.edu3 === "Yes") {
           finalDecision = "Major Capital Investment"; // F3_OUT3
         } else {
-          finalDecision = "Replacement"; // F3_OUT4
+          finalDecision = "Building Replacement"; // F3_OUT4
         }
       }
     }
@@ -237,22 +237,22 @@ document.addEventListener("DOMContentLoaded", () => {
     // FLOW 4 - Consolidation/Closure (EXACTLY from FlowchartLogic.js)
     if (currentFlow === 4) {
       if (decisions.invest === "Yes") {
-        finalDecision = "Consolidation (Welcoming)"; // F4_OUT1
+        finalDecision = "Welcoming School"; // F4_OUT1
       } else {
         if (decisions.edu4 === "Yes") {
           if (decisions.fac4 === "Yes") {
-            finalDecision = "Consolidation (Welcoming)"; // F4_OUT1
+            finalDecision = "Welcoming School"; // F4_OUT1
           } else {
-            finalDecision = "Consolidation With Capital"; // F4_OUT2
+            finalDecision = "Welcoming School with Capital Investment"; // F4_OUT2
           }
         } else {
           if (decisions.fac4 === "Yes") {
-            finalDecision = "Consolidation With Capital"; // F4_OUT2
+            finalDecision = "Welcoming School with Capital Investment"; // F4_OUT2
           } else {
             if (decisions.dist4 === "Yes") {
-              finalDecision = "Closure (Goes Into Welcoming)"; // F4_OUT3
+              finalDecision = "Closure (Goes to Welcoming School)"; // F4_OUT3
             } else {
-              finalDecision = "Closure & Replacement"; // F4_OUT4
+              finalDecision = "Welcoming School with Building Replacement"; // F4_OUT4
             }
           }
         }
@@ -279,16 +279,16 @@ document.addEventListener("DOMContentLoaded", () => {
     
     const allDecisions = [
       "Building Addition",
-      "Policy Change & Re-Sort",
-      "Replacement",
-      "Building Addition & Major Capital",
-      "Target Capital Investment",
+      "Policy Solution for Overcrowding",
+      "Building Replacement",
+      "Building Addition with Capital Investment",
+      "Targeted Capital Investment",
       "Standard Maintenance",
       "Major Capital Investment",
-      "Consolidation (Welcoming)",
-      "Consolidation With Capital",
-      "Closure (Goes Into Welcoming)",
-      "Closure & Replacement"
+      "Welcoming School",
+      "Welcoming School with Capital Investment",
+      "Closure (Goes to Welcoming School)",
+      "Welcoming School with Building Replacement"
     ];
   
     const decisionCounts = {};

@@ -397,16 +397,16 @@ function matchesFlowFilter(decisionType, flowNumber) {
   console.log(`⚠️ No flow number for ${decisionType}, using fallback mapping`);
   const flowMapping = {
     'Building Addition': 'expansion',
-    'Policy Change & Re-Sort': 'expansion',
-    'Building Addition & Major Capital': 'expansion',
-    'Replacement': 'maintenance', // Default to maintenance since it's more common
-    'Target Capital Investment': 'maintenance',
+    'Policy Solution for Overcrowding': 'expansion',
+    'Building Addition with Capital Investment': 'expansion',
+    'Building Replacement': 'maintenance', // Default to maintenance since it's more common
+    'Targeted Capital Investment': 'maintenance',
     'Standard Maintenance': 'maintenance',
     'Major Capital Investment': 'maintenance',
-    'Consolidation (Welcoming)': 'closure',
-    'Consolidation With Capital': 'closure',
-    'Closure (Goes Into Welcoming)': 'closure',
-    'Closure & Replacement': 'closure',
+    'Welcoming School': 'closure',
+    'Welcoming School with Capital Investment': 'closure',
+    'Closure (Goes to Welcoming School)': 'closure',
+    'Welcoming School with Building Replacement': 'closure',
     'Other / Unknown': 'other'
   };
   
@@ -467,20 +467,20 @@ function updateLegend() {
   const decisionLegendGroups = {
     "Expansion": {
       "Building Addition": '#2E8B57',           // Emerald
-      "Policy Change & Re-Sort": '#66BB6A',     // Lime
-      "Building Addition & Major Capital": '#1B5E20', // Forest
-      "Replacement": '#4B830D'                  // Olive
+      "Policy Solution for Overcrowding": '#66BB6A',     // Lime
+      "Building Addition with Capital Investment": '#1B5E20', // Forest
+      "Building Replacement": '#4B830D'                  // Olive
     },
     "Maintenance/Investment": {
-      "Target Capital Investment": '#FFA726',   // Amber
+      "Targeted Capital Investment": '#FFA726',   // Amber
       "Standard Maintenance": '#FFD54F',        // Goldenrod
       "Major Capital Investment": '#FB8C00'     // Burnt Orange
     },
     "Closure/Consolidation": {
-      "Consolidation (Welcoming)": '#C62828',   // Crimson
-      "Consolidation With Capital": '#E53935',  // Vermilion
-      "Closure (Goes Into Welcoming)": '#B71C1C', // Firebrick
-      "Closure & Replacement": '#8B0000'        // Deep Red Brown
+      "Welcoming School": '#C62828',   // Crimson
+      "Welcoming School with Capital Investment": '#E53935',  // Vermilion
+      "Closure (Goes to Welcoming School)": '#B71C1C', // Firebrick
+      "Welcoming School with Building Replacement": '#8B0000'        // Deep Red Brown
     }
   };
 
@@ -761,16 +761,16 @@ map.on('load', () => {
             'match',
             ['get', 'Decision Type'],
             "Building Addition", '#2E8B57',
-            "Policy Change & Re-Sort", '#66BB6A',
-            "Building Addition & Major Capital", '#1B5E20',
-            "Replacement", '#4B830D',
-            "Target Capital Investment", '#FFA726',
+            "Policy Solution for Overcrowding", '#66BB6A',
+            "Building Addition with Capital Investment", '#1B5E20',
+            "Building Replacement", '#4B830D',
+            "Targeted Capital Investment", '#FFA726',
             "Standard Maintenance", '#FFD54F',
             "Major Capital Investment", '#FB8C00',
-            "Consolidation (Welcoming)", '#C62828',
-            "Consolidation With Capital", '#E53935',
-            "Closure (Goes Into Welcoming)", '#B71C1C',
-            "Closure & Replacement", '#8B0000',
+            "Welcoming School", '#C62828',
+            "Welcoming School with Capital Investment", '#E53935',
+            "Closure (Goes to Welcoming School)", '#B71C1C',
+            "Welcoming School with Building Replacement", '#8B0000',
             "Other / Unknown", '#2F4F4F',
             '#7f8c8d'
           ]
@@ -1039,16 +1039,16 @@ map.on('load', () => {
         'circle-color',
         ['match', ['get', 'Decision Type'],
           "Building Addition", '#2E8B57',
-          "Policy Change & Re-Sort", '#66BB6A',
-          "Building Addition & Major Capital", '#1B5E20',
-          "Replacement", '#4B830D',
-          "Target Capital Investment", '#FFA726',
+          "Policy Solution for Overcrowding", '#66BB6A',
+          "Building Addition with Capital Investment", '#1B5E20',
+          "Building Replacement", '#4B830D',
+          "Targeted Capital Investment", '#FFA726',
           "Standard Maintenance", '#FFD54F',
           "Major Capital Investment", '#FB8C00',
-          "Consolidation (Welcoming)", '#C62828',
-          "Consolidation With Capital", '#E53935',
-          "Closure (Goes Into Welcoming)", '#B71C1C',
-          "Closure & Replacement", '#8B0000',
+          "Welcoming School", '#C62828',
+          "Welcoming School with Capital Investment", '#E53935',
+          "Closure (Goes to Welcoming School)", '#B71C1C',
+          "Welcoming School with Building Replacement", '#8B0000',
           "Other / Unknown", '#2F4F4F',
           '#7f8c8d']
       );
