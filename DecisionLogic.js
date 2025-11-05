@@ -18,7 +18,7 @@ window.decisionLogic = {
     recentInvestments: 5, // Changed to millions of dollars
     distanceReceiving: 1.0,
     // Enrollment thresholds by school level
-    elementaryEnrollment: 240,
+    elementaryEnrollment: 220,
     k8Enrollment: 360,
     middleEnrollment: 500,
     highEnrollment: 700,
@@ -54,27 +54,69 @@ document.addEventListener("DOMContentLoaded", () => {
     return "Unknown";
   }
 
+  // Helper: Normalize school level strings to canonical keys
+  function normalizeSchoolLevel(rawLevel) {
+    if (!rawLevel) return null;
+    const original = rawLevel.toString().toLowerCase();
+    const cleaned = original.replace(/[^a-z0-9]/g, '');
+    
+    // Check for elementary
+    if (cleaned.includes('elementary') || cleaned === 'es') return 'elementary';
+    
+    // Check for K-8: look for "k" followed by "8" (with or without hyphen/dash, potentially with text after)
+    // Patterns: "k-8", "k8", "k 8", "kindergarten8", etc.
+    if (cleaned.includes('k8') || original.includes('k-8') || original.includes('k 8') || /k\s*[-–—]\s*8/i.test(rawLevel)) {
+      return 'k8';
+    }
+    
+    // Check for middle
+    if (cleaned.includes('middle') || cleaned === 'ms') return 'middle';
+    
+    // Check for high
+    if (cleaned.includes('high') || cleaned === 'hs') return 'high';
+    
+    // Check for K-12 or 6-12
+    if (cleaned.includes('612') || cleaned.includes('k12') || original.includes('6-12') || original.includes('k-12') || original.includes('6 12') || original.includes('k 12')) {
+      return 'k12';
+    }
+    
+    return null;
+  }
+
   // Helper function to determine enrollment decision based on school level
   function getEnrollmentDecision(row, t) {
     const utilization = +row.Utilization;
     const enrollment = parseFloat((row.Enrollment || '').toString().replace(/,/g, '').trim());
-    const schoolLevel = (row["School Level"] || '').toLowerCase();
+    let schoolLevelRaw = row["School Level"] || '';
+    const schoolLevel = schoolLevelRaw.toLowerCase();
+    let level = normalizeSchoolLevel(schoolLevelRaw);
+    
+    // Special handling: If school level is "Multi-Level" or unrecognized, try to infer from school name
+    if (!level && row["Building Name"]) {
+      const schoolName = row["Building Name"].toString();
+      level = normalizeSchoolLevel(schoolName);
+      if (level) {
+        console.log(`✅ DecisionLogic.getEnrollmentDecision: Inferred level "${level}" from school name "${schoolName}" (original level: "${schoolLevelRaw}")`);
+      }
+    }
     
     // Get enrollment thresholds from slider values
     let enrollmentThreshold;
-    if (schoolLevel.includes("elementary")) {
-      enrollmentThreshold = t.elementaryEnrollment || 240;
-    } else if (schoolLevel.includes("k-8")) {
+    if (level === 'elementary') {
+      enrollmentThreshold = t.elementaryEnrollment || 220;
+    } else if (level === 'k8') {
       enrollmentThreshold = t.k8Enrollment || 360;
-    } else if (schoolLevel.includes("middle")) {
+    } else if (level === 'middle') {
       enrollmentThreshold = t.middleEnrollment || 500;
-    } else if (schoolLevel.includes("high")) {
+    } else if (level === 'high') {
       enrollmentThreshold = t.highEnrollment || 700;
-    } else if (schoolLevel.includes("6-12")) {
+    } else if (level === 'k12') {
       enrollmentThreshold = t.k12Enrollment || 600;
     } else {
-      // Default threshold for unknown school types
-      enrollmentThreshold = 400;
+      // Unknown type - use a safe, clearly neutral default (no hard-coded 400)
+      // Choose the median of current configured thresholds
+      const candidates = [t.elementaryEnrollment, t.k8Enrollment, t.middleEnrollment, t.highEnrollment, t.k12Enrollment].filter(v => typeof v === 'number');
+      enrollmentThreshold = candidates.sort((a,b)=>a-b)[Math.floor(candidates.length/2)] || t.middleEnrollment || 500;
     }
     
     // Check if utilization below threshold OR enrollment below level-specific threshold
@@ -99,21 +141,29 @@ document.addEventListener("DOMContentLoaded", () => {
       util1: getEnrollmentDecision(row, t),
       util2: +row.Utilization > t.utilizationHigh ? "Yes" : "No",
       dist: (() => {
-        const schoolLevel = (row["School Level"] || '').toLowerCase();
+        let schoolLevelRaw = row["School Level"] || '';
+        let level = normalizeSchoolLevel(schoolLevelRaw);
+        
+        // Special handling: If school level is "Multi-Level" or unrecognized, try to infer from school name
+        if (!level && row["Building Name"]) {
+          const schoolName = row["Building Name"].toString();
+          level = normalizeSchoolLevel(schoolName);
+        }
+        
         let distanceThreshold;
         
-        if (schoolLevel.includes("elementary")) {
+        if (level === 'elementary') {
           distanceThreshold = t.elementaryDistance;
-        } else if (schoolLevel.includes("k-8")) {
+        } else if (level === 'k8') {
           distanceThreshold = t.k8Distance;
-        } else if (schoolLevel.includes("middle")) {
+        } else if (level === 'middle') {
           distanceThreshold = t.middleDistance;
-        } else if (schoolLevel.includes("high")) {
+        } else if (level === 'high') {
           distanceThreshold = t.highDistance;
-        } else if (schoolLevel.includes("6-12") || schoolLevel.includes("k-12")) {
+        } else if (level === 'k12') {
           distanceThreshold = t.k12Distance;
         } else {
-          distanceThreshold = t.middleDistance; // Default fallback
+          distanceThreshold = t.middleDistance || 5.0; // Default fallback
         }
         
         return +row.DistanceUnderutilizedschools <= distanceThreshold ? "Yes" : "No";

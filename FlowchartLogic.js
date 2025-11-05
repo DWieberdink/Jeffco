@@ -580,7 +580,7 @@ function loadSchoolData() {
         siteCapacity: "Yes",
         recentInvestments: 5, // Changed to millions of dollars
         // School-level enrollment thresholds
-        elementaryEnrollment: 240,
+        elementaryEnrollment: 220,
         k8Enrollment: 360,
         middleEnrollment: 500,
         highEnrollment: 700,
@@ -618,6 +618,66 @@ function loadSchoolData() {
   });
 }
 
+// Helper: Normalize school level strings to canonical keys
+function normalizeSchoolLevel(rawLevel) {
+  if (!rawLevel) {
+    console.log("⚠️ normalizeSchoolLevel: rawLevel is falsy");
+    return null;
+  }
+  
+  const trimmed = rawLevel.toString().trim();
+  if (!trimmed) {
+    console.log("⚠️ normalizeSchoolLevel: rawLevel is empty after trim");
+    return null;
+  }
+  
+  const original = trimmed.toLowerCase();
+  const cleaned = original.replace(/[^a-z0-9]/g, '');
+  
+  console.log("🔍 normalizeSchoolLevel:", { raw: rawLevel, trimmed, original, cleaned });
+  
+  // Check for elementary
+  if (cleaned.includes('elementary') || cleaned === 'es' || original === 'elementary') {
+    return 'elementary';
+  }
+  
+  // Check for K-8: look for "k" followed by "8" (with or without hyphen/dash, potentially with text after)
+  // Patterns: "k-8", "k8", "k 8", "kindergarten8", "k through 8", etc.
+  // Check cleaned first (after removing special chars)
+  if (cleaned.includes('k8')) {
+    console.log("✅ Matched K-8 via cleaned string contains 'k8'");
+    return 'k8';
+  }
+  // Check original string for hyphenated/spaced versions
+  if (original.includes('k-8') || original.includes('k 8') || original.includes('kthrough8') || /k\s*[-–—]\s*8/i.test(rawLevel)) {
+    console.log("✅ Matched K-8 via original string pattern");
+    return 'k8';
+  }
+  // Check if it starts with k and has 8 somewhere
+  if (/^k.*8|8.*k/i.test(cleaned) && cleaned.length <= 5) {
+    console.log("✅ Matched K-8 via k/8 pattern");
+    return 'k8';
+  }
+  
+  // Check for middle
+  if (cleaned.includes('middle') || cleaned === 'ms' || original === 'middle') {
+    return 'middle';
+  }
+  
+  // Check for high
+  if (cleaned.includes('high') || cleaned === 'hs' || original === 'high') {
+    return 'high';
+  }
+  
+  // Check for K-12 or 6-12
+  if (cleaned.includes('612') || cleaned.includes('k12') || original.includes('6-12') || original.includes('k-12') || original.includes('6 12') || original.includes('k 12') || original.includes('6through12')) {
+    return 'k12';
+  }
+  
+  console.log("⚠️ normalizeSchoolLevel: No match found for:", rawLevel);
+  return null;
+}
+
 // Label Formatting
 function formatSliderValue(key, value, schoolData = null) {
   const num = parseFloat(value);
@@ -630,23 +690,54 @@ function formatSliderValue(key, value, schoolData = null) {
       console.log("🔍🔍🔍 schoolData exists?", !!schoolData);
       
       if (schoolData) {
-        const schoolLevel = (schoolData["School Level"] || '').toLowerCase();
+        // Try multiple possible field names for school level
+        let schoolLevelRaw = schoolData["School Level"] || 
+                             schoolData["SchoolLevel"] || 
+                             schoolData["school_level"] ||
+                             schoolData["SCHOOL LEVEL"] ||
+                             '';
+        
+        // If still empty, search for any field containing "level"
+        if (!schoolLevelRaw) {
+          const levelFields = Object.keys(schoolData).filter(k => k.toLowerCase().includes('level'));
+          if (levelFields.length > 0) {
+            schoolLevelRaw = schoolData[levelFields[0]] || '';
+            console.log("🔍 Found school level via field search:", levelFields[0], "=", schoolLevelRaw);
+          }
+        }
+        
+        let level = normalizeSchoolLevel(schoolLevelRaw);
+        
+        // Special handling: If school level is "Multi-Level" or unrecognized, try to infer from school name
+        if (!level && schoolData["Building Name"]) {
+          const schoolName = schoolData["Building Name"].toString();
+          console.log("🔍 School level not recognized, trying to infer from school name:", schoolName);
+          level = normalizeSchoolLevel(schoolName);
+          if (level) {
+            console.log("✅ Inferred school level from name:", level);
+          }
+        }
+        
         let enrollmentThreshold;
         
-        console.log("🔍 formatSliderValue for utilSlider with schoolData:", schoolData["Building Name"], "School Level:", schoolLevel);
+        console.log("🔍 formatSliderValue for utilSlider with schoolData:", schoolData["Building Name"], "School Level field:", schoolLevelRaw, "→ normalized:", level);
+        console.log("🔍 All schoolData keys:", Object.keys(schoolData));
         
-        if (schoolLevel.includes("elementary")) {
-          enrollmentThreshold = window.thresholds?.elementaryEnrollment || 240;
-        } else if (schoolLevel.includes("k-8")) {
+        if (level === 'elementary') {
+          enrollmentThreshold = window.thresholds?.elementaryEnrollment || 220;
+        } else if (level === 'k8') {
           enrollmentThreshold = window.thresholds?.k8Enrollment || 360;
-        } else if (schoolLevel.includes("middle")) {
+        } else if (level === 'middle') {
           enrollmentThreshold = window.thresholds?.middleEnrollment || 500;
-        } else if (schoolLevel.includes("high")) {
+        } else if (level === 'high') {
           enrollmentThreshold = window.thresholds?.highEnrollment || 700;
-        } else if (schoolLevel.includes("6-12")) {
+        } else if (level === 'k12') {
           enrollmentThreshold = window.thresholds?.k12Enrollment || 600;
         } else {
-          enrollmentThreshold = 400;
+          // Unknown level – do not mislead; ask user to choose a level
+          const resultUnknown = `choose level    |    ${Math.round(num * 100)}%`;
+          console.log("🔍 Unknown school level, returning:", resultUnknown);
+          return resultUnknown;
         }
         
         console.log("🔍 Dynamic thresholds for", schoolData["Building Name"], ":", Math.round(num * 100) + "% utilization,", enrollmentThreshold + " students enrollment");
@@ -713,13 +804,45 @@ function formatSliderValue(key, value, schoolData = null) {
 
 //Update Node Labels
 FlowUtils.updateNodeLabels = function (selectedSchoolData = null) {
+  // If no school data explicitly provided, use currently selected (if any)
+  if (!selectedSchoolData) {
+    try {
+      const current = getSelectedSchoolData();
+      if (current) {
+        selectedSchoolData = current;
+        console.log("✅ Auto-retrieved school data for labels:", selectedSchoolData["Building Name"]);
+      } else {
+        console.log("⚠️ No school selected and no school data provided");
+      }
+    } catch (e) {
+      console.error("❌ Error getting selected school data:", e);
+    }
+  } else {
+    console.log("✅ School data provided to updateNodeLabels:", selectedSchoolData["Building Name"]);
+  }
   console.log("🔍 updateNodeLabels called with school data:", selectedSchoolData);
+  const nodeCount = d3.selectAll(".node").size();
+  console.log("🔍 Total nodes found:", nodeCount);
+  
   d3.selectAll(".node").each(function (d) {
     const group = d3.select(this);
     const foreign = group.select("foreignObject div");
     
     let mainText = d.label;
     let dynamicNumber = "";
+    
+    // Special logging for F1_UTIL1
+    if (d.id === "F1_UTIL1") {
+      console.log("🎯🎯🎯 F1_UTIL1 NODE FOUND AND PROCESSING:", {
+        id: d.id,
+        label: d.label,
+        thresholdKey: d.thresholdKey,
+        hasThresholds: !!window.thresholds,
+        thresholdsKeys: window.thresholds ? Object.keys(window.thresholds) : "none",
+        selectedSchoolData: selectedSchoolData ? selectedSchoolData["Building Name"] : "none",
+        selectedSchoolDataKeys: selectedSchoolData ? Object.keys(selectedSchoolData) : "none"
+      });
+    }
     
     if (d.thresholdKey && window.thresholds && d.thresholdKey !== "siteCapacitySlider") {
       const thresholdKey = mapSliderKeyToThresholdKey(d.thresholdKey);
@@ -733,6 +856,10 @@ FlowUtils.updateNodeLabels = function (selectedSchoolData = null) {
         } else if (d.id === "F1_DIST") {
           // Special handling for F1_DIST node - show dynamic distance based on school level
           formatted = formatSliderValue("F1_DIST_dynamic", rawVal, selectedSchoolData);
+        } else if (d.id === "F1_UTIL1") {
+          // Special handling for F1_UTIL1 - MUST pass school data to show enrollment threshold
+          console.log("🎯 F1_UTIL1: Formatting with schoolData:", selectedSchoolData);
+          formatted = formatSliderValue(d.thresholdKey, rawVal, selectedSchoolData);
         } else {
           formatted = formatSliderValue(d.thresholdKey, rawVal, selectedSchoolData);
         }
@@ -792,23 +919,34 @@ function getSelectedSchoolData() {
 function getEnrollmentDecision(row, t) {
   const utilization = +row.Utilization;
   const enrollment = parseFloat((row.Enrollment || '').toString().replace(/,/g, '').trim());
-  const schoolLevel = (row["School Level"] || '').toLowerCase();
+  let schoolLevelRaw = row["School Level"] || '';
+  let level = normalizeSchoolLevel(schoolLevelRaw);
+  
+  // Special handling: If school level is "Multi-Level" or unrecognized, try to infer from school name
+  if (!level && row["Building Name"]) {
+    const schoolName = row["Building Name"].toString();
+    level = normalizeSchoolLevel(schoolName);
+    if (level) {
+      console.log(`✅ getEnrollmentDecision: Inferred level "${level}" from school name "${schoolName}" (original level: "${schoolLevelRaw}")`);
+    }
+  }
   
   // Get enrollment thresholds from slider values
   let enrollmentThreshold;
-  if (schoolLevel.includes("elementary")) {
-    enrollmentThreshold = t.elementaryEnrollment || 240;
-  } else if (schoolLevel.includes("k-8")) {
+  if (level === 'elementary') {
+    enrollmentThreshold = t.elementaryEnrollment || 220;
+  } else if (level === 'k8') {
     enrollmentThreshold = t.k8Enrollment || 360;
-  } else if (schoolLevel.includes("middle")) {
+  } else if (level === 'middle') {
     enrollmentThreshold = t.middleEnrollment || 500;
-  } else if (schoolLevel.includes("high")) {
+  } else if (level === 'high') {
     enrollmentThreshold = t.highEnrollment || 700;
-  } else if (schoolLevel.includes("6-12")) {
+  } else if (level === 'k12') {
     enrollmentThreshold = t.k12Enrollment || 600;
   } else {
-    // Default threshold for unknown school types
-    enrollmentThreshold = 400;
+    // Unknown type - use a safe default (median of configured thresholds)
+    const candidates = [t.elementaryEnrollment, t.k8Enrollment, t.middleEnrollment, t.highEnrollment, t.k12Enrollment].filter(v => typeof v === 'number');
+    enrollmentThreshold = candidates.length > 0 ? candidates.sort((a,b)=>a-b)[Math.floor(candidates.length/2)] : (t.middleEnrollment || 500);
   }
   
   // Check if utilization below threshold OR enrollment below level-specific threshold
@@ -818,9 +956,9 @@ function getEnrollmentDecision(row, t) {
   const enrollmentBelowThreshold = enrollment < enrollmentThreshold;
   
   console.log(`📊 Enrollment decision for ${row["Building Name"]}:`);
+  console.log(`  - School Level: "${schoolLevelRaw}" → normalized: "${level}"`);
   console.log(`  - Utilization: ${utilization} < ${t.utilization}? ${utilizationBelowThreshold}`);
   console.log(`  - Enrollment: ${enrollment} < ${enrollmentThreshold}? ${enrollmentBelowThreshold}`);
-  console.log(`  - School Level: "${schoolLevel}"`);
   console.log(`  - Final decision (either below): ${(utilizationBelowThreshold || enrollmentBelowThreshold) ? "Yes" : "No"}`);
   
   return (utilizationBelowThreshold || enrollmentBelowThreshold) ? "Yes" : "No";
@@ -837,21 +975,29 @@ function evaluatePath(row, t) {
     util1: getEnrollmentDecision(row, t),
     util2: +row.Utilization > t.utilizationHigh ? "Yes" : "No", 
     dist: (() => {
-      const schoolLevel = (row["School Level"] || '').toLowerCase();
+      let schoolLevelRaw = row["School Level"] || '';
+      let level = normalizeSchoolLevel(schoolLevelRaw);
+      
+      // Special handling: If school level is "Multi-Level" or unrecognized, try to infer from school name
+      if (!level && row["Building Name"]) {
+        const schoolName = row["Building Name"].toString();
+        level = normalizeSchoolLevel(schoolName);
+      }
+      
       let distanceThreshold;
       
-      if (schoolLevel.includes("elementary")) {
+      if (level === 'elementary') {
         distanceThreshold = t.elementaryDistance;
-      } else if (schoolLevel.includes("k-8")) {
+      } else if (level === 'k8') {
         distanceThreshold = t.k8Distance;
-      } else if (schoolLevel.includes("middle")) {
+      } else if (level === 'middle') {
         distanceThreshold = t.middleDistance;
-      } else if (schoolLevel.includes("high")) {
+      } else if (level === 'high') {
         distanceThreshold = t.highDistance;
-      } else if (schoolLevel.includes("6-12") || schoolLevel.includes("k-12")) {
+      } else if (level === 'k12') {
         distanceThreshold = t.k12Distance;
       } else {
-        distanceThreshold = t.middleDistance; // Default fallback
+        distanceThreshold = t.middleDistance || 5.0; // Default fallback
       }
       
       return +row.DistanceUnderutilizedschools <= distanceThreshold ? "Yes" : "No";
@@ -881,21 +1027,29 @@ function evaluatePath(row, t) {
     edu4: (+row.EducationalAdequacy * 100) >= t.adequateProgramsMin ? "Yes" : "No",
     fac4: +row.BuildingScore <= t.buildingThresholdFlow4 ? "Yes" : "No",
     dist4: (() => {
-      const schoolLevel = (row["School Level"] || '').toLowerCase();
+      let schoolLevelRaw = row["School Level"] || '';
+      let level = normalizeSchoolLevel(schoolLevelRaw);
+      
+      // Special handling: If school level is "Multi-Level" or unrecognized, try to infer from school name
+      if (!level && row["Building Name"]) {
+        const schoolName = row["Building Name"].toString();
+        level = normalizeSchoolLevel(schoolName);
+      }
+      
       let distanceThreshold;
       
-      if (schoolLevel.includes("elementary")) {
+      if (level === 'elementary') {
         distanceThreshold = t.elementaryDistance;
-      } else if (schoolLevel.includes("k-8")) {
+      } else if (level === 'k8') {
         distanceThreshold = t.k8Distance;
-      } else if (schoolLevel.includes("middle")) {
+      } else if (level === 'middle') {
         distanceThreshold = t.middleDistance;
-      } else if (schoolLevel.includes("high")) {
+      } else if (level === 'high') {
         distanceThreshold = t.highDistance;
-      } else if (schoolLevel.includes("6-12")) {
+      } else if (level === 'k12') {
         distanceThreshold = t.k12Distance;
       } else {
-        distanceThreshold = t.middleDistance; // Default to middle school distance
+        distanceThreshold = t.middleDistance || 5.0; // Default to middle school distance
       }
       
       return +row.DistanceUnderutilizedschools <= distanceThreshold ? "Yes" : "No";
