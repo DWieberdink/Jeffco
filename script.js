@@ -2328,7 +2328,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const sliderIds = [
       "utilSlider", "utilHighSlider", "growthSlider", "distSlider", 
       "buildSlider", "buildAboveSlider", "buildBelowSlider", "buildFlow4Slider", "progSlider",
-      "recentInvestSlider",
+      "attendanceAreaEnrollmentSlider", "recentInvestSlider",
       "elementaryEnrollmentSlider", "k8EnrollmentSlider", "middleEnrollmentSlider", 
       "highEnrollmentSlider", "k12EnrollmentSlider",
       "elementaryDistanceSlider", "k8DistanceSlider", "middleDistanceSlider", 
@@ -2352,6 +2352,7 @@ document.addEventListener("DOMContentLoaded", function() {
         buildingThresholdBelow: parseFloat(document.getElementById("buildBelowSlider").value),
         buildingThresholdFlow4: parseFloat(document.getElementById("buildFlow4Slider").value),
         adequateProgramsMin: parseInt(document.getElementById("progSlider").value, 10),
+        attendanceAreaEnrollment: parseInt(document.getElementById("attendanceAreaEnrollmentSlider").value, 10),
         recentInvestments: parseInt(document.getElementById("recentInvestSlider").value, 10),
         // Enrollment thresholds by school level
         elementaryEnrollment: parseInt(document.getElementById("elementaryEnrollmentSlider").value, 10),
@@ -2425,7 +2426,14 @@ document.addEventListener("DOMContentLoaded", function() {
         slider.addEventListener(eventType, () => {
           console.log("🎛️ Slider changed:", slider.id, "value:", slider.value);
           const outSpan = document.getElementById(slider.id.replace("Slider", "Out"));
-          if (outSpan) outSpan.textContent = slider.value;
+          if (outSpan) {
+            // Format percentage sliders
+            if (slider.id === "attendanceAreaEnrollmentSlider" || slider.id === "progSlider") {
+              outSpan.textContent = slider.value;
+            } else {
+              outSpan.textContent = slider.value;
+            }
+          }
           sendSliderData(); // Call the main update function
         });
       } else {

@@ -15,6 +15,7 @@ window.decisionLogic = {
     buildingThresholdBelow: 1.5,
     buildingThresholdFlow4: 1.5,
     adequateProgramsMin: 50, // Changed to percentage (0-100)
+    attendanceAreaEnrollment: 80, // Percentage threshold for attendance area enrollment (0-100)
     recentInvestments: 5, // Changed to millions of dollars
     distanceReceiving: 1.0,
     // Enrollment thresholds by school level
@@ -171,6 +172,10 @@ document.addEventListener("DOMContentLoaded", () => {
       growth: +row["Future_EnrollmentGrowth"] > t.enrollmentGrowth ? "Yes" : "No",
       
       // Flow 2 - Building Addition
+      attendance: (() => {
+        const attendanceAreaEnrollment = parseFloat(row.AttendanceAreaEnrollment || 0);
+        return attendanceAreaEnrollment >= t.attendanceAreaEnrollment ? "Yes" : "No";
+      })(),
       edu2: (+row.EducationalAdequacy * 100) >= t.adequateProgramsMin ? "Yes" : "No",
       fac2: +row.BuildingScore <= t.buildingThreshold ? "Yes" : "No",
       expand: (row.SiteCapacity === "Yes" || row.SiteCapacity === "yes" || row.SiteCapacity === "YES") ? "Yes" : "No",
@@ -244,7 +249,8 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // FLOW 2 - Building Addition (EXACTLY from FlowchartLogic.js)
     if (currentFlow === 2) {
-      if (decisions.expand === "Yes") {
+      if (decisions.attendance === "Yes") {
+        if (decisions.expand === "Yes") {
         if (decisions.fac2 === "Yes") {
           if (decisions.edu2 === "Yes") {
             finalDecision = "Building Addition"; // F2_OUT1
@@ -258,8 +264,11 @@ document.addEventListener("DOMContentLoaded", () => {
             finalDecision = "Building Replacement"; // F2_OUT3
           }
         }
+        } else {
+          finalDecision = "Policy Solution for Overcrowding"; // F2_OUT2
+        }
       } else {
-        finalDecision = "Policy Solution for Overcrowding"; // F2_OUT2
+        finalDecision = "Policy Solution for Overcrowding"; // F2_OUT2 (attendance area enrollment below threshold)
       }
     }
     

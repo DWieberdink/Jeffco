@@ -203,6 +203,7 @@ function mapSliderKeyToThresholdKey(sliderId) {
     growthSlider: "enrollmentGrowth",
     distSlider: "distanceUnderutilized",
     siteCapacitySlider: "siteCapacity",
+    attendanceAreaEnrollmentSlider: "attendanceAreaEnrollment",
     buildSlider: "buildingThreshold",
     buildAboveSlider: "buildingThresholdAbove",
     buildBelowSlider: "buildingThresholdBelow",
@@ -224,53 +225,74 @@ function mapSliderKeyToThresholdKey(sliderId) {
 function initializeFlowchartData() {
   // Use updated standard layout with Flow 2 and Flow 3 restructure
   console.log("🔄 Using updated standard flowchart layout with Flow 2 and Flow 3 updates");
+  
+  // Load saved positions from localStorage to use as defaults
+  let savedPositions = {};
+  try {
+    savedPositions = JSON.parse(localStorage.getItem('flowchartNodePositions') || '{}');
+    if (Object.keys(savedPositions).length > 0) {
+      console.log("📂 Using saved layout positions as defaults:", Object.keys(savedPositions).length, "nodes");
+    }
+  } catch (error) {
+    console.warn("⚠️ Could not load saved positions, using hardcoded defaults");
+  }
+  
+  // Helper function to get position (saved or default)
+  const getPos = (nodeId, defaultX, defaultY) => {
+    if (savedPositions[nodeId]) {
+      return { fx: savedPositions[nodeId].x, fy: savedPositions[nodeId].y };
+    }
+    return { fx: defaultX, fy: defaultY };
+  };
+  
   const flowchartData = {
       nodes: [
         // FLOW 1 - MAIN DECISION TREE (Centered) - Updated with saved layout positions
-        { id: "START", label: "START HERE", fx: -351.5224304199219, fy: 2.6905438899993896, type: "start" },
+        { id: "START", label: "START HERE", ...getPos("START", -351.5224304199219, 2.6905438899993896), type: "start" },
         
         // Flow 1 Decision Nodes (Vertical stack)
-        { id: "F1_UTIL1", label: "Current enrollment or utilization\nbelow respective threshold", fx: -150.195556640625, fy: -0.011830427683889866, thresholdKey: "utilSlider", flow: 1 },
-        { id: "F1_UTIL2", label: "Current utilization rate\nabove threshold?", fx: -150.195556640625, fy: -97.29730224609375, thresholdKey: "utilHighSlider", flow: 1 },
-        { id: "F1_GROWTH2", label: "-N/A-Projected enrollment\ngrowth above threshold?", fx: -151.3953399658203, fy: -196.53440856933594, thresholdKey: "growthSlider", flow: 1 },
-        { id: "F1_DIST", label: "Distance to\nUnderutilized Schools", fx: -159.65386962890625, fy: 110.78551483154297, thresholdKey: "distSlider", flow: 1 },
-        { id: "F1_GROWTH", label: "Projected enrollment growth\n above threshold?", fx: -161.0050506591797, fy: 216.17811584472656, thresholdKey: "growthSlider", flow: 1 },
+        { id: "F1_UTIL1", label: "Current enrollment or utilization\nbelow respective threshold", ...getPos("F1_UTIL1", -150.195556640625, -0.011830427683889866), thresholdKey: "utilSlider", flow: 1 },
+        { id: "F1_UTIL2", label: "Current utilization rate\nabove threshold?", ...getPos("F1_UTIL2", -150.195556640625, -97.29730224609375), thresholdKey: "utilHighSlider", flow: 1 },
+        { id: "F1_GROWTH2", label: "-N/A-Projected enrollment\ngrowth above threshold?", ...getPos("F1_GROWTH2", -151.3953399658203, -196.53440856933594), thresholdKey: "growthSlider", flow: 1 },
+        { id: "F1_DIST", label: "Distance to\nUnderutilized Schools", ...getPos("F1_DIST", -159.65386962890625, 110.78551483154297), thresholdKey: "distSlider", flow: 1 },
+        { id: "F1_GROWTH", label: "Projected enrollment growth\n above threshold?", ...getPos("F1_GROWTH", -161.0050506591797, 216.17811584472656), thresholdKey: "growthSlider", flow: 1 },
         
         // Flow Routing Nodes (Horizontal spread)
-        { id: "TO_FLOW2", label: "Capacity Increase", fx: 52.85620880126953, fy: -138.92300415039062, type: "routing", targetFlow: 2 },
-        { id: "TO_FLOW3", label: "Building Improvement", fx: 50.530696868896484, fy: -0.057380907237529755, type: "routing", targetFlow: 3 },
-        { id: "TO_FLOW4", label: "Consolidation", fx: 58.2057991027832, fy: 293.67974853515625, type: "routing", targetFlow: 4 },
+        { id: "TO_FLOW2", label: "Capacity Increase", ...getPos("TO_FLOW2", 52.85620880126953, -138.92300415039062), type: "routing", targetFlow: 2 },
+        { id: "TO_FLOW3", label: "Building Improvement", ...getPos("TO_FLOW3", 50.530696868896484, -0.057380907237529755), type: "routing", targetFlow: 3 },
+        { id: "TO_FLOW4", label: "Consolidation", ...getPos("TO_FLOW4", 58.2057991027832, 293.67974853515625), type: "routing", targetFlow: 4 },
         
         // FLOW 2 - BUILDING ADDITION (Left column) - Updated with saved layout positions
-        { id: "F2_EXPAND", label: "Property has\nspace to expand?", fx: 221.39076232910156, fy: -135.09266662597656, thresholdKey: "siteCapacitySlider", flow: 2 },
-        { id: "F2_FAC", label: "Composite Building Score\nabove threshold?", fx: 223.94432067871094, fy: -223.19027709960938, thresholdKey: "buildSlider", flow: 2 },
-        { id: "F2_EDU1", label: "Educational Adequacy\nabove threshold?", fx: 225.22109985351562, fy: -312.5646667480469, thresholdKey: "progSlider", flow: 2 },
-        { id: "F2_EDU2", label: "Educational Adequacy\nabove threshold?", fx: 415.46087646484375, fy: -221.91351318359375, thresholdKey: "progSlider", flow: 2 },
-        { id: "F2_OUT1", label: "Building\nAddition", fx: 227.774658203125, fy: -396.8319396972656, type: "outcome", flow: 2 },
-        { id: "F2_OUT2", label: "Policy Solution\nfor Overcrowding", fx: 409.07696533203125, fy: -129.98556518554688, type: "outcome", flow: 2 },
-        { id: "F2_OUT3", label: "Building Replacement", fx: 590.3793334960938, fy: -216.806396484375, type: "outcome", flow: 2 },
-        { id: "F2_OUT4", label: "Building Addition\nwith Capital Investment", fx: 416.7376403808594, fy: -308.7343444824219, type: "outcome", flow: 2 },
+        { id: "F2_ATTENDANCE", label: "Attendance area enrollment above", ...getPos("F2_ATTENDANCE", 221.39076232910156, -50.09266662597656), thresholdKey: "attendanceAreaEnrollmentSlider", flow: 2 },
+        { id: "F2_EXPAND", label: "Property has\nspace to expand?", ...getPos("F2_EXPAND", 221.39076232910156, -135.09266662597656), thresholdKey: "siteCapacitySlider", flow: 2 },
+        { id: "F2_FAC", label: "Composite Building Score\nabove threshold?", ...getPos("F2_FAC", 223.94432067871094, -223.19027709960938), thresholdKey: "buildSlider", flow: 2 },
+        { id: "F2_EDU1", label: "Educational Adequacy\nabove threshold?", ...getPos("F2_EDU1", 225.22109985351562, -312.5646667480469), thresholdKey: "progSlider", flow: 2 },
+        { id: "F2_EDU2", label: "Educational Adequacy\nabove threshold?", ...getPos("F2_EDU2", 415.46087646484375, -221.91351318359375), thresholdKey: "progSlider", flow: 2 },
+        { id: "F2_OUT1", label: "Building\nAddition", ...getPos("F2_OUT1", 227.774658203125, -396.8319396972656), type: "outcome", flow: 2 },
+        { id: "F2_OUT2", label: "Policy Solution\nfor Overcrowding", ...getPos("F2_OUT2", 409.07696533203125, -129.98556518554688), type: "outcome", flow: 2 },
+        { id: "F2_OUT3", label: "Building Replacement", ...getPos("F2_OUT3", 590.3793334960938, -216.806396484375), type: "outcome", flow: 2 },
+        { id: "F2_OUT4", label: "Building Addition\nwith Capital Investment", ...getPos("F2_OUT4", 416.7376403808594, -308.7343444824219), type: "outcome", flow: 2 },
         
         // FLOW 3 - MAINTENANCE/INVESTMENT (Center column) - Updated with saved layout positions
-        { id: "F3_FAC_ABOVE", label: "Composite Building Score\nabove threshold?", fx: 220.6871337890625, fy: -0.8997395038604736, thresholdKey: "buildAboveSlider", flow: 3 },
-        { id: "F3_FAC_BELOW", label: "Composite Building Score\nbelow threshold?", fx: 406.35528564453125, fy: 1.3768327236175537, thresholdKey: "buildBelowSlider", flow: 3 },
-        { id: "F3_EDU1", label: "Educational Adequacy\nabove threshold?", fx: 216.475341796875, fy: 87.54791259765625, thresholdKey: "progSlider", flow: 3 },
-        { id: "F3_EDU2", label: "Below 50% percentile EA or\nsafety/security issues?", fx: 405.512939453125, fy: 88.98212432861328, flow: 3 },
-        { id: "F3_OUT1", label: "Targeted Capital\nInvestment", fx: 584.0929565429688, fy: 40.96768569946289, type: "outcome", flow: 3 },
-        { id: "F3_OUT2", label: "Standard\nMaintenance", fx: 581.5658569335938, fy: 112.56816864013672, type: "outcome", flow: 3 },
-        { id: "F3_OUT3", label: "Major Capital\nInvestment", fx: 403.8282165527344, fy: 169.8485565185547, type: "outcome", flow: 3 },
-        { id: "F3_OUT4", label: "Building Replacement", fx: 215.6329803466797, fy: 171.7837677001953, type: "outcome", flow: 3 },
+        { id: "F3_FAC_ABOVE", label: "Composite Building Score\nabove threshold?", ...getPos("F3_FAC_ABOVE", 220.6871337890625, -0.8997395038604736), thresholdKey: "buildAboveSlider", flow: 3 },
+        { id: "F3_FAC_BELOW", label: "Composite Building Score\nbelow threshold?", ...getPos("F3_FAC_BELOW", 406.35528564453125, 1.3768327236175537), thresholdKey: "buildBelowSlider", flow: 3 },
+        { id: "F3_EDU1", label: "Educational Adequacy\nabove threshold?", ...getPos("F3_EDU1", 216.475341796875, 87.54791259765625), thresholdKey: "progSlider", flow: 3 },
+        { id: "F3_EDU2", label: "Below 50% percentile EA or\nsafety/security issues?", ...getPos("F3_EDU2", 405.512939453125, 88.98212432861328), flow: 3 },
+        { id: "F3_OUT1", label: "Targeted Capital\nInvestment", ...getPos("F3_OUT1", 584.0929565429688, 40.96768569946289), type: "outcome", flow: 3 },
+        { id: "F3_OUT2", label: "Standard\nMaintenance", ...getPos("F3_OUT2", 581.5658569335938, 112.56816864013672), type: "outcome", flow: 3 },
+        { id: "F3_OUT3", label: "Major Capital\nInvestment", ...getPos("F3_OUT3", 403.8282165527344, 169.8485565185547), type: "outcome", flow: 3 },
+        { id: "F3_OUT4", label: "Building Replacement", ...getPos("F3_OUT4", 215.6329803466797, 171.7837677001953), type: "outcome", flow: 3 },
         
         // FLOW 4 - CONSOLIDATION/CLOSURE (Right column) - Updated with saved layout positions
-        { id: "F4_INVEST", label: "Investments over past 5\n years exceed threshold?", fx: 238.26861572265625, fy: 290.3452453613281, thresholdKey: "recentInvestSlider", flow: 4 },
-        { id: "F4_EDU1", label: "Educational Adequacy\nabove threshold?", fx: 239.38011169433594, fy: 379.26513671875, thresholdKey: "progSlider", flow: 4 },
-        { id: "F4_FAC1", label: "Composite Building Score\nabove threshold?", fx: 435.00390625, fy: 375.9306640625, thresholdKey: "buildFlow4Slider", flow: 4 },
-        { id: "F4_FAC2", label: "Composite Building Score\nabove threshold?", fx: 240.54241943359375, fy: 472.6531677246094, thresholdKey: "buildFlow4Slider", flow: 4 },
-        { id: "F4_DIST", label: "Within distance threshold\n of Underutilized School", fx: 237.98886108398438, fy: 565.8578491210938, thresholdKey: "elementaryDistanceSlider", flow: 4 },
-        { id: "F4_OUT1", label: "Welcoming\nSchool", fx: 436.11541748046875, fy: 285.89923095703125, type: "outcome", flow: 4 },
-        { id: "F4_OUT2", label: "Welcoming School with\nCapital Investment", fx: 433.33575439453125, fy: 470.099609375, type: "outcome", flow: 4 },
-        { id: "F4_OUT3", label: "Closure (Goes\n to Welcoming School)", fx: 54.13298416137695, fy: 560.7507934570312, type: "outcome", flow: 4 },
-        { id: "F4_OUT4", label: "Welcoming School\n with Building Replacement", fx: 432.0589599609375, fy: 562.0275268554688, type: "outcome", flow: 4 },
+        { id: "F4_INVEST", label: "Investments over past 5\n years exceed threshold?", ...getPos("F4_INVEST", 238.26861572265625, 290.3452453613281), thresholdKey: "recentInvestSlider", flow: 4 },
+        { id: "F4_EDU1", label: "Educational Adequacy\nabove threshold?", ...getPos("F4_EDU1", 239.38011169433594, 379.26513671875), thresholdKey: "progSlider", flow: 4 },
+        { id: "F4_FAC1", label: "Composite Building Score\nabove threshold?", ...getPos("F4_FAC1", 435.00390625, 375.9306640625), thresholdKey: "buildFlow4Slider", flow: 4 },
+        { id: "F4_FAC2", label: "Composite Building Score\nabove threshold?", ...getPos("F4_FAC2", 240.54241943359375, 472.6531677246094), thresholdKey: "buildFlow4Slider", flow: 4 },
+        { id: "F4_DIST", label: "Within distance threshold\n of Underutilized School", ...getPos("F4_DIST", 237.98886108398438, 565.8578491210938), thresholdKey: "elementaryDistanceSlider", flow: 4 },
+        { id: "F4_OUT1", label: "Welcoming\nSchool", ...getPos("F4_OUT1", 436.11541748046875, 285.89923095703125), type: "outcome", flow: 4 },
+        { id: "F4_OUT2", label: "Welcoming School with\nCapital Investment", ...getPos("F4_OUT2", 433.33575439453125, 470.099609375), type: "outcome", flow: 4 },
+        { id: "F4_OUT3", label: "Closure (Goes\n to Welcoming School)", ...getPos("F4_OUT3", 54.13298416137695, 560.7507934570312), type: "outcome", flow: 4 },
+        { id: "F4_OUT4", label: "Welcoming School\n with Building Replacement", ...getPos("F4_OUT4", 432.0589599609375, 562.0275268554688), type: "outcome", flow: 4 },
       ],
       links: [
                         // FLOW 1 LINKS
@@ -287,7 +309,9 @@ function initializeFlowchartData() {
                         { source: "F1_GROWTH", target: "TO_FLOW4", label: "No" },
         
         // FLOW 2 LINKS
-        { source: "TO_FLOW2", target: "F2_EXPAND" },
+        { source: "TO_FLOW2", target: "F2_ATTENDANCE" },
+        { source: "F2_ATTENDANCE", target: "F2_EXPAND", label: "Yes" },
+        { source: "F2_ATTENDANCE", target: "F2_OUT2", label: "No" }, // Direct to POLICY DECISIONS
         { source: "F2_EXPAND", target: "F2_FAC", label: "Yes" },
         { source: "F2_EXPAND", target: "F2_OUT2", label: "No" }, // Direct to POLICY CHANGE & RE-SORT
         { source: "F2_FAC", target: "F2_EDU1", label: "Yes" },
@@ -577,6 +601,7 @@ function loadSchoolData() {
         distanceUnderutilized: 3.5,
         buildingThreshold: 1.5,
         adequateProgramsMin: 50, // Changed to percentage (0-100)
+        attendanceAreaEnrollment: 80, // Percentage threshold for attendance area enrollment (0-100)
         siteCapacity: "Yes",
         recentInvestments: 5, // Changed to millions of dollars
         // School-level enrollment thresholds
@@ -794,6 +819,7 @@ function formatSliderValue(key, value, schoolData = null) {
     case "buildFlow4Slider":
       return num.toFixed(1);
     case "progSlider":
+    case "attendanceAreaEnrollmentSlider":
       return parseInt(value, 10) + "%";
     case "recentInvestSlider":
       return `$${parseInt(value, 10)}M`;
@@ -1005,6 +1031,10 @@ function evaluatePath(row, t) {
     growth: +row["Future_EnrollmentGrowth"] > t.enrollmentGrowth ? "Yes" : "No",
     
     // Flow 2 - Building Addition
+    attendance: (() => {
+      const attendanceAreaEnrollment = parseFloat(row.AttendanceAreaEnrollment || 0);
+      return attendanceAreaEnrollment >= t.attendanceAreaEnrollment ? "Yes" : "No";
+    })(),
     edu2: (+row.EducationalAdequacy * 100) >= t.adequateProgramsMin ? "Yes" : "No",
     fac2: +row.BuildingScore <= t.buildingThreshold ? "Yes" : "No",
     expand: (row.SiteCapacity === "Yes" || row.SiteCapacity === "yes" || row.SiteCapacity === "YES") ? "Yes" : "No",
@@ -1093,8 +1123,10 @@ function evaluatePath(row, t) {
 
   // FLOW 2 - Building Addition
   if (currentFlow === 2) {
-    path.push("F2_EXPAND");
-    if (decisions.expand === "Yes") {
+    path.push("F2_ATTENDANCE");
+    if (decisions.attendance === "Yes") {
+      path.push("F2_EXPAND");
+      if (decisions.expand === "Yes") {
       path.push("F2_FAC");
       if (decisions.fac2 === "Yes") {
         path.push("F2_EDU1");
@@ -1112,7 +1144,10 @@ function evaluatePath(row, t) {
         }
       }
       } else {
-      path.push("F2_OUT2"); // POLICY CHANGE & RE-SORT
+        path.push("F2_OUT2"); // POLICY CHANGE & RE-SORT
+      }
+    } else {
+      path.push("F2_OUT2"); // POLICY DECISIONS (attendance area enrollment below threshold)
     }
   }
 
@@ -1938,6 +1973,14 @@ function updateFlowchartSchoolInfo(name) {
     departmentalDeficiency = "N/A";
   }
   
+  // Get Attendance Area Enrollment
+  let attendanceAreaEnrollment = row["AttendanceAreaEnrollment"];
+  if (attendanceAreaEnrollment !== undefined && attendanceAreaEnrollment !== null && attendanceAreaEnrollment !== "") {
+    attendanceAreaEnrollment = parseFloat(attendanceAreaEnrollment).toFixed(1) + "%";
+  } else {
+    attendanceAreaEnrollment = "N/A";
+  }
+  
   // Get Site Capacity (Space to expand)
   let siteCapacity = row["SiteCapacity"];
   if (siteCapacity === undefined || siteCapacity === null || siteCapacity === "") {
@@ -1978,7 +2021,7 @@ function updateFlowchartSchoolInfo(name) {
     School Type: <strong>${schoolType}</strong> &nbsp; | &nbsp; Utilization: <strong>${util}</strong> &nbsp; | &nbsp; Enrollment: <strong>${enroll}</strong> &nbsp; | &nbsp; Growth: <strong>${growth}</strong>
   </div>
   <div style='font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif; font-size:11px; margin-bottom:1px; line-height:1.3;'>
-    Educational Adequacy: <strong>${educationalAdequacy}</strong> &nbsp; | &nbsp; Building Score: <strong>${buildingScore}</strong> &nbsp; | &nbsp; Site capacity for building expansion?: <strong>${siteCapacity}</strong> &nbsp; | &nbsp; Distance: <strong>${distanceUnderutilized}</strong>
+    Educational Adequacy: <strong>${educationalAdequacy}</strong> &nbsp; | &nbsp; Building Score: <strong>${buildingScore}</strong> &nbsp; | &nbsp; Attendance Area Enrollment: <strong>${attendanceAreaEnrollment}</strong> &nbsp; | &nbsp; Site capacity for building expansion?: <strong>${siteCapacity}</strong> &nbsp; | &nbsp; Distance: <strong>${distanceUnderutilized}</strong>
   </div>
   <div style='font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif; font-size:11px; line-height:1.3;'>
     Departmental Deficiency: <strong>${departmentalDeficiency}</strong> &nbsp; | &nbsp; Below 50% Percentile EA: <strong>${below50PercentileEA}</strong> &nbsp; | &nbsp; Recent Investments: <strong>${recentInvestments}</strong>
