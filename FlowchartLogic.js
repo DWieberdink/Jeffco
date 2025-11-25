@@ -263,15 +263,15 @@ function initializeFlowchartData() {
         { id: "TO_FLOW4", label: "Consolidation", ...getPos("TO_FLOW4", 58.2057991027832, 293.67974853515625), type: "routing", targetFlow: 4 },
         
         // FLOW 2 - BUILDING ADDITION (Left column) - Updated with saved layout positions
-        { id: "F2_ATTENDANCE", label: "Attendance area enrollment above", ...getPos("F2_ATTENDANCE", 221.39076232910156, -50.09266662597656), thresholdKey: "attendanceAreaEnrollmentSlider", flow: 2 },
-        { id: "F2_EXPAND", label: "Property has\nspace to expand?", ...getPos("F2_EXPAND", 221.39076232910156, -135.09266662597656), thresholdKey: "siteCapacitySlider", flow: 2 },
-        { id: "F2_FAC", label: "Composite Building Score\nabove threshold?", ...getPos("F2_FAC", 223.94432067871094, -223.19027709960938), thresholdKey: "buildSlider", flow: 2 },
+        { id: "F2_ATTENDANCE", label: "Attendance area enrollment above", ...getPos("F2_ATTENDANCE", 223.63880920410156, -132.1666717529297), thresholdKey: "attendanceAreaEnrollmentSlider", flow: 2 },
+        { id: "F2_EXPAND", label: "Property has\nspace to expand?", ...getPos("F2_EXPAND", 223.63880920410156, -225.6972198486328), thresholdKey: "siteCapacitySlider", flow: 2 },
+        { id: "F2_FAC", label: "Composite Building Score\nabove threshold?", ...getPos("F2_FAC", 417.989013671875, -216.43138122558594), thresholdKey: "buildSlider", flow: 2 },
         { id: "F2_EDU1", label: "Educational Adequacy\nabove threshold?", ...getPos("F2_EDU1", 225.22109985351562, -312.5646667480469), thresholdKey: "progSlider", flow: 2 },
-        { id: "F2_EDU2", label: "Educational Adequacy\nabove threshold?", ...getPos("F2_EDU2", 415.46087646484375, -221.91351318359375), thresholdKey: "progSlider", flow: 2 },
+        { id: "F2_EDU2", label: "Educational Adequacy\nabove threshold?", ...getPos("F2_EDU2", 419.5743713378906, -313.1373291015625), thresholdKey: "progSlider", flow: 2 },
         { id: "F2_OUT1", label: "Building\nAddition", ...getPos("F2_OUT1", 227.774658203125, -396.8319396972656), type: "outcome", flow: 2 },
-        { id: "F2_OUT2", label: "Policy Solution\nfor Overcrowding", ...getPos("F2_OUT2", 409.07696533203125, -129.98556518554688), type: "outcome", flow: 2 },
-        { id: "F2_OUT3", label: "Building Replacement", ...getPos("F2_OUT3", 590.3793334960938, -216.806396484375), type: "outcome", flow: 2 },
-        { id: "F2_OUT4", label: "Building Addition\nwith Capital Investment", ...getPos("F2_OUT4", 416.7376403808594, -308.7343444824219), type: "outcome", flow: 2 },
+        { id: "F2_OUT2", label: "Policy Solution\nfor Overcrowding", ...getPos("F2_OUT2", 417.989013671875, -130.82284545898438), type: "outcome", flow: 2 },
+        { id: "F2_OUT3", label: "Building Replacement", ...getPos("F2_OUT3", 593.16943359375, -313.1373291015625), type: "outcome", flow: 2 },
+        { id: "F2_OUT4", label: "Building Addition\nwith Capital Investment", ...getPos("F2_OUT4", 418.78167724609375, -397.95318603515625), type: "outcome", flow: 2 },
         
         // FLOW 3 - MAINTENANCE/INVESTMENT (Center column) - Updated with saved layout positions
         { id: "F3_FAC_ABOVE", label: "Composite Building Score\nabove threshold?", ...getPos("F3_FAC_ABOVE", 220.6871337890625, -0.8997395038604736), thresholdKey: "buildAboveSlider", flow: 3 },
@@ -1748,6 +1748,44 @@ window.saveCurrentLayoutAsDefault = function() {
   } catch (error) {
     console.error("❌ Error saving current layout:", error);
     alert("Error saving layout. Please try again.");
+  }
+};
+
+// ✅ Export current positions as code for updating hardcoded defaults
+window.exportPositionsAsCode = function() {
+  try {
+    const savedPositions = JSON.parse(localStorage.getItem('flowchartNodePositions') || '{}');
+    
+    if (Object.keys(savedPositions).length === 0) {
+      console.log("⚠️ No saved positions found in localStorage");
+      return null;
+    }
+    
+    // Node order matching initializeFlowchartData
+    const nodeOrder = [
+      "START", "F1_UTIL1", "F1_UTIL2", "F1_GROWTH2", "F1_DIST", "F1_GROWTH",
+      "TO_FLOW2", "TO_FLOW3", "TO_FLOW4",
+      "F2_ATTENDANCE", "F2_EXPAND", "F2_FAC", "F2_EDU1", "F2_EDU2", "F2_OUT1", "F2_OUT2", "F2_OUT3", "F2_OUT4",
+      "F3_FAC_ABOVE", "F3_FAC_BELOW", "F3_EDU1", "F3_EDU2", "F3_OUT1", "F3_OUT2", "F3_OUT3", "F3_OUT4",
+      "F4_INVEST", "F4_EDU1", "F4_FAC1", "F4_FAC2", "F4_DIST", "F4_OUT1", "F4_OUT2", "F4_OUT3", "F4_OUT4"
+    ];
+    
+    console.log("📋 Current positions from localStorage:");
+    console.log(JSON.stringify(savedPositions, null, 2));
+    
+    // Also log in a format that's easy to copy
+    let codeOutput = "\n// Copy these positions to update hardcoded defaults:\n";
+    nodeOrder.forEach(nodeId => {
+      if (savedPositions[nodeId]) {
+        codeOutput += `"${nodeId}": { x: ${savedPositions[nodeId].x}, y: ${savedPositions[nodeId].y} },\n`;
+      }
+    });
+    console.log(codeOutput);
+    
+    return savedPositions;
+  } catch (error) {
+    console.error("❌ Error exporting positions:", error);
+    return null;
   }
 };
 
