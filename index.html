@@ -18,8 +18,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.0/nouislider.min.js" defer></script>
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js" defer></script>
   <script src="https://d3js.org/d3.v7.min.js" defer></script>
-  <script src="sharedFlowchartData.js" defer></script>
   <script src="DecisionLogic.js" defer></script>
+  <script src="PrioritizationLogic.js" defer></script>
+  <script src="PrioritizationUI.js" defer></script>
   <script src="FlowchartLogic.js" defer></script>
   <script src="script.js" defer></script>
   
@@ -40,7 +41,9 @@
     body {
       margin: 0;
       display: flex;
+      flex-direction: row; /* Explicitly set row direction */
       height: 100vh;
+      width: 100vw;
       overflow: hidden; /* Prevent the whole page from scrolling */
       background-color: #ffffff;
       color: #1a1a1a;
@@ -48,13 +51,19 @@
 
     #container {
   display: flex;
+  flex-direction: row; /* Explicitly set row direction */
+  flex: 1 1 0; /* Allow container to grow and shrink */
+  min-width: 0; /* Allow flex item to shrink below content size */
+  width: 0; /* Force flex to control width */
   height: 100vh;
-  width: 100vw;
   position: relative; /* For positioning child elements like buttons */
+  overflow: hidden; /* Prevent container from overflowing */
 }
 
     #sidebar { 
-      width: 35%; 
+      flex: 0 0 35%; 
+      min-width: 250px;
+      max-width: 60%;
       padding: 24px; 
       background: #fafafa; 
       border-right: 1px solid #e5e5e5; 
@@ -62,17 +71,39 @@
       box-sizing: border-box; 
       display: flex;
       flex-direction: column;
+      resize: none; /* Prevent browser resize */
     }
     
     #map-container {
-  flex-grow: 1;
+  flex: 1 1 0; /* flex-grow: 1, flex-shrink: 1, flex-basis: 0 */
+  flex-shrink: 1; /* Explicitly allow shrinking */
+  flex-grow: 1; /* Explicitly allow growing */
+  min-width: 0; /* Allow flex item to shrink below content size */
   height: 100vh;
   position: relative;
-  transition: margin-right 0.3s ease;
+  overflow: hidden; /* Prevent content overflow */
+  width: 0; /* Force flex to control width - start at 0 */
+  max-width: 100%; /* Ensure it doesn't exceed container */
+  z-index: 0; /* Ensure map is below sidebar */
+  /* Debug: uncomment to see container boundaries */
+  /* border: 2px solid red; */
 }
     #map {
-      width: 100%;
-      height: 100%;
+      width: 100% !important;
+      height: 100% !important;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+    }
+    
+    /* Ensure Mapbox canvas respects container size */
+    #map .mapboxgl-canvas-container,
+    #map .mapboxgl-canvas {
+      width: 100% !important;
+      height: 100% !important;
+      max-width: 100% !important;
     }
 
     /* Sidebar Elements - McKinsey Style */
@@ -201,13 +232,22 @@
 
     /* Map Sidebar */
     #map-sidebar {
-  width: 400px;
-  flex-shrink: 0;
+  flex: 0 0 400px;
+  flex-shrink: 0; /* Explicitly prevent shrinking */
+  min-width: 250px;
+  max-width: 60%;
   display: flex; /* Use flexbox to manage child elements */
   flex-direction: column; /* Stack children vertically */
   height: 100vh; /* Make sidebar full viewport height */
   box-sizing: border-box;
   overflow-y: auto; /* Allow sidebar to scroll if content is too tall */
+  resize: none; /* Prevent browser resize */
+  position: relative !important; /* Force relative positioning */
+  background: #fafafa; /* Ensure it has a background */
+  border-left: 1px solid #e5e5e5; /* Visual separator */
+  z-index: 1; /* Ensure sidebar is above map */
+  /* Debug: uncomment to see sidebar boundaries */
+  /* border: 2px solid blue; */
 } 
 
 /* Ensure the container inside the sidebar allows the iframe to grow */
@@ -226,7 +266,37 @@
 }
 
 #map-sidebar.wide {
-  width: 800px !important;
+  flex: 0 0 800px !important;
+}
+
+/* Resizer styles */
+.sidebar-resizer {
+  width: 4px;
+  background: #e5e5e5;
+  cursor: col-resize;
+  flex-shrink: 0;
+  position: relative;
+  transition: background 0.2s;
+  z-index: 100;
+}
+
+.sidebar-resizer:hover {
+  background: #007cbf;
+}
+
+.sidebar-resizer.dragging {
+  background: #007cbf;
+  width: 4px;
+}
+
+.sidebar-resizer::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  cursor: col-resize;
 }
 
 #map-sidebar-toggle { 
@@ -237,12 +307,7 @@
   transition: right 0.3s ease; 
   min-width: 100px;
 }
-#map-sidebar-toggle.hidden { right: 10px; }
- 
-   #map-sidebar {
-  width: 400px;
-  flex-shrink: 0;
-} 
+#map-sidebar-toggle.hidden { right: 10px; } 
 
     /* Table & Range Sliders */
     #enrollmentRange, #seatsRange { margin: 10px 0; }
@@ -538,10 +603,10 @@
 
     /* ✅ Styles for the main flowchart container to fit in the layout */
     #main-flowchart-container {
-      flex-grow: 1;
+      flex: 1 1 0; /* Same flex as map-container when visible */
       position: relative;
       background: #ffffff; 
-      display: none;
+      display: none; /* Hidden by default, shown when flowchart is active */
       flex-direction: column; /* Arrange header and SVG vertically */
       padding: 12px 24px; /* Reduced top/bottom padding, keep left/right */
       box-sizing: border-box;
@@ -892,6 +957,48 @@
       border: none;
       box-shadow: 0 2px 4px rgba(0, 102, 204, 0.3);
     }
+
+    /* Apply same styling to flowchart sliders */
+    #decision-sliders label {
+      display: block;
+      margin-top: 16px;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #374151;
+      font-size: 14px;
+    }
+    #decision-sliders input[type=range] {
+      width: 100%;
+      height: 8px;
+      border-radius: 4px;
+      background: #e2e8f0;
+      outline: none;
+      margin: 4px 0;
+      -webkit-appearance: none;
+    }
+    #decision-sliders input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #0066cc;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0, 102, 204, 0.3);
+    }
+    #decision-sliders input[type=range]::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #0066cc;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 2px 4px rgba(0, 102, 204, 0.3);
+    }
+    #decision-sliders input[type=range]:focus {
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+    }
     .decision-panel-body #main { max-width: 1400px; margin: 0 auto; padding: 0; }
     .decision-panel-body #container { display: flex; gap: 32px; flex-wrap: wrap; }
     .decision-panel-body #sliders { flex: 1; min-width: 320px; }
@@ -1211,7 +1318,7 @@
   <details id="decision-input-panel">
       <summary class="custom-summary">
   <span class="summary-text">
-        <strong>School Decision Evaluation</strong>
+        <strong>Step 1: Strategic Sorting</strong>
         </span>
           <span class = "help-container">
           <span id = "decision-help-icon" class = "help-icon">
@@ -1222,25 +1329,43 @@
           </span>
           <span id="decision-help-tooltip" class ="tooltip">
             <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-            Use the sliders to adjust how schools are evaluated across multiple factors, which is reflected in <strong>School Decision Evaluation: Results</strong> on the right sidebar.<br>
+            <strong>Step 1: Strategic Sorting</strong> uses decision thresholds to categorize schools into strategy groups. Adjust the sliders below to change how schools are evaluated, which is reflected in <strong>Step 1: Strategic Sorting: Results</strong> on the right sidebar.<br>
             The flowchart allows you to visualize the decision logic dynamically by school.<br><br>
+            <strong>Flow 1: Decision Routing</strong><br>
             <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
-              <li><strong>Enrollment</strong><br>
-                Minimum number of enrolled students</li>
-              <li><strong>Utilization</strong><br>
-              Sets the minimum percentage of a school's capacity that should be used before it's considered underutilized.</li>
-              <li><strong>High Utilization</strong><br>
-              Defines when a school is considered highly utilized or potentially overcrowded.</li>
-              <li><strong>Enrollment Growth</strong><br>
-              Minimum expected change in student enrollment (as a percentage).</li>
-              <li><strong>Projected Utilization</strong><br>
-              Target for future utilization based on projected enrollment.</li>
+              <li><strong>Enrollment Thresholds by School Level</strong><br>
+                Minimum enrollment thresholds for Elementary, K-8, Middle, High, and 6-12 schools</li>
+              <li><strong>Current Utilization Threshold</strong><br>
+                Minimum percentage of capacity used before a school is considered underutilized (0-100%, default: 60%)</li>
+              <li><strong>High Utilization Threshold</strong><br>
+                Percentage threshold for identifying highly utilized or overcrowded schools (0-120%, default: 100%)</li>
+              <li><strong>Enrollment Growth Threshold</strong><br>
+                Minimum expected change in student enrollment (-50% to +50%, default: 0%)</li>
               <li><strong>Distance to Underutilized Schools</strong><br>
-              Maximum distance to look for nearby underutilized schools for reassignment.</li>
-              <li><strong>Building Quality</strong><br>
-              Minimum required building condition score.</li>
-              <li><strong>Educational Adequacy Minimum</strong><br>
-              Minimum percentage threshold for educational adequacy (0-100%).</li>
+                Maximum distance to look for nearby underutilized schools (miles, varies by school level)</li>
+            </ul>
+            <strong>Flow 2: Expansion</strong><br>
+            <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
+              <li><strong>Attendance Area Enrollment</strong><br>
+                Percentage threshold for attendance area enrollment (60-100%, default: 80%)</li>
+              <li><strong>Composite Building Score</strong><br>
+                Building condition score threshold (1-10 scale, default: 5)</li>
+              <li><strong>Educational Adequacy</strong><br>
+                Minimum percentage threshold for educational adequacy (0-100%, default: 50%)</li>
+            </ul>
+            <strong>Flow 3: Maintenance/Investment</strong><br>
+            <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
+              <li><strong>Composite Building Score Above/Below Threshold</strong><br>
+                Building condition score thresholds (1-10 scale, default: 5)</li>
+            </ul>
+            <strong>Flow 4: Closure/Consolidation</strong><br>
+            <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
+              <li><strong>Recent Investments</strong><br>
+                Investment threshold in millions (0-50M, default: $5M)</li>
+              <li><strong>Composite Building Score</strong><br>
+                Building condition score threshold (1-10 scale, default: 5)</li>
+              <li><strong>Distance to Welcoming Schools</strong><br>
+                Distance thresholds by school level (miles)</li>
             </ul>
           </span>
         </span>
@@ -1384,7 +1509,7 @@
   <details id="scenario-input-panel">
       <summary class="custom-summary">
   <span class="summary-text">
-        <strong>Scenario Modeling</strong>
+        <strong>Step 2: Prioritization within Strategy Sorting</strong>
         </span>
         <span class= "help-container">
           <span id="scenario-help-icon" class= "help-icon">
@@ -1395,13 +1520,28 @@
           </span>
           <span id="scenario-help-tooltip" class = "tooltip";>
             <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-            Use this section to test and evaluate the impact of different decision types. Adjust settings and run simulations to see scenario outcomes.
+            <strong>Step 2: Prioritization within Strategy Sorting</strong> allows you to prioritize schools within each strategy group (decision type) using weighted criteria.<br><br>
+            <strong>Prioritization Weights (Left Panel):</strong><br>
+            Adjust weight sliders (1-10 scale, 0.5 increments) to prioritize schools within the selected strategy group. All weights default to 5. Higher weights indicate greater importance.<br><br>
+            <strong>Weighted Criteria:</strong><br>
+            <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
+              <li>Utilization Rate</li>
+              <li>Students in Attendance Area</li>
+              <li>Student Economic Status (%FRL)</li>
+              <li>Academic Performance</li>
+              <li>Building Condition</li>
+              <li>Pre-1978 Building Lead Risk</li>
+              <li>ADA Accessibility</li>
+              <li>AC Status</li>
+            </ul>
+            <strong>Strategy Candidate Groups (Right Panel):</strong><br>
+            Select a strategy group to see prioritized schools ranked by priority score. Schools are displayed as larger circles on the map based on their priority score.
           </span>
         </span>
       </summary>
     <div class="details-content-wrapper" style="padding: 0.5rem;">
-      <h3>Filter by Decision Type</h3>
-      <select id="decisionFilter">
+      <!-- Hidden dropdown for backward compatibility with existing code -->
+      <select id="decisionFilter" style="display: none;">
         <option value="">-- All Decisions --</option>
       </select>
 
@@ -1416,84 +1556,39 @@
       </select>
     </div>
 
-    <details open class="nested-details" id="assignmentModeDetails" style="display:none;">
-      <summary><strong>Assignment Mode</strong></summary>
-
-      <div id="modeToggle" style="padding-top: 10px;">
-        <div class="toggle-buttons">
-          <button id="manualBtn" class="active">Manual Entry</button>
-          <button id="modelBtn">Model Simulation</button>
+    <!-- Prioritization Weights Section (replaces Assignment Mode) -->
+    <details open class="nested-details" id="prioritizationWeightsDetails">
+      <summary><strong>Prioritization Weights</strong></summary>
+      <div id="prioritization-weights-left-panel" style="padding-top: 5px;">
+        <p style="font-size: 0.75em; color: #666; margin-bottom: 0.5rem; line-height: 1.3;">
+          Adjust weights to prioritize schools. Select a strategy group from the right panel.
+        </p>
+        <div id="left-panel-weight-sliders">
+          <!-- Weight sliders will be dynamically generated here -->
+          <p style="text-align: center; color: #888; padding: 2rem;">
+            Select a strategy group from the right panel to configure weights.
+          </p>
         </div>
-      </div>
-
-      <!-- Manual Entry View -->
-      <div id="manualView">
-        <h3>Select Distance for Analysis</h3>
-        <select id="isoDistance">
-          <option value="2413">1.5 miles</option>
-          <option value="1609">1 mile</option>
-          <option value="804">0.5 mile</option>
-        </select>
-
-        <h3>Schools within Selected Distance</h3>
-        <table id="isoTable" class="data-table">
-          <thead>
-            <tr>
-              <th>School Name</th>
-              <th class="text-center">% Assigned</th>
-              <th class="text-center"># Assigned</th>
-              <th class="text-center">Available Seats</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-
-      <!-- Model Simulation View -->
-      <div id="modelView" style="display: none;">
-        <h4>Rate the importance of each factor (0 = not important, 10 = very important)</h4>
-        
-        <div class="slider-container">
-          <label for="distanceWeightSlider">Distance Weighting <span id="distanceWeightLabel">5</span></label>
-          <input type="range" id="distanceWeightSlider" min="0" max="10" value="5" />
-        </div>
-
-        <div class="slider-container">
-          <label for="enrollmentWeightSlider">Enrollment Demand<span id="enrollmentWeightLabel">5</span></label>
-          <input type="range" id="enrollmentWeightSlider" min="0" max="10" value="5" />
-        </div>
-
-        <div class="slider-container">
-          <label for="buildingWeightSlider">Building Quality<span id="buildingWeightLabel">5</span></label>
-          <input type="range" id="buildingWeightSlider" min="0" max="10" value="5" />
-        </div>
-        
-        <div class="slider-container">
-          <label for="scorecardWeightSlider">Scorecard Weighting<span id="scorecardWeightLabel">5</span></label>
-          <input type="range" id="scorecardWeightSlider" min="0" max="10" value="5" />
-        </div>
-
-          <h3>Exclude Schools from Assignment</h3>
-          <select id="excludedSchools" multiple style="height: 100px;">
-            <!-- Options will be dynamically added -->
-          </select>
-
-        <br /><br />
-        <button id="assignButton" onclick="console.log('🔘 Assign button clicked via inline handler!')">Assign Students</button>
       </div>
     </details>
   </div>
   </details>
 
   <div class="sidebar-footer">
-    <p class="footer-text">Developed by</p>
+    <p class="footer-text">Developed for</p>
     <div class="footer-logos">
       <img src="client-logo.png" alt="Client Logo" class="client-logo">
+    </div>
+    <p class="footer-text" style="margin-top: 1rem;">by</p>
+    <div class="footer-logos">
       <img src="PerkinsEastmanLogo.svg" alt="Perkins Eastman Logo" class="pe-logo">
     </div>
-    <p class="footer-text">School Facility Planning Webtool</p>
+    <p class="footer-text" style="margin-top: 1rem; font-weight: 600;">School Facility Planning Webtool</p>
   </div>
 </div>
+
+<!-- Left Sidebar Resizer -->
+<div class="sidebar-resizer" id="left-sidebar-resizer"></div>
 
 <div id="container">
   
@@ -1508,24 +1603,6 @@
       <div id="legend-content"></div>
     </div>
     
-    <!-- Decisions/Assignments Toggle positioned below legend -->
-    <div class="toggle-buttons" style="position: absolute; bottom: 20px; left: 20px; z-index: 999; align-items: center; gap: 8px;">
-      <button id="toggleViewDecisions" class="active">Show Decisions</button>
-      <button id="toggleViewAssignments">Show Assignments</button>
-    </div>
-    <span style="position: absolute; bottom: 25px; left: 290px; z-index: 1000; display: flex; align-items: center;">
-      <span id="map-toggle-help-icon" class="help-icon" style="cursor:pointer;display:inline-block;vertical-align:middle;">
-        <svg width="18" height="18" viewBox="0 0 20 20" style="border-radius:50%;background:#007cbf;" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="10" cy="10" r="10" fill="#007cbf"/>
-          <text x="10" y="15" text-anchor="middle" font-size="13" font-family="Franklin Gothic Book, Franklin Gothic, Arial Narrow, Arial, sans-serif" fill="white" font-weight="bold">?</text>
-        </svg>
-      </span>
-      <span id="map-toggle-help-tooltip" style="display:none;position:absolute;z-index:1000;background:#fff;color:#222;border:1px solid #007cbf;border-radius:6px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:14px;width:300px;left:37px;bottom:10px;">
-        <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-        Show Decisions / Show Assignments:<br>
-        Toggle between viewing the current decision type for each school (color-coded) and the results of student assignment simulations. "Show Decisions" displays the recommended action for each school, while "Show Assignments" highlights schools that receive new students in your scenario.
-      </span>
-    </span>
    
     <details id="filter-panel">
         <summary><strong>Map Filters</strong></summary>
@@ -1558,17 +1635,16 @@
         </div>
     </details>
 
-    <!-- Right Sidebar -->
-    <div class="sidebar-toggle-group" id="map-toggle-group">
-      <button id="sidebar-wide-btn" class="sidebar-toggle-btn">Wide</button>
-      <button id="sidebar-normal-btn" class="sidebar-toggle-btn active">Normal</button>
-      <button id="sidebar-hidden-btn" class="sidebar-toggle-btn">Hidden</button>
-    </div>
     
-    <!-- Map/Flowchart Toggle for Map View -->
-    <div class="toggle-buttons map-flowchart-toggle" style="position: absolute; bottom: 20px; right: 20px; z-index: 999;">
-      <button id="toggleMapFlowchartMap" class="active">Show Map</button>
-      <button id="toggleMapFlowchartFlowchart">Show Flowchart</button>
+    <!-- Map Controls -->
+    <div style="position: absolute; bottom: 20px; right: 20px; z-index: 999; display: flex; flex-direction: column; gap: 8px; align-items: flex-end;">
+      <button id="fitToSchoolsBtn" onclick="if(typeof window.fitMapToAllSchools === 'function') window.fitMapToAllSchools();" style="background: #007cbf; color: white; border: none; border-radius: 6px; padding: 8px 16px; font-size: 13px; font-weight: 500; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: background 0.2s;" onmouseover="this.style.background='#005a9e'" onmouseout="this.style.background='#007cbf'">
+        Fit to All Schools
+      </button>
+      <div class="toggle-buttons map-flowchart-toggle">
+        <button id="toggleMapFlowchartMap" class="active" onclick="if(typeof window.switchToMap === 'function') window.switchToMap();">Show Map</button>
+        <button id="toggleMapFlowchartFlowchart" onclick="console.log('Flowchart button clicked'); if(typeof window.switchToFlowchart === 'function') { console.log('Calling switchToFlowchart'); window.switchToFlowchart(); } else { console.error('switchToFlowchart not found'); }">Show Flowchart</button>
+      </div>
     </div>
   </div>
 
@@ -1589,16 +1665,11 @@
             </span>
             <span id="flowchart-help-tooltip" style="display:none;position:absolute;z-index:1000;background:#fff;color:#222;border:1px solid #007cbf;border-radius:6px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:14px;width:300px;right:0;top:28px;">
               <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-              Select a school to view its decision flowchart. The flowchart visualizes how the evaluation criteria lead to the recommended action for the selected school.
+              Select a school from the dropdown to view its decision flowchart. The flowchart visualizes how the Step 1: Strategic Sorting thresholds lead to the recommended decision type (strategy group) for the selected school. Active decision nodes are highlighted, and threshold values are displayed dynamically.
             </span>
           </span>
         </div>
         <div style="display: flex; align-items: center; gap: 10px;">
-          <div class="sidebar-toggle-group" id="flowchart-toggle-group" style="margin-top: 0;">
-            <button id="flowchart-sidebar-wide-btn" class="sidebar-toggle-btn">Wide</button>
-            <button id="flowchart-sidebar-normal-btn" class="sidebar-toggle-btn active">Normal</button>
-            <button id="flowchart-sidebar-hidden-btn" class="sidebar-toggle-btn">Hidden</button>
-          </div>
         </div>
       </div>
       
@@ -1618,10 +1689,13 @@
       
       <!-- Map/Flowchart Toggle for Flowchart View -->
       <div class="toggle-buttons map-flowchart-toggle" style="position: absolute; bottom: 20px; right: 20px; z-index: 999;">
-        <button id="toggleMapFlowchartMap2">Show Map</button>
-        <button id="toggleMapFlowchartFlowchart2" class="active">Show Flowchart</button>
+        <button id="toggleMapFlowchartMap2" onclick="if(typeof window.switchToMap === 'function') window.switchToMap();">Show Map</button>
+        <button id="toggleMapFlowchartFlowchart2" class="active" onclick="console.log('Flowchart button 2 clicked'); if(typeof window.switchToFlowchart === 'function') { console.log('Calling switchToFlowchart'); window.switchToFlowchart(); } else { console.error('switchToFlowchart not found'); }">Show Flowchart</button>
       </div>
   </div>
+
+  <!-- Right Sidebar Resizer -->
+  <div class="sidebar-resizer" id="right-sidebar-resizer"></div>
 
   <div id="map-sidebar">
     <div style="padding: 0; display: flex; flex-direction: column; flex-grow: 1;">
@@ -1644,7 +1718,7 @@
 
         <summary class="custom-summary">
         <span class="summary-text">
-           <strong>School Decision Evaluation: Results</strong>
+           <strong>Step 1: Strategic Sorting: Results</strong>
          </span>
          <span class="help-container">
          <span id="decision-results-help-icon" class="help-icon">
@@ -1655,7 +1729,9 @@
         </span>
        <span id="decision-results-help-tooltip" class="tooltip" style="display:none;">
          <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-         This section shows the results of the school decision evaluation based on your selected criteria.
+         <strong>Step 1: Strategic Sorting: Results</strong> displays the decision outcomes for all schools based on the threshold sliders in Step 1: Strategic Sorting.<br><br>
+         <strong>Summary Table:</strong> Shows count of schools by decision type (strategy group).<br>
+         <strong>Decision by School:</strong> Lists each school with its assigned decision type based on the evaluation criteria.
         </span>
          </span>
         </summary>
@@ -1676,7 +1752,7 @@
                 </span>
                 <span id="summary-table-help-tooltip" style="display:none;position:absolute;z-index:1000;background:#fff;color:#222;border:1px solid #007cbf;border-radius:6px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:13px;width:240px;right:10px;top:30px;" onclick="event.stopPropagation();">
                   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-                  This table provides a summary of recommended actions for all schools based on your selected evaluation criteria.
+                  This table shows the count of schools in each strategy group (decision type) based on the Step 1: Strategic Sorting thresholds. Strategy groups are dynamically generated from the decision outcomes.
                 </span>
               </div>
               <div style="position: relative; min-height: 40px;">
@@ -1694,7 +1770,7 @@
                 </span>
                 <span id="decision-by-school-help-tooltip" style="display:none;position:absolute;z-index:1000;background:#fff;color:#222;border:1px solid #007cbf;border-radius:6px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:13px;width:240px;right:10px;top:30px;" onclick="event.stopPropagation();">
                   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-                  This table lists the recommended action for each individual school, allowing you to review and compare decisions at the school level.
+                  This table lists each school with its assigned decision type (strategy group) based on the Step 1: Strategic Sorting thresholds. Schools are grouped by their decision outcome.
                 </span>
               </div>
             </div>
@@ -1713,19 +1789,40 @@
                   </span>
                   <span id="model-output-help-tooltip" style="display:none;position:absolute;z-index:1000;background:#fff;color:#222;border:1px solid #007cbf;border-radius:6px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:14px;width:300px;right:0;top:28px;">
                     <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-                    This section displays the impact analysis of your scenario, including enrollment, utilization, and travel distance changes.
+                    This section displays impact analysis for Step 2: Prioritization within Strategy Sorting, showing prioritized schools within the selected strategy group. Schools are ranked by priority score calculated from the weight sliders.
                   </span>
                 </span>
               </span>
             </summary>
             <div class="details-content-wrapper" style="padding: 1rem;">
-                <h3>Enrollment and Utilization Impact</h3>
-                <div id="enrollmentChartPlaceholder" style="text-align:center; color:#888; margin-bottom:8px;">Run student assignments to see data.</div>
-                <canvas id="assignmentChart" width="100%" height="180"></canvas>
-                <h3>Travel Distance Impact</h3>
-                <div id="distanceChartPlaceholder" style="text-align:center; color:#888; margin-bottom:8px;">Run student assignments to see data.</div>
-                <canvas id="distanceCompareChart" width="100%" height="50"></canvas>
-                <div id="assignmentSummary" style="margin-top: 10px;"></div>
+                <!-- Strategy Candidate Groups Section -->
+                <div id="strategy-candidate-groups">
+                    <div style="margin-bottom: 1rem;">
+                        <h3>Strategy Candidate Groups</h3>
+                        <p style="font-size: 0.9em; color: #666; margin-bottom: 1rem;">
+                            This section allows you to prioritize schools within each strategy group based on customizable criteria. 
+                            Select a strategy group using the tabs below, then adjust the weight sliders to reflect your priorities. 
+                            Schools will be ranked based on your weighting, with higher priority schools appearing at the top of the list 
+                            and as larger circles on the map.
+                        </p>
+                        
+                        <!-- Strategy Group Tabs -->
+                        <div id="strategy-group-tabs" style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.5rem; border-bottom: 2px solid #e5e5e5; padding-bottom: 0.25rem;">
+                            <!-- Tabs will be dynamically generated -->
+                        </div>
+
+                        <!-- Prioritized Schools Section (will be shown when a tab is selected) -->
+                        <div id="prioritization-weights-section" style="display: none;">
+                            <!-- Prioritized Schools Table -->
+                            <div id="prioritized-schools-section">
+                                <h4>Prioritized Schools</h4>
+                                <div id="prioritized-schools-table-container" style="max-height: 400px; overflow-y: auto;">
+                                    <!-- Table will be dynamically generated -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
           </details>
         </div>
@@ -1826,7 +1923,7 @@ document.addEventListener('DOMContentLoaded', function() {
       helpTooltip.style.right = 'auto';
     }, true);
   }
-   // Scenario Modeling help icon logic
+   // Step 2: Prioritization within Strategy Sorting help icon logic
   var scenarioHelpIcon = document.getElementById('scenario-help-icon');
   var scenarioHelpTooltip = document.getElementById('scenario-help-tooltip');
   if (scenarioHelpIcon && scenarioHelpTooltip) {
@@ -1979,33 +2076,69 @@ document.addEventListener('DOMContentLoaded', function() {
 <!-- === GLOBAL HELP TOOLTIPS (moved out of details/summary for independence) === -->
 <span id="decision-help-tooltip" class="tooltip" style="display:none;">
   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-  School Decision Evaluation: Results<br>
-  The sliders below adjust how schools are evaluated across multiple factors, which is reflected in <strong>School Decision Evaluation: Results</strong> on the right side of the screen.<br>
-  The flowchart allows you to explore the decision logic dynamically by school.<br><br>
+  <strong>Step 1: Strategic Sorting</strong> uses decision thresholds to categorize schools into strategy groups. Adjust the sliders below to change how schools are evaluated, which is reflected in <strong>Step 1: Strategic Sorting: Results</strong> on the right sidebar.<br>
+  The flowchart allows you to visualize the decision logic dynamically by school.<br><br>
+  <strong>Flow 1: Decision Routing</strong><br>
   <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
-    <li><strong>Utilization</strong><br>
-    Sets the minimum percentage of a school's capacity that should be used before it's considered underutilized.</li>
-    <li><strong>High Utilization</strong><br>
-    Defines when a school is considered highly utilized or potentially overcrowded.</li>
-    <li><strong>Enrollment Growth</strong><br>
-    Minimum expected change in student enrollment (as a percentage).</li>
-    <li><strong>Projected Utilization</strong><br>
-    Target for future utilization based on projected enrollment.</li>
+    <li><strong>Enrollment Thresholds by School Level</strong><br>
+      Minimum enrollment thresholds for Elementary, K-8, Middle, High, and 6-12 schools</li>
+    <li><strong>Current Utilization Threshold</strong><br>
+      Minimum percentage of capacity used before a school is considered underutilized (0-100%, default: 60%)</li>
+    <li><strong>High Utilization Threshold</strong><br>
+      Percentage threshold for identifying highly utilized or overcrowded schools (0-120%, default: 100%)</li>
+    <li><strong>Enrollment Growth Threshold</strong><br>
+      Minimum expected change in student enrollment (-50% to +50%, default: 0%)</li>
     <li><strong>Distance to Underutilized Schools</strong><br>
-    Maximum distance to look for nearby underutilized schools for reassignment.</li>
+      Maximum distance to look for nearby underutilized schools (miles, varies by school level)</li>
+  </ul>
+  <strong>Flow 2: Expansion</strong><br>
+  <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
+    <li><strong>Attendance Area Enrollment</strong><br>
+      Percentage threshold for attendance area enrollment (60-100%, default: 80%)</li>
     <li><strong>Composite Building Score</strong><br>
-    Minimum required building condition score (1=lowest, 10=highest).</li>
-    <li><strong>Educational Adequacy Minimum</strong><br>
-    Minimum percentage threshold for educational adequacy (0-100%).</li>
+      Building condition score threshold (1-10 scale, default: 5)</li>
+    <li><strong>Educational Adequacy</strong><br>
+      Minimum percentage threshold for educational adequacy (0-100%, default: 50%)</li>
+  </ul>
+  <strong>Flow 3: Maintenance/Investment</strong><br>
+  <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
+    <li><strong>Composite Building Score Above/Below Threshold</strong><br>
+      Building condition score thresholds (1-10 scale, default: 5)</li>
+  </ul>
+  <strong>Flow 4: Closure/Consolidation</strong><br>
+  <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
+    <li><strong>Recent Investments</strong><br>
+      Investment threshold in millions (0-50M, default: $5M)</li>
+    <li><strong>Composite Building Score</strong><br>
+      Building condition score threshold (1-10 scale, default: 5)</li>
+    <li><strong>Distance to Welcoming Schools</strong><br>
+      Distance thresholds by school level (miles)</li>
   </ul>
 </span>
 <span id="scenario-help-tooltip" class="tooltip" style="display:none;">
   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-  Use this section to test and evaluate the impact of portfolio decisions. Adjust settings and run simulations to see scenario outcomes.
+  <strong>Step 2: Prioritization within Strategy Sorting</strong> allows you to prioritize schools within each strategy group (decision type) using weighted criteria.<br><br>
+  <strong>Prioritization Weights (Left Panel):</strong><br>
+  Adjust weight sliders (1-10 scale, 0.5 increments) to prioritize schools within the selected strategy group. All weights default to 5. Higher weights indicate greater importance.<br><br>
+  <strong>Weighted Criteria:</strong><br>
+  <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
+    <li>Utilization Rate</li>
+    <li>Students in Attendance Area</li>
+    <li>Student Economic Status (%FRL)</li>
+    <li>Academic Performance</li>
+    <li>Building Condition</li>
+    <li>Pre-1978 Building Lead Risk</li>
+    <li>ADA Accessibility</li>
+    <li>AC Status</li>
+  </ul>
+  <strong>Strategy Candidate Groups (Right Panel):</strong><br>
+  Select a strategy group to see prioritized schools ranked by priority score. Schools are displayed as larger circles on the map based on their priority score.
 </span>
 <span id="decision-results-help-tooltip" class="tooltip" style="display:none;">
   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-  This section shows the results of the school decision evaluation based on your selected criteria.
+  <strong>Step 1: Strategic Sorting: Results</strong> displays the decision outcomes for all schools based on the threshold sliders in Step 1: Strategic Sorting.<br><br>
+  <strong>Summary Table:</strong> Shows count of schools by decision type (strategy group).<br>
+  <strong>Decision by School:</strong> Lists each school with its assigned decision type based on the evaluation criteria.
 </span>
 <span id="model-output-help-tooltip" class="tooltip" style="display:none;">
   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>

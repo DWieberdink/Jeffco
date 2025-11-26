@@ -253,7 +253,7 @@ function initializeFlowchartData() {
         // Flow 1 Decision Nodes (Vertical stack)
         { id: "F1_UTIL1", label: "Current enrollment or utilization\nbelow respective threshold", ...getPos("F1_UTIL1", -150.195556640625, -0.011830427683889866), thresholdKey: "utilSlider", flow: 1 },
         { id: "F1_UTIL2", label: "Current utilization rate\nabove threshold?", ...getPos("F1_UTIL2", -150.195556640625, -97.29730224609375), thresholdKey: "utilHighSlider", flow: 1 },
-        { id: "F1_GROWTH2", label: "-N/A-Projected enrollment\ngrowth above threshold?", ...getPos("F1_GROWTH2", -151.3953399658203, -196.53440856933594), thresholdKey: "growthSlider", flow: 1 },
+        { id: "F1_GROWTH2", label: "Projected enrollment\ngrowth above threshold?", ...getPos("F1_GROWTH2", -151.3953399658203, -196.53440856933594), thresholdKey: "growthSlider", flow: 1 },
         { id: "F1_DIST", label: "Distance to\nUnderutilized Schools", ...getPos("F1_DIST", -159.65386962890625, 110.78551483154297), thresholdKey: "distSlider", flow: 1 },
         { id: "F1_GROWTH", label: "Projected enrollment growth\n above threshold?", ...getPos("F1_GROWTH", -161.0050506591797, 216.17811584472656), thresholdKey: "growthSlider", flow: 1 },
         
@@ -1113,8 +1113,14 @@ function evaluatePath(row, t) {
     // School does NOT meet both criteria (above at least one threshold)
     path.push("F1_UTIL2");
     if (decisions.util2 === "Yes") {
-      path.push("TO_FLOW2");
-      currentFlow = 2;
+      path.push("F1_GROWTH2");
+      if (decisions.growth === "Yes") {
+        path.push("TO_FLOW2");
+        currentFlow = 2;
+      } else {
+        path.push("TO_FLOW3");
+        currentFlow = 3;
+      }
     } else {
       path.push("TO_FLOW3");
       currentFlow = 3;

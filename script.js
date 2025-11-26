@@ -276,10 +276,155 @@ const map = new mapboxgl.Map({
   // center and zoom will be set dynamically after loading GeoJSON
 });
 
+// Expose map globally for prioritization UI
+window.map = map;
+
+// --- MAP/FLOWCHART TOGGLE FUNCTIONS (defined early so they're available for inline handlers) ---
+let showingFlowchart = false;
+
+// Define switch functions globally so they can be called from inline handlers
+window.switchToFlowchart = function() {
+  console.log("🔄 switchToFlowchart called");
+  showingFlowchart = true;
+  const flowchartContainer = document.getElementById('main-flowchart-container');
+  const mapContainer = document.getElementById('map-container');
+  const toggleViewContainer = document.querySelector('#map-container .toggle-buttons');
+  
+  console.log("📊 flowchartContainer:", flowchartContainer);
+  console.log("🗺️ mapContainer:", mapContainer);
+  
+  if (flowchartContainer) {
+    flowchartContainer.style.display = 'flex';
+    flowchartContainer.style.visibility = 'visible';
+    flowchartContainer.style.opacity = '1';
+    console.log("✅ Flowchart container shown");
+  } else {
+    console.error("❌ Flowchart container not found!");
+  }
+  
+  if (mapContainer) {
+    mapContainer.style.display = 'none';
+    mapContainer.style.visibility = 'hidden';
+    mapContainer.style.opacity = '0';
+    console.log("✅ Map container hidden");
+  } else {
+    console.error("❌ Map container not found!");
+  }
+  
+  // Update toggle button states
+  const toggleMapFlowchartMap = document.getElementById('toggleMapFlowchartMap');
+  const toggleMapFlowchartFlowchart = document.getElementById('toggleMapFlowchartFlowchart');
+  const toggleMapFlowchartMap2 = document.getElementById('toggleMapFlowchartMap2');
+  const toggleMapFlowchartFlowchart2 = document.getElementById('toggleMapFlowchartFlowchart2');
+  
+  if (toggleMapFlowchartMap) toggleMapFlowchartMap.classList.remove('active');
+  if (toggleMapFlowchartFlowchart) toggleMapFlowchartFlowchart.classList.add('active');
+  if (toggleMapFlowchartMap2) toggleMapFlowchartMap2.classList.remove('active');
+  if (toggleMapFlowchartFlowchart2) toggleMapFlowchartFlowchart2.classList.add('active');
+  
+  // Hide the decisions/assignments toggle when in flowchart view
+  if (toggleViewContainer) toggleViewContainer.style.display = 'none';
+  
+  if (!window.flowchartInitialized) {
+    console.log("🎯 Initializing flowchart...");
+    // Try to initialize flowchart - it might be defined inside map.on('load')
+    if (typeof window.initializeFlowchart === 'function') {
+      window.initializeFlowchart();
+    } else if (typeof initializeFlowchart === 'function') {
+      initializeFlowchart();
+    } else {
+      console.warn("⚠️ initializeFlowchart function not available yet, will retry...");
+      // Retry after a short delay - try multiple times
+      let retryCount = 0;
+      const maxRetries = 5;
+      const retryInterval = setInterval(() => {
+        retryCount++;
+        if (typeof window.initializeFlowchart === 'function') {
+          window.initializeFlowchart();
+          clearInterval(retryInterval);
+        } else if (typeof initializeFlowchart === 'function') {
+          initializeFlowchart();
+          clearInterval(retryInterval);
+        } else if (retryCount >= maxRetries) {
+          console.error("❌ initializeFlowchart still not available after retries");
+          clearInterval(retryInterval);
+          // Try to initialize directly using setupFlowchart if available
+          if (typeof setupFlowchart === 'function') {
+            console.log("🔄 Trying setupFlowchart directly...");
+            setupFlowchart();
+          }
+        }
+      }, 300);
+    }
+  } else {
+    // Flowchart already initialized, but make sure it's visible
+    console.log("✅ Flowchart already initialized");
+  }
+};
+
+window.switchToMap = function() {
+  console.log("🔄 switchToMap called");
+  showingFlowchart = false;
+  const flowchartContainer = document.getElementById('main-flowchart-container');
+  const mapContainer = document.getElementById('map-container');
+  const toggleViewContainer = document.querySelector('#map-container .toggle-buttons');
+  
+  console.log("📊 flowchartContainer:", flowchartContainer);
+  console.log("🗺️ mapContainer:", mapContainer);
+  
+  if (flowchartContainer) {
+    flowchartContainer.style.display = 'none';
+    flowchartContainer.style.visibility = 'hidden';
+    flowchartContainer.style.opacity = '0';
+    console.log("✅ Flowchart container hidden");
+  } else {
+    console.error("❌ Flowchart container not found!");
+  }
+  
+  if (mapContainer) {
+    // Restore display - map-container is a flex item, so we need to restore it to block (default for div)
+    // The parent container handles the flex layout
+    mapContainer.style.display = 'block'; // Restore to block (default for div)
+    mapContainer.style.visibility = 'visible';
+    mapContainer.style.opacity = '1';
+    console.log("✅ Map container shown");
+  } else {
+    console.error("❌ Map container not found!");
+  }
+  
+  // Update toggle button states
+  const toggleMapFlowchartMap = document.getElementById('toggleMapFlowchartMap');
+  const toggleMapFlowchartFlowchart = document.getElementById('toggleMapFlowchartFlowchart');
+  const toggleMapFlowchartMap2 = document.getElementById('toggleMapFlowchartMap2');
+  const toggleMapFlowchartFlowchart2 = document.getElementById('toggleMapFlowchartFlowchart2');
+  
+  if (toggleMapFlowchartMap) toggleMapFlowchartMap.classList.add('active');
+  if (toggleMapFlowchartFlowchart) toggleMapFlowchartFlowchart.classList.remove('active');
+  if (toggleMapFlowchartMap2) toggleMapFlowchartMap2.classList.add('active');
+  if (toggleMapFlowchartFlowchart2) toggleMapFlowchartFlowchart2.classList.remove('active');
+  
+  // Show the decisions/assignments toggle when in map view
+  if (toggleViewContainer) toggleViewContainer.style.display = 'flex';
+  
+  // Resize map after showing it
+  setTimeout(() => {
+    if (window.map && window.map.resize) {
+      window.map.resize();
+      console.log("✅ Map resized");
+    } else {
+      console.warn("⚠️ Map not available for resize");
+    }
+  }, 100);
+};
+
 let geojsonData;
 let originalGeojsonData; // Keep a copy of the original unfiltered data
 let initialDecisionData = null; // Store data if it arrives before geojson
 let mapIsReady = false; // Flag to track if the map's core is loaded
+
+// Expose map and geojsonData globally for prioritization UI
+window.map = null; // Will be set when map is created
+window.geojsonData = null; // Will be set when geojson is loaded
 let selectedEnrollment = 0;
 let odData = [];
 let selectedTypes = [];
@@ -447,7 +592,8 @@ function normalize(str) {
 }
 
 // ✅ Move updateLegend function outside map.on('load') for global access
-let showingAssignments = false;
+// Always showing decisions view (toggle buttons removed)
+const showingAssignments = false;
 let flowCheckboxStates = {
   'flow-expansion': true,
   'flow-maintenance': true,
@@ -697,6 +843,7 @@ map.on('load', () => {
       
       console.log(`📍 Filtered geojson: ${geojson.features.length} schools included on map`);
       geojsonData = geojson;
+      window.geojsonData = geojsonData; // Expose globally for prioritization UI
       
       injectDecisionsIntoGeoJSON(geojsonData, decisionData);
       
@@ -705,6 +852,16 @@ map.on('load', () => {
       console.log("✅ Original GeoJSON data saved for filtering");
       
       initializeDropdownFilters(decisionData);
+
+      // Initialize prioritization UI with school data and decisions
+      if (typeof window.prioritizationUI !== 'undefined' && typeof window.prioritizationUI.initialize === 'function') {
+        console.log("🎯 Initializing prioritization UI");
+        const schoolDataWithDecisions = decisionData.map(row => ({
+          ...row,
+          decision: row.decision || row["Decision Type"]
+        }));
+        window.prioritizationUI.initialize(schoolDataWithDecisions);
+      }
 
       // Add the source for the school data
       map.addSource('schools', {
@@ -731,6 +888,65 @@ map.on('load', () => {
           console.log("✅ Map automatically zoomed to Jeffco district bounds");
         }
       }
+
+      // ✅ Function to fit map to all schools (always use originalGeojsonData for all schools)
+      window.fitMapToAllSchools = function() {
+        console.log("🔍 fitMapToAllSchools called");
+        
+        // Use window.map if available, otherwise use local map variable
+        const mapToUse = window.map || map;
+        
+        if (!mapToUse) {
+          console.error("⚠️ Map not available");
+          alert("Map is not ready. Please wait a moment and try again.");
+          return;
+        }
+        
+        // Always use originalGeojsonData to show ALL schools, not filtered ones
+        const dataToUse = originalGeojsonData || geojsonData;
+        
+        if (!dataToUse || !dataToUse.features) {
+          console.warn("⚠️ No geojson data available");
+          alert("Map data not loaded yet. Please wait a moment and try again.");
+          return;
+        }
+        
+        const coordinates = dataToUse.features
+          .filter(f => f.geometry && f.geometry.coordinates && Array.isArray(f.geometry.coordinates) && f.geometry.coordinates.length === 2) // Only features with valid geometry
+          .map(f => f.geometry.coordinates);
+        
+        if (coordinates.length === 0) {
+          console.warn("⚠️ No valid coordinates found");
+          alert("No school locations found.");
+          return;
+        }
+        
+        const lats = coordinates.map(c => c[1]);
+        const lngs = coordinates.map(c => c[0]);
+        const bounds = [
+          [Math.min(...lngs), Math.min(...lats)],
+          [Math.max(...lngs), Math.max(...lats)]
+        ];
+        
+        console.log("🗺️ Fitting map to bounds:", bounds, "with", coordinates.length, "schools");
+        
+        // Ensure map is resized first
+        if (mapToUse.resize) {
+          mapToUse.resize();
+        }
+        
+        // Use fitBounds with a small delay to ensure resize has taken effect
+        setTimeout(() => {
+          if (mapToUse && typeof mapToUse.fitBounds === 'function') {
+            mapToUse.fitBounds(bounds, { padding: 40, duration: 1000 });
+            console.log("✅ fitBounds called successfully");
+          } else {
+            console.error("⚠️ fitBounds not found");
+          }
+        }, 50);
+      };
+      
+      console.log("✅ fitMapToAllSchools function defined");
 
       // Add a source and layer for the selected school's "halo" highlight
       map.addSource('selected-school', {
@@ -1025,139 +1241,54 @@ map.on('load', () => {
   });
 
   // --- LEGEND AND TOGGLE LOGIC ---
-  const toggleDecisionsBtn = document.getElementById('toggleViewDecisions');
-  const toggleAssignmentsBtn = document.getElementById('toggleViewAssignments');
+  // Toggle buttons removed - always showing decisions view
   
-  toggleDecisionsBtn.addEventListener('click', () => {
-    showingAssignments = false;
-    toggleDecisionsBtn.classList.add('active');
-    toggleAssignmentsBtn.classList.remove('active');
+  // Always show decisions view (default behavior)
+  if (map.getLayer('schools-layer')) {
+    map.setPaintProperty(
+      'schools-layer',
+      'circle-color',
+      ['match', ['get', 'Decision Type'],
+        "Building Addition", '#2E8B57',
+        "Policy Solution for Overcrowding", '#66BB6A',
+        "Building Addition with Capital Investment", '#1B5E20',
+        "Building Replacement", '#4B830D',
+        "Targeted Capital Investment", '#FFA726',
+        "Standard Maintenance", '#FFD54F',
+        "Major Capital Investment", '#FB8C00',
+        "Welcoming School", '#C62828',
+        "Welcoming School with Capital Investment", '#E53935',
+        "Closure (Goes to Welcoming School)", '#B71C1C',
+        "Welcoming School with Building Replacement", '#8B0000',
+        "Other / Unknown", '#2F4F4F',
+        '#7f8c8d']
+    );
+  }
 
-    if (map.getLayer('schools-layer')) {
-      map.setPaintProperty(
-        'schools-layer',
-        'circle-color',
-        ['match', ['get', 'Decision Type'],
-          "Building Addition", '#2E8B57',
-          "Policy Solution for Overcrowding", '#66BB6A',
-          "Building Addition with Capital Investment", '#1B5E20',
-          "Building Replacement", '#4B830D',
-          "Targeted Capital Investment", '#FFA726',
-          "Standard Maintenance", '#FFD54F',
-          "Major Capital Investment", '#FB8C00',
-          "Welcoming School", '#C62828',
-          "Welcoming School with Capital Investment", '#E53935',
-          "Closure (Goes to Welcoming School)", '#B71C1C',
-          "Welcoming School with Building Replacement", '#8B0000',
-          "Other / Unknown", '#2F4F4F',
-          '#7f8c8d']
-      );
-    }
+  if (map.getLayer('assigned-schools-layer')) {
+    map.setLayoutProperty(
+      'assigned-schools-layer',
+      'visibility',
+      'none'
+    );
+  }
 
-    if (map.getLayer('assigned-schools-layer')) {
-      map.setLayoutProperty(
-        'assigned-schools-layer',
-        'visibility',
-        'none'
-      );
-    }
-
-    updateLegend();
-  });
-
-  toggleAssignmentsBtn.addEventListener('click', () => {
-    showingAssignments = true;
-    toggleAssignmentsBtn.classList.add('active');
-    toggleDecisionsBtn.classList.remove('active');
-
-    if (map.getLayer('schools-layer')) {
-      map.setPaintProperty(
-        'schools-layer',
-        'circle-color',
-        '#007cbf'
-      );
-    }
-
-    if (map.getLayer('assigned-schools-layer')) {
-      const assignedSource = map.getSource('assigned-schools');
-      const hasAssignments = assignedSource && assignedSource._data?.features?.length > 0;
-
-      map.setLayoutProperty(
-        'assigned-schools-layer',
-        'visibility',
-        hasAssignments ? 'visible' : 'none'
-      );
-    }
-
-    updateLegend();
-  });
+  updateLegend();
+  // Toggle buttons removed - always showing decisions view
+  // Decisions view is now the default, no need to call showDecisionsView()
 
   // --- SIDEBAR AND MAP RESIZE LOGIC ---
   const sidebar = document.getElementById('map-sidebar');
   const mapContainer = document.getElementById('map-container');
-  const mapToggleGroup = document.getElementById('map-toggle-group');
 
-  // All toggle buttons
-  const buttons = {
-    wide: [document.getElementById('sidebar-wide-btn'), document.getElementById('flowchart-sidebar-wide-btn')],
-    normal: [document.getElementById('sidebar-normal-btn'), document.getElementById('flowchart-sidebar-normal-btn')],
-    hidden: [document.getElementById('sidebar-hidden-btn'), document.getElementById('flowchart-sidebar-hidden-btn')],
-  };
-
-  function updateSidebarState(newState) {
-    const center = map.getCenter();
-
-    // Update sidebar classes
-    sidebar.classList.remove('wide', 'hidden');
-    if (newState === 'wide' || newState === 'hidden') {
-      sidebar.classList.add(newState);
+  // --- INITIAL MAP RESIZE ON LOAD ---
+  // Map container will automatically take available space with flex: 1
+  // Just ensure map resizes after initial load
+  setTimeout(() => {
+    if (map && map.resize) {
+      map.resize();
     }
-    
-    // Update map toggle group classes for positioning
-    mapToggleGroup.classList.remove('state-wide', 'state-hidden');
-    if (newState === 'wide' || newState === 'hidden') {
-      mapToggleGroup.classList.add(`state-${newState}`);
-    }
-
-    // Update active class on all relevant buttons
-    Object.values(buttons).flat().forEach(btn => btn?.classList.remove('active'));
-    buttons[newState].forEach(btn => btn?.classList.add('active'));
-
-    // Recalculate container sizes
-    const sidebarWidth = (newState === 'wide') ? 800 : (newState === 'normal') ? 400 : 0;
-    const activeContainer = (mapContainer.style.display !== 'none') ? mapContainer : document.getElementById('main-flowchart-container');
-    activeContainer.style.flexBasis = `calc(100% - ${sidebarWidth}px)`;
-
-    // Resize map if it's visible
-    if (mapContainer.style.display !== 'none') {
-      setTimeout(() => {
-        map.resize();
-        map.setCenter(center);
-      }, 350);
-    }
-    // Zoom flowchart to fit if in wide view and flowchart is visible (only if no saved zoom level)
-    if (newState === 'wide' && flowchartContainer && flowchartContainer.style.display !== 'none' && typeof window.zoomFlowchartToFit === 'function') {
-      const savedTransform = localStorage.getItem('flowchartZoom');
-      if (!savedTransform) {
-        console.log('[updateSidebarState] No saved zoom level, triggering zoomFlowchartToFit. flowchartContainer display:', flowchartContainer.style.display);
-        setTimeout(() => {
-          window.zoomFlowchartToFit();
-        }, 400);
-      } else {
-        console.log('[updateSidebarState] Saved zoom level found, skipping zoomFlowchartToFit');
-      }
-    }
-  }
-
-  // Add event listeners to all buttons
-  Object.entries(buttons).forEach(([state, btnPair]) => {
-    btnPair.forEach(btn => btn?.addEventListener('click', () => updateSidebarState(state)));
-  });
-
-  // --- INITIAL MARGIN & CENTER ON LOAD ---
-  const sidebarWidth = sidebar.offsetWidth;
-  mapContainer.style.flexBasis = `calc(100% - ${sidebarWidth}px)`;
-  map.resize();
+  }, 100);
 
   // Removed hardcoded New Haven center - map will be set by fitBounds
 
@@ -1165,66 +1296,89 @@ map.on('load', () => {
   // The iframe has been removed. All communication is now direct function calls.
   // The DecisionLogic.js script, once loaded, will expose `window.decisionLogic`.
   
-  // --- MAP/FLOWCHART TOGGLE ---
-  let showingFlowchart = false;
-  const toggleMapFlowchartMap = document.getElementById('toggleMapFlowchartMap');
-  const toggleMapFlowchartFlowchart = document.getElementById('toggleMapFlowchartFlowchart');
-  const toggleMapFlowchartMap2 = document.getElementById('toggleMapFlowchartMap2');
-  const toggleMapFlowchartFlowchart2 = document.getElementById('toggleMapFlowchartFlowchart2');
-  const toggleViewContainer = document.querySelector('#map-container .toggle-buttons');
-  const flowchartContainer = document.getElementById('main-flowchart-container');
-  const flowchartSchoolSelect = document.getElementById('mainFlowchartSchoolSelect');
+  // --- MAP/FLOWCHART TOGGLE SETUP (functions already defined globally above) ---
+  function setupFlowchartToggleButtons() {
+    const toggleMapFlowchartMap = document.getElementById('toggleMapFlowchartMap');
+    const toggleMapFlowchartFlowchart = document.getElementById('toggleMapFlowchartFlowchart');
+    const toggleMapFlowchartMap2 = document.getElementById('toggleMapFlowchartMap2');
+    const toggleMapFlowchartFlowchart2 = document.getElementById('toggleMapFlowchartFlowchart2');
 
-  function switchToFlowchart() {
-    showingFlowchart = true;
-    flowchartContainer.style.display = 'flex';
-    mapContainer.style.display = 'none';
-    
-    // Update toggle button states
-    toggleMapFlowchartMap.classList.remove('active');
-    toggleMapFlowchartFlowchart.classList.add('active');
-    toggleMapFlowchartMap2.classList.remove('active');
-    toggleMapFlowchartFlowchart2.classList.add('active');
-    
-    // Hide the decisions/assignments toggle when in flowchart view
-    toggleViewContainer.style.display = 'none';
-    
-    if (!window.flowchartInitialized) {
-      initializeFlowchart();
+    if (!toggleMapFlowchartMap || !toggleMapFlowchartFlowchart || !toggleMapFlowchartMap2 || !toggleMapFlowchartFlowchart2) {
+      console.warn("⚠️ Flowchart toggle buttons not found, will retry...");
+      setTimeout(setupFlowchartToggleButtons, 100);
+      return;
+    }
+
+    // Add event listeners for all toggle buttons
+    toggleMapFlowchartMap.addEventListener('click', window.switchToMap);
+    toggleMapFlowchartFlowchart.addEventListener('click', window.switchToFlowchart);
+    toggleMapFlowchartMap2.addEventListener('click', window.switchToMap);
+    toggleMapFlowchartFlowchart2.addEventListener('click', window.switchToFlowchart);
+
+    console.log("✅ Flowchart toggle buttons set up");
+  }
+
+  // Set up flowchart toggle buttons
+  setupFlowchartToggleButtons();
+
+  // Add event listener for "Fit to All Schools" button
+  function setupFitToSchoolsButton() {
+    const fitToSchoolsBtn = document.getElementById('fitToSchoolsBtn');
+    if (fitToSchoolsBtn) {
+      // Remove any existing inline handlers and add our own
+      fitToSchoolsBtn.onclick = null; // Clear any inline onclick
+      
+      fitToSchoolsBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log("🔘 Fit to All Schools button clicked");
+        
+        if (typeof window.fitMapToAllSchools === 'function') {
+          try {
+            window.fitMapToAllSchools();
+          } catch (error) {
+            console.error("❌ Error in fitMapToAllSchools:", error);
+            alert("Error fitting map to schools: " + error.message);
+          }
+        } else {
+          console.warn("⚠️ fitMapToAllSchools function not available yet");
+          alert("Map is still loading. Please wait a moment and try again.");
+        }
+      }, true); // Use capture phase to ensure it fires
+      
+      console.log("✅ Fit to All Schools button event listener added");
+      return true;
+    } else {
+      console.warn("⚠️ fitToSchoolsBtn not found");
+      return false;
     }
   }
-
-  function switchToMap() {
-    showingFlowchart = false;
-    flowchartContainer.style.display = 'none';
-    mapContainer.style.display = 'block';
-    
-    // Update toggle button states
-    toggleMapFlowchartMap.classList.add('active');
-    toggleMapFlowchartFlowchart.classList.remove('active');
-    toggleMapFlowchartMap2.classList.add('active');
-    toggleMapFlowchartFlowchart2.classList.remove('active');
-    
-    // Show the decisions/assignments toggle when in map view
-    toggleViewContainer.style.display = 'flex';
-    
-    setTimeout(() => {
-      map.resize();
-    }, 100);
+  
+  // Try multiple times to set up the button
+  if (!setupFitToSchoolsButton()) {
+    // If button not found, try again after DOMContentLoaded
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(setupFitToSchoolsButton, 100);
+      });
+    } else {
+      setTimeout(setupFitToSchoolsButton, 100);
+    }
+  }
+  
+  // Also try after map loads (in case button is added dynamically)
+  if (window.map) {
+    setTimeout(setupFitToSchoolsButton, 500);
   }
 
-  // Add event listeners for all toggle buttons
-  toggleMapFlowchartMap.addEventListener('click', switchToMap);
-  toggleMapFlowchartFlowchart.addEventListener('click', switchToFlowchart);
-  toggleMapFlowchartMap2.addEventListener('click', switchToMap);
-  toggleMapFlowchartFlowchart2.addEventListener('click', switchToFlowchart);
-
-  function initializeFlowchart() {
+  // Make initializeFlowchart globally accessible
+  window.initializeFlowchart = function() {
     console.log("🎯 Initializing flowchart...");
     setupFlowchart();
-  }
+  };
 
-  function setupFlowchart() {
+  // Make setupFlowchart globally accessible so it can be called directly if needed
+  window.setupFlowchart = function() {
     console.log("🎯 Setting up flowchart...");
     
     const svg = d3.select("#main-flowchart-svg");
@@ -1242,7 +1396,10 @@ map.on('load', () => {
       console.error("❌ initializeFlowchartFromScript function not found!");
     }
 
-    if (geojsonData && geojsonData.features) {
+    const flowchartSchoolSelect = document.getElementById('mainFlowchartSchoolSelect');
+    if (!flowchartSchoolSelect) {
+      console.error("❌ Flowchart school select element not found!");
+    } else {
       flowchartSchoolSelect.innerHTML = '<option value="">-- Select School --</option>';
       
       // Use filtered school data from DecisionLogic instead of geojsonData
@@ -1260,7 +1417,8 @@ map.on('load', () => {
           option.textContent = schoolName;
           flowchartSchoolSelect.appendChild(option);
         });
-      } else {
+        console.log(`✅ Populated flowchart dropdown with ${sortedSchools.length} schools`);
+      } else if (geojsonData && geojsonData.features) {
         console.log("⚠️ Using geojsonData for flowchart dropdown (filtered data not available yet)");
         // Fallback to geojsonData if filtered data isn't available yet
         const sortedSchools = geojsonData.features
@@ -1274,6 +1432,9 @@ map.on('load', () => {
           option.textContent = schoolName;
           flowchartSchoolSelect.appendChild(option);
         });
+        console.log(`✅ Populated flowchart dropdown with ${sortedSchools.length} schools from geojson`);
+      } else {
+        console.warn("⚠️ No school data available for flowchart dropdown");
       }
 
       flowchartSchoolSelect.addEventListener('change', (e) => {
@@ -1401,6 +1562,7 @@ function initializeDropdownFilters(schoolData) {
     allSchoolData.map(row => row.decision || "Unknown")
   )].sort();
 
+  // Populate hidden dropdown for backward compatibility
   decisionFilter.innerHTML = '<option value="">-- All Decisions --</option>';
   uniqueDecisions.forEach(decision => {
     const option = document.createElement("option");
@@ -1599,7 +1761,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  isoDistanceSelect.addEventListener('change', triggerIsochroneUpdate);
+  if (isoDistanceSelect) {
+    isoDistanceSelect.addEventListener('change', triggerIsochroneUpdate);
+  }
 
   manualBtn.addEventListener('click', () => {
     manualView.style.display = 'block';
@@ -1896,19 +2060,13 @@ document.addEventListener('DOMContentLoaded', function() {
           console.error("❌ assigned-schools source not found!");
         }
         
-        // ✅ Switch to assignment view to show the results
-        showingAssignments = true;
+        // Always showing decisions view (toggle removed)
+        // showingAssignments = true; // Removed
         if (map.getLayer('schools-layer')) {
           map.setPaintProperty('schools-layer', 'circle-color', '#007cbf');
         }
         
-        // Update the toggle button states
-        const toggleDecisionsBtn = document.getElementById('toggleViewDecisions');
-        const toggleAssignmentsBtn = document.getElementById('toggleViewAssignments');
-        if (toggleDecisionsBtn && toggleAssignmentsBtn) {
-          toggleDecisionsBtn.classList.remove('active');
-          toggleAssignmentsBtn.classList.add('active');
-        }
+        // Toggle buttons removed - always showing decisions view
         
         // Update the legend
         updateLegend();
@@ -2403,6 +2561,16 @@ document.addEventListener("DOMContentLoaded", function() {
         console.warn("⚠️ FlowUtils.updateNodeLabels not available");
       }
       
+      // ✅ Update prioritization UI when decisions change
+      if (typeof window.prioritizationUI !== 'undefined' && typeof window.prioritizationUI.refresh === 'function') {
+        console.log("🔄 Refreshing prioritization UI with updated decisions");
+        const schoolDataWithDecisions = window.decisionLogic.schoolData.map(row => ({
+          ...row,
+          decision: row.decision || row["Decision Type"]
+        }));
+        window.prioritizationUI.refresh(schoolDataWithDecisions);
+      }
+
       // ✅ Update flowchart path for currently selected school
       const flowchartSelect = document.getElementById('mainFlowchartSchoolSelect');
       console.log("🔍 Flowchart select element:", flowchartSelect);
@@ -3593,5 +3761,312 @@ document.addEventListener('DOMContentLoaded', function() {
       decisionBySchoolHelpTooltip.style.top = (e.clientY + offset2[1]) + 'px';
       decisionBySchoolHelpTooltip.style.right = 'auto';
     }, true);
+  }
+
+  // ✅ Sidebar Resizer Functionality
+  function setupSidebarResizers() {
+    const leftSidebar = document.getElementById('sidebar');
+    const rightSidebar = document.getElementById('map-sidebar');
+    const leftResizer = document.getElementById('left-sidebar-resizer');
+    const rightResizer = document.getElementById('right-sidebar-resizer');
+    const mapContainer = document.getElementById('map-container');
+
+    if (!leftSidebar || !rightSidebar || !leftResizer || !rightResizer) {
+      console.warn('⚠️ Sidebar resizers not found');
+      return;
+    }
+
+    // Setup ResizeObserver for map container to automatically resize map
+    if (mapContainer && window.ResizeObserver) {
+      let lastWidth = mapContainer.offsetWidth;
+      let lastHeight = mapContainer.offsetHeight;
+      let isAdjustingZoom = false; // Prevent recursive adjustments
+      
+      const resizeObserver = new ResizeObserver((entries) => {
+        if (window.map && window.map.resize && !isAdjustingZoom) {
+          const entry = entries[0];
+          const newWidth = entry.contentRect.width;
+          const newHeight = entry.contentRect.height;
+          
+          // Only adjust if size actually changed significantly (more than 1px)
+          if (Math.abs(newWidth - lastWidth) > 1 || Math.abs(newHeight - lastHeight) > 1) {
+            isAdjustingZoom = true;
+            
+            // Store current center and zoom before resize
+            const center = window.map.getCenter();
+            const zoom = window.map.getZoom();
+            
+            // Calculate zoom adjustment based on width change (primary dimension for horizontal resize)
+            const widthRatio = lastWidth > 0 ? newWidth / lastWidth : 1;
+            const zoomAdjustment = Math.log2(widthRatio);
+            const newZoom = zoom + zoomAdjustment;
+            
+            // Get current bounds before resize (as array format)
+            const bounds = window.map.getBounds();
+            const boundsArray = [
+              [bounds.getWest(), bounds.getSouth()],
+              [bounds.getEast(), bounds.getNorth()]
+            ];
+            
+            // Resize the map first
+            window.map.resize();
+            
+            // Then fit to the same bounds to maintain geographic extent
+            // Use a small delay to ensure resize has taken effect
+            setTimeout(() => {
+              if (window.map) {
+                // Fit to the same bounds - this will auto-adjust zoom
+                window.map.fitBounds(boundsArray, {
+                  padding: 0,
+                  duration: 0 // Instant adjustment
+                });
+                
+                lastWidth = newWidth;
+                lastHeight = newHeight;
+                
+                // Reset flag after a short delay
+                setTimeout(() => {
+                  isAdjustingZoom = false;
+                }, 50);
+              }
+            }, 10);
+          }
+        }
+      });
+      resizeObserver.observe(mapContainer);
+      console.log('✅ ResizeObserver set up for map container');
+    }
+
+    // Load saved widths from localStorage
+    const savedLeftWidth = localStorage.getItem('leftSidebarWidth');
+    const savedRightWidth = localStorage.getItem('rightSidebarWidth');
+    
+    if (savedLeftWidth) {
+      leftSidebar.style.flex = `0 0 ${savedLeftWidth}px`;
+    }
+    if (savedRightWidth) {
+      rightSidebar.style.flex = `0 0 ${savedRightWidth}px`;
+    }
+
+    // Left sidebar resizer (between left sidebar and map container)
+    let isResizingLeft = false;
+    let startXLeft = 0;
+    let startWidthLeft = 0;
+
+    leftResizer.addEventListener('mousedown', (e) => {
+      isResizingLeft = true;
+      startXLeft = e.clientX;
+      startWidthLeft = leftSidebar.offsetWidth;
+      leftResizer.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    // Right sidebar resizer (between map container and right sidebar)
+    let isResizingRight = false;
+    let startXRight = 0;
+    let startWidthRight = 0;
+
+    rightResizer.addEventListener('mousedown', (e) => {
+      isResizingRight = true;
+      startXRight = e.clientX;
+      startWidthRight = rightSidebar.offsetWidth;
+      rightResizer.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (isResizingLeft) {
+        const diff = e.clientX - startXLeft; // Positive when dragging right
+        const newWidth = Math.max(250, Math.min(window.innerWidth * 0.6, startWidthLeft + diff));
+        
+        // Store current map state before resize (only once at start)
+        if (!isResizingLeft._mapState) {
+          isResizingLeft._mapState = {
+            bounds: window.map ? window.map.getBounds() : null,
+            containerWidth: mapContainer.offsetWidth
+          };
+        }
+        
+        leftSidebar.style.flex = `0 0 ${newWidth}px`;
+        
+        // Trigger map resize during drag with zoom adjustment
+        if (window.map && window.map.resize && isResizingLeft._mapState.bounds) {
+          // Use a throttled approach - only update every few frames
+          if (!isResizingLeft._updatePending) {
+            isResizingLeft._updatePending = true;
+            requestAnimationFrame(() => {
+              const containerWidthAfter = mapContainer.offsetWidth;
+              const containerWidthBefore = isResizingLeft._mapState.containerWidth;
+              
+              if (containerWidthBefore > 0 && Math.abs(containerWidthAfter - containerWidthBefore) > 1) {
+                // Get bounds as array format for fitBounds
+                const bounds = isResizingLeft._mapState.bounds;
+                const boundsArray = [
+                  [bounds.getWest(), bounds.getSouth()],
+                  [bounds.getEast(), bounds.getNorth()]
+                ];
+                
+                // Resize first
+                window.map.resize();
+                
+                // Then fit to same bounds to maintain geographic extent
+                // Use a small timeout to ensure resize has taken effect
+                setTimeout(() => {
+                  if (window.map) {
+                    window.map.fitBounds(boundsArray, {
+                      padding: 0,
+                      duration: 0 // Instant during drag
+                    });
+                  }
+                  isResizingLeft._updatePending = false;
+                }, 10);
+              } else {
+                window.map.resize();
+                isResizingLeft._updatePending = false;
+              }
+            });
+          }
+        }
+      }
+      
+      if (isResizingRight) {
+        const diff = startXRight - e.clientX; // Positive when dragging left (shrinking right sidebar)
+        const newWidth = Math.max(250, Math.min(window.innerWidth * 0.6, startWidthRight + diff));
+        
+        // Store current map state before resize (only once at start)
+        if (!isResizingRight._mapState) {
+          isResizingRight._mapState = {
+            bounds: window.map ? window.map.getBounds() : null,
+            containerWidth: mapContainer.offsetWidth
+          };
+        }
+        
+        // Force layout update by reading offsetWidth first
+        rightSidebar.offsetWidth;
+        
+        // Update flex property
+        rightSidebar.style.flex = `0 0 ${newWidth}px`;
+        rightSidebar.style.flexShrink = '0';
+        rightSidebar.style.flexGrow = '0';
+        
+        // Force reflow to ensure layout updates
+        mapContainer.offsetWidth;
+        
+        // Trigger map resize during drag with zoom adjustment
+        if (window.map && window.map.resize && isResizingRight._mapState.bounds) {
+          // Use a throttled approach - only update every few frames
+          if (!isResizingRight._updatePending) {
+            isResizingRight._updatePending = true;
+            requestAnimationFrame(() => {
+              const containerWidthAfter = mapContainer.offsetWidth;
+              const containerWidthBefore = isResizingRight._mapState.containerWidth;
+              
+              if (containerWidthBefore > 0 && Math.abs(containerWidthAfter - containerWidthBefore) > 1) {
+                // Get bounds as array format for fitBounds
+                const bounds = isResizingRight._mapState.bounds;
+                const boundsArray = [
+                  [bounds.getWest(), bounds.getSouth()],
+                  [bounds.getEast(), bounds.getNorth()]
+                ];
+                
+                // Resize first
+                window.map.resize();
+                
+                // Then fit to same bounds to maintain geographic extent
+                // Use a small timeout to ensure resize has taken effect
+                setTimeout(() => {
+                  if (window.map) {
+                    window.map.fitBounds(boundsArray, {
+                      padding: 0,
+                      duration: 0 // Instant during drag
+                    });
+                  }
+                  isResizingRight._updatePending = false;
+                }, 10);
+              } else {
+                window.map.resize();
+                isResizingRight._updatePending = false;
+              }
+            });
+          }
+        }
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isResizingLeft) {
+        // Clean up stored state
+        if (isResizingLeft._mapState) {
+          const finalBounds = isResizingLeft._mapState.bounds;
+          delete isResizingLeft._mapState;
+          delete isResizingLeft._updatePending;
+          
+          // Final map resize and zoom adjustment after resizing is complete
+          if (window.map && window.map.resize && finalBounds) {
+            setTimeout(() => {
+              const boundsArray = [
+                [finalBounds.getWest(), finalBounds.getSouth()],
+                [finalBounds.getEast(), finalBounds.getNorth()]
+              ];
+              window.map.resize();
+              window.map.fitBounds(boundsArray, {
+                padding: 0,
+                duration: 0
+              });
+            }, 50);
+          }
+        }
+        
+        isResizingLeft = false;
+        leftResizer.classList.remove('dragging');
+        const currentWidth = leftSidebar.offsetWidth;
+        localStorage.setItem('leftSidebarWidth', currentWidth);
+      }
+      
+      if (isResizingRight) {
+        // Clean up stored state
+        if (isResizingRight._mapState) {
+          const finalBounds = isResizingRight._mapState.bounds;
+          delete isResizingRight._mapState;
+          delete isResizingRight._updatePending;
+          
+          // Final map resize and zoom adjustment after resizing is complete
+          if (window.map && window.map.resize && finalBounds) {
+            setTimeout(() => {
+              const boundsArray = [
+                [finalBounds.getWest(), finalBounds.getSouth()],
+                [finalBounds.getEast(), finalBounds.getNorth()]
+              ];
+              window.map.resize();
+              window.map.fitBounds(boundsArray, {
+                padding: 0,
+                duration: 0
+              });
+            }, 50);
+          }
+        }
+        
+        isResizingRight = false;
+        rightResizer.classList.remove('dragging');
+        const currentWidth = rightSidebar.offsetWidth;
+        localStorage.setItem('rightSidebarWidth', currentWidth);
+      }
+      
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
+  }
+
+  // Initialize resizers when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupSidebarResizers);
+  } else {
+    setupSidebarResizers();
   }
 });
