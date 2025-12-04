@@ -279,144 +279,6 @@ const map = new mapboxgl.Map({
 // Expose map globally for prioritization UI
 window.map = map;
 
-// --- MAP/FLOWCHART TOGGLE FUNCTIONS (defined early so they're available for inline handlers) ---
-let showingFlowchart = false;
-
-// Define switch functions globally so they can be called from inline handlers
-window.switchToFlowchart = function() {
-  console.log("🔄 switchToFlowchart called");
-  showingFlowchart = true;
-  const flowchartContainer = document.getElementById('main-flowchart-container');
-  const mapContainer = document.getElementById('map-container');
-  const toggleViewContainer = document.querySelector('#map-container .toggle-buttons');
-  
-  console.log("📊 flowchartContainer:", flowchartContainer);
-  console.log("🗺️ mapContainer:", mapContainer);
-  
-  if (flowchartContainer) {
-    flowchartContainer.style.display = 'flex';
-    flowchartContainer.style.visibility = 'visible';
-    flowchartContainer.style.opacity = '1';
-    console.log("✅ Flowchart container shown");
-  } else {
-    console.error("❌ Flowchart container not found!");
-  }
-  
-  if (mapContainer) {
-    mapContainer.style.display = 'none';
-    mapContainer.style.visibility = 'hidden';
-    mapContainer.style.opacity = '0';
-    console.log("✅ Map container hidden");
-  } else {
-    console.error("❌ Map container not found!");
-  }
-  
-  // Update toggle button states
-  const toggleMapFlowchartMap = document.getElementById('toggleMapFlowchartMap');
-  const toggleMapFlowchartFlowchart = document.getElementById('toggleMapFlowchartFlowchart');
-  const toggleMapFlowchartMap2 = document.getElementById('toggleMapFlowchartMap2');
-  const toggleMapFlowchartFlowchart2 = document.getElementById('toggleMapFlowchartFlowchart2');
-  
-  if (toggleMapFlowchartMap) toggleMapFlowchartMap.classList.remove('active');
-  if (toggleMapFlowchartFlowchart) toggleMapFlowchartFlowchart.classList.add('active');
-  if (toggleMapFlowchartMap2) toggleMapFlowchartMap2.classList.remove('active');
-  if (toggleMapFlowchartFlowchart2) toggleMapFlowchartFlowchart2.classList.add('active');
-  
-  // Hide the decisions/assignments toggle when in flowchart view
-  if (toggleViewContainer) toggleViewContainer.style.display = 'none';
-  
-  if (!window.flowchartInitialized) {
-    console.log("🎯 Initializing flowchart...");
-    // Try to initialize flowchart - it might be defined inside map.on('load')
-    if (typeof window.initializeFlowchart === 'function') {
-      window.initializeFlowchart();
-    } else if (typeof initializeFlowchart === 'function') {
-      initializeFlowchart();
-    } else {
-      console.warn("⚠️ initializeFlowchart function not available yet, will retry...");
-      // Retry after a short delay - try multiple times
-      let retryCount = 0;
-      const maxRetries = 5;
-      const retryInterval = setInterval(() => {
-        retryCount++;
-        if (typeof window.initializeFlowchart === 'function') {
-          window.initializeFlowchart();
-          clearInterval(retryInterval);
-        } else if (typeof initializeFlowchart === 'function') {
-          initializeFlowchart();
-          clearInterval(retryInterval);
-        } else if (retryCount >= maxRetries) {
-          console.error("❌ initializeFlowchart still not available after retries");
-          clearInterval(retryInterval);
-          // Try to initialize directly using setupFlowchart if available
-          if (typeof setupFlowchart === 'function') {
-            console.log("🔄 Trying setupFlowchart directly...");
-            setupFlowchart();
-          }
-        }
-      }, 300);
-    }
-  } else {
-    // Flowchart already initialized, but make sure it's visible
-    console.log("✅ Flowchart already initialized");
-  }
-};
-
-window.switchToMap = function() {
-  console.log("🔄 switchToMap called");
-  showingFlowchart = false;
-  const flowchartContainer = document.getElementById('main-flowchart-container');
-  const mapContainer = document.getElementById('map-container');
-  const toggleViewContainer = document.querySelector('#map-container .toggle-buttons');
-  
-  console.log("📊 flowchartContainer:", flowchartContainer);
-  console.log("🗺️ mapContainer:", mapContainer);
-  
-  if (flowchartContainer) {
-    flowchartContainer.style.display = 'none';
-    flowchartContainer.style.visibility = 'hidden';
-    flowchartContainer.style.opacity = '0';
-    console.log("✅ Flowchart container hidden");
-  } else {
-    console.error("❌ Flowchart container not found!");
-  }
-  
-  if (mapContainer) {
-    // Restore display - map-container is a flex item, so we need to restore it to block (default for div)
-    // The parent container handles the flex layout
-    mapContainer.style.display = 'block'; // Restore to block (default for div)
-    mapContainer.style.visibility = 'visible';
-    mapContainer.style.opacity = '1';
-    console.log("✅ Map container shown");
-  } else {
-    console.error("❌ Map container not found!");
-  }
-  
-  // Update toggle button states
-  const toggleMapFlowchartMap = document.getElementById('toggleMapFlowchartMap');
-  const toggleMapFlowchartFlowchart = document.getElementById('toggleMapFlowchartFlowchart');
-  const toggleMapFlowchartMap2 = document.getElementById('toggleMapFlowchartMap2');
-  const toggleMapFlowchartFlowchart2 = document.getElementById('toggleMapFlowchartFlowchart2');
-  
-  if (toggleMapFlowchartMap) toggleMapFlowchartMap.classList.add('active');
-  if (toggleMapFlowchartFlowchart) toggleMapFlowchartFlowchart.classList.remove('active');
-  if (toggleMapFlowchartMap2) toggleMapFlowchartMap2.classList.add('active');
-  if (toggleMapFlowchartFlowchart2) toggleMapFlowchartFlowchart2.classList.remove('active');
-  
-  // Show the decisions/assignments toggle when in map view
-  if (toggleViewContainer) toggleViewContainer.style.display = 'flex';
-  
-  // Resize map after showing it
-  setTimeout(() => {
-    if (window.map && window.map.resize) {
-      window.map.resize();
-      console.log("✅ Map resized");
-    } else {
-      console.warn("⚠️ Map not available for resize");
-    }
-  }, 100);
-};
-
 let geojsonData;
 let originalGeojsonData; // Keep a copy of the original unfiltered data
 let initialDecisionData = null; // Store data if it arrives before geojson
@@ -948,6 +810,18 @@ map.on('load', () => {
       
       console.log("✅ fitMapToAllSchools function defined");
 
+      // Automatically fit to all schools once after initial map setup so the
+      // user doesn't need to click the button the first time.
+      try {
+        setTimeout(() => {
+          if (typeof window.fitMapToAllSchools === 'function') {
+            window.fitMapToAllSchools();
+          }
+        }, 200);
+      } catch (e) {
+        console.warn("⚠️ Automatic initial fitMapToAllSchools failed:", e);
+      }
+
       // Add a source and layer for the selected school's "halo" highlight
       map.addSource('selected-school', {
         type: 'geojson',
@@ -1275,7 +1149,8 @@ map.on('load', () => {
 
   updateLegend();
   // Toggle buttons removed - always showing decisions view
-  // Decisions view is now the default, no need to call showDecisionsView()
+  // Initialize with decisions view
+  showDecisionsView();
 
   // --- SIDEBAR AND MAP RESIZE LOGIC ---
   const sidebar = document.getElementById('map-sidebar');
@@ -1296,7 +1171,66 @@ map.on('load', () => {
   // The iframe has been removed. All communication is now direct function calls.
   // The DecisionLogic.js script, once loaded, will expose `window.decisionLogic`.
   
-  // --- MAP/FLOWCHART TOGGLE SETUP (functions already defined globally above) ---
+  // --- MAP/FLOWCHART TOGGLE ---
+  let showingFlowchart = false;
+  
+  // Define switch functions globally so they can be called from inline handlers
+  window.switchToFlowchart = function() {
+    showingFlowchart = true;
+    const flowchartContainer = document.getElementById('main-flowchart-container');
+    const mapContainer = document.getElementById('map-container');
+    const toggleViewContainer = document.querySelector('#map-container .toggle-buttons');
+    
+    if (flowchartContainer) flowchartContainer.style.display = 'flex';
+    if (mapContainer) mapContainer.style.display = 'none';
+    
+    // Update toggle button states
+    const toggleMapFlowchartMap = document.getElementById('toggleMapFlowchartMap');
+    const toggleMapFlowchartFlowchart = document.getElementById('toggleMapFlowchartFlowchart');
+    const toggleMapFlowchartMap2 = document.getElementById('toggleMapFlowchartMap2');
+    const toggleMapFlowchartFlowchart2 = document.getElementById('toggleMapFlowchartFlowchart2');
+    
+    if (toggleMapFlowchartMap) toggleMapFlowchartMap.classList.remove('active');
+    if (toggleMapFlowchartFlowchart) toggleMapFlowchartFlowchart.classList.add('active');
+    if (toggleMapFlowchartMap2) toggleMapFlowchartMap2.classList.remove('active');
+    if (toggleMapFlowchartFlowchart2) toggleMapFlowchartFlowchart2.classList.add('active');
+    
+    // Hide the decisions/assignments toggle when in flowchart view
+    if (toggleViewContainer) toggleViewContainer.style.display = 'none';
+    
+    if (!window.flowchartInitialized) {
+      initializeFlowchart();
+    }
+  };
+
+  window.switchToMap = function() {
+    showingFlowchart = false;
+    const flowchartContainer = document.getElementById('main-flowchart-container');
+    const mapContainer = document.getElementById('map-container');
+    const toggleViewContainer = document.querySelector('#map-container .toggle-buttons');
+    
+    if (flowchartContainer) flowchartContainer.style.display = 'none';
+    if (mapContainer) mapContainer.style.display = 'block';
+    
+    // Update toggle button states
+    const toggleMapFlowchartMap = document.getElementById('toggleMapFlowchartMap');
+    const toggleMapFlowchartFlowchart = document.getElementById('toggleMapFlowchartFlowchart');
+    const toggleMapFlowchartMap2 = document.getElementById('toggleMapFlowchartMap2');
+    const toggleMapFlowchartFlowchart2 = document.getElementById('toggleMapFlowchartFlowchart2');
+    
+    if (toggleMapFlowchartMap) toggleMapFlowchartMap.classList.add('active');
+    if (toggleMapFlowchartFlowchart) toggleMapFlowchartFlowchart.classList.remove('active');
+    if (toggleMapFlowchartMap2) toggleMapFlowchartMap2.classList.add('active');
+    if (toggleMapFlowchartFlowchart2) toggleMapFlowchartFlowchart2.classList.remove('active');
+    
+    // Show the decisions/assignments toggle when in map view
+    if (toggleViewContainer) toggleViewContainer.style.display = 'flex';
+    
+    setTimeout(() => {
+      if (map && map.resize) map.resize();
+    }, 100);
+  };
+  
   function setupFlowchartToggleButtons() {
     const toggleMapFlowchartMap = document.getElementById('toggleMapFlowchartMap');
     const toggleMapFlowchartFlowchart = document.getElementById('toggleMapFlowchartFlowchart');
@@ -1371,14 +1305,12 @@ map.on('load', () => {
     setTimeout(setupFitToSchoolsButton, 500);
   }
 
-  // Make initializeFlowchart globally accessible
-  window.initializeFlowchart = function() {
+  function initializeFlowchart() {
     console.log("🎯 Initializing flowchart...");
     setupFlowchart();
-  };
+  }
 
-  // Make setupFlowchart globally accessible so it can be called directly if needed
-  window.setupFlowchart = function() {
+  function setupFlowchart() {
     console.log("🎯 Setting up flowchart...");
     
     const svg = d3.select("#main-flowchart-svg");
@@ -1396,10 +1328,7 @@ map.on('load', () => {
       console.error("❌ initializeFlowchartFromScript function not found!");
     }
 
-    const flowchartSchoolSelect = document.getElementById('mainFlowchartSchoolSelect');
-    if (!flowchartSchoolSelect) {
-      console.error("❌ Flowchart school select element not found!");
-    } else {
+    if (geojsonData && geojsonData.features) {
       flowchartSchoolSelect.innerHTML = '<option value="">-- Select School --</option>';
       
       // Use filtered school data from DecisionLogic instead of geojsonData
@@ -1417,8 +1346,7 @@ map.on('load', () => {
           option.textContent = schoolName;
           flowchartSchoolSelect.appendChild(option);
         });
-        console.log(`✅ Populated flowchart dropdown with ${sortedSchools.length} schools`);
-      } else if (geojsonData && geojsonData.features) {
+      } else {
         console.log("⚠️ Using geojsonData for flowchart dropdown (filtered data not available yet)");
         // Fallback to geojsonData if filtered data isn't available yet
         const sortedSchools = geojsonData.features
@@ -1432,9 +1360,6 @@ map.on('load', () => {
           option.textContent = schoolName;
           flowchartSchoolSelect.appendChild(option);
         });
-        console.log(`✅ Populated flowchart dropdown with ${sortedSchools.length} schools from geojson`);
-      } else {
-        console.warn("⚠️ No school data available for flowchart dropdown");
       }
 
       flowchartSchoolSelect.addEventListener('change', (e) => {
@@ -1562,7 +1487,6 @@ function initializeDropdownFilters(schoolData) {
     allSchoolData.map(row => row.decision || "Unknown")
   )].sort();
 
-  // Populate hidden dropdown for backward compatibility
   decisionFilter.innerHTML = '<option value="">-- All Decisions --</option>';
   uniqueDecisions.forEach(decision => {
     const option = document.createElement("option");
@@ -1761,9 +1685,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  if (isoDistanceSelect) {
-    isoDistanceSelect.addEventListener('change', triggerIsochroneUpdate);
-  }
+  isoDistanceSelect.addEventListener('change', triggerIsochroneUpdate);
 
   manualBtn.addEventListener('click', () => {
     manualView.style.display = 'block';
@@ -4000,27 +3922,14 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.addEventListener('mouseup', () => {
+      // Capture whether a resize was in progress before we reset the flags
+      const didResize = isResizingLeft || isResizingRight;
+
       if (isResizingLeft) {
-        // Clean up stored state
+        // Clean up any stored drag state
         if (isResizingLeft._mapState) {
-          const finalBounds = isResizingLeft._mapState.bounds;
           delete isResizingLeft._mapState;
           delete isResizingLeft._updatePending;
-          
-          // Final map resize and zoom adjustment after resizing is complete
-          if (window.map && window.map.resize && finalBounds) {
-            setTimeout(() => {
-              const boundsArray = [
-                [finalBounds.getWest(), finalBounds.getSouth()],
-                [finalBounds.getEast(), finalBounds.getNorth()]
-              ];
-              window.map.resize();
-              window.map.fitBounds(boundsArray, {
-                padding: 0,
-                duration: 0
-              });
-            }, 50);
-          }
         }
         
         isResizingLeft = false;
@@ -4030,32 +3939,35 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       
       if (isResizingRight) {
-        // Clean up stored state
+        // Clean up any stored drag state
         if (isResizingRight._mapState) {
-          const finalBounds = isResizingRight._mapState.bounds;
           delete isResizingRight._mapState;
           delete isResizingRight._updatePending;
-          
-          // Final map resize and zoom adjustment after resizing is complete
-          if (window.map && window.map.resize && finalBounds) {
-            setTimeout(() => {
-              const boundsArray = [
-                [finalBounds.getWest(), finalBounds.getSouth()],
-                [finalBounds.getEast(), finalBounds.getNorth()]
-              ];
-              window.map.resize();
-              window.map.fitBounds(boundsArray, {
-                padding: 0,
-                duration: 0
-              });
-            }, 50);
-          }
         }
         
         isResizingRight = false;
         rightResizer.classList.remove('dragging');
         const currentWidth = rightSidebar.offsetWidth;
         localStorage.setItem('rightSidebarWidth', currentWidth);
+      }
+      
+      // After either sidebar resize is completed, automatically refit the map
+      // to show all schools, mirroring the "Fit to All Schools" button.
+      if (didResize && typeof window.fitMapToAllSchools === 'function') {
+        setTimeout(() => {
+          try {
+            window.fitMapToAllSchools();
+          } catch (e) {
+            console.error("❌ Error auto-fitting map after sidebar resize:", e);
+          }
+        }, 50);
+      } else if (didResize && window.map) {
+        // Fallback: at least trigger a resize so symbols stay circular
+        try {
+          window.map.resize();
+        } catch (e) {
+          console.error("❌ Error resizing map after sidebar resize:", e);
+        }
       }
       
       document.body.style.cursor = '';
@@ -4070,3 +3982,57 @@ document.addEventListener('DOMContentLoaded', function() {
     setupSidebarResizers();
   }
 });
+
+// --- Global fallback map/flowchart toggle functions ---
+// In some browsers/extensions, the Mapbox 'load' handler may not complete,
+// which can prevent the in-handler definitions of window.switchToFlowchart /
+// window.switchToMap from being created. These lightweight fallbacks ensure
+// the buttons remain clickable and at least toggle the views.
+if (typeof window.switchToFlowchart !== 'function') {
+  window.switchToFlowchart = function() {
+    const flowchartContainer = document.getElementById('main-flowchart-container');
+    const mapContainer = document.getElementById('map-container');
+
+    if (flowchartContainer) flowchartContainer.style.display = 'flex';
+    if (mapContainer) mapContainer.style.display = 'none';
+
+    // If the main flowchart SVG has never been initialized, do it now
+    if (!window.flowchartInitialized &&
+        typeof window.initializeFlowchartFromScript === 'function' &&
+        typeof d3 !== 'undefined') {
+      try {
+        const svgElem = document.getElementById('main-flowchart-svg');
+        if (svgElem) {
+          console.log('🎯 Fallback initializing flowchart via initializeFlowchartFromScript');
+          const svgSelection = d3.select(svgElem);
+          window.initializeFlowchartFromScript(svgSelection);
+          window.flowchartInitialized = true;
+        } else {
+          console.warn('⚠️ main-flowchart-svg element not found for fallback initialization');
+        }
+      } catch (e) {
+        console.error('❌ Error during fallback flowchart initialization:', e);
+      }
+    }
+  };
+}
+
+if (typeof window.switchToMap !== 'function') {
+  window.switchToMap = function() {
+    const flowchartContainer = document.getElementById('main-flowchart-container');
+    const mapContainer = document.getElementById('map-container');
+
+    if (flowchartContainer) flowchartContainer.style.display = 'none';
+    if (mapContainer) mapContainer.style.display = 'block';
+
+    if (window.map && typeof window.map.resize === 'function') {
+      setTimeout(() => {
+        try {
+          window.map.resize();
+        } catch (e) {
+          console.error("❌ Error resizing map in fallback switchToMap:", e);
+        }
+      }, 100);
+    }
+  };
+}

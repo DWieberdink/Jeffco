@@ -253,7 +253,7 @@ function initializeFlowchartData() {
         // Flow 1 Decision Nodes (Vertical stack)
         { id: "F1_UTIL1", label: "Current enrollment or utilization\nbelow respective threshold", ...getPos("F1_UTIL1", -150.195556640625, -0.011830427683889866), thresholdKey: "utilSlider", flow: 1 },
         { id: "F1_UTIL2", label: "Current utilization rate\nabove threshold?", ...getPos("F1_UTIL2", -150.195556640625, -97.29730224609375), thresholdKey: "utilHighSlider", flow: 1 },
-        { id: "F1_GROWTH2", label: "Projected enrollment\ngrowth above threshold?", ...getPos("F1_GROWTH2", -151.3953399658203, -196.53440856933594), thresholdKey: "growthSlider", flow: 1 },
+        { id: "F1_GROWTH2", label: "-N/A-Projected enrollment\ngrowth above threshold?", ...getPos("F1_GROWTH2", -151.3953399658203, -196.53440856933594), thresholdKey: "growthSlider", flow: 1 },
         { id: "F1_DIST", label: "Distance to\nUnderutilized Schools", ...getPos("F1_DIST", -159.65386962890625, 110.78551483154297), thresholdKey: "distSlider", flow: 1 },
         { id: "F1_GROWTH", label: "Projected enrollment growth\n above threshold?", ...getPos("F1_GROWTH", -161.0050506591797, 216.17811584472656), thresholdKey: "growthSlider", flow: 1 },
         
@@ -350,6 +350,47 @@ function initializeFlowchartData() {
   // Set nodes and links from the data
   nodes = flowchartData.nodes;
   links = flowchartData.links;
+}
+
+// ✅ Populate the main-page flowchart dropdown using loaded schoolData
+function populateMainFlowchartDropdown() {
+  try {
+    const select = document.getElementById('mainFlowchartSchoolSelect');
+    if (!select) {
+      // Not in main-page context
+      return;
+    }
+    if (!Array.isArray(schoolData) || schoolData.length === 0) {
+      console.log("⚠️ populateMainFlowchartDropdown: schoolData empty or not loaded yet");
+      return;
+    }
+
+    const previousValue = select.value;
+
+    // Build sorted list of building names
+    const names = schoolData
+      .map(r => r["Building Name"])
+      .filter(name => !!name)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+    select.innerHTML = '<option value="">-- Select School --</option>';
+
+    names.forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    });
+
+    // Restore previous selection if still present
+    if (previousValue && names.includes(previousValue)) {
+      select.value = previousValue;
+    }
+
+    console.log(`✅ Populated mainFlowchartSchoolSelect with ${names.length} schools`);
+  } catch (e) {
+    console.error("❌ Error populating main flowchart dropdown:", e);
+  }
 }
 
 // ✅ Render flowchart
@@ -636,6 +677,9 @@ function loadSchoolData() {
         FlowUtils.updateNodeLabels();
         console.log("🔄 Node labels refreshed with thresholds:", window.thresholds);
       }, 100);
+
+      // Populate the main page flowchart dropdown if present
+      populateMainFlowchartDropdown();
     },
     error: function(err) {
       console.error("❌ Failed to load school data for flowchart:", err);
@@ -1113,14 +1157,8 @@ function evaluatePath(row, t) {
     // School does NOT meet both criteria (above at least one threshold)
     path.push("F1_UTIL2");
     if (decisions.util2 === "Yes") {
-      path.push("F1_GROWTH2");
-      if (decisions.growth === "Yes") {
-        path.push("TO_FLOW2");
-        currentFlow = 2;
-      } else {
-        path.push("TO_FLOW3");
-        currentFlow = 3;
-      }
+      path.push("TO_FLOW2");
+      currentFlow = 2;
     } else {
       path.push("TO_FLOW3");
       currentFlow = 3;
@@ -2072,19 +2110,34 @@ function updateFlowchartSchoolInfo(name) {
   </div>`;
 }
 
-// Patch the dropdown event to update info, loading Map_Export.csv if needed
+// Patch the dropdown event to update info AND highlight flow, loading Map_Export.csv if needed
 const mainFlowchartSelect = document.getElementById('mainFlowchartSchoolSelect');
 if (mainFlowchartSelect) {
   mainFlowchartSelect.addEventListener('change', function() {
-    loadMapExportData(() => updateFlowchartSchoolInfo(this.value));
+    const name = this.value;
+    // Ensure school-level info panel is updated
+    loadMapExportData(() => updateFlowchartSchoolInfo(name));
+
+    // Use current thresholds from window if available; fall back to decisionLogic thresholds or empty object
+    const thresholds =
+      (typeof window.thresholds === 'object' && window.thresholds) ||
+      (window.decisionLogic && window.decisionLogic.thresholds) ||
+      {};
+
+    // Also drive the flowchart highlight when user selects from this dropdown
+    if (typeof window.updateFlowForSchool === 'function') {
+      window.updateFlowForSchool(name, thresholds);
+    }
   });
   
   // Ensure school info is displayed on page load if a school is already selected
   if (mainFlowchartSelect.value) {
-    loadMapExportData(() => updateFlowchartSchoolInfo(mainFlowchartSelect.value));
+    const initialName = mainFlowchartSelect.value;
+    loadMapExportData(() => updateFlowchartSchoolInfo(initialName));
   }
 }
-// Also update info when flow is updated programmatically
+
+// Also update info and highlighting when flow is updated programmatically
 window.updateFlowForSchool = function(name, thresholds) {
   loadMapExportData(() => updateFlowchartSchoolInfo(name));
   
@@ -2097,7 +2150,12 @@ window.updateFlowForSchool = function(name, thresholds) {
   const row = schoolData.find(r => r["Building Name"] === name);
   if (row) {
     console.log("✅ Found school data for:", name, "School Level:", row["School Level"]);
-    const { path, decisions, currentFlow} = evaluatePath(row, thresholds);
+    const safeThresholds =
+      thresholds ||
+      (typeof window.thresholds === 'object' && window.thresholds) ||
+      (window.decisionLogic && window.decisionLogic.thresholds) ||
+      {};
+    const { path, decisions, currentFlow} = evaluatePath(row, safeThresholds);
     highlightFlow(path, decisions, currentFlow);
     // Update node labels with school-specific data to show enrollment threshold
     console.log("🔄 About to update node labels with school data:", row["Building Name"]);

@@ -2,101 +2,119 @@
 // Handles strategy group prioritization based on flowchart outcomes
 
 window.prioritizationLogic = {
-  // Strategy groups will be dynamically generated from actual decision types in the data
-  strategyGroups: {},
+  // Strategy groups aligned with Step 1 strategic program outcome groupings
+  // (Expansion, Maintenance/Investment, Closure/Consolidation, Other)
+  strategyGroups: {
+    "Expansion": {
+      id: "expansion",
+      outcomes: [
+        "Building Addition",
+        "Building Replacement",
+        "Building Addition with Capital Investment"
+      ],
+      description: "Expansion strategies that increase capacity on-site or via replacement"
+    },
+    "Maintenance/Investment": {
+      id: "maintenance_investment",
+      outcomes: [
+        "Targeted Capital Investment",
+        "Standard Maintenance",
+        "Major Capital Investment"
+      ],
+      description: "Maintenance and capital investment strategies"
+    },
+    "Closure/Consolidation": {
+      id: "closure_consolidation",
+      outcomes: [
+        "Welcoming School",
+        "Welcoming School with Capital Investment",
+        "Closure (Goes to Welcoming School)",
+        "Welcoming School with Building Replacement"
+      ],
+      description: "Closure and consolidation strategies involving welcoming schools"
+    },
+    "Other": {
+      id: "other",
+      outcomes: [
+        "Policy Solution for Overcrowding",
+        "Other / Unknown"
+      ],
+      description: "Other or unclassified strategies"
+    }
+  },
 
-  // Default weights for each strategy group (1-10 scale)
-  // All defaults set to 5
+  // Default weights for each strategy group (0–100 internal scale per criterion)
+  // These are seeded from the previous configuration so existing behavior stays reasonable.
   defaultWeights: {
-    "Closure/Merger": {
-      utilizationRate: 5,
-      studentsInAttendanceArea: 5,
-      studentEconomicStatus: 5,
-      academicPerformance: 5,
-      buildingCondition: 5,
-      pre1978BuildingLeadRisk: 5,
-      adaAccessibility: 5,
-      acStatus: 5
+    "Expansion": {
+      // Based on previous "Building Addition" profile
+      utilizationRate: 30,           // Higher utilization
+      studentsInAttendanceArea: 20,  // (legacy) not used in new UI
+      studentEconomicStatus: 10,     // (legacy) not used in new UI
+      academicPerformance: 15,       // (legacy) not used in new UI
+      buildingCondition: 25,         // Lower building score
+      pre1978BuildingLeadRisk: 0,    // (legacy)
+      adaAccessibility: 0,           // (legacy)
+      acStatus: 0,                   // (legacy)
+      // New, explicit prioritization dimensions used by the secondary
+      // prioritization UI for Expansion & Maintenance/Investment:
+      educationalAdequacy: 15,       // Lower EA
+      enrollment: 15,                // Higher enrollment
+      highNeedStudents: 15,          // Higher % FRL
+      neighborhoodCapture: 10,       // Higher AttendanceAreaEnrollment
+      welcomedStudents: 5,           // Placeholder until data is available
+      distanceFromOtherSchools: 10   // Greater distance from other schools
     },
-    "Building & Programmatic": {
-      utilizationRate: 5,
-      studentsInAttendanceArea: 5,
-      studentEconomicStatus: 5,
-      academicPerformance: 5,
-      buildingCondition: 5,
-      pre1978BuildingLeadRisk: 5,
-      adaAccessibility: 5,
-      acStatus: 5
+    "Maintenance/Investment": {
+      // Based on previous "Building-Focused" profile
+      utilizationRate: 15,
+      studentsInAttendanceArea: 5,   // (legacy)
+      studentEconomicStatus: 10,     // (legacy)
+      academicPerformance: 10,       // (legacy)
+      buildingCondition: 35,         // Lower building score
+      pre1978BuildingLeadRisk: 0,    // (legacy)
+      adaAccessibility: 0,           // (legacy)
+      acStatus: 0,                   // (legacy)
+      educationalAdequacy: 15,       // Lower EA
+      enrollment: 10,                // Higher enrollment
+      highNeedStudents: 10,          // Higher % FRL
+      neighborhoodCapture: 10,       // Higher AttendanceAreaEnrollment
+      welcomedStudents: 5,           // Placeholder
+      distanceFromOtherSchools: 10   // Greater distance from other schools
     },
-    "Building": {
-      utilizationRate: 5,
-      studentsInAttendanceArea: 5,
-      studentEconomicStatus: 5,
-      academicPerformance: 5,
-      buildingCondition: 5,
-      pre1978BuildingLeadRisk: 5,
-      adaAccessibility: 5,
-      acStatus: 5
+    "Closure/Consolidation": {
+      // Based on previous "Closure/Merger" profile
+      utilizationRate: 20,
+      studentsInAttendanceArea: 20,
+      studentEconomicStatus: 20,
+      academicPerformance: 0,
+      buildingCondition: 20,
+      pre1978BuildingLeadRisk: 0,
+      adaAccessibility: 0,
+      acStatus: 0,
+      educationalAdequacy: 10,
+      enrollment: 5,
+      highNeedStudents: 5,           // We will reverse this so higher-need is *less* likely to be closed
+      neighborhoodCapture: 5,
+      welcomedStudents: 5,
+      distanceFromOtherSchools: 10
     },
-    "Programmatic": {
-      utilizationRate: 5,
-      studentsInAttendanceArea: 5,
-      studentEconomicStatus: 5,
-      academicPerformance: 5,
-      buildingCondition: 5,
-      pre1978BuildingLeadRisk: 5,
-      adaAccessibility: 5,
-      acStatus: 5
-    },
-    "Monitoring": {
-      utilizationRate: 5,
-      studentsInAttendanceArea: 5,
-      studentEconomicStatus: 5,
-      academicPerformance: 5,
-      buildingCondition: 5,
-      pre1978BuildingLeadRisk: 5,
-      adaAccessibility: 5,
-      acStatus: 5
-    },
-    "Building Addition": {
-      utilizationRate: 5,
-      studentsInAttendanceArea: 5,
-      studentEconomicStatus: 5,
-      academicPerformance: 5,
-      buildingCondition: 5,
-      pre1978BuildingLeadRisk: 5,
-      adaAccessibility: 5,
-      acStatus: 5
-    },
-    "Site-Specific": {
-      utilizationRate: 5,
-      studentsInAttendanceArea: 5,
-      studentEconomicStatus: 5,
-      academicPerformance: 5,
-      buildingCondition: 5,
-      pre1978BuildingLeadRisk: 5,
-      adaAccessibility: 5,
-      acStatus: 5
-    },
-    "Building-Focused": {
-      utilizationRate: 5,
-      studentsInAttendanceArea: 5,
-      studentEconomicStatus: 5,
-      academicPerformance: 5,
-      buildingCondition: 5,
-      pre1978BuildingLeadRisk: 5,
-      adaAccessibility: 5,
-      acStatus: 5
-    },
-    "Program-Focused": {
-      utilizationRate: 5,
-      studentsInAttendanceArea: 5,
-      studentEconomicStatus: 5,
-      academicPerformance: 5,
-      buildingCondition: 5,
-      pre1978BuildingLeadRisk: 5,
-      adaAccessibility: 5,
-      acStatus: 5
+    "Other": {
+      // Based loosely on previous "Monitoring" profile
+      utilizationRate: 25,
+      studentsInAttendanceArea: 20,
+      studentEconomicStatus: 15,
+      academicPerformance: 20,
+      buildingCondition: 15,
+      pre1978BuildingLeadRisk: 0,
+      adaAccessibility: 0,
+      acStatus: 5,
+      educationalAdequacy: 10,
+      enrollment: 10,
+      highNeedStudents: 10,
+      neighborhoodCapture: 10,
+      welcomedStudents: 5,
+      distanceFromOtherSchools: 5
     }
   },
 
@@ -111,65 +129,12 @@ window.prioritizationLogic = {
     console.log("🎯 Initializing Prioritization Logic");
     this.schoolData = schoolDataWithDecisions || [];
     
-    // Dynamically generate strategy groups from actual decision types in the data
-    this.generateStrategyGroupsFromData();
-    
     // Initialize current weights with defaults
-    this.currentWeights = {};
     Object.keys(this.strategyGroups).forEach(groupName => {
-      // Use default weights if available, otherwise create default structure
-      if (this.defaultWeights[groupName]) {
-        this.currentWeights[groupName] = { ...this.defaultWeights[groupName] };
-      } else {
-        // Create default weights structure for new decision types (1-10 scale)
-        // All defaults set to 5
-        this.currentWeights[groupName] = {
-          utilizationRate: 5,
-          studentsInAttendanceArea: 5,
-          studentEconomicStatus: 5,
-          academicPerformance: 5,
-          buildingCondition: 5,
-          pre1978BuildingLeadRisk: 5,
-          adaAccessibility: 5,
-          acStatus: 5
-        };
-      }
+      this.currentWeights[groupName] = { ...this.defaultWeights[groupName] };
     });
 
     return this;
-  },
-
-  // Dynamically generate strategy groups from actual decision types in school data
-  generateStrategyGroupsFromData: function() {
-    const decisionTypes = new Set();
-    
-    // Collect all unique decision types from school data
-    this.schoolData.forEach(school => {
-      const decision = school.decision || school["Decision Type"] || school["decision"] || "";
-      if (decision && decision.trim() !== "" && decision !== "Unknown") {
-        decisionTypes.add(decision.trim());
-      }
-    });
-    
-    // Create strategy groups for each decision type
-    this.strategyGroups = {};
-    const sortedDecisions = Array.from(decisionTypes).sort();
-    
-    sortedDecisions.forEach(decisionType => {
-      // Create a safe ID from the decision type name
-      const id = decisionType.toLowerCase()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '');
-      
-      this.strategyGroups[decisionType] = {
-        id: id,
-        outcomes: [decisionType],
-        description: `Schools with decision: ${decisionType}`
-      };
-    });
-    
-    console.log("📊 Dynamically generated strategy groups:", Object.keys(this.strategyGroups));
-    return this.strategyGroups;
   },
 
   // Get schools for a specific strategy group
@@ -178,10 +143,30 @@ window.prioritizationLogic = {
     if (!group) return [];
 
     return this.schoolData.filter(school => {
-      const decision = (school.decision || school["Decision Type"] || "").trim();
-      // Use exact match to avoid partial matches (e.g., "Building Addition" matching "Building Addition with Capital Investment")
-      return group.outcomes.some(outcome => decision === outcome.trim());
+      const decision = school.decision || school["Decision Type"] || "";
+      return group.outcomes.some(outcome => decision === outcome);
     });
+  },
+
+  // Get per-outcome counts for a strategy group (for subcategory selection UI)
+  getOutcomeSummaryForStrategy: function(strategyGroupName) {
+    const group = this.strategyGroups[strategyGroupName];
+    if (!group) return [];
+
+    const schools = this.getSchoolsForStrategy(strategyGroupName);
+    const counts = {};
+
+    schools.forEach(school => {
+      const decision = school.decision || school["Decision Type"] || "";
+      if (!decision) return;
+      counts[decision] = (counts[decision] || 0) + 1;
+    });
+
+    // Preserve the configured outcome order, include zeros
+    return group.outcomes.map(outcome => ({
+      outcome,
+      count: counts[outcome] || 0
+    }));
   },
 
   // Normalize a value to 0-100 scale
@@ -204,87 +189,120 @@ window.prioritizationLogic = {
 
   // Calculate priority score for a school
   calculatePriorityScore: function(school, strategyGroupName) {
-    const rawWeights = this.currentWeights[strategyGroupName] || this.defaultWeights[strategyGroupName];
-    
-    // Normalize weights from 1-10 scale to percentages (sum to 100)
-    const weightSum = Object.values(rawWeights).reduce((sum, w) => sum + (w || 0), 0);
-    const weights = {};
-    Object.keys(rawWeights).forEach(key => {
-      weights[key] = weightSum > 0 ? (rawWeights[key] || 0) / weightSum * 100 : 0;
-    });
+    const weights = this.currentWeights[strategyGroupName] || this.defaultWeights[strategyGroupName];
     
     let score = 0;
     const components = {};
 
-    // Utilization Rate (lower is better for closure, higher for building addition)
+    // Utilization Rate
+    // For Expansion & Maintenance/Investment, higher utilization = higher priority.
+    // For Closure/Consolidation, lower utilization = higher priority (reverse).
     const utilization = parseFloat(school.Utilization || 0) * 100;
-    const utilScore = this.normalizeValue(utilization, 0, 100, 
-      strategyGroupName.includes("Closure") || strategyGroupName.includes("Monitoring"));
-    components.utilizationRate = (utilScore / 100) * weights.utilizationRate;
+    const reverseUtil =
+      strategyGroupName === "Closure/Consolidation";
+    const utilScore = this.normalizeValue(utilization, 0, 130, reverseUtil);
+    components.utilizationRate = (utilScore / 100) * (weights.utilizationRate || 0);
     score += components.utilizationRate;
 
-    // Students in Attendance Area (fewer is better for closure)
-    const studentsInArea = parseInt(school["Students in Attendance Area"] || school.Enrollment || 0, 10);
-    const studentsScore = this.normalizeValue(studentsInArea, 0, 1000, 
-      strategyGroupName.includes("Closure"));
-    components.studentsInAttendanceArea = (studentsScore / 100) * weights.studentsInAttendanceArea;
-    score += components.studentsInAttendanceArea;
+    const isClosure = (strategyGroupName === "Closure/Consolidation");
 
-    // Student Economic Status (%FRL) - fewer is better for closure
+    // Enrollment
+    // For Expansion & Maintenance/Investment, higher enrollment = higher priority.
+    // For Closure/Consolidation, LOWER enrollment = higher priority.
+    const enrollment = parseInt(school.Enrollment || 0, 10);
+    const reverseEnrollment = isClosure;
+    const enrollmentScore = this.normalizeValue(enrollment, 0, 1500, reverseEnrollment);
+    components.enrollment = (enrollmentScore / 100) * (weights.enrollment || 0);
+    score += components.enrollment;
+
+    // High-need students (% FRL)
+    // For Expansion & Maintenance/Investment, higher % FRL = higher priority.
+    // For Closure/Consolidation, higher % FRL = lower priority (reverse).
     const frlPercent = parseFloat(school["% FRL"] || school["Free Reduced Lunch"] || 0, 10);
-    const frlScore = this.normalizeValue(frlPercent, 0, 100, 
-      strategyGroupName.includes("Closure"));
-    components.studentEconomicStatus = (frlScore / 100) * weights.studentEconomicStatus;
-    score += components.studentEconomicStatus;
+    const reverseHighNeed = isClosure;
+    const frlScore = this.normalizeValue(frlPercent, 0, 100, reverseHighNeed);
+    components.highNeedStudents = (frlScore / 100) * (weights.highNeedStudents || 0);
+    score += components.highNeedStudents;
 
-    // Academic Performance - lower is better for closure
-    const academicPerf = parseFloat(school["Academic Performance"] || school["Scorecard"] || 50, 10);
-    const academicScore = this.normalizeValue(academicPerf, 0, 100, 
-      strategyGroupName.includes("Closure"));
-    components.academicPerformance = (academicScore / 100) * weights.academicPerformance;
-    score += components.academicPerformance;
-
-    // Building Condition - lower score is worse (better for prioritization)
+    // Building Condition (Composite Building Score) - lower score = higher priority
     const buildingScore = parseFloat(school.BuildingScore || 0, 10);
     const buildingNormalized = this.normalizeValue(buildingScore, 0, 10, true); // Reverse: lower score = higher priority
-    components.buildingCondition = (buildingNormalized / 100) * weights.buildingCondition;
+    components.buildingCondition = (buildingNormalized / 100) * (weights.buildingCondition || 0);
     score += components.buildingCondition;
 
-    // Pre-1978 Building Lead Risk (Yes = higher priority)
-    const pre1978 = (school["Pre-1978 Building"] === "Yes" || school["Pre-1978 Building"] === "yes") ? 100 : 0;
-    components.pre1978BuildingLeadRisk = (pre1978 / 100) * weights.pre1978BuildingLeadRisk;
-    score += components.pre1978BuildingLeadRisk;
+    // Educational Adequacy (EA) - lower EA = higher priority
+    const eaRaw = parseFloat(school.EducationalAdequacy || 0, 10) * 100; // convert to %
+    const eaScore = this.normalizeValue(eaRaw, 0, 100, true);
+    components.educationalAdequacy = (eaScore / 100) * (weights.educationalAdequacy || 0);
+    score += components.educationalAdequacy;
 
-    // ADA Accessibility (No = higher priority for closure)
-    const adaAccessible = (school["ADA Accessible"] === "Yes" || school["ADA Accessible"] === "yes") ? 0 : 100;
-    components.adaAccessibility = (adaAccessible / 100) * weights.adaAccessibility;
-    score += components.adaAccessibility;
+    // Neighborhood capture rate (Attendance Area Enrollment %)
+    // For Expansion & Maintenance/Investment, higher capture = higher priority.
+    // For Closure/Consolidation, LOWER capture = higher priority.
+    const capturePercent = parseFloat(school.AttendanceAreaEnrollment || 0, 10);
+    const reverseCapture = isClosure;
+    const captureScore = this.normalizeValue(capturePercent, 0, 100, reverseCapture);
+    components.neighborhoodCapture = (captureScore / 100) * (weights.neighborhoodCapture || 0);
+    score += components.neighborhoodCapture;
 
-    // AC Status (lower coverage = higher priority)
-    const acCoverage = parseFloat(school["AC Coverage"] || school["AC Status"] || 0, 10);
-    const acScore = this.normalizeValue(acCoverage, 0, 100, true); // Reverse: lower coverage = higher priority
-    components.acStatus = (acScore / 100) * weights.acStatus;
-    score += components.acStatus;
+    // Students welcomed from previous consolidations (if/when data is available)
+    const welcomed = parseInt(school["Welcomed Students"] || school["Students Welcomed"] || 0, 10);
+    const welcomedScore = this.normalizeValue(welcomed, 0, 2000, false);
+    components.welcomedStudents = (welcomedScore / 100) * (weights.welcomedStudents || 0);
+    score += components.welcomedStudents;
+
+    // Distance from other schools (using DistanceUnderutilizedschools as proxy) - greater distance = higher priority
+    const distance = parseFloat(school.DistanceUnderutilizedschools || 0, 10);
+    const distanceScore = this.normalizeValue(distance, 0, 10, false);
+    components.distanceFromOtherSchools = (distanceScore / 100) * (weights.distanceFromOtherSchools || 0);
+    score += components.distanceFromOtherSchools;
+
+    // Past investments (RecentInvestments)
+    // For Closure/Consolidation: FEWER past investments = higher priority (reverse).
+    // For other groups: higher investments can be given weight if desired.
+    const investments = parseFloat(school.RecentInvestments || 0, 10);
+    const reverseInvest = isClosure;
+    const investScore = this.normalizeValue(investments, 0, 50, reverseInvest);
+    components.pastInvestments = (investScore / 100) * (weights.pastInvestments || 0);
+    score += components.pastInvestments;
+
+    // Specialty program offerings (placeholder until explicit data field exists)
+    // Assumes higher value/flag = more specialty offerings.
+    const specialtyRaw =
+      parseFloat(school.SpecialtyPrograms || school["Specialty Programs"] || 0, 10) ||
+      (school.SpecialtyProgram || school["Specialty Program"] ? 1 : 0);
+    const specialtyScore = this.normalizeValue(specialtyRaw, 0, 10, false);
+    components.specialtyPrograms = (specialtyScore / 100) * (weights.specialtyPrograms || 0);
+    score += components.specialtyPrograms;
 
     return {
       totalScore: Math.min(100, Math.max(0, score)), // Clamp to 0-100
       components: components,
       rawData: {
         utilizationRate: utilization,
-        studentsInAttendanceArea: studentsInArea,
-        studentEconomicStatus: frlPercent,
-        academicPerformance: academicPerf,
+        enrollment: enrollment,
+        highNeedStudents: frlPercent,
         buildingCondition: buildingScore,
-        pre1978BuildingLeadRisk: school["Pre-1978 Building"] || "No",
-        adaAccessibility: school["ADA Accessible"] || "Unknown",
-        acStatus: acCoverage
+        educationalAdequacy: eaRaw,
+        neighborhoodCapture: capturePercent,
+        welcomedStudents: welcomed,
+        distanceFromOtherSchools: distance,
+        pastInvestments: investments,
+        specialtyPrograms: specialtyRaw
       }
     };
   },
 
-  // Rank schools for a strategy group
-  rankSchools: function(strategyGroupName) {
-    const schools = this.getSchoolsForStrategy(strategyGroupName);
+  // Rank schools for a strategy group (optionally filtered by specific outcome)
+  rankSchools: function(strategyGroupName, outcomeFilter) {
+    const allSchools = this.getSchoolsForStrategy(strategyGroupName);
+
+    const schools = outcomeFilter
+      ? allSchools.filter(school => {
+          const decision = school.decision || school["Decision Type"] || "";
+          return decision === outcomeFilter;
+        })
+      : allSchools;
     
     const ranked = schools.map(school => {
       const scoreData = this.calculatePriorityScore(school, strategyGroupName);
@@ -302,17 +320,15 @@ window.prioritizationLogic = {
     return ranked;
   },
 
-  // Get all available strategy groups (that have schools)
+  // Get all strategy groups and their counts
+  // (always return all groups so the UI tabs are visible even if a group
+  //  currently has zero schools in it).
   getAvailableStrategyGroups: function() {
-    const available = [];
+    const groups = [];
     
-    // Sort by decision type name for consistent ordering
-    const sortedGroups = Object.keys(this.strategyGroups).sort();
-    
-    sortedGroups.forEach(groupName => {
+    Object.keys(this.strategyGroups).forEach(groupName => {
       const schools = this.getSchoolsForStrategy(groupName);
-      // Include all groups, even if count is 0 (to match the table format)
-      available.push({
+      groups.push({
         name: groupName,
         id: this.strategyGroups[groupName].id,
         count: schools.length,
@@ -320,7 +336,7 @@ window.prioritizationLogic = {
       });
     });
 
-    return available;
+    return groups;
   },
 
   // Update weights for a strategy group

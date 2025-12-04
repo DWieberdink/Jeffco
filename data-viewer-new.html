@@ -404,12 +404,6 @@
                             <td><strong>Expansion feasibility check (Flow 2)</strong></td>
                         </tr>
                         <tr>
-                            <td><strong>AttendanceAreaEnrollment</strong></td>
-                            <td><strong>80</strong></td>
-                            <td><strong>✅ Yes</strong></td>
-                            <td><strong>Attendance area enrollment check (Flow 2)</strong></td>
-                        </tr>
-                        <tr>
                             <td><strong>Scorecard</strong></td>
                             <td>3</td>
                             <td>❌ No</td>
@@ -438,7 +432,7 @@
 
                 <div class="card" style="margin: 1rem 0; background: #fef3c7; border: 1px solid #f59e0b;">
                     <h4>📊 Summary</h4>
-                    <p><strong>10 out of 19 columns</strong> are used in the decision logic (marked with ✅ Yes). The remaining 9 columns are used for display, filtering, or are not currently utilized by the application.</p>
+                    <p><strong>9 out of 18 columns</strong> are used in the decision logic (marked with ✅ Yes). The remaining 9 columns are used for display, filtering, or are not currently utilized by the application.</p>
                 </div>
 
                 <div class="card" style="margin: 1rem 0; background: #f0f9ff; border: 1px solid #0ea5e9;">
@@ -494,16 +488,10 @@
                             <td>SiteCapacity ? threshold ← "Yes/No"</td>
                         </tr>
                         <tr>
-                            <td><strong>AttendanceAreaEnrollment</strong></td>
-                            <td>Percentage of students enrolled who live in attendance area</td>
-                            <td>Attendance area enrollment check (Flow 2)</td>
-                            <td>AttendanceAreaEnrollment >= threshold (60-100%, default: 80%) ← "Yes/No"</td>
-                        </tr>
-                        <tr>
                             <td><strong>EducationalAdequacy</strong></td>
-                            <td>Percentage of educational adequacy (0-100% scale)</td>
+                            <td>Number of educational programs offered</td>
                             <td>Program adequacy check (3 flows)</td>
-                            <td>EducationalAdequacy * 100 >= minimum (0-100%, default: 50%) ← "Yes/No"</td>
+                            <td>EducationalAdequacy ? minimum ← "Yes/No"</td>
                         </tr>
                         <tr>
                             <td><strong>BuildingScore</strong></td>
@@ -2927,11 +2915,9 @@
                     <h4>Flow 1: Decision Routing</h4>
                     <p>Main routing based on utilization and growth patterns</p>
                     <ul>
-                        <li>Check utilization against thresholds (util1: below threshold OR enrollment below level-specific threshold)</li>
-                        <li>If above thresholds, check high utilization (util2)</li>
-                        <li>If high utilization, evaluate projected enrollment growth above threshold</li>
-                        <li>If below thresholds, assess distance to underutilized schools</li>
-                        <li>If distance is within threshold, evaluate projected enrollment growth above threshold</li>
+                        <li>Check utilization against thresholds</li>
+                        <li>Evaluate enrollment growth trends</li>
+                        <li>Assess distance to underutilized schools</li>
                         <li>Route to appropriate sub-flow (2, 3, or 4)</li>
                     </ul>
                 </div>
@@ -2940,7 +2926,6 @@
                     <h4>Flow 2: Building Addition (Expansion)</h4>
                     <p>Schools that could expand on their current site</p>
                     <ul>
-                        <li>Check attendance area enrollment above threshold (60-100%, default: 80%)</li>
                         <li>Check site capacity for expansion</li>
                         <li>Evaluate building quality</li>
                         <li>Assess program adequacy</li>
@@ -3083,17 +3068,10 @@
 
                 <h3>🗺️ Educational Adequacy</h3>
                 <div class="formula-box">
-                    Percentage of educational adequacy (0-100% scale)
+                    Count of academic and extracurricular programs
                 </div>
-                <p><strong>Threshold:</strong> 50% (default, 0-100% range)<br>
+                <p><strong>Threshold:</strong> 2 programs (default)<br>
                 <strong>Purpose:</strong> Identifies schools needing program enhancements</p>
-
-                <h3>📊 Attendance Area Enrollment</h3>
-                <div class="formula-box">
-                    Percentage of students enrolled who live in the attendance area
-                </div>
-                <p><strong>Threshold:</strong> 80% (default, 60-100% range)<br>
-                <strong>Purpose:</strong> Identifies schools with sufficient attendance area enrollment for expansion consideration (Flow 2)</p>
 
                 <h3>?? Adjustable Parameters</h3>
                 <p>All thresholds can be adjusted using the sliders in the dashboard:</p>
@@ -3112,9 +3090,8 @@
                     <li><strong>Enrollment Growth Threshold:</strong> -50% to +50% (default: 0%)</li>
                     <li><strong>Distance Threshold:</strong> 0-5 miles (default: 3.5)</li>
                     <li><strong>Composite Building Score:</strong> 1-10 scale (default: 5)</li>
-                    <li><strong>Educational Adequacy Minimum:</strong> 0-100% (default: 50%)</li>
-                    <li><strong>Attendance Area Enrollment:</strong> 60-100% (default: 80%)</li>
-                    <li><strong>Recent Investment Threshold:</strong> 0-50 millions (default: $5M)</li>
+                    <li><strong>Educational Adequacy Minimum:</strong> 0-10 programs (default: 2)</li>
+                    <li><strong>Recent Investment Threshold:</strong> 0-20 years (default: 5)</li>
                     <li><strong>Distance to Welcoming Schools (by school level):</strong>
                         <ul>
                             <li>Elementary School: 1-10 miles (default: 4.0)</li>
@@ -3124,27 +3101,6 @@
                             <li>6-12 School: 1-10 miles (default: 6.0)</li>
                         </ul>
                     </li>
-                </ul>
-
-                <h3>🎯 Prioritization Weights</h3>
-                <p>The dashboard includes a prioritization tool that allows users to weight criteria for ranking schools within each strategy group:</p>
-                <ul>
-                    <li><strong>Weight Scale:</strong> 1-10 scale (0.5 increments), where 10 = most important</li>
-                    <li><strong>Default Weights:</strong> All criteria default to 5 for all strategy groups</li>
-                    <li><strong>Weighted Criteria:</strong>
-                        <ul>
-                            <li>Utilization Rate</li>
-                            <li>Students in Attendance Area</li>
-                            <li>Student Economic Status (%FRL)</li>
-                            <li>Academic Performance</li>
-                            <li>Building Condition</li>
-                            <li>Pre-1978 Building Lead Risk</li>
-                            <li>ADA Accessibility</li>
-                            <li>AC Status</li>
-                        </ul>
-                    </li>
-                    <li><strong>Strategy Groups:</strong> Each decision type (strategy group) can have its own set of prioritization weights</li>
-                    <li><strong>Scoring:</strong> Weights are normalized to sum to 100% internally, then applied to normalized school data values to calculate priority scores (0-100)</li>
                 </ul>
 
                 <h3>🎯 Flow-based Filtering</h3>

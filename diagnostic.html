@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Layout Diagnostic</title>
+  <style>
+    body { margin: 0; padding: 20px; font-family: monospace; }
+    .info { margin: 10px 0; padding: 10px; background: #f0f0f0; border-left: 3px solid #007cbf; }
+    .error { background: #ffe0e0; border-left-color: #cc0000; }
+    .success { background: #e0ffe0; border-left-color: #00cc00; }
+  </style>
+</head>
+<body>
+  <h1>Layout Diagnostic Tool</h1>
+  <p>Open your browser console and run this code to check the layout:</p>
+  <pre style="background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto;">
+// Check #container
+const container = document.getElementById('container');
+console.log('=== #container ===');
+console.log('display:', window.getComputedStyle(container).display);
+console.log('flex-direction:', window.getComputedStyle(container).flexDirection);
+console.log('flex:', window.getComputedStyle(container).flex);
+console.log('position:', window.getComputedStyle(container).position);
+console.log('width:', window.getComputedStyle(container).width);
+console.log('offsetWidth:', container.offsetWidth);
+
+// Check #map-container
+const mapContainer = document.getElementById('map-container');
+console.log('\n=== #map-container ===');
+console.log('display:', window.getComputedStyle(mapContainer).display);
+console.log('flex:', window.getComputedStyle(mapContainer).flex);
+console.log('position:', window.getComputedStyle(mapContainer).position);
+console.log('width:', window.getComputedStyle(mapContainer).width);
+console.log('offsetWidth:', mapContainer.offsetWidth);
+console.log('inline styles:', mapContainer.style.cssText);
+
+// Check #map-sidebar
+const mapSidebar = document.getElementById('map-sidebar');
+console.log('\n=== #map-sidebar ===');
+console.log('display:', window.getComputedStyle(mapSidebar).display);
+console.log('flex:', window.getComputedStyle(mapSidebar).flex);
+console.log('position:', window.getComputedStyle(mapSidebar).position);
+console.log('z-index:', window.getComputedStyle(mapSidebar).zIndex);
+console.log('width:', window.getComputedStyle(mapSidebar).width);
+console.log('offsetWidth:', mapSidebar.offsetWidth);
+console.log('offsetLeft:', mapSidebar.offsetLeft);
+console.log('inline styles:', mapSidebar.style.cssText);
+
+// Check parent
+console.log('\n=== Parent of #map-sidebar ===');
+console.log('parent:', mapSidebar.parentElement.id);
+console.log('parent display:', window.getComputedStyle(mapSidebar.parentElement).display);
+console.log('parent flex-direction:', window.getComputedStyle(mapSidebar.parentElement).flexDirection);
+
+// Check siblings
+console.log('\n=== Siblings of #map-sidebar ===');
+const siblings = Array.from(mapSidebar.parentElement.children);
+siblings.forEach((sibling, i) => {
+  console.log(`Sibling ${i}:`, sibling.id || sibling.className, 
+    'display:', window.getComputedStyle(sibling).display,
+    'flex:', window.getComputedStyle(sibling).flex,
+    'width:', window.getComputedStyle(sibling).width);
+});
+  </pre>
+  
+  <div class="info">
+    <strong>Instructions:</strong>
+    <ol>
+      <li>Open your browser's Developer Tools (F12)</li>
+      <li>Go to the Console tab</li>
+      <li>Copy and paste the code above into the console</li>
+      <li>Press Enter</li>
+      <li>Share the output with me</li>
+    </ol>
+  </div>
+  
+  <div class="info">
+    <strong>Also check:</strong>
+    <ol>
+      <li>Right-click on <code>#map-sidebar</code> → Inspect Element</li>
+      <li>In the Elements panel, look at the computed styles</li>
+      <li>Check if there's a red strikethrough on any flex-related properties (indicating they're being overridden)</li>
+      <li>Check the "Layout" tab (if available) to see the flex container structure</li>
+    </ol>
+  </div>
+</body>
+</html>
+
