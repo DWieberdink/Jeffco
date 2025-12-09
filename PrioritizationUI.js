@@ -52,6 +52,35 @@ window.prioritizationUI = {
       return;
     }
 
+    // Pseudo-group tab to see all relevant schools together
+    const allTab = document.createElement("button");
+    allTab.textContent = "All Expansion + Maintenance";
+    allTab.className = "strategy-group-tab";
+    allTab.dataset.strategyGroup = "__ALL_EXP_MAINT__";
+    allTab.style.cssText = [
+      "padding: 0.5rem 1rem",
+      "border: 1px solid #ddd",
+      "background: #f5f5f5",
+      "cursor: pointer",
+      "border-radius: 4px",
+      "font-size: 0.9em",
+      "transition: all 0.2s",
+      "font-weight: 500"
+    ].join(";") + ";";
+
+    // Style if currently selected
+    if (this.currentStrategyGroup === "__ALL_EXP_MAINT__") {
+      allTab.style.background = "#007cbf";
+      allTab.style.color = "white";
+      allTab.style.borderColor = "#007cbf";
+    }
+
+    allTab.addEventListener("click", () => {
+      this.selectStrategyGroup("__ALL_EXP_MAINT__");
+    });
+
+    tabsContainer.appendChild(allTab);
+
     availableGroups.forEach((group, index) => {
       const tab = document.createElement("button");
       tab.textContent = `${index + 1}: ${group.name}`;
@@ -67,11 +96,10 @@ window.prioritizationUI = {
         "transition: all 0.2s"
       ].join(";") + ";";
 
-      if (index === 0) {
+      if (this.currentStrategyGroup === group.name) {
         tab.style.background = "#007cbf";
         tab.style.color = "white";
         tab.style.borderColor = "#007cbf";
-        this.currentStrategyGroup = group.name;
       }
 
       tab.addEventListener("click", () => {
@@ -81,9 +109,11 @@ window.prioritizationUI = {
       tabsContainer.appendChild(tab);
     });
 
-    // Select first group by default
-    if (availableGroups.length > 0) {
-      this.selectStrategyGroup(availableGroups[0].name);
+    // Ensure some group is selected
+    if (this.currentStrategyGroup === "__ALL_EXP_MAINT__") {
+      this.selectStrategyGroup("__ALL_EXP_MAINT__");
+    } else if (availableGroups.length > 0) {
+      this.selectStrategyGroup(this.currentStrategyGroup || availableGroups[0].name);
     }
   },
 
@@ -111,10 +141,10 @@ window.prioritizationUI = {
       weightsSection.style.display = "block";
     }
 
-    // Render subcategory tabs for this group
+    // Render subcategory tabs for this group (no-op for combined pseudo-group)
     this.renderSubgroupTabs(groupName);
 
-    // Render sliders for this group
+    // Render sliders for this group (special handling for combined pseudo-group)
     this.renderWeightSliders(groupName);
 
     // Render prioritized schools + map
@@ -122,21 +152,11 @@ window.prioritizationUI = {
     this.updateMapVisualization(groupName);
   },
 
-  // Render weight sliders for a strategy group (left panel only)
-  renderWeightSliders: function (strategyGroupName) {
-    const leftPanel = document.getElementById("left-panel-weight-sliders");
-
-    const weights =
-      (window.prioritizationLogic.currentWeights &&
-        window.prioritizationLogic.currentWeights[strategyGroupName]) ||
-      (window.prioritizationLogic.defaultWeights &&
-        window.prioritizationLogic.defaultWeights[strategyGroupName]) ||
-      {};
-
-    // Build slider configs
+  // Build slider configuration metadata (keys + labels) for a given group
+  getSliderConfigs: function (baseGroupName) {
     var sliderConfigs = [];
 
-    if (strategyGroupName === "Closure/Consolidation") {
+    if (baseGroupName === "Closure/Consolidation") {
       // Closure/Consolidation framing
       sliderConfigs.push(
         {
@@ -235,6 +255,29 @@ window.prioritizationUI = {
       );
     }
 
+    return sliderConfigs;
+  },
+
+  // Render weight sliders for a strategy group (left panel only)
+  renderWeightSliders: function (strategyGroupName) {
+    const leftPanel = document.getElementById("left-panel-weight-sliders");
+
+    const isCombined = strategyGroupName === "__ALL_EXP_MAINT__";
+    // For the combined view, use Expansion as the base profile for
+    // reading current/default weights, but we will WRITE to BOTH
+    // Expansion and Maintenance/Investment when sliders move.
+    const baseGroupName = isCombined ? "Expansion" : strategyGroupName;
+
+    const weights =
+      (window.prioritizationLogic.currentWeights &&
+        window.prioritizationLogic.currentWeights[baseGroupName]) ||
+      (window.prioritizationLogic.defaultWeights &&
+        window.prioritizationLogic.defaultWeights[baseGroupName]) ||
+      {};
+
+    // Build slider configs
+    const sliderConfigs = this.getSliderConfigs(baseGroupName);
+
     // Helper to generate slider HTML
     const createSliderHTML = function (config, internalValue) {
       const safeInternal =
@@ -278,7 +321,17 @@ window.prioritizationUI = {
     });
 
     if (leftPanel) {
+      // Optional context message when viewing the combined group
+      if (isCombined) {
+        leftPanel.innerHTML =
+          '<p style="text-align:left; color:#555; font-size:0.85em; line-height:1.4; padding:0.25rem 0 0.75rem 0;">' +
+          'These weights are shared between <strong>Expansion</strong> and <strong>Maintenance/Investment</strong>. ' +
+          'Adjusting a slider here (or in either individual tab) updates both strategy groups.' +
+          "</p>" +
+          slidersHTML;
+      } else {
       leftPanel.innerHTML = slidersHTML;
+      }
     }
 
     // Wire up slider change events
@@ -300,7 +353,18 @@ window.prioritizationUI = {
         updates[config.key] = internalWeight;
 
         if (window.prioritizationLogic && window.prioritizationLogic.updateWeights) {
-          window.prioritizationLogic.updateWeights(strategyGroupName, updates);
+          // For combined view OR when adjusting either Expansion or
+          // Maintenance/Investment directly, keep both groups in sync.
+          const syncGroups =
+            isCombined ||
+            strategyGroupName === "Expansion" ||
+            strategyGroupName === "Maintenance/Investment"
+              ? ["Expansion", "Maintenance/Investment"]
+              : [strategyGroupName];
+
+          syncGroups.forEach(function (gName) {
+            window.prioritizationLogic.updateWeights(gName, updates);
+          });
         }
 
         self.renderPrioritizedSchools(strategyGroupName);
@@ -328,8 +392,55 @@ window.prioritizationUI = {
       }
     }
 
-    const outcomes =
+    let outcomes;
+    // For the combined Expansion + Maintenance view, build a merged
+    // list of outcomes from both strategy groups so the subcategory
+    // chips (e.g., Building Addition, Targeted Capital Investment)
+    // are still available.
+    if (strategyGroupName === "__ALL_EXP_MAINT__") {
+      const pl = window.prioritizationLogic;
+      const expSummary = pl.getOutcomeSummaryForStrategy("Expansion") || [];
+      const maintSummary =
+        pl.getOutcomeSummaryForStrategy("Maintenance/Investment") || [];
+
+      const countMap = {};
+      const addToMap = function (list) {
+        list.forEach((entry) => {
+          const o = entry.outcome;
+          const c = entry.count || 0;
+          countMap[o] = (countMap[o] || 0) + c;
+        });
+      };
+
+      addToMap(expSummary);
+      addToMap(maintSummary);
+
+      outcomes = [];
+
+      // Preserve the configured outcome order from both groups
+      ["Expansion", "Maintenance/Investment"].forEach((groupName) => {
+        const groupDef = pl.strategyGroups && pl.strategyGroups[groupName];
+        if (!groupDef || !Array.isArray(groupDef.outcomes)) return;
+        groupDef.outcomes.forEach((outcomeName) => {
+          if (Object.prototype.hasOwnProperty.call(countMap, outcomeName)) {
+            outcomes.push({
+              outcome: outcomeName,
+              count: countMap[outcomeName] || 0
+            });
+            // Avoid duplicates if the same outcome appeared in both lists
+            delete countMap[outcomeName];
+          }
+        });
+      });
+
+      // Any remaining outcomes that weren't in the configured arrays
+      Object.keys(countMap).forEach((o) => {
+        outcomes.push({ outcome: o, count: countMap[o] || 0 });
+      });
+    } else {
+      outcomes =
       window.prioritizationLogic.getOutcomeSummaryForStrategy(strategyGroupName);
+    }
     if (!outcomes || outcomes.length === 0) {
       container.innerHTML = "";
       return;
@@ -408,10 +519,14 @@ window.prioritizationUI = {
     if (!container || !window.prioritizationLogic) return;
 
     const outcomeFilter = this.currentOutcomeFilter;
-    const rankedSchools = window.prioritizationLogic.rankSchools(
-      strategyGroupName,
+    const isCombined = strategyGroupName === "__ALL_EXP_MAINT__";
+    const baseGroupName = isCombined ? "Expansion" : strategyGroupName;
+    const rankedSchools = isCombined
+      ? window.prioritizationLogic.rankSchoolsAcrossStrategies(
+          ["Expansion", "Maintenance/Investment"],
       outcomeFilter
-    );
+        )
+      : window.prioritizationLogic.rankSchools(strategyGroupName, outcomeFilter);
 
     if (!rankedSchools || rankedSchools.length === 0) {
       container.innerHTML =
@@ -420,6 +535,7 @@ window.prioritizationUI = {
     }
 
     const tableId = "prioritized-schools-table";
+    const sliderConfigs = this.getSliderConfigs(baseGroupName);
     let html = "";
 
     html +=
@@ -448,58 +564,108 @@ window.prioritizationUI = {
       tableId +
       '"><thead><tr>' +
       '<th style="width:40px;"><span>Rank</span><div class="column-resizer" data-col="0"></div></th>' +
-      '<th style="width:120px;"><span>School</span><div class="column-resizer" data-col="1"></div></th>' +
-      '<th style="width:70px;"><span>Score</span><div class="column-resizer" data-col="2"></div></th>' +
-      '<th style="width:60px;"><span>Util %</span><div class="column-resizer" data-col="3"></div></th>' +
-      '<th style="width:60px;"><span>Area %</span><div class="column-resizer" data-col="4"></div></th>' +
-      '<th style="width:60px;"><span>FRL %</span><div class="column-resizer" data-col="5"></div></th>' +
-      '<th style="width:60px;"><span>Bldg</span><div class="column-resizer" data-col="6"></div></th>' +
-      '<th style="width:60px;"><span>EA</span><div class="column-resizer" data-col="7"></div></th>' +
-      '<th style="width:60px;"><span>Pre-78</span><div class="column-resizer" data-col="8"></div></th>' +
-      '<th style="width:60px;"><span>ADA</span><div class="column-resizer" data-col="9"></div></th>' +
-      '<th style="width:60px;"><span>AC %</span><div class="column-resizer" data-col="10"></div></th>' +
-      "</tr></thead><tbody>";
+      (isCombined
+        ? '<th style="width:110px;"><span>Strategy Group</span><div class="column-resizer" data-col="1"></div></th>'
+        : "") +
+      '<th style="width:120px;"><span>School</span><div class="column-resizer" data-col="' +
+      (isCombined ? "2" : "1") +
+      '"></div></th>' +
+      '<th style="width:70px;"><span>Score</span><div class="column-resizer" data-col="' +
+      (isCombined ? "3" : "2") +
+      '"></div></th>';
+
+    // Dynamic metric columns aligned with prioritization weights
+    let metricStartColIndex = isCombined ? 4 : 3;
+    sliderConfigs.forEach(function (config, idx) {
+      const colIndex = metricStartColIndex + idx;
+      html +=
+        '<th style="width:80px;"><span>' +
+        config.label +
+        '</span><div class="column-resizer" data-col="' +
+        colIndex +
+        '"></div></th>';
+    });
+
+    html += "</tr></thead><tbody>";
+
+    // Helper to format values according to the metric key
+    const formatValue = function (key, raw) {
+      switch (key) {
+        case "utilizationRate":
+          return raw.utilizationRate != null
+            ? raw.utilizationRate.toFixed(1) + "%"
+            : "N/A";
+        case "studentsInAttendanceArea":
+          return raw.studentsInAttendanceArea != null
+            ? raw.studentsInAttendanceArea.toFixed(1) + "%"
+            : "N/A";
+        case "studentEconomicStatus":
+          return raw.studentEconomicStatus != null
+            ? raw.studentEconomicStatus.toFixed(1) + "%"
+            : "N/A";
+        case "buildingCondition":
+          return raw.buildingCondition != null
+            ? raw.buildingCondition.toFixed(1)
+            : "N/A";
+        case "academicPerformance":
+          return raw.academicPerformance != null
+            ? raw.academicPerformance.toFixed(1) + "%"
+            : "N/A";
+        case "enrollment":
+          return raw.enrollment != null
+            ? Number(raw.enrollment).toLocaleString()
+            : "N/A";
+        case "welcomedStudents":
+          return raw.welcomedStudents != null
+            ? Number(raw.welcomedStudents).toLocaleString()
+            : "N/A";
+        case "distanceFromOtherSchools":
+          return raw.distanceFromOtherSchools != null
+            ? raw.distanceFromOtherSchools.toFixed(2) + " mi"
+            : "N/A";
+        case "pastInvestments":
+          return raw.pastInvestments != null
+            ? "$" + raw.pastInvestments.toFixed(1) + "M"
+            : "N/A";
+        case "specialtyProgramOfferings":
+          return raw.specialtyPrograms != null
+            ? raw.specialtyPrograms.toFixed(0)
+            : "N/A";
+        default:
+          return "N/A";
+      }
+    };
+
+    const self = this;
 
     rankedSchools.forEach(function (school, index) {
       const raw = school.rawData || {};
+      const buildingName = school["Building Name"] || school.name || "Unknown";
+      const strategyLabel = school.strategyGroup || "";
+
+      html += "<tr>";
+      html += "<td>" + (index + 1) + "</td>";
+
+      if (isCombined) {
+        html += "<td>" + (strategyLabel || "Unknown") + "</td>";
+      }
+
       html +=
-        "<tr>" +
-        "<td>" +
-        (index + 1) +
-        "</td>" +
         '<td title="' +
-        (school["Building Name"] || school.name || "Unknown") +
+        buildingName +
         '">' +
-        (school["Building Name"] || school.name || "Unknown") +
+        buildingName +
         "</td>" +
         '<td style="font-weight:600;">' +
         school.priorityScore.toFixed(1) +
-        "</td>" +
-        "<td>" +
-        (raw.utilizationRate ? raw.utilizationRate.toFixed(1) + "%" : "N/A") +
-        "</td>" +
-        "<td>" +
-        (raw.studentsInAttendanceArea != null ? raw.studentsInAttendanceArea : "N/A") +
-        "</td>" +
-        "<td>" +
-        (raw.studentEconomicStatus ? raw.studentEconomicStatus.toFixed(1) + "%" : "N/A") +
-        "</td>" +
-        "<td>" +
-        (raw.buildingCondition ? raw.buildingCondition.toFixed(1) : "N/A") +
-        "</td>" +
-        "<td>" +
-        (raw.academicPerformance ? raw.academicPerformance.toFixed(1) : "N/A") +
-        "</td>" +
-        "<td>" +
-        (raw.pre1978BuildingLeadRisk === "Yes" ? "Yes" : "No") +
-        "</td>" +
-        "<td>" +
-        (raw.adaAccessibility === "Yes" ? "Yes" : "No") +
-        "</td>" +
-        "<td>" +
-        (raw.acStatus ? raw.acStatus.toFixed(0) + "%" : "N/A") +
-        "</td>" +
-        "</tr>";
+        "</td>";
+
+      // Metric cells in the same order as sliderConfigs
+      sliderConfigs.forEach(function (config) {
+        html += "<td>" + formatValue(config.key, raw) + "</td>";
+      });
+
+      html += "</tr>";
     });
 
     html += "</tbody></table>";
@@ -508,8 +674,10 @@ window.prioritizationUI = {
 
     this.setupColumnResizing(tableId);
 
-    // Also render simple equity overview for top 10 schools
-    this.renderEquityAnalysis(rankedSchools.slice(0, 10));
+    // Render equity overview for all schools in the current view
+    // (including All Expansion + Maintenance, where we want the
+    // combined impact across both strategy groups).
+    this.renderEquityAnalysis(rankedSchools);
   },
 
   // Setup column resizing functionality
@@ -613,10 +781,13 @@ window.prioritizationUI = {
     if (!window.prioritizationLogic) return;
 
     const outcomeFilter = this.currentOutcomeFilter;
-    const rankedSchools = window.prioritizationLogic.rankSchools(
-      strategyGroupName,
+    const isCombined = strategyGroupName === "__ALL_EXP_MAINT__";
+    const rankedSchools = isCombined
+      ? window.prioritizationLogic.rankSchoolsAcrossStrategies(
+          ["Expansion", "Maintenance/Investment"],
       outcomeFilter
-    );
+        )
+      : window.prioritizationLogic.rankSchools(strategyGroupName, outcomeFilter);
 
     if (!window.priorityScores) {
       window.priorityScores = {};
@@ -656,15 +827,12 @@ window.prioritizationUI = {
     }
 
     if (map.getLayer("schools-layer")) {
-      map.setPaintProperty("schools-layer", "circle-radius", [
-        "case",
-        ["has", "priorityScore"],
-        ["interpolate", ["linear"], ["get", "priorityScore"], 0, 4, 50, 12, 100, 24],
-        6
-      ]);
+      // Keep all schools the same size on the map; priority scores are still
+      // attached as properties, but no longer drive circle radius.
+      map.setPaintProperty("schools-layer", "circle-radius", 6);
     }
 
-    console.log("✅ Map circle sizes updated based on priority scores");
+    console.log("✅ Map circle sizes updated (constant radius)");
   },
 
   setupEventListeners: function () {

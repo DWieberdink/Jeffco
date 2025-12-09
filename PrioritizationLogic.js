@@ -47,74 +47,77 @@ window.prioritizationLogic = {
   // These are seeded from the previous configuration so existing behavior stays reasonable.
   defaultWeights: {
     "Expansion": {
-      // Based on previous "Building Addition" profile
-      utilizationRate: 30,           // Higher utilization
-      studentsInAttendanceArea: 20,  // (legacy) not used in new UI
-      studentEconomicStatus: 10,     // (legacy) not used in new UI
-      academicPerformance: 15,       // (legacy) not used in new UI
-      buildingCondition: 25,         // Lower building score
-      pre1978BuildingLeadRisk: 0,    // (legacy)
-      adaAccessibility: 0,           // (legacy)
-      acStatus: 0,                   // (legacy)
-      // New, explicit prioritization dimensions used by the secondary
-      // prioritization UI for Expansion & Maintenance/Investment:
-      educationalAdequacy: 15,       // Lower EA
-      enrollment: 15,                // Higher enrollment
-      highNeedStudents: 15,          // Higher % FRL
-      neighborhoodCapture: 10,       // Higher AttendanceAreaEnrollment
-      welcomedStudents: 5,           // Placeholder until data is available
-      distanceFromOtherSchools: 10   // Greater distance from other schools
+      // Internal 0–100 scale; 50 = UI value 5.0 on the 0–10 slider.
+      // All weights start from the same neutral default so users
+      // can shape priorities explicitly.
+      utilizationRate: 50,
+      studentsInAttendanceArea: 50,
+      studentEconomicStatus: 50,
+      academicPerformance: 50,
+      buildingCondition: 50,
+      pre1978BuildingLeadRisk: 50,
+      adaAccessibility: 50,
+      acStatus: 50,
+      educationalAdequacy: 50,
+      enrollment: 50,
+      highNeedStudents: 50,
+      neighborhoodCapture: 50,
+      welcomedStudents: 50,
+      distanceFromOtherSchools: 50
     },
     "Maintenance/Investment": {
-      // Based on previous "Building-Focused" profile
-      utilizationRate: 15,
-      studentsInAttendanceArea: 5,   // (legacy)
-      studentEconomicStatus: 10,     // (legacy)
-      academicPerformance: 10,       // (legacy)
-      buildingCondition: 35,         // Lower building score
-      pre1978BuildingLeadRisk: 0,    // (legacy)
-      adaAccessibility: 0,           // (legacy)
-      acStatus: 0,                   // (legacy)
-      educationalAdequacy: 15,       // Lower EA
-      enrollment: 10,                // Higher enrollment
-      highNeedStudents: 10,          // Higher % FRL
-      neighborhoodCapture: 10,       // Higher AttendanceAreaEnrollment
-      welcomedStudents: 5,           // Placeholder
-      distanceFromOtherSchools: 10   // Greater distance from other schools
+      // Same neutral defaults as Expansion so both groups
+      // start aligned and can be tuned together.
+      utilizationRate: 50,
+      studentsInAttendanceArea: 50,
+      studentEconomicStatus: 50,
+      academicPerformance: 50,
+      buildingCondition: 50,
+      pre1978BuildingLeadRisk: 50,
+      adaAccessibility: 50,
+      acStatus: 50,
+      educationalAdequacy: 50,
+      enrollment: 50,
+      highNeedStudents: 50,
+      neighborhoodCapture: 50,
+      welcomedStudents: 50,
+      distanceFromOtherSchools: 50
     },
     "Closure/Consolidation": {
-      // Based on previous "Closure/Merger" profile
-      utilizationRate: 20,
-      studentsInAttendanceArea: 20,
-      studentEconomicStatus: 20,
-      academicPerformance: 0,
-      buildingCondition: 20,
-      pre1978BuildingLeadRisk: 0,
-      adaAccessibility: 0,
-      acStatus: 0,
-      educationalAdequacy: 10,
-      enrollment: 5,
-      highNeedStudents: 5,           // We will reverse this so higher-need is *less* likely to be closed
-      neighborhoodCapture: 5,
-      welcomedStudents: 5,
-      distanceFromOtherSchools: 10
+      // Also start from the same neutral default; the scoring
+      // logic (e.g. reversed directions) still differentiates
+      // how these weights behave for closure decisions.
+      utilizationRate: 50,
+      studentsInAttendanceArea: 50,
+      studentEconomicStatus: 50,
+      academicPerformance: 50,
+      buildingCondition: 50,
+      pre1978BuildingLeadRisk: 50,
+      adaAccessibility: 50,
+      acStatus: 50,
+      educationalAdequacy: 50,
+      enrollment: 50,
+      highNeedStudents: 50,
+      neighborhoodCapture: 50,
+      welcomedStudents: 50,
+      distanceFromOtherSchools: 50
     },
     "Other": {
-      // Based loosely on previous "Monitoring" profile
-      utilizationRate: 25,
-      studentsInAttendanceArea: 20,
-      studentEconomicStatus: 15,
-      academicPerformance: 20,
-      buildingCondition: 15,
-      pre1978BuildingLeadRisk: 0,
-      adaAccessibility: 0,
-      acStatus: 5,
-      educationalAdequacy: 10,
-      enrollment: 10,
-      highNeedStudents: 10,
-      neighborhoodCapture: 10,
-      welcomedStudents: 5,
-      distanceFromOtherSchools: 5
+      // Monitoring/Other also use the same neutral defaults.
+      utilizationRate: 50,
+      studentsInAttendanceArea: 50,
+      studentEconomicStatus: 50,
+      academicPerformance: 50,
+      buildingCondition: 50,
+      pre1978BuildingLeadRisk: 50,
+      adaAccessibility: 50,
+      acStatus: 50,
+      educationalAdequacy: 50,
+      enrollment: 50,
+      highNeedStudents: 50,
+      neighborhoodCapture: 50,
+      welcomedStudents: 50,
+      distanceFromOtherSchools: 50
     }
   },
 
@@ -169,6 +172,52 @@ window.prioritizationLogic = {
     }));
   },
 
+  /**
+   * Rank schools across multiple strategy groups at once.
+   * Used for the "see all schools together" view in Step 2 so
+   * Expansion + Maintenance/Investment schools can be viewed
+   * in one combined prioritized list.
+   *
+   * @param {string[]} strategyGroupNames - Array of strategy group names
+   * @param {string|null} outcomeFilter  - Optional decision-type filter
+   * @returns {Array<object>} ranked schools with `strategyGroup` attached
+   */
+  rankSchoolsAcrossStrategies: function(strategyGroupNames, outcomeFilter) {
+    const groups =
+      Array.isArray(strategyGroupNames) && strategyGroupNames.length > 0
+        ? strategyGroupNames
+        : Object.keys(this.strategyGroups);
+
+    const combined = [];
+
+    groups.forEach(groupName => {
+      const group = this.strategyGroups[groupName];
+      if (!group) return;
+
+      const allSchoolsForGroup = this.getSchoolsForStrategy(groupName);
+      const schools = outcomeFilter
+        ? allSchoolsForGroup.filter(school => {
+            const decision = school.decision || school["Decision Type"] || "";
+            return decision === outcomeFilter;
+          })
+        : allSchoolsForGroup;
+
+      schools.forEach(school => {
+        const scoreData = this.calculatePriorityScore(school, groupName);
+        combined.push({
+          ...school,
+          priorityScore: scoreData.totalScore,
+          scoreComponents: scoreData.components,
+          rawData: scoreData.rawData,
+          strategyGroup: groupName
+        });
+      });
+    });
+
+    combined.sort((a, b) => b.priorityScore - a.priorityScore);
+    return combined;
+  },
+
   // Normalize a value to 0-100 scale
   normalizeValue: function(value, min, max, reverse = false) {
     if (value === null || value === undefined || isNaN(value)) return 50; // Default middle value
@@ -192,6 +241,7 @@ window.prioritizationLogic = {
     const weights = this.currentWeights[strategyGroupName] || this.defaultWeights[strategyGroupName];
     
     let score = 0;
+    let totalWeightUsed = 0;
     const components = {};
 
     // Utilization Rate
@@ -201,8 +251,10 @@ window.prioritizationLogic = {
     const reverseUtil =
       strategyGroupName === "Closure/Consolidation";
     const utilScore = this.normalizeValue(utilization, 0, 130, reverseUtil);
-    components.utilizationRate = (utilScore / 100) * (weights.utilizationRate || 0);
+    const utilWeight = weights.utilizationRate || 0;
+    components.utilizationRate = (utilScore / 100) * utilWeight;
     score += components.utilizationRate;
+    totalWeightUsed += utilWeight;
 
     const isClosure = (strategyGroupName === "Closure/Consolidation");
 
@@ -212,8 +264,10 @@ window.prioritizationLogic = {
     const enrollment = parseInt(school.Enrollment || 0, 10);
     const reverseEnrollment = isClosure;
     const enrollmentScore = this.normalizeValue(enrollment, 0, 1500, reverseEnrollment);
-    components.enrollment = (enrollmentScore / 100) * (weights.enrollment || 0);
+    const enrollmentWeight = weights.enrollment || 0;
+    components.enrollment = (enrollmentScore / 100) * enrollmentWeight;
     score += components.enrollment;
+    totalWeightUsed += enrollmentWeight;
 
     // High-need students (% FRL)
     // For Expansion & Maintenance/Investment, higher % FRL = higher priority.
@@ -221,20 +275,26 @@ window.prioritizationLogic = {
     const frlPercent = parseFloat(school["% FRL"] || school["Free Reduced Lunch"] || 0, 10);
     const reverseHighNeed = isClosure;
     const frlScore = this.normalizeValue(frlPercent, 0, 100, reverseHighNeed);
-    components.highNeedStudents = (frlScore / 100) * (weights.highNeedStudents || 0);
+    const highNeedWeight = weights.highNeedStudents || 0;
+    components.highNeedStudents = (frlScore / 100) * highNeedWeight;
     score += components.highNeedStudents;
+    totalWeightUsed += highNeedWeight;
 
     // Building Condition (Composite Building Score) - lower score = higher priority
     const buildingScore = parseFloat(school.BuildingScore || 0, 10);
     const buildingNormalized = this.normalizeValue(buildingScore, 0, 10, true); // Reverse: lower score = higher priority
-    components.buildingCondition = (buildingNormalized / 100) * (weights.buildingCondition || 0);
+    const buildingWeight = weights.buildingCondition || 0;
+    components.buildingCondition = (buildingNormalized / 100) * buildingWeight;
     score += components.buildingCondition;
+    totalWeightUsed += buildingWeight;
 
     // Educational Adequacy (EA) - lower EA = higher priority
     const eaRaw = parseFloat(school.EducationalAdequacy || 0, 10) * 100; // convert to %
     const eaScore = this.normalizeValue(eaRaw, 0, 100, true);
-    components.educationalAdequacy = (eaScore / 100) * (weights.educationalAdequacy || 0);
+    const eaWeight = weights.educationalAdequacy || 0;
+    components.educationalAdequacy = (eaScore / 100) * eaWeight;
     score += components.educationalAdequacy;
+    totalWeightUsed += eaWeight;
 
     // Neighborhood capture rate (Attendance Area Enrollment %)
     // For Expansion & Maintenance/Investment, higher capture = higher priority.
@@ -242,20 +302,26 @@ window.prioritizationLogic = {
     const capturePercent = parseFloat(school.AttendanceAreaEnrollment || 0, 10);
     const reverseCapture = isClosure;
     const captureScore = this.normalizeValue(capturePercent, 0, 100, reverseCapture);
-    components.neighborhoodCapture = (captureScore / 100) * (weights.neighborhoodCapture || 0);
+    const captureWeight = weights.neighborhoodCapture || 0;
+    components.neighborhoodCapture = (captureScore / 100) * captureWeight;
     score += components.neighborhoodCapture;
+    totalWeightUsed += captureWeight;
 
     // Students welcomed from previous consolidations (if/when data is available)
     const welcomed = parseInt(school["Welcomed Students"] || school["Students Welcomed"] || 0, 10);
     const welcomedScore = this.normalizeValue(welcomed, 0, 2000, false);
-    components.welcomedStudents = (welcomedScore / 100) * (weights.welcomedStudents || 0);
+    const welcomedWeight = weights.welcomedStudents || 0;
+    components.welcomedStudents = (welcomedScore / 100) * welcomedWeight;
     score += components.welcomedStudents;
+    totalWeightUsed += welcomedWeight;
 
     // Distance from other schools (using DistanceUnderutilizedschools as proxy) - greater distance = higher priority
     const distance = parseFloat(school.DistanceUnderutilizedschools || 0, 10);
     const distanceScore = this.normalizeValue(distance, 0, 10, false);
-    components.distanceFromOtherSchools = (distanceScore / 100) * (weights.distanceFromOtherSchools || 0);
+    const distanceWeight = weights.distanceFromOtherSchools || 0;
+    components.distanceFromOtherSchools = (distanceScore / 100) * distanceWeight;
     score += components.distanceFromOtherSchools;
+    totalWeightUsed += distanceWeight;
 
     // Past investments (RecentInvestments)
     // For Closure/Consolidation: FEWER past investments = higher priority (reverse).
@@ -263,8 +329,10 @@ window.prioritizationLogic = {
     const investments = parseFloat(school.RecentInvestments || 0, 10);
     const reverseInvest = isClosure;
     const investScore = this.normalizeValue(investments, 0, 50, reverseInvest);
-    components.pastInvestments = (investScore / 100) * (weights.pastInvestments || 0);
+    const investWeight = weights.pastInvestments || 0;
+    components.pastInvestments = (investScore / 100) * investWeight;
     score += components.pastInvestments;
+    totalWeightUsed += investWeight;
 
     // Specialty program offerings (placeholder until explicit data field exists)
     // Assumes higher value/flag = more specialty offerings.
@@ -272,19 +340,32 @@ window.prioritizationLogic = {
       parseFloat(school.SpecialtyPrograms || school["Specialty Programs"] || 0, 10) ||
       (school.SpecialtyProgram || school["Specialty Program"] ? 1 : 0);
     const specialtyScore = this.normalizeValue(specialtyRaw, 0, 10, false);
-    components.specialtyPrograms = (specialtyScore / 100) * (weights.specialtyPrograms || 0);
+    const specialtyWeight = weights.specialtyPrograms || 0;
+    components.specialtyPrograms = (specialtyScore / 100) * specialtyWeight;
     score += components.specialtyPrograms;
+    totalWeightUsed += specialtyWeight;
+
+    // Convert raw weighted sum back to a 0–100 index by dividing
+    // by the effective total weight (i.e., compute a weighted average).
+    // This makes a score of 100 rare – only schools that are at the
+    // extreme of every active dimension will approach 100.
+    if (totalWeightUsed > 0) {
+      score = score / (totalWeightUsed / 100);
+    }
 
     return {
-      totalScore: Math.min(100, Math.max(0, score)), // Clamp to 0-100
+      totalScore: Math.min(100, Math.max(0, score)), // Keep in 0–100, but no longer easily saturates
       components: components,
       rawData: {
         utilizationRate: utilization,
         enrollment: enrollment,
         highNeedStudents: frlPercent,
+        studentEconomicStatus: frlPercent,
         buildingCondition: buildingScore,
         educationalAdequacy: eaRaw,
+        academicPerformance: eaRaw,
         neighborhoodCapture: capturePercent,
+        studentsInAttendanceArea: capturePercent,
         welcomedStudents: welcomed,
         distanceFromOtherSchools: distance,
         pastInvestments: investments,

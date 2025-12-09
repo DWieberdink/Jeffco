@@ -179,54 +179,79 @@
 
     /* Map Legend */
     .legend {
-  position: absolute;
-  bottom: 60px;
-  left: 20px;
-  background: white;
-  border-radius: 6px;
-  padding: 10px 5px;
-  font-size: 13px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-  
-  display: flex;
-  flex-wrap: wrap; /* allow wrapping if space is tight */
-  gap: 2px;
-  align-items: center;
-}
+      position: absolute;
+      bottom: 60px;
+      left: 20px;
+      background: white;
+      border-radius: 6px;
+      padding: 4px 5px 6px 5px;
+      font-size: 13px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: stretch;
+      max-width: 280px;
+    }
 
-.legend h4 {
-  display: none; /* Hide the vertical header if desired */
-}
+    .legend h4 {
+      display: none; /* Legacy header hidden */
+    }
 
-.legend-row {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin: 0;
-}
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      margin: 0;
+    }
 
-.legend-swatch {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
-  border: 1px solid #ccc;
-  margin-right: 4px;
-}
+    .legend-swatch {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      border: 1px solid #ccc;
+      margin-right: 4px;
+    }
 
-.legend-group-header {
-  font-weight: bold;
-  margin-top: 6px;
-  margin-bottom: 2px;
-  color: #333;
-  border-bottom: 2px solid #ddd;
-  padding-bottom: 2px;
-  display: flex;
-  align-items: center;
-  background: #f8f9fa;
-  padding: 2px 4px;
-  border-radius: 4px;
-}
+    .legend-group-header {
+      font-weight: bold;
+      margin-top: 6px;
+      margin-bottom: 2px;
+      color: #333;
+      border-bottom: 2px solid #ddd;
+      padding-bottom: 2px;
+      display: flex;
+      align-items: center;
+      background: #f8f9fa;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+
+    /* Collapsible legend header and collapsed state */
+    .legend-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 2px 4px;
+      border-radius: 4px;
+      background: #f2f4f7;
+      color: #222;
+      border: 1px solid #d0d7de;
+      user-select: none;
+    }
+
+    .legend-toggle span.chevron {
+      font-size: 11px;
+      margin-left: 6px;
+    }
+
+    .legend.legend-collapsed #legend-content {
+      display: none;
+    }
 
 
 
@@ -362,19 +387,15 @@
       border-bottom-right-radius: 0;
     }
     
-    /* Move triangle right and question mark left for specific sections */
-    #decision-input-panel > summary.custom-summary {
-      padding-left: 0.6em; 
-    }
-    #decision-input-panel .help-icon {
-      margin-left: -30px; 
-    }
-    
+    /* Ensure section headers + help icons never overlap text */
+    #decision-input-panel > summary.custom-summary,
     #scenario-input-panel > summary.custom-summary {
-      padding-left: 0.6em; 
+      padding-left: 0.6em;
     }
-    #scenario-input-panel .help-icon {
-      margin-left: -30px; 
+    #decision-input-panel .help-container,
+    #scenario-input-panel .help-container {
+      flex-shrink: 0;
+      margin-left: 8px;
     }
     
     .nested-details {
@@ -443,31 +464,52 @@
       box-sizing: border-box;
     }
 
-    /* Flowchart Styles - McKinsey Inspired */
-    .ellipse-node {fill: #0066cc; stroke: #e5e5e5; stroke-width: 2;}
-    .node rect.ellipse-node { fill: #0066cc; stroke: #e5e5e5; stroke-width: 2; }
-    .node .ellipse-node + foreignObject div { color: #ffffff; font-weight: 500; text-align: center; }
-    .node rect { fill: #ffffff; stroke: #d1d5db; stroke-width: 2px; }
+    /* Flowchart Styles - McKinsey Inspired (refined) */
+    .ellipse-node {
+      fill: #0b5ed7;
+      stroke: #e5e5e5;
+      stroke-width: 2;
+    }
+    .node rect.ellipse-node {
+      fill: #0b5ed7;
+      stroke: #e5e5e5;
+      stroke-width: 2;
+    }
+    .node .ellipse-node + foreignObject div {
+      color: #ffffff;
+      font-weight: 500;
+      text-align: center;
+    }
+    /* Base node rectangle */
+    .node rect {
+      fill: #ffffff;
+      stroke: #d1d5db;
+      stroke-width: 1.5px;
+      rx: 10;
+      ry: 10;
+      transition: stroke 0.18s ease, fill 0.18s ease, opacity 0.18s ease;
+    }
     
     /* Style for dynamic numbers in flowchart nodes */
     .node .dynamic-number {
-      background-color: white;
-      padding: 4px 0px;
-      border-radius: 0 0 8px 8px;
-      border: none;
-      border-top: 1px solid #ddd;
-      font-weight: bold;
-      display: block;
+      background-color: #ffffff;
+      padding: 1px 8px;
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      font-weight: 600;
+      display: inline-block;
       margin: 0;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
       text-align: center;
-      font-size: 12px;
-      width: calc(100% + 4px);
+      font-size: 10px;
+      max-width: 95%;
+      white-space: nowrap;
+      line-height: 1.3;
       box-sizing: border-box;
       position: absolute;
-      bottom: 0;
-      left: -2px;
-      right: -2px;
+      bottom: 6px;
+      left: 50%;
+      transform: translateX(-50%);
     }
     
     /* Ensure the node container can position the number at bottom */
@@ -486,36 +528,46 @@
       flex: 1;
       padding-bottom: 20px; /* Space for the bottom number */
     }
-    .node.highlight rect { fill: #fef3c7; stroke: #f59e0b; }
+    .node.highlight rect {
+      fill: #fef3c7;
+      stroke: #f59e0b;
+    }
     .node.highlight foreignObject div { text-align: center; }
-    .node.special-highlight rect { fill: #e0e7ff; stroke: #6366f1; }
+    .node.special-highlight rect {
+      fill: #e0e7ff;
+      stroke: #6366f1;
+    }
     .node.special-highlight foreignObject div { text-align: center; }
     .node.outcome-node.highlight foreignObject div { text-align: center !important; color: #ffffff !important; }
     .node.outcome-node.special-highlight foreignObject div { text-align: center !important; color: #ffffff !important; }
     .node.special-highlight ellipse,
-    .node.special-highlight rect {stroke: #1a1a1a; stroke-width: 3; fill: #e0e7ff;}
+    .node.special-highlight rect {
+      stroke: #1a1a1a;
+      stroke-width: 3;
+      fill: #e0e7ff;
+    }
 
     /* New 4-Flow Chart Node Styles - McKinsey Inspired */
     .start-node {
-      fill: #059669 !important;
-      stroke: #047857 !important;
-      stroke-width: 3 !important;
+      fill: #ecfdf3 !important;
+      stroke: #16a34a !important;
+      stroke-width: 2 !important;
     }
 
     .routing-node {
-      fill: #f59e0b !important;
-      stroke: #d97706 !important;
+      fill: #fff7ed !important;
+      stroke: #f97316 !important;
       stroke-width: 2 !important;
     }
 
     .flow-start-node {
-      fill: #0066cc !important;
-      stroke: #004499 !important;
+      fill: #eff6ff !important;
+      stroke: #2563eb !important;
       stroke-width: 2 !important;
     }
 
     .outcome-node {
-      fill: #8b5cf6 !important;
+      fill: #4c1d95 !important;
       stroke: #7c3aed !important;
       stroke-width: 2 !important;
     }
@@ -527,9 +579,16 @@
     }
 
     .decision-node {
-      fill: #cbd5e1 !important;
-      stroke: #94a3b8 !important;
+      fill: #f9fafb !important;
+      stroke: #cbd5e1 !important;
+      stroke-width: 1.5 !important;
+    }
+
+    /* Subtle hover emphasis for nodes */
+    .node:hover rect {
+      stroke: #111827;
       stroke-width: 2 !important;
+      fill: #f3f4f6;
     }
 
     /* Flow-specific highlighting */
@@ -1592,14 +1651,17 @@
 
 <div id="container">
   
-  <div id="map-container">
+    <div id="map-container">
     <div id="map"></div>
 
     <!-- Start Tour Button -->
     <button id="startTourBtn" class="tour-btn" style="position: absolute; top: 50px; right: 16px; z-index: 1200; background: #FFD600; color: #222; font-weight: bold; border: none; border-radius: 6px; padding: 6px 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.12); cursor: pointer; font-size: 12px;">Start Tour</button>
 
-     <div id="map-legend" class="legend">
-      <h4>Legend</h4>
+    <div id="map-legend" class="legend">
+      <div id="legend-toggle" class="legend-toggle">
+        <span>Decision Types</span>
+        <span class="chevron">▾</span>
+      </div>
       <div id="legend-content"></div>
     </div>
     
@@ -1646,6 +1708,14 @@
         <button id="toggleMapFlowchartFlowchart" onclick="console.log('Flowchart button clicked'); if(typeof window.switchToFlowchart === 'function') { console.log('Calling switchToFlowchart'); window.switchToFlowchart(); } else { console.error('switchToFlowchart not found'); }">Show Flowchart</button>
       </div>
     </div>
+
+    <!-- Origin school dropdown overlayed on the map -->
+    <div id="map-origin-select-container" style="position:absolute; top: 10px; left: 220px; z-index: 1000; background:white; padding:4px 8px; border-radius:4px; box-shadow:0 1px 4px rgba(0,0,0,0.25); font-size:11px;">
+      <label for="mapOriginSchoolSelect" style="margin-right:4px;">School:</label>
+      <select id="mapOriginSchoolSelect" style="font-size:11px; padding:2px 4px; max-width:220px;">
+        <option value="">-- Select School --</option>
+      </select>
+    </div>
   </div>
 
   <!-- 👇 Flowchart Container - Centered with Flexbox -->
@@ -1656,7 +1726,11 @@
           <select id="mainFlowchartSchoolSelect">
             <option value="">-- Select School --</option>
           </select>
-             <span style="position: relative; display: flex; align-items: center;">
+          <button id="flowchartShowOnMapBtn"
+                  style="margin-left:6px;padding:4px 8px;font-size:11px;border:1px solid #007cbf;border-radius:3px;background:#fff;color:#007cbf;cursor:pointer;">
+            Show on map
+          </button>
+          <span style="position: relative; display: flex; align-items: center;">
             <span id="flowchart-help-icon" style="display:inline-block;vertical-align:middle;cursor:pointer;">
               <svg width="16" height="16" viewBox="0 0 20 20" style="border-radius:50%;background:#007cbf;" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="10" cy="10" r="10" fill="#007cbf"/>
@@ -1684,6 +1758,9 @@
         </button>
         <button id="editFlowBoxesBtn" onclick="window.toggleFlowBoxEditMode()" style="background: #007bff; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">
           Edit Flow Boxes
+        </button>
+        <button onclick="if (typeof window.zoomFlowchartToFit === 'function') window.zoomFlowchartToFit();" style="background: #6c757d; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">
+          Zoom to Fit
         </button>
       </div>
       
@@ -1779,7 +1856,7 @@
                    <summary class="custom-summary">
   <span class="summary-text">
               <span style="display: flex; align-items: center; gap: 8px; width: 100%; justify-content: space-between;">
-                <strong>Model Output: Impact Analysis</strong>
+                <strong>Step 2: Model Output: Impact Analysis</strong>
                 <span style="position: relative; display: flex; align-items: center;">
                   <span id="model-output-help-icon" style="display:inline-block;vertical-align:middle;cursor:pointer;">
                     <svg width="18" height="18" viewBox="0 0 20 20" style="border-radius:50%;background:#007cbf;" xmlns="http://www.w3.org/2000/svg">

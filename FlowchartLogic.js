@@ -248,35 +248,30 @@ function initializeFlowchartData() {
   const flowchartData = {
       nodes: [
         // FLOW 1 - MAIN DECISION TREE (Centered) - Updated with saved layout positions
-        { id: "START", label: "START HERE", ...getPos("START", -351.5224304199219, 2.6905438899993896), type: "start" },
+        { id: "START", label: "START HERE", ...getPos("START", -247.00234985351562, 8.593657493591309), type: "start" },
         
         // Flow 1 Decision Nodes (Vertical stack)
-        { id: "F1_UTIL1", label: "Current enrollment or utilization\nbelow respective threshold", ...getPos("F1_UTIL1", -150.195556640625, -0.011830427683889866), thresholdKey: "utilSlider", flow: 1 },
-        { id: "F1_UTIL2", label: "Current utilization rate\nabove threshold?", ...getPos("F1_UTIL2", -150.195556640625, -97.29730224609375), thresholdKey: "utilHighSlider", flow: 1 },
-        { id: "F1_GROWTH2", label: "-N/A-Projected enrollment\ngrowth above threshold?", ...getPos("F1_GROWTH2", -151.3953399658203, -196.53440856933594), thresholdKey: "growthSlider", flow: 1 },
-        { id: "F1_DIST", label: "Distance to\nUnderutilized Schools", ...getPos("F1_DIST", -159.65386962890625, 110.78551483154297), thresholdKey: "distSlider", flow: 1 },
-        { id: "F1_GROWTH", label: "Projected enrollment growth\n above threshold?", ...getPos("F1_GROWTH", -161.0050506591797, 216.17811584472656), thresholdKey: "growthSlider", flow: 1 },
-        
-        // Flow Routing Nodes (Horizontal spread)
-        { id: "TO_FLOW2", label: "Capacity Increase", ...getPos("TO_FLOW2", 52.85620880126953, -138.92300415039062), type: "routing", targetFlow: 2 },
-        { id: "TO_FLOW3", label: "Building Improvement", ...getPos("TO_FLOW3", 50.530696868896484, -0.057380907237529755), type: "routing", targetFlow: 3 },
-        { id: "TO_FLOW4", label: "Consolidation", ...getPos("TO_FLOW4", 58.2057991027832, 293.67974853515625), type: "routing", targetFlow: 4 },
+        { id: "F1_UTIL1", label: "Current enrollment or\nutilization below?", ...getPos("F1_UTIL1", -33.21879196166992, 8.875520706176758), thresholdKey: "utilSlider", flow: 1 },
+        { id: "F1_UTIL2", label: "Current\nutilization rate above?", ...getPos("F1_UTIL2", -35.97391891479492, -88.93140411376953), thresholdKey: "utilHighSlider", flow: 1 },
+        { id: "F1_GROWTH2", label: "-N/A-Projected enrollment\ngrowth above?", ...getPos("F1_GROWTH2", -34.59635543823242, -188.1158905029297), thresholdKey: "growthSlider", flow: 1 },
+        { id: "F1_DIST", label: "Distance to\nwelcoming schools", ...getPos("F1_DIST", -35.97391891479492, 108.06000518798828), thresholdKey: "distSlider", flow: 1 },
+        { id: "F1_GROWTH", label: "Projected enrollment growth above?", ...getPos("F1_GROWTH", -37.351478576660156, 212.75474548339844), thresholdKey: "growthSlider", flow: 1 },
         
         // FLOW 2 - BUILDING ADDITION (Left column) - Updated with saved layout positions
         { id: "F2_ATTENDANCE", label: "Attendance area enrollment above", ...getPos("F2_ATTENDANCE", 223.63880920410156, -132.1666717529297), thresholdKey: "attendanceAreaEnrollmentSlider", flow: 2 },
         { id: "F2_EXPAND", label: "Property has\nspace to expand?", ...getPos("F2_EXPAND", 223.63880920410156, -225.6972198486328), thresholdKey: "siteCapacitySlider", flow: 2 },
-        { id: "F2_FAC", label: "Composite Building Score\nabove threshold?", ...getPos("F2_FAC", 417.989013671875, -216.43138122558594), thresholdKey: "buildSlider", flow: 2 },
-        { id: "F2_EDU1", label: "Educational Adequacy\nabove threshold?", ...getPos("F2_EDU1", 225.22109985351562, -312.5646667480469), thresholdKey: "progSlider", flow: 2 },
-        { id: "F2_EDU2", label: "Educational Adequacy\nabove threshold?", ...getPos("F2_EDU2", 419.5743713378906, -313.1373291015625), thresholdKey: "progSlider", flow: 2 },
+        { id: "F2_FAC", label: "Composite Building Score\nabove?", ...getPos("F2_FAC", 417.989013671875, -216.43138122558594), thresholdKey: "buildSlider", flow: 2 },
+        { id: "F2_EDU1", label: "Educational Adequacy\nabove?", ...getPos("F2_EDU1", 225.22109985351562, -312.5646667480469), thresholdKey: "progSlider", flow: 2 },
+        { id: "F2_EDU2", label: "Educational Adequacy\nabove?", ...getPos("F2_EDU2", 419.5743713378906, -313.1373291015625), thresholdKey: "progSlider", flow: 2 },
         { id: "F2_OUT1", label: "Building\nAddition", ...getPos("F2_OUT1", 227.774658203125, -396.8319396972656), type: "outcome", flow: 2 },
         { id: "F2_OUT2", label: "Policy Solution\nfor Overcrowding", ...getPos("F2_OUT2", 417.989013671875, -130.82284545898438), type: "outcome", flow: 2 },
         { id: "F2_OUT3", label: "Building Replacement", ...getPos("F2_OUT3", 593.16943359375, -313.1373291015625), type: "outcome", flow: 2 },
         { id: "F2_OUT4", label: "Building Addition\nwith Capital Investment", ...getPos("F2_OUT4", 418.78167724609375, -397.95318603515625), type: "outcome", flow: 2 },
         
         // FLOW 3 - MAINTENANCE/INVESTMENT (Center column) - Updated with saved layout positions
-        { id: "F3_FAC_ABOVE", label: "Composite Building Score\nabove threshold?", ...getPos("F3_FAC_ABOVE", 220.6871337890625, -0.8997395038604736), thresholdKey: "buildAboveSlider", flow: 3 },
-        { id: "F3_FAC_BELOW", label: "Composite Building Score\nbelow threshold?", ...getPos("F3_FAC_BELOW", 406.35528564453125, 1.3768327236175537), thresholdKey: "buildBelowSlider", flow: 3 },
-        { id: "F3_EDU1", label: "Educational Adequacy\nabove threshold?", ...getPos("F3_EDU1", 216.475341796875, 87.54791259765625), thresholdKey: "progSlider", flow: 3 },
+        { id: "F3_FAC_ABOVE", label: "Composite Building Score\nabove?", ...getPos("F3_FAC_ABOVE", 220.6871337890625, -0.8997395038604736), thresholdKey: "buildAboveSlider", flow: 3 },
+        { id: "F3_FAC_BELOW", label: "Composite Building Score\nbelow?", ...getPos("F3_FAC_BELOW", 406.35528564453125, 1.3768327236175537), thresholdKey: "buildBelowSlider", flow: 3 },
+        { id: "F3_EDU1", label: "Educational Adequacy\nabove?", ...getPos("F3_EDU1", 216.475341796875, 87.54791259765625), thresholdKey: "progSlider", flow: 3 },
         { id: "F3_EDU2", label: "Below 50% percentile EA or\nsafety/security issues?", ...getPos("F3_EDU2", 405.512939453125, 88.98212432861328), flow: 3 },
         { id: "F3_OUT1", label: "Targeted Capital\nInvestment", ...getPos("F3_OUT1", 584.0929565429688, 40.96768569946289), type: "outcome", flow: 3 },
         { id: "F3_OUT2", label: "Standard\nMaintenance", ...getPos("F3_OUT2", 581.5658569335938, 112.56816864013672), type: "outcome", flow: 3 },
@@ -284,15 +279,15 @@ function initializeFlowchartData() {
         { id: "F3_OUT4", label: "Building Replacement", ...getPos("F3_OUT4", 215.6329803466797, 171.7837677001953), type: "outcome", flow: 3 },
         
         // FLOW 4 - CONSOLIDATION/CLOSURE (Right column) - Updated with saved layout positions
-        { id: "F4_INVEST", label: "Investments over past 5\n years exceed threshold?", ...getPos("F4_INVEST", 238.26861572265625, 290.3452453613281), thresholdKey: "recentInvestSlider", flow: 4 },
-        { id: "F4_EDU1", label: "Educational Adequacy\nabove threshold?", ...getPos("F4_EDU1", 239.38011169433594, 379.26513671875), thresholdKey: "progSlider", flow: 4 },
-        { id: "F4_FAC1", label: "Composite Building Score\nabove threshold?", ...getPos("F4_FAC1", 435.00390625, 375.9306640625), thresholdKey: "buildFlow4Slider", flow: 4 },
-        { id: "F4_FAC2", label: "Composite Building Score\nabove threshold?", ...getPos("F4_FAC2", 240.54241943359375, 472.6531677246094), thresholdKey: "buildFlow4Slider", flow: 4 },
-        { id: "F4_DIST", label: "Within distance threshold\n of Underutilized School", ...getPos("F4_DIST", 237.98886108398438, 565.8578491210938), thresholdKey: "elementaryDistanceSlider", flow: 4 },
-        { id: "F4_OUT1", label: "Welcoming\nSchool", ...getPos("F4_OUT1", 436.11541748046875, 285.89923095703125), type: "outcome", flow: 4 },
-        { id: "F4_OUT2", label: "Welcoming School with\nCapital Investment", ...getPos("F4_OUT2", 433.33575439453125, 470.099609375), type: "outcome", flow: 4 },
-        { id: "F4_OUT3", label: "Closure (Goes\n to Welcoming School)", ...getPos("F4_OUT3", 54.13298416137695, 560.7507934570312), type: "outcome", flow: 4 },
-        { id: "F4_OUT4", label: "Welcoming School\n with Building Replacement", ...getPos("F4_OUT4", 432.0589599609375, 562.0275268554688), type: "outcome", flow: 4 },
+        { id: "F4_INVEST", label: "Investments over past 5\nyears above?", ...getPos("F4_INVEST", 394.4226379394531, 291.5306091308594), thresholdKey: "recentInvestSlider", flow: 4 },
+        { id: "F4_EDU1", label: "Educational Adequacy\nabove?", ...getPos("F4_EDU1", 393.82550048828125, 387.7051696777344), thresholdKey: "progSlider", flow: 4 },
+        { id: "F4_FAC1", label: "Composite Building Score\nabove?", ...getPos("F4_FAC1", 580.3935546875, 382.4497375488281), thresholdKey: "buildFlow4Slider", flow: 4 },
+        { id: "F4_FAC2", label: "Composite Building Score\nabove?", ...getPos("F4_FAC2", 397.1777648925781, 480.25665283203125), thresholdKey: "buildFlow4Slider", flow: 4 },
+        { id: "F4_DIST", label: "Within distance threshold\n of Welcoming School", ...getPos("F4_DIST", 395.8002014160156, 583.5738525390625), thresholdKey: "elementaryDistanceSlider", flow: 4 },
+        { id: "F4_OUT1", label: "Welcoming\nSchool", ...getPos("F4_OUT1", 579.0159912109375, 290.1530456542969), type: "outcome", flow: 4 },
+        { id: "F4_OUT2", label: "Welcoming School with\nCapital Investment", ...getPos("F4_OUT2", 584.5262451171875, 483.01177978515625), type: "outcome", flow: 4 },
+        { id: "F4_OUT3", label: "Closure (Goes\n to Welcoming School)", ...getPos("F4_OUT3", 213.96197509765625, 578.0635986328125), type: "outcome", flow: 4 },
+        { id: "F4_OUT4", label: "Welcoming School\n with Building Replacement", ...getPos("F4_OUT4", 585.90380859375, 582.1962890625), type: "outcome", flow: 4 },
       ],
       links: [
                         // FLOW 1 LINKS
@@ -300,16 +295,15 @@ function initializeFlowchartData() {
                         { source: "F1_UTIL1", target: "F1_DIST", label: "Yes" },
                         { source: "F1_UTIL1", target: "F1_UTIL2", label: "No" },
                         { source: "F1_UTIL2", target: "F1_GROWTH2", label: "Yes" },
-                        { source: "F1_UTIL2", target: "TO_FLOW3", label: "No" },
-                        { source: "F1_GROWTH2", target: "TO_FLOW2", label: "Yes" },
-                        { source: "F1_GROWTH2", target: "TO_FLOW3", label: "No" },
+                        { source: "F1_UTIL2", target: "F3_FAC_ABOVE", label: "No" },
+                        { source: "F1_GROWTH2", target: "F2_ATTENDANCE", label: "Yes" },
+                        { source: "F1_GROWTH2", target: "F3_FAC_ABOVE", label: "No" },
                         { source: "F1_DIST", target: "F1_GROWTH", label: "Yes" },
-                        { source: "F1_DIST", target: "TO_FLOW3", label: "No" },
-                        { source: "F1_GROWTH", target: "TO_FLOW3", label: "Yes" },
-                        { source: "F1_GROWTH", target: "TO_FLOW4", label: "No" },
+                        { source: "F1_DIST", target: "F3_FAC_ABOVE", label: "No" },
+                        { source: "F1_GROWTH", target: "F3_FAC_ABOVE", label: "Yes" },
+                        { source: "F1_GROWTH", target: "F4_INVEST", label: "No" },
         
         // FLOW 2 LINKS
-        { source: "TO_FLOW2", target: "F2_ATTENDANCE" },
         { source: "F2_ATTENDANCE", target: "F2_EXPAND", label: "Yes" },
         { source: "F2_ATTENDANCE", target: "F2_OUT2", label: "No" }, // Direct to POLICY DECISIONS
         { source: "F2_EXPAND", target: "F2_FAC", label: "Yes" },
@@ -322,7 +316,6 @@ function initializeFlowchartData() {
         { source: "F2_EDU2", target: "F2_OUT3", label: "No" },
         
         // FLOW 3 LINKS
-        { source: "TO_FLOW3", target: "F3_FAC_ABOVE" },
         { source: "F3_FAC_ABOVE", target: "F3_FAC_BELOW", label: "Yes" },
         { source: "F3_FAC_ABOVE", target: "F3_EDU1", label: "No" },
         { source: "F3_FAC_BELOW", target: "F3_OUT1", label: "Yes" },
@@ -333,7 +326,6 @@ function initializeFlowchartData() {
         { source: "F3_EDU2", target: "F3_OUT1", label: "No" },
         
         // FLOW 4 LINKS
-        { source: "TO_FLOW4", target: "F4_INVEST" },
         { source: "F4_INVEST", target: "F4_OUT1", label: "Yes" },
         { source: "F4_INVEST", target: "F4_EDU1", label: "No" },
         { source: "F4_EDU1", target: "F4_FAC1", label: "Yes" },
@@ -365,7 +357,28 @@ function populateMainFlowchartDropdown() {
       return;
     }
 
-    const previousValue = select.value;
+    // Try to preserve any selection that may have come from other parts of the app
+    // (e.g., the map dropdown or a previously chosen origin).
+    let previousValue = select.value;
+    try {
+      const mapOriginSelect = document.getElementById('mapOriginSchoolSelect');
+      if ((!previousValue || previousValue === "") && mapOriginSelect && mapOriginSelect.value) {
+        // mapOriginSelect now stores UniqueID as its value; convert to name
+        const uid = mapOriginSelect.value.toString().trim();
+        const rowForUid = schoolData.find(r => {
+          const rowUid = (r.UniqueID || r["UniqueID"] || r["Unique Id"] || "").toString().trim();
+          return rowUid === uid;
+        });
+        if (rowForUid && rowForUid["Building Name"]) {
+          previousValue = rowForUid["Building Name"];
+        }
+      }
+      if ((!previousValue || previousValue === "") && window.currentOriginName) {
+        previousValue = window.currentOriginName;
+      }
+    } catch (syncErr) {
+      console.warn("⚠️ Unable to read existing selection for flowchart dropdown sync:", syncErr);
+    }
 
     // Build sorted list of building names
     const names = schoolData
@@ -385,6 +398,15 @@ function populateMainFlowchartDropdown() {
     // Restore previous selection if still present
     if (previousValue && names.includes(previousValue)) {
       select.value = previousValue;
+
+      // If this is the first time we are syncing from an external selection
+      // (e.g., user started by choosing a school on the map), trigger the
+      // change handler once so the flowchart + info panel update immediately.
+      if (!window.flowchartDropdownSyncedOnce) {
+        const evt = new Event('change', { bubbles: true });
+        select.dispatchEvent(evt);
+        window.flowchartDropdownSyncedOnce = true;
+      }
     }
 
     console.log(`✅ Populated mainFlowchartSchoolSelect with ${names.length} schools`);
@@ -488,14 +510,6 @@ function renderFlowchart() {
       let rx = 6;
       let ry = 6;
       
-      // Make the first utilization node bigger to fit the longer text
-      if (d.id === "F1_UTIL1") {
-        width = 220;
-        height = 100;
-        x = -110;
-        y = -50;
-      }
-      
       if (d.type === "start") {
         nodeClass = "start-node";
         width = 150;
@@ -562,11 +576,11 @@ function renderFlowchart() {
             formatted = formatSliderValue(d.thresholdKey, rawVal, selectedSchool);
           }
           
-          dynamicNumber = `<span class="dynamic-number" style="background:#fff;padding:4px 0;border-top:1px solid #ddd;display:block;text-align:center;font-weight:bold;position:absolute;left:-2px;right:-2px;bottom:0;width:calc(100% + 4px);box-sizing:border-box;">${formatted}</span>`;
+          dynamicNumber = `<span class="dynamic-number">${formatted}</span>`;
           console.log("🔍 Initial text for", d.id, ":", mainText, "Dynamic number:", dynamicNumber);
         } else {
           console.warn("⚠️ Initial render - Threshold value undefined for", d.id, "key:", key);
-          dynamicNumber = `<span class="dynamic-number" style="background:#fff;padding:4px 0;border-top:1px solid #ddd;display:block;text-align:center;font-weight:bold;position:absolute;left:-2px;right:-2px;bottom:0;width:calc(100% + 4px);box-sizing:border-box;">undefined</span>`;
+          dynamicNumber = `<span class="dynamic-number">undefined</span>`;
         }
       }
       
@@ -607,6 +621,68 @@ function renderFlowchart() {
 
 // ✅ Load school data
 function loadSchoolData() {
+  // Prefer the already-processed decisionLogic.schoolData if available,
+  // so we reuse the same filters and joined distance-to-welcoming values.
+  if (window.decisionLogic && Array.isArray(window.decisionLogic.schoolData) && window.decisionLogic.schoolData.length > 0) {
+    schoolData = window.decisionLogic.schoolData;
+    console.log("📊 Using decisionLogic.schoolData for flowchart:", schoolData.length, "schools");
+
+    // Make updateFlowForSchool available globally
+    window.updateFlowForSchool = updateFlowForSchool;
+    window.schoolData = schoolData;
+
+    // Ensure thresholds exist (mirror DecisionLogic defaults if needed)
+    window.thresholds = window.thresholds || {
+      enrollmentThreshold: 200,
+      utilization: 0.60,
+      utilizationHigh: 1.00,
+      enrollmentGrowth: 0,
+      projectedUtilization: 1.00,
+      distanceUnderutilized: 3.5,
+      buildingThreshold: 1.5,
+      adequateProgramsMin: 50,
+      attendanceAreaEnrollment: 80,
+      siteCapacity: "Yes",
+      recentInvestments: 5,
+      // School-level enrollment thresholds
+      elementaryEnrollment: 220,
+      k8Enrollment: 360,
+      middleEnrollment: 500,
+      highEnrollment: 700,
+      k12Enrollment: 600,
+      // School-level distance thresholds
+      elementaryDistance: 3.5,
+      k8Distance: 3.5,
+      middleDistance: 5.0,
+      highDistance: 7.0,
+      k12Distance: 6.0
+    };
+
+    // Force update thresholds from sliders if they exist
+    if (typeof document !== 'undefined') {
+      const utilSlider = document.getElementById('utilSlider');
+      const utilHighSlider = document.getElementById('utilHighSlider');
+      const growthSlider = document.getElementById('growthSlider');
+      
+      if (utilSlider) window.thresholds.utilization = parseFloat(utilSlider.value) / 100;
+      if (utilHighSlider) window.thresholds.utilizationHigh = parseFloat(utilHighSlider.value) / 100;
+      if (growthSlider) window.thresholds.enrollmentGrowth = parseFloat(growthSlider.value) / 100;
+    }
+    
+    FlowUtils.updateNodeLabels();
+    
+    // Force refresh node labels to ensure correct display
+    setTimeout(() => {
+      FlowUtils.updateNodeLabels();
+      console.log("🔄 Node labels refreshed with thresholds:", window.thresholds);
+    }, 100);
+
+    // Populate the main page flowchart dropdown if present
+    populateMainFlowchartDropdown();
+    return;
+  }
+
+  // Fallback: load directly from CSV (iframe/standalone contexts)
   Papa.parse("./Decision Data Export.csv", {
     download: true,
     header: true,
@@ -624,9 +700,8 @@ function loadSchoolData() {
         return shouldInclude;
       });
       
-      console.log(`📊 Filtered school data for flowchart: ${res.data.length} total schools → ${schoolData.length} included schools`);
+      console.log(`📊 Filtered school data for flowchart (fallback CSV load): ${res.data.length} total schools → ${schoolData.length} included schools`);
       console.log("🔍 Sample school data:", schoolData[0]);
-      console.log("🔍 Stober Elementary data:", schoolData.find(r => r["Building Name"] === "Stober Elementary"));
       
       // Make updateFlowForSchool available globally
       window.updateFlowForSchool = updateFlowForSchool;
@@ -933,11 +1008,11 @@ FlowUtils.updateNodeLabels = function (selectedSchoolData = null) {
         } else {
           formatted = formatSliderValue(d.thresholdKey, rawVal, selectedSchoolData);
         }
-        dynamicNumber = `<span class=\"dynamic-number\" style=\"background:#fff;padding:4px 0;border-top:1px solid #ddd;display:block;text-align:center;font-weight:bold;position:absolute;left:-2px;right:-2px;bottom:0;width:calc(100% + 4px);box-sizing:border-box;\">${formatted}</span>`;
+        dynamicNumber = `<span class=\"dynamic-number\">${formatted}</span>`;
         console.log("🔍 Final text for", d.id, ":", mainText, "Dynamic number:", dynamicNumber);
       } else {
         console.warn("⚠️ Threshold value undefined for", d.id, "thresholdKey:", thresholdKey);
-        dynamicNumber = `<span class=\"dynamic-number\" style=\"background:#fff;padding:4px 0;border-top:1px solid #ddd;display:block;text-align:center;font-weight:bold;position:absolute;left:-2px;right:-2px;bottom:0;width:calc(100% + 4px);box-sizing:border-box;\">undefined</span>`;
+        dynamicNumber = `<span class=\"dynamic-number\">undefined</span>`;
       }
     }
     
@@ -947,9 +1022,21 @@ FlowUtils.updateNodeLabels = function (selectedSchoolData = null) {
       text = `<div style="display: flex; align-items: center; justify-content: center; height: 100%; width: 100%;">${mainText}</div>`;
     } else {
       // Complex structure with dynamic numbers for decision nodes (gray nodes)
+      // Add a small clickable icon for the F1_DIST node to show nearby schools
+      let extraControl = "";
+      if (d.id === "F1_DIST") {
+        extraControl = `
+          <button type="button"
+                  class="welcoming-node-btn"
+                  onclick="window.handleWelcomingNodeClick && window.handleWelcomingNodeClick()"
+                  style="margin-top:2px; align-self:center; padding:1px 4px; font-size:9px; border:1px solid #007cbf; border-radius:10px; background:#ffffff; color:#007cbf; cursor:pointer;">
+            nearby ▾
+          </button>`;
+      }
       text = `<div style="position: relative; width: 100%; height: 100%; display: flex; flex-direction: column;">
              <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding-bottom: 25px;">${mainText}</div>
         ${dynamicNumber}
+        ${extraControl}
       </div>`;
     }
     foreign
@@ -1143,24 +1230,24 @@ function evaluatePath(row, t) {
     if (decisions.dist === "Yes") {
       path.push("F1_GROWTH");
       if (decisions.growth === "Yes") {
-        path.push("TO_FLOW3");
+        path.push("F3_FAC_ABOVE");
         currentFlow = 3;
       } else {
-        path.push("TO_FLOW4");
+        path.push("F4_INVEST");
         currentFlow = 4;
       }
     } else {
-      path.push("TO_FLOW3");
+      path.push("F3_FAC_ABOVE");
       currentFlow = 3;
     }
   } else {
     // School does NOT meet both criteria (above at least one threshold)
     path.push("F1_UTIL2");
     if (decisions.util2 === "Yes") {
-      path.push("TO_FLOW2");
+      path.push("F2_ATTENDANCE");
       currentFlow = 2;
     } else {
-      path.push("TO_FLOW3");
+      path.push("F3_FAC_ABOVE");
       currentFlow = 3;
     }
   }
@@ -1300,24 +1387,41 @@ function highlightFlow(path, decisions, currentFlow) {
       visibleLinks.add(`${source}-${target}`);
     }
     
-    // Restore full opacity to visible nodes with smooth transition
+    // Map each node in the path to its index so we can stagger the animation
+    const pathIndex = {};
+    path.forEach((id, i) => {
+      pathIndex[id] = i;
+    });
+
+    const stepDelay = 80; // ms per step – small stagger so early nodes appear first
+
+    // Restore full opacity to visible nodes with smooth, slightly staggered transition
     d3.selectAll(".node")
       .filter(d => visibleNodes.has(d.id))
       .transition()
+      .delay(d => (pathIndex[d.id] || 0) * stepDelay)
       .duration(400)
       .style("opacity", 1);
     
-    // Restore full opacity to visible links with smooth transition
+    // Restore full opacity to visible links with matching stagger
     d3.selectAll(".link")
       .filter(d => visibleLinks.has(`${d.source}-${d.target}`))
       .transition()
+      .delay(d => {
+        const i = pathIndex[d.source];
+        return (i || 0) * stepDelay;
+      })
       .duration(400)
       .style("opacity", 1);
     
-    // Restore full opacity to visible link labels with smooth transition
+    // Restore full opacity to visible link labels with matching stagger
     d3.selectAll(".link-label")
       .filter(d => d && d.source && d.target && visibleLinks.has(`${d.source}-${d.target}`))
       .transition()
+      .delay(d => {
+        const i = pathIndex[d.source];
+        return (i || 0) * stepDelay;
+      })
       .duration(400)
       .style("opacity", 1);
     
@@ -1808,7 +1912,6 @@ window.exportPositionsAsCode = function() {
     // Node order matching initializeFlowchartData
     const nodeOrder = [
       "START", "F1_UTIL1", "F1_UTIL2", "F1_GROWTH2", "F1_DIST", "F1_GROWTH",
-      "TO_FLOW2", "TO_FLOW3", "TO_FLOW4",
       "F2_ATTENDANCE", "F2_EXPAND", "F2_FAC", "F2_EDU1", "F2_EDU2", "F2_OUT1", "F2_OUT2", "F2_OUT3", "F2_OUT4",
       "F3_FAC_ABOVE", "F3_FAC_BELOW", "F3_EDU1", "F3_EDU2", "F3_OUT1", "F3_OUT2", "F3_OUT3", "F3_OUT4",
       "F4_INVEST", "F4_EDU1", "F4_FAC1", "F4_FAC2", "F4_DIST", "F4_OUT1", "F4_OUT2", "F4_OUT3", "F4_OUT4"
@@ -2017,6 +2120,8 @@ function updateFlowchartSchoolInfo(name) {
   const row = schoolData.find(r => r["Building Name"] === name);
   if (!row) {
     infoDiv.innerHTML = "";
+    const existingList = document.getElementById("flowchart-welcoming-list");
+    if (existingList) existingList.innerHTML = "";
     return;
   }
   // Get enrollment from Map_Export.csv if available
@@ -2103,18 +2208,222 @@ function updateFlowchartSchoolInfo(name) {
     School Type: <strong>${schoolType}</strong> &nbsp; | &nbsp; Utilization: <strong>${util}</strong> &nbsp; | &nbsp; Enrollment: <strong>${enroll}</strong> &nbsp; | &nbsp; Growth: <strong>${growth}</strong>
   </div>
   <div style='font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif; font-size:11px; margin-bottom:1px; line-height:1.3;'>
-    Educational Adequacy: <strong>${educationalAdequacy}</strong> &nbsp; | &nbsp; Building Score: <strong>${buildingScore}</strong> &nbsp; | &nbsp; Attendance Area Enrollment: <strong>${attendanceAreaEnrollment}</strong> &nbsp; | &nbsp; Site capacity for building expansion?: <strong>${siteCapacity}</strong> &nbsp; | &nbsp; Distance: <strong>${distanceUnderutilized}</strong>
+    Educational Adequacy: <strong>${educationalAdequacy}</strong> &nbsp; | &nbsp; Building Score: <strong>${buildingScore}</strong> &nbsp; | &nbsp; Attendance Area Enrollment: <strong>${attendanceAreaEnrollment}</strong> &nbsp; | &nbsp; Site capacity for building expansion?: <strong>${siteCapacity}</strong> &nbsp; | &nbsp; Distance to welcoming school: <strong>${distanceUnderutilized}</strong>
+    &nbsp; <button type="button" class="welcoming-schools-btn" data-school-name="${name}" style="margin-left:4px;padding:2px 6px;font-size:10px;border:1px solid #007cbf;border-radius:3px;background:#fff;color:#007cbf;cursor:pointer;">
+      Nearby schools
+    </button>
   </div>
   <div style='font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif; font-size:11px; line-height:1.3;'>
     Departmental Deficiency: <strong>${departmentalDeficiency}</strong> &nbsp; | &nbsp; Below 50% Percentile EA: <strong>${below50PercentileEA}</strong> &nbsp; | &nbsp; Recent Investments: <strong>${recentInvestments}</strong>
   </div>`;
+
+  // Ensure welcoming schools list container exists just below the info div
+  let listDiv = document.getElementById("flowchart-welcoming-list");
+  if (!listDiv && infoDiv && infoDiv.parentNode) {
+    listDiv = document.createElement("div");
+    listDiv.id = "flowchart-welcoming-list";
+    listDiv.style.margin = "4px 0 8px 0";
+    listDiv.style.fontFamily = "'Franklin Gothic Book', 'Franklin Gothic', 'Arial Narrow', Arial, sans-serif";
+    listDiv.style.fontSize = "11px";
+    infoDiv.insertAdjacentElement("afterend", listDiv);
+  }
+
+  // Wire the button to show nearby welcoming schools
+  const btn = infoDiv.querySelector(".welcoming-schools-btn");
+  if (btn) {
+    // Reset expanded state whenever a new school is selected
+    btn.setAttribute("data-expanded", "false");
+    btn.textContent = "Nearby schools ▾";
+
+    btn.addEventListener("click", function() {
+      const schoolName = this.getAttribute("data-school-name");
+      const listDivLocal = document.getElementById("flowchart-welcoming-list");
+      if (!listDivLocal) return;
+
+      const isExpanded = this.getAttribute("data-expanded") === "true";
+
+      if (isExpanded) {
+        // Collapse: hide the table but keep its content so we can re‑show quickly
+        listDivLocal.style.display = "none";
+        this.setAttribute("data-expanded", "false");
+        this.textContent = "Nearby schools ▾";
+      } else {
+        // Expand: (re)build the table and show it
+        showNearbyWelcomingSchools(schoolName);
+        listDivLocal.style.display = "block";
+        this.setAttribute("data-expanded", "true");
+        this.textContent = "Nearby schools ▴";
+      }
+    });
+  }
 }
+
+// Compute and render nearby welcoming schools based on SchooltoSchoolDistances.csv
+function showNearbyWelcomingSchools(originName) {
+  const listDiv = document.getElementById("flowchart-welcoming-list");
+  if (!listDiv) return;
+
+  if (!originName) {
+    listDiv.innerHTML = "";
+    return;
+  }
+
+  const originRow = schoolData.find(r => r["Building Name"] === originName);
+  if (!originRow) {
+    listDiv.innerHTML = "<em>No data available for this school.</em>";
+    return;
+  }
+
+  const rowsByOrigin = window.distanceToWelcomingRowsByOrigin || {};
+  const uniqueId = originRow.UniqueID || originRow["UniqueID"] || originRow["Unique Id"];
+  const originKey = uniqueId && uniqueId.toString().trim();
+
+  if (!originKey || !rowsByOrigin[originKey] || !Array.isArray(rowsByOrigin[originKey])) {
+    listDiv.innerHTML = "<em>No nearby schools found in the distance file.</em>";
+    return;
+  }
+
+  // Determine the distance threshold from the sliders based on school level
+  const thresholds = window.thresholds || (window.decisionLogic && window.decisionLogic.thresholds) || {};
+  const level = normalizeSchoolLevel(originRow["School Level"] || "");
+  let distanceThreshold;
+  if (level === "elementary") {
+    distanceThreshold = thresholds.elementaryDistance;
+  } else if (level === "k8") {
+    distanceThreshold = thresholds.k8Distance;
+  } else if (level === "middle") {
+    distanceThreshold = thresholds.middleDistance;
+  } else if (level === "high") {
+    distanceThreshold = thresholds.highDistance;
+  } else if (level === "k12") {
+    distanceThreshold = thresholds.k12Distance;
+  } else {
+    distanceThreshold = thresholds.middleDistance || 5.0;
+  }
+
+  if (!distanceThreshold || !isFinite(distanceThreshold)) {
+    listDiv.innerHTML = "<em>Distance threshold is not set.</em>";
+    return;
+  }
+
+  // Build a lookup for destination schools by UniqueID from decision data
+  const decisionRows = (window.decisionLogic && Array.isArray(window.decisionLogic.schoolData))
+    ? window.decisionLogic.schoolData
+    : schoolData;
+  const destById = new Map(
+    (decisionRows || []).map(r => {
+      const uid = (r.UniqueID || r["UniqueID"] || r["Unique Id"] || "").toString().trim();
+      return [uid, r];
+    })
+  );
+
+  const candidatesRaw = rowsByOrigin[originKey];
+  const candidates = candidatesRaw
+    .map(r => {
+      const distRaw =
+        r["Network Distance (Miles)"] ||
+        r["Network Distance"] ||
+        r["NetworkDistanceMiles"];
+      const dist = parseFloat((distRaw || "").toString().trim());
+      if (!isFinite(dist) || dist > distanceThreshold) return null;
+
+      const destPrefix =
+        r["Destination CDE Prefix"] ||
+        r["Destination CDE Prefix "] ||
+        r["DestinationCDEPrefix"];
+      const destRow = destPrefix ? destById.get(destPrefix.toString().trim()) : null;
+      const destName = (destRow && destRow["Building Name"]) || r["Destination Facility Name"] || "Unknown";
+      const destGrades = r["Destination Grades"] || (destRow && destRow["School Level"]) || "N/A";
+      const capacity = destRow ? (destRow["Capacity"] || destRow.Capacity) : null;
+      const available = destRow ? (destRow["Available Seats"] || destRow["AvailableSeats"] || destRow.AvailableSeats) : null;
+      const availableNum = available !== undefined && available !== null && available !== ""
+        ? Math.max(0, parseFloat(available.toString().replace(/,/g, "")) || 0)
+        : null;
+
+      return {
+        name: destName,
+        grades: destGrades,
+        distance: dist,
+        capacity: capacity,
+        canAbsorb: availableNum
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.distance - b.distance);
+
+  if (!candidates.length) {
+    listDiv.innerHTML = "<em>No schools within the current distance threshold.</em>";
+    return;
+  }
+
+  let html = "<div style='margin-top:2px;'><strong>Nearby schools within threshold:</strong></div>";
+  html += "<table style='width:100%;border-collapse:collapse;margin-top:2px;'>";
+  html += "<thead><tr>" +
+    "<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>Name</th>" +
+    "<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>Grades</th>" +
+    "<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>Distance (mi)</th>" +
+    "<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>Capacity</th>" +
+    "<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>Open seats</th>" +
+    "</tr></thead><tbody>";
+
+  candidates.forEach(c => {
+    const capText = c.capacity !== undefined && c.capacity !== null && c.capacity !== ""
+      ? c.capacity
+      : "N/A";
+    const absorbText = c.canAbsorb !== null && c.canAbsorb !== undefined
+      ? c.canAbsorb.toLocaleString()
+      : "N/A";
+    html += "<tr>" +
+      `<td style='border:1px solid #ccc;padding:2px 4px;'>${c.name}</td>` +
+      `<td style='border:1px solid #ccc;padding:2px 4px;'>${c.grades}</td>` +
+      `<td style='border:1px solid #ccc;padding:2px 4px;'>${c.distance.toFixed(2)}</td>` +
+      `<td style='border:1px solid #ccc;padding:2px 4px;'>${capText}</td>` +
+      `<td style='border:1px solid #ccc;padding:2px 4px;'>${absorbText}</td>` +
+      "</tr>";
+  });
+
+  html += "</tbody></table>";
+  listDiv.innerHTML = html;
+}
+
+// Expose helpers globally so other scripts can trigger them
+window.showNearbyWelcomingSchools = showNearbyWelcomingSchools;
+
+// Click handler for the F1_DIST node icon; uses the currently selected flowchart school
+window.handleWelcomingNodeClick = function() {
+  const flowchartSelect = document.getElementById('mainFlowchartSchoolSelect');
+  if (flowchartSelect && flowchartSelect.value) {
+    showNearbyWelcomingSchools(flowchartSelect.value);
+  } else {
+    console.warn("⚠️ No school selected in mainFlowchartSchoolSelect; cannot show nearby welcoming schools.");
+  }
+};
 
 // Patch the dropdown event to update info AND highlight flow, loading Map_Export.csv if needed
 const mainFlowchartSelect = document.getElementById('mainFlowchartSchoolSelect');
 if (mainFlowchartSelect) {
   mainFlowchartSelect.addEventListener('change', function() {
     const name = this.value;
+
+    // Keep the map-view dropdown in sync when the main flowchart dropdown changes
+    try {
+      const mapOriginSelect = document.getElementById('mapOriginSchoolSelect');
+      if (mapOriginSelect) {
+        // Convert the selected school name to its UniqueID so we can set the
+        // map dropdown, which stores UniqueID as its value.
+        let uid = "";
+        if (Array.isArray(schoolData) && name) {
+          const row = schoolData.find(r => r["Building Name"] === name);
+          if (row) {
+            uid = (row.UniqueID || row["UniqueID"] || row["Unique Id"] || "").toString().trim();
+          }
+        }
+        mapOriginSelect.value = uid || "";
+      }
+    } catch (e) {
+      console.warn("⚠️ Unable to sync mapOriginSchoolSelect from FlowchartLogic change handler:", e);
+    }
+
     // Ensure school-level info panel is updated
     loadMapExportData(() => updateFlowchartSchoolInfo(name));
 
@@ -2127,6 +2436,11 @@ if (mainFlowchartSelect) {
     // Also drive the flowchart highlight when user selects from this dropdown
     if (typeof window.updateFlowForSchool === 'function') {
       window.updateFlowForSchool(name, thresholds);
+    }
+
+    // If the nearby-schools panel is visible, update it for the newly selected school
+    if (typeof window.showNearbyWelcomingSchools === 'function' && name) {
+      window.showNearbyWelcomingSchools(name);
     }
   });
   

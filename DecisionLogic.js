@@ -44,6 +44,83 @@ window.decisionLogic = {
 document.addEventListener("DOMContentLoaded", () => {
   const self = window.decisionLogic; // Reference to our exposed object
 
+  // Load distance to welcoming schools from SchooltoSchoolDistances.csv,
+  // keyed by Origin CDE Prefix (e.g., "CO-1420-8276").
+  function loadDistanceToWelcomingMap() {
+    return new Promise((resolve) => {
+      // Cache on window to avoid re-parsing if called again
+      if (window.distanceToWelcomingMap && typeof window.distanceToWelcomingMap === "object") {
+        resolve(window.distanceToWelcomingMap);
+        return;
+      }
+
+      Papa.parse("./SchooltoSchoolDistances.csv", {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          try {
+            const map = {};
+            const rowsByOrigin = {};
+            results.data.forEach((row) => {
+              const originPrefix =
+                row["Origin CDE Prefix"] ||
+                row["Origin CDE Prefix "] ||
+                row["OriginCDEPrefix"];
+              const gradeOverlap = (
+                row["Grade Overlap"] ||
+                row["GradeOverlap"] ||
+                ""
+              )
+                .toString()
+                .toLowerCase();
+
+              if (!originPrefix) return;
+              if (gradeOverlap && gradeOverlap !== "yes") return;
+
+              const distRaw =
+                row["Network Distance (Miles)"] ||
+                row["Network Distance"] ||
+                row["NetworkDistanceMiles"];
+              const dist = parseFloat((distRaw || "").toString().trim());
+              if (!isFinite(dist)) return;
+
+              // Keep the minimum distance for each origin
+              if (map[originPrefix] === undefined || dist < map[originPrefix]) {
+                map[originPrefix] = dist;
+              }
+
+              // Preserve full rows per origin for downstream detailed listings
+              if (!rowsByOrigin[originPrefix]) {
+                rowsByOrigin[originPrefix] = [];
+              }
+              rowsByOrigin[originPrefix].push(row);
+            });
+
+            console.log(
+              "✅ Loaded distance-to-welcoming map for",
+              Object.keys(map).length,
+              "schools"
+            );
+            window.distanceToWelcomingMap = map;
+            window.distanceToWelcomingRowsByOrigin = rowsByOrigin;
+            resolve(map);
+          } catch (e) {
+            console.error(
+              "❌ Error processing SchooltoSchoolDistances.csv:",
+              e
+            );
+            resolve({}); // Fail soft – fall back to existing DistanceUnderutilizedschools values
+          }
+        },
+        error: (err) => {
+          console.error("❌ Failed to load SchooltoSchoolDistances.csv:", err);
+          resolve({}); // Fail soft
+        },
+      });
+    });
+  }
+
   function classifyRow(decision) {
     if (decision.includes("Closure")) return "Closure";
     if (decision.includes("Monitoring")) return "Monitoring";
@@ -326,6 +403,40 @@ document.addEventListener("DOMContentLoaded", () => {
     return finalDecision;
   }
 
+  function getStrategyGroupForDecision(decision) {
+    if (!decision) return "Other";
+    
+    // Prefer the shared strategy group definitions from prioritizationLogic
+    if (window.prioritizationLogic && window.prioritizationLogic.strategyGroups) {
+      const groups = window.prioritizationLogic.strategyGroups;
+      for (const groupName in groups) {
+        const group = groups[groupName];
+        if (group && Array.isArray(group.outcomes) && group.outcomes.includes(decision)) {
+          return groupName;
+        }
+      }
+    }
+    
+    // Fallback keyword-based grouping if prioritizationLogic is unavailable
+    if (decision.includes("Welcoming") || decision.includes("Closure")) {
+      return "Closure/Consolidation";
+    }
+    if (
+      decision.includes("Building Addition") ||
+      decision.includes("Overcrowding")
+    ) {
+      return "Expansion";
+    }
+    if (
+      decision.includes("Capital Investment") ||
+      decision.includes("Replacement") ||
+      decision.includes("Maintenance")
+    ) {
+      return "Maintenance/Investment";
+    }
+    return "Other";
+  }
+
   function renderTable(data) {
     console.log("📋 renderTable called with data length:", data.length);
     const summaryDiv = document.getElementById("summary");
@@ -353,14 +464,30 @@ document.addEventListener("DOMContentLoaded", () => {
     const decisionCounts = {};
     allDecisions.forEach(decision => decisionCounts[decision] = 0);
   
-    const rows = data.map(row => {
+    const rows = data.map((row, idx) => {
       const decision = row.decision || "Unknown";
       if (decisionCounts.hasOwnProperty(decision)) {
         decisionCounts[decision]++;
       } else {
         decisionCounts[decision] = 1;
       }
-      return `<tr><td class="truncate-cell" data-tooltip="${row["Building Name"]}">${row["Building Name"]}</td><td class="truncate-cell" data-tooltip="${decision}">${decision}</td></tr>`;
+
+      const schoolName = row["Building Name"] || "";
+      const schoolType = row["School Level"] || "";
+      const articulationArea =
+        row["Articulation Area"] || row["ArticulationArea"] || "";
+      const strategyGroup = getStrategyGroupForDecision(decision);
+
+      return (
+        `<tr>` +
+        `<td class="text-center">${idx + 1}</td>` +
+        `<td class="truncate-cell" data-tooltip="${schoolName}">${schoolName}</td>` +
+        `<td class="truncate-cell" data-tooltip="${schoolType}">${schoolType}</td>` +
+        `<td class="truncate-cell" data-tooltip="${articulationArea}">${articulationArea || ""}</td>` +
+        `<td class="truncate-cell" data-tooltip="${strategyGroup}">${strategyGroup}</td>` +
+        `<td class="truncate-cell" data-tooltip="${decision}">${decision}</td>` +
+        `</tr>`
+      );
     }).join("");
   
     const totalCount = Object.values(decisionCounts).reduce((sum, count) => sum + count, 0);
@@ -388,8 +515,12 @@ document.addEventListener("DOMContentLoaded", () => {
       <table class="data-table">
         <thead>
           <tr>
-            <th class="sortable-header" data-column="0" data-type="string">School</th>
-            <th class="sortable-header" data-column="1" data-type="string">Decision</th>
+            <th class="sortable-header text-center" data-column="0" data-type="number" style="width: 8%;">Rank</th>
+            <th class="sortable-header" data-column="1" data-type="string" style="width: 26%;">School Name</th>
+            <th class="sortable-header" data-column="2" data-type="string" style="width: 16%;">School Type</th>
+            <th class="sortable-header" data-column="3" data-type="string" style="width: 18%;">Articulation Area</th>
+            <th class="sortable-header" data-column="4" data-type="string" style="width: 16%;">Strategy Group</th>
+            <th class="sortable-header" data-column="5" data-type="string" style="width: 16%;">Project Type</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -457,14 +588,31 @@ document.addEventListener("DOMContentLoaded", () => {
           });
           
           console.log(`📊 Filtered school data: ${results.data.length} total schools → ${self.schoolData.length} included schools`);
-          self.recalculateEverything(); // Perform initial calculation & render tables
+
+          // Join in distance-to-welcoming values from SchooltoSchoolDistances.csv
+          loadDistanceToWelcomingMap().then((distanceMap) => {
+            if (distanceMap && typeof distanceMap === "object") {
+              self.schoolData.forEach((row) => {
+                const uniqueId = row.UniqueID || row["UniqueID"] || row["Unique Id"];
+                const key = uniqueId && uniqueId.toString().trim();
+                if (key && distanceMap[key] !== undefined) {
+                  row.DistanceUnderutilizedschools = distanceMap[key];
+                }
+              });
+              console.log("✅ Applied distance-to-welcoming values to decision data");
+            } else {
+              console.warn("⚠️ Distance map unavailable; using existing DistanceUnderutilizedschools values from Decision Data Export.csv");
+            }
+
+            self.recalculateEverything(); // Perform initial calculation & render tables
           
-          // Update flowchart dropdown with filtered data
-          if (typeof window.updateFlowchartDropdown === 'function') {
-            window.updateFlowchartDropdown();
-          }
+            // Update flowchart dropdown with filtered data
+            if (typeof window.updateFlowchartDropdown === 'function') {
+              window.updateFlowchartDropdown();
+            }
           
-          resolve(self.schoolData);   // Resolve the promise with the processed data
+            resolve(self.schoolData);   // Resolve the promise with the processed data
+          });
         },
         error: (err) => {
           console.error("❌ Failed to load decision data:", err);

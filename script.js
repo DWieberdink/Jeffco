@@ -276,17 +276,14 @@ const map = new mapboxgl.Map({
   // center and zoom will be set dynamically after loading GeoJSON
 });
 
-// Expose map globally for prioritization UI
+// Expose map and geojsonData globally for prioritization UI
 window.map = map;
+window.geojsonData = null; // Will be set when geojson is loaded
 
 let geojsonData;
 let originalGeojsonData; // Keep a copy of the original unfiltered data
 let initialDecisionData = null; // Store data if it arrives before geojson
 let mapIsReady = false; // Flag to track if the map's core is loaded
-
-// Expose map and geojsonData globally for prioritization UI
-window.map = null; // Will be set when map is created
-window.geojsonData = null; // Will be set when geojson is loaded
 let selectedEnrollment = 0;
 let odData = [];
 let selectedTypes = [];
@@ -371,11 +368,9 @@ function updateLayer() {
     map.getSource('schools').setData(updatedData);
   }
 
-  map.setPaintProperty('schools-layer', 'circle-radius',
-    showVariableRadius
-      ? ['interpolate', ['linear'], ['get', 'Capacity'], 0, 4, 1000, 20]
-      : 6
-  );
+  // Use a constant radius for all schools so dots are the same size on the map.
+  // (Capacity-based sizing was making some expansion schools appear much larger.)
+  map.setPaintProperty('schools-layer', 'circle-radius', 6);
 }
 
 // Flow filtering functions - now uses actual flow number from evaluation
@@ -467,10 +462,20 @@ function updateLegend() {
   console.log("🔄 updateLegend called, current checkbox states:", JSON.stringify(flowCheckboxStates));
   
   const legendContent = document.getElementById('legend-content');
+  const legendToggle = document.getElementById('legend-toggle');
   if (!legendContent) return;
   
   legendContent.innerHTML = '';
   legendContent.style.cssText = 'padding: 5px; line-height: 1.4; max-height: 80vh; overflow-y: auto;';
+
+  // Update the toggle label to reflect current mode (Decision Types vs Assignment View)
+  if (legendToggle) {
+    const baseLabel = showingAssignments ? 'Assignment View' : 'Decision Types';
+    const chevron = legendToggle.querySelector('span.chevron');
+    const textSpan = legendToggle.querySelector('span:not(.chevron)');
+    if (textSpan) textSpan.textContent = baseLabel;
+    if (chevron) chevron.textContent = legendToggle.parentElement.classList.contains('legend-collapsed') ? '▴' : '▾';
+  }
 
   const decisionLegendGroups = {
     "Expansion": {
@@ -496,10 +501,7 @@ function updateLegend() {
     "Assigned Students": '#FF530D'
   };
 
-  const title = document.createElement('div');
-  title.innerHTML = `<strong>${showingAssignments ? 'Assignment View' : 'Decision Types'}</strong>`;
-  title.style.cssText = 'font-size: 16px; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 2px solid #007cbf; color: #333;';
-  legendContent.appendChild(title);
+  // Title is now handled by the legend toggle header; no separate title inside content
 
   if (showingAssignments) {
     for (const [label, color] of Object.entries(assignmentLegend)) {
@@ -715,6 +717,78 @@ map.on('load', () => {
       
       initializeDropdownFilters(decisionData);
 
+      // Populate and sync the origin dropdown that appears on the map
+      try {
+        const mapOriginSelect = document.getElementById('mapOriginSchoolSelect');
+        const flowchartSelect = document.getElementById('mainFlowchartSchoolSelect');
+        if (mapOriginSelect) {
+          // Build sorted list of schools from decisionLogic.schoolData if available,
+          // otherwise from the raw decisionData passed into this function. Store the
+          // UniqueID as the option value and the Building Name as the label so we
+          // can reliably sync using IDs from the map features.
+          const sourceRows = (window.decisionLogic && Array.isArray(window.decisionLogic.schoolData) && window.decisionLogic.schoolData.length > 0)
+            ? window.decisionLogic.schoolData
+            : decisionData;
+
+          const rowsWithIds = sourceRows
+            .filter(r => {
+              const name = r["Building Name"];
+              const uid = (r.UniqueID || r["UniqueID"] || r["Unique Id"] || "").toString().trim();
+              return !!name && !!uid;
+            })
+            .sort((a, b) => {
+              const an = (a["Building Name"] || "").toString();
+              const bn = (b["Building Name"] || "").toString();
+              return an.localeCompare(bn, undefined, { numeric: true, sensitivity: 'base' });
+            });
+
+          mapOriginSelect.innerHTML = '<option value="">-- Select School --</option>';
+          rowsWithIds.forEach(row => {
+            const uid = (row.UniqueID || row["UniqueID"] || row["Unique Id"] || "").toString().trim();
+            const name = row["Building Name"];
+            const opt = document.createElement('option');
+            opt.value = uid;          // store UniqueID for reliable matching
+            opt.textContent = name;   // show human‑readable name
+            mapOriginSelect.appendChild(opt);
+          });
+
+          // Keep map dropdown selection in sync with the flowchart dropdown.
+          // When the user changes the map dropdown, look up the corresponding
+          // school by UniqueID, then drive the flowchart + map from the name.
+          mapOriginSelect.addEventListener('change', () => {
+            const selectedId = mapOriginSelect.value;
+            if (!selectedId) {
+              return;
+            }
+
+            // Find the matching row by UniqueID to recover the canonical name
+            const allRows = (window.decisionLogic && Array.isArray(window.decisionLogic.schoolData) && window.decisionLogic.schoolData.length > 0)
+              ? window.decisionLogic.schoolData
+              : decisionData;
+            const selectedRow = (allRows || []).find(r => {
+              const uid = (r.UniqueID || r["UniqueID"] || r["Unique Id"] || "").toString().trim();
+              return uid === selectedId;
+            });
+            const selectedName = selectedRow ? selectedRow["Building Name"] : "";
+
+            if (flowchartSelect && selectedName) {
+              // Update the flowchart dropdown value and fire its change handler
+              flowchartSelect.value = selectedName;
+              const evt = new Event('change', { bubbles: true });
+              flowchartSelect.dispatchEvent(evt);
+            }
+
+            // Always ensure the map reflects the newly selected origin,
+            // even if the flowchart has not been initialized yet.
+            if (selectedName && typeof window.showOnMapFromFlowchart === 'function') {
+              window.showOnMapFromFlowchart(selectedName);
+            }
+          });
+        }
+      } catch (e) {
+        console.warn("⚠️ Unable to initialize map origin dropdown:", e);
+      }
+
       // Initialize prioritization UI with school data and decisions
       if (typeof window.prioritizationUI !== 'undefined' && typeof window.prioritizationUI.initialize === 'function') {
         console.log("🎯 Initializing prioritization UI");
@@ -834,9 +908,11 @@ map.on('load', () => {
         type: 'circle',
         source: 'selected-school',
         paint: {
-          'circle-radius': 10,
+          // Slightly larger, soft, glowing halo under the selected school
+          'circle-radius': 14,
           'circle-color': '#007cbf',
-          'circle-opacity': 0.6
+          'circle-opacity': 0.35,
+          'circle-blur': 0.4
         }
       });
 
@@ -867,19 +943,158 @@ map.on('load', () => {
         }
       });
       
+      // Layer to highlight nearby destination schools within the current
+      // distance threshold for the selected origin school.
+      map.addLayer({
+        id: 'nearby-destinations-layer',
+        type: 'circle',
+        source: 'schools',
+        paint: {
+          'circle-radius': 10,
+          'circle-color': '#ffffff',
+          'circle-opacity': 0,
+          'circle-stroke-color': '#00bcd4',
+          'circle-stroke-width': 2
+        },
+        // Start with no matches; will be updated dynamically
+        filter: ['in', ['get', 'UniqueID'], ['literal', []]]
+      });
+      
       updateLegend();
 
       // Setup other map features that depend on the 'schools' source
+      // Distance/details popup for school clicks: allow closing by clicking
+      // anywhere else on the map.
       const popup = new mapboxgl.Popup({
         closeButton: false,
-        closeOnClick: false
+        closeOnClick: true
       });
 
       map.on('mouseenter', 'schools-layer', (e) => {
         map.getCanvas().style.cursor = 'pointer';
-        const coordinates = e.features[0].geometry.coordinates.slice();
-        const schoolName = e.features[0].properties['Building Name'];
+      });
+
+      map.on('mouseleave', 'schools-layer', () => {
+        map.getCanvas().style.cursor = '';
+      });
+
+      map.on('click', 'schools-layer', (e) => {
+        const feature = e.features && e.features[0];
+        if (!feature) return;
+
+        const coordinates = feature.geometry.coordinates.slice();
+        const schoolNameRaw = feature.properties['Building Name'];
+        const uniqueId = (feature.properties['UniqueID'] || "").toString().trim();
+
+        // Derive a canonical school name using DecisionLogic data when possible,
+        // so that it matches the names used in all dropdowns.
+        let schoolName = schoolNameRaw;
+        if (uniqueId && window.decisionLogic && Array.isArray(window.decisionLogic.schoolData)) {
+          const row = window.decisionLogic.schoolData.find(r => {
+            const uid = (r.UniqueID || r["UniqueID"] || r["Unique Id"] || "").toString().trim();
+            return uid === uniqueId;
+          });
+          if (row && row["Building Name"]) {
+            schoolName = row["Building Name"];
+          }
+        }
+
+        // Always sync the main landing "School" dropdown with the clicked map school,
+        // so the user sees the selected school reflected in the dropdown on the left.
+        try {
+          const landingSelect = document.getElementById('schoolSelect');
+          if (landingSelect && schoolName) {
+            const norm = (s) => (s || "").toString().trim().toLowerCase();
+            const targetNorm = norm(schoolName);
+            let matchedValue = "";
+            for (const opt of Array.from(landingSelect.options || [])) {
+              if (norm(opt.value) === targetNorm || norm(opt.textContent) === targetNorm) {
+                matchedValue = opt.value;
+                break;
+              }
+            }
+            if (matchedValue) {
+              landingSelect.value = matchedValue;
+            } else {
+              // Fall back to setting the raw name; UI may still show placeholder
+              landingSelect.value = schoolName;
+              console.warn("⚠️ Could not find matching option in #schoolSelect for", schoolName);
+            }
+          }
+        } catch (eSyncLanding) {
+          console.warn("⚠️ Unable to sync #schoolSelect from map click:", eSyncLanding);
+        }
+
+        // If there is NO origin selected yet (first interaction on landing),
+        // treat the clicked school as the origin and sync both dropdowns +
+        // flowchart so everything starts from this selection.
+        const hasExistingOrigin =
+          window.currentOriginId &&
+          window.currentOriginId.toString().trim() !== "";
+        if (!hasExistingOrigin && uniqueId && schoolName) {
+          try {
+            const flowchartSelect = document.getElementById('mainFlowchartSchoolSelect');
+            const mapOriginSelect = document.getElementById('mapOriginSchoolSelect');
+
+            // Update global origin tracking using the canonical name
+            window.currentOriginName = schoolName;
+            window.currentOriginId = uniqueId;
+
+            // Sync dropdowns
+            if (mapOriginSelect) {
+              // Map dropdown stores UniqueID as option value, so we can set it directly.
+              mapOriginSelect.value = uniqueId;
+            }
+            if (flowchartSelect) {
+              flowchartSelect.value = schoolName;
+              // Fire change so flowchart + info panel update immediately
+              const evt = new Event('change', { bubbles: true });
+              flowchartSelect.dispatchEvent(evt);
+            } else if (typeof window.showOnMapFromFlowchart === 'function') {
+              // Fallback: at least ensure map behavior updates
+              window.showOnMapFromFlowchart(schoolName);
+            }
+          } catch (syncErr) {
+            console.warn("⚠️ Unable to sync origin selection from map click:", syncErr);
+          }
+        }
+
         let popupContent = `<strong>${schoolName}</strong>`;
+
+        // If we have a current origin school, show distance from that origin
+        // to this clicked school (0 if it's the origin itself).
+        if (window.currentOriginId && window.distanceToWelcomingRowsByOrigin) {
+          const originId = window.currentOriginId.toString().trim();
+          const originName = window.currentOriginName || "origin school";
+          let distText = "N/A";
+          if (uniqueId && uniqueId === originId) {
+            distText = "0.0";
+          } else if (uniqueId) {
+            const rowsByOrigin = window.distanceToWelcomingRowsByOrigin || {};
+            const candidatesRaw = rowsByOrigin[originId];
+            if (Array.isArray(candidatesRaw)) {
+              const match = candidatesRaw.find(r => {
+                const destPrefix =
+                  r["Destination CDE Prefix"] ||
+                  r["Destination CDE Prefix "] ||
+                  r["DestinationCDEPrefix"];
+                return destPrefix && destPrefix.toString().trim() === uniqueId;
+              });
+              if (match) {
+                const distRaw =
+                  match["Network Distance (Miles)"] ||
+                  match["Network Distance"] ||
+                  match["NetworkDistanceMiles"];
+                const dist = parseFloat((distRaw || "").toString().trim());
+                if (isFinite(dist)) {
+                  distText = dist.toFixed(1);
+                }
+              }
+            }
+          }
+          popupContent += `<br><span>Distance to ${originName}: ${distText} mi</span>`;
+        }
+
         if (showingAssignments) {
           const assignedSource = map.getSource('assigned-schools');
           if (assignedSource && assignedSource._data?.features) {
@@ -889,12 +1104,20 @@ map.on('load', () => {
             }
           }
         }
-        popup.setLngLat(coordinates).setHTML(popupContent).addTo(map);
-      });
 
-      map.on('mouseleave', 'schools-layer', () => {
-        map.getCanvas().style.cursor = '';
-        popup.remove();
+        popup.setLngLat(coordinates).setHTML(popupContent).addTo(map);
+
+        // Do NOT change the origin or nearby-destination highlight when clicking
+        // a welcoming/destination school. Only refresh the highlight if the
+        // user clicks on the current origin itself.
+        if (
+          uniqueId &&
+          window.currentOriginId &&
+          uniqueId.toString().trim() === window.currentOriginId.toString().trim() &&
+          typeof window.updateNearbyDestinationsHighlight === 'function'
+        ) {
+          window.updateNearbyDestinationsHighlight(window.currentOriginId.toString().trim());
+        }
       });
 
       map.addSource('assigned-schools', {
@@ -916,6 +1139,157 @@ map.on('load', () => {
       });
       
       setupAssignmentPopup();
+
+      // Define helper so dropdowns and the flowchart "Show on map" button can
+      // highlight the selected origin school and zoom the map to it.
+      window.showOnMapFromFlowchart = function(originName) {
+        if (!originName) {
+          console.warn("⚠️ showOnMapFromFlowchart called with empty originName");
+          return;
+        }
+
+        if (!window.map || !window.geojsonData || !Array.isArray(window.geojsonData.features)) {
+          console.warn("⚠️ Map or geojsonData not ready for showOnMapFromFlowchart");
+          return;
+        }
+
+        const norm = (s) => (s || "").toString().toLowerCase().trim();
+        const features = window.geojsonData.features;
+
+        // Try exact name match first
+        let originFeature = features.find(
+          f => norm(f.properties["Building Name"]) === norm(originName)
+        );
+        // If not found, try a more flexible match (contains / contained in)
+        if (!originFeature) {
+          originFeature =
+            features.find(f => norm(f.properties["Building Name"]).includes(norm(originName))) ||
+            features.find(f => norm(originName).includes(norm(f.properties["Building Name"])));
+        }
+
+        if (!originFeature) {
+          console.warn("⚠️ Origin school not found on map:", originName);
+          return;
+        }
+
+        // Derive a robust originId, preferring decisionLogic data but
+        // falling back to the GeoJSON feature if needed.
+        let originId = "";
+        const originRow = window.decisionLogic && window.decisionLogic.schoolData
+          ? window.decisionLogic.schoolData.find(r => r["Building Name"] === originName)
+          : null;
+        if (originRow) {
+          originId = (
+            originRow.UniqueID ||
+            originRow["UniqueID"] ||
+            originRow["Unique Id"] ||
+            ""
+          ).toString().trim();
+        }
+        if (!originId && originFeature && originFeature.properties) {
+          originId = (
+            originFeature.properties.UniqueID ||
+            originFeature.properties["UniqueID"] ||
+            originFeature.properties["Unique Id"] ||
+            ""
+          ).toString().trim();
+        }
+
+        // Remember current origin for distance calculations and click popups
+        window.currentOriginName = originName;
+        window.currentOriginId = originId;
+
+        // Switch to the map view so the user can actually see the highlight
+        if (typeof window.switchToMap === 'function') {
+          window.switchToMap();
+        }
+
+        // Update the selected-school highlight with just this origin point
+        const highlightSource = window.map.getSource('selected-school');
+        if (highlightSource) {
+          highlightSource.setData({
+            type: 'FeatureCollection',
+            features: [originFeature]
+          });
+        } else {
+          console.warn("⚠️ selected-school source not found on map");
+        }
+
+        // Zoom to the origin school
+        if (originFeature.geometry && originFeature.geometry.coordinates) {
+          const [lng, lat] = originFeature.geometry.coordinates;
+          window.map.easeTo({ center: [lng, lat], zoom: 13, duration: 800 });
+        }
+        
+        // Also update nearby destination highlight circles on the map so the
+        // "action" (turquoise welcoming rings) starts immediately on selection,
+        // without needing an extra click on the map.
+        if (originId && typeof window.updateNearbyDestinationsHighlight === 'function') {
+          window.updateNearbyDestinationsHighlight(originId);
+        }
+      };
+
+      // Helper to compute and highlight nearby destinations on the map
+      window.updateNearbyDestinationsHighlight = function(originUniqueId) {
+        if (!originUniqueId || !window.map || !window.geojsonData || !window.distanceToWelcomingRowsByOrigin || !window.decisionLogic) {
+          return;
+        }
+        
+        const originKey = originUniqueId.toString().trim();
+        const rowsByOrigin = window.distanceToWelcomingRowsByOrigin || {};
+        const candidatesRaw = rowsByOrigin[originKey];
+        if (!Array.isArray(candidatesRaw)) {
+          if (window.map.getLayer('nearby-destinations-layer')) {
+            window.map.setFilter('nearby-destinations-layer', ['in', ['get', 'UniqueID'], ['literal', []]]);
+          }
+          return;
+        }
+        
+        const decisionRows = window.decisionLogic.schoolData || [];
+        const thresholds = window.thresholds || window.decisionLogic.thresholds || {};
+        const originRow = decisionRows.find(r => (r.UniqueID || r["UniqueID"] || r["Unique Id"]) === originKey);
+        const levelStr = (originRow && (originRow["School Level"] || "") || "").toLowerCase();
+        let distanceThreshold;
+        if (levelStr.includes("elementary")) {
+          distanceThreshold = thresholds.elementaryDistance;
+        } else if (levelStr.includes("k-8")) {
+          distanceThreshold = thresholds.k8Distance;
+        } else if (levelStr.includes("middle")) {
+          distanceThreshold = thresholds.middleDistance;
+        } else if (levelStr.includes("high")) {
+          distanceThreshold = thresholds.highDistance;
+        } else if (levelStr.includes("6-12")) {
+          distanceThreshold = thresholds.k12Distance;
+        } else {
+          distanceThreshold = thresholds.middleDistance || 5.0;
+        }
+        
+        const destIds = new Set();
+        candidatesRaw.forEach(r => {
+          const distRaw =
+            r["Network Distance (Miles)"] ||
+            r["Network Distance"] ||
+            r["NetworkDistanceMiles"];
+          const dist = parseFloat((distRaw || "").toString().trim());
+          if (!isFinite(dist) || (distanceThreshold && dist > distanceThreshold)) return;
+          
+          const destPrefix =
+            r["Destination CDE Prefix"] ||
+            r["Destination CDE Prefix "] ||
+            r["DestinationCDEPrefix"];
+          if (!destPrefix) return;
+          destIds.add(destPrefix.toString().trim());
+        });
+        
+        const idsArray = Array.from(destIds);
+        if (window.map.getLayer('nearby-destinations-layer')) {
+          window.map.setFilter('nearby-destinations-layer', [
+            'in',
+            ['get', 'UniqueID'],
+            ['literal', idsArray]
+          ]);
+        }
+      };
 
       // Populate excludedSchools select with all school names
       const excludedSchoolsSelect = document.getElementById('excludedSchools');
@@ -1328,7 +1702,8 @@ map.on('load', () => {
       console.error("❌ initializeFlowchartFromScript function not found!");
     }
 
-    if (geojsonData && geojsonData.features) {
+    const flowchartSchoolSelect = document.getElementById('mainFlowchartSchoolSelect');
+    if (geojsonData && geojsonData.features && flowchartSchoolSelect) {
       flowchartSchoolSelect.innerHTML = '<option value="">-- Select School --</option>';
       
       // Use filtered school data from DecisionLogic instead of geojsonData
@@ -1367,10 +1742,42 @@ map.on('load', () => {
         console.log("🎯 School selection changed to:", selectedSchool);
         console.log("🎯 updateFlowForSchool function available:", typeof window.updateFlowForSchool === 'function');
         console.log("🎯 Current thresholds:", window.thresholds);
+
+        // Keep the map-origin dropdown in sync when user selects from the flowchart dropdown
+        try {
+          const mapOriginSelect = document.getElementById('mapOriginSchoolSelect');
+          if (mapOriginSelect && window.decisionLogic && Array.isArray(window.decisionLogic.schoolData)) {
+            const originRow = window.decisionLogic.schoolData.find(r => r["Building Name"] === selectedSchool);
+            const originId = originRow
+              ? (originRow.UniqueID || originRow["UniqueID"] || originRow["Unique Id"] || "").toString().trim()
+              : "";
+            mapOriginSelect.value = originId || "";
+          }
+        } catch (syncErr) {
+          console.warn("⚠️ Unable to sync mapOriginSchoolSelect with mainFlowchartSchoolSelect:", syncErr);
+        }
+
         if (typeof window.updateFlowForSchool === 'function') {
           window.updateFlowForSchool(selectedSchool, window.thresholds || {});
         } else {
           console.warn("⚠️ updateFlowForSchool function not available");
+        }
+
+        // Treat the newly selected school as the current origin for map logic
+        if (window.decisionLogic && Array.isArray(window.decisionLogic.schoolData) && selectedSchool) {
+          const originRow = window.decisionLogic.schoolData.find(r => r["Building Name"] === selectedSchool);
+          const originId = originRow
+            ? (originRow.UniqueID || originRow["UniqueID"] || originRow["Unique Id"] || "").toString().trim()
+            : "";
+          if (originId) {
+            window.currentOriginName = selectedSchool;
+            window.currentOriginId = originId;
+          }
+        }
+
+        // Automatically update the map to show the origin + nearby schools
+        if (selectedSchool && typeof window.showOnMapFromFlowchart === 'function') {
+          window.showOnMapFromFlowchart(selectedSchool);
         }
       });
     }
@@ -1447,6 +1854,13 @@ function injectDecisionsIntoGeoJSON(geojson, decisions) {
   const availableSeatsMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), parseFloat(row["Available Seats"] || "0")]));
   const schoolLevelMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), row["School Level"] || "Unknown"]));
   const flowMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), row["flow"] || 0]));
+  const uniqueIdMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), (row.UniqueID || row["UniqueID"] || row["Unique Id"] || "").toString().trim()]));
+  const distanceWelcomingMap = new Map(
+    decisions.map(row => [
+      normalizeName(row["Building Name"]),
+      parseFloat(row["DistanceUnderutilizedschools"] || "0")
+    ])
+  );
 
   geojson.features.forEach(f => {
     const name = normalizeName(f.properties["Building Name"]);
@@ -1462,6 +1876,10 @@ function injectDecisionsIntoGeoJSON(geojson, decisions) {
     f.properties["School Level"] = schoolLevelMap.get(name) || "Unknown";
     // Inject Flow number
     f.properties["flow"] = flowMap.get(name) || 0;
+    // Inject UniqueID for linking into SchooltoSchoolDistances
+    f.properties["UniqueID"] = uniqueIdMap.get(name) || "";
+    // Inject distance to welcoming school (miles), using DistanceUnderutilizedschools as the joined field
+    f.properties["DistanceToWelcoming"] = distanceWelcomingMap.get(name) || null;
   });
   
   // Log sample GeoJSON features to verify flow was injected
@@ -1595,6 +2013,31 @@ document.addEventListener('DOMContentLoaded', function() {
   const modelView = document.getElementById('modelView');
 
   let selectedFeatureForIsochrone = null;
+
+  // Wire up collapsible legend for Decision Types on the map
+  (function setupCollapsibleLegend() {
+    const legend = document.getElementById('map-legend');
+    const toggle = document.getElementById('legend-toggle');
+    if (!legend || !toggle) {
+      return;
+    }
+
+    // Ensure initial state is expanded (chevron down)
+    const chevron = toggle.querySelector('span.chevron');
+    if (chevron) {
+      chevron.textContent = '▾';
+    }
+
+    toggle.addEventListener('click', () => {
+      const collapsed = legend.classList.toggle('legend-collapsed');
+      const chev = toggle.querySelector('span.chevron');
+      if (chev) {
+        // When collapsed, show an up-arrow (content collapsed up).
+        // When expanded, show a down-arrow.
+        chev.textContent = collapsed ? '▴' : '▾';
+      }
+    });
+  })();
 
   function triggerIsochroneUpdate() {
       if(selectedFeatureForIsochrone) {
@@ -2120,6 +2563,32 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
+// Wire up the always-visible "Show on map" button next to the main flowchart
+// school dropdown. This runs once the DOM is ready, independent of the
+// flowchart initialization logic.
+document.addEventListener('DOMContentLoaded', () => {
+  const showOnMapBtn = document.getElementById('flowchartShowOnMapBtn');
+  const flowchartSchoolSelect = document.getElementById('mainFlowchartSchoolSelect');
+  if (!showOnMapBtn || !flowchartSchoolSelect) {
+    console.warn("⚠️ flowchartShowOnMapBtn or mainFlowchartSchoolSelect not found on DOMContentLoaded");
+    return;
+  }
+
+  showOnMapBtn.addEventListener('click', () => {
+    const currentName = flowchartSchoolSelect.value;
+    console.log("🗺️ Show on map button clicked; selected school:", currentName);
+    if (!currentName) {
+      console.warn("⚠️ No school selected in mainFlowchartSchoolSelect");
+      return;
+    }
+    if (typeof window.showOnMapFromFlowchart === 'function') {
+      window.showOnMapFromFlowchart(currentName, "");
+    } else {
+      console.warn("⚠️ showOnMapFromFlowchart is not yet defined");
+    }
+  });
+});
+
 let currentIsochronePolygon = null;
 
 async function drawIsochrone(centerCoords, distanceMeters) {
@@ -2505,6 +2974,26 @@ document.addEventListener("DOMContentLoaded", function() {
         console.log("  - flowchartSelect exists:", !!flowchartSelect);
         console.log("  - flowchartSelect has value:", flowchartSelect ? !!flowchartSelect.value : "N/A");
         console.log("  - updateFlowForSchool function:", typeof window.updateFlowForSchool);
+      }
+
+      // ✅ Update nearby welcoming schools list for currently selected school
+      if (flowchartSelect && flowchartSelect.value && typeof window.showNearbyWelcomingSchools === 'function') {
+        console.log("🔄 Updating nearby welcoming schools list for:", flowchartSelect.value);
+        window.showNearbyWelcomingSchools(flowchartSelect.value);
+      }
+      
+      // ✅ Update nearby destination highlight on the map for the selected school
+      if (flowchartSelect && flowchartSelect.value && typeof window.updateNearbyDestinationsHighlight === 'function' && window.decisionLogic && Array.isArray(window.decisionLogic.schoolData)) {
+        const originRow = window.decisionLogic.schoolData.find(r => r["Building Name"] === flowchartSelect.value);
+        const originId = originRow
+          ? (originRow.UniqueID || originRow["UniqueID"] || originRow["Unique Id"] || "").toString().trim()
+          : "";
+        if (originId) {
+          console.log("🔄 Updating nearby destination highlight for origin:", flowchartSelect.value, originId);
+          window.currentOriginName = flowchartSelect.value;
+          window.currentOriginId = originId;
+          window.updateNearbyDestinationsHighlight(originId);
+        }
       }
     }
 
