@@ -2,15 +2,15 @@
 // Handles UI for strategy group prioritization (Strategy Candidate Groups + subgroups)
 
 window.prioritizationUI = {
-  currentStrategyGroup: null,
+  currentStrategyGroups: [],
   schoolDataWithDecisions: [],
-  currentOutcomeFilter: null,
+  currentOutcomeFilters: null,
 
   // Initialize the prioritization UI
   initialize: function (schoolDataWithDecisions) {
     console.log("🎨 Initializing Prioritization UI");
     this.schoolDataWithDecisions = schoolDataWithDecisions || [];
-    this.currentOutcomeFilter = null;
+    this.currentOutcomeFilters = null;
 
     if (!window.prioritizationLogic || !window.prioritizationLogic.initialize) {
       console.error("❌ prioritizationLogic is not available");
@@ -29,7 +29,7 @@ window.prioritizationUI = {
     return this;
   },
 
-  // Render main strategy group tabs
+  // Render main strategy group selector (multi-select dropdown with checkboxes, like School Type)
   renderStrategyGroupTabs: function () {
     const tabsContainer = document.getElementById("strategy-group-tabs");
     if (!tabsContainer) {
@@ -52,88 +52,132 @@ window.prioritizationUI = {
       return;
     }
 
-    // Pseudo-group tab to see all relevant schools together
-    const allTab = document.createElement("button");
-    allTab.textContent = "All Expansion + Maintenance";
-    allTab.className = "strategy-group-tab";
-    allTab.dataset.strategyGroup = "__ALL_EXP_MAINT__";
-    allTab.style.cssText = [
-      "padding: 0.5rem 1rem",
-      "border: 1px solid #ddd",
-      "background: #f5f5f5",
-      "cursor: pointer",
-      "border-radius: 4px",
-      "font-size: 0.9em",
-      "transition: all 0.2s",
-      "font-weight: 500"
-    ].join(";") + ";";
+    // Wrapper styled like School Type dropdown
+    const wrapper = document.createElement("div");
+    wrapper.className = "filter-dropdown";
+    wrapper.style.maxWidth = "260px";
 
-    // Style if currently selected
-    if (this.currentStrategyGroup === "__ALL_EXP_MAINT__") {
-      allTab.style.background = "#007cbf";
-      allTab.style.color = "white";
-      allTab.style.borderColor = "#007cbf";
-    }
+    const toggleBtn = document.createElement("button");
+    toggleBtn.id = "strategy-group-toggle";
+    toggleBtn.className = "compact-btn";
+    toggleBtn.type = "button";
+    toggleBtn.style.display = "flex";
+    toggleBtn.style.alignItems = "center";
+    toggleBtn.style.justifyContent = "space-between";
+    toggleBtn.style.width = "100%";
 
-    allTab.addEventListener("click", () => {
-      this.selectStrategyGroup("__ALL_EXP_MAINT__");
+    const labelSpan = document.createElement("span");
+    labelSpan.id = "strategy-group-label";
+    labelSpan.textContent = "Select groups";
+
+    const chevron = document.createElement("span");
+    chevron.className = "chevron";
+    chevron.textContent = "▾";
+
+    toggleBtn.appendChild(labelSpan);
+    toggleBtn.appendChild(chevron);
+
+    const menu = document.createElement("div");
+    menu.id = "strategy-group-menu";
+    menu.className = "filter-dropdown-menu";
+
+    const self = this;
+    const initialSelection =
+      Array.isArray(this.currentStrategyGroups) && this.currentStrategyGroups.length > 0
+        ? this.currentStrategyGroups
+        : ["__ALL_EXP_MAINT__"];
+
+    // Keep dropdown open when interacting inside
+    menu.addEventListener("click", function (e) {
+      e.stopPropagation();
     });
 
-    tabsContainer.appendChild(allTab);
+    const addOption = function (value, text) {
+      const lbl = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.value = value;
+      cb.checked = initialSelection.includes(value);
+      cb.addEventListener("change", function () {
+        let selected = Array.from(menu.querySelectorAll("input[type=checkbox]:checked")).map((n) =>
+          n.value
+        );
 
-    availableGroups.forEach((group, index) => {
-      const tab = document.createElement("button");
-      tab.textContent = `${index + 1}: ${group.name}`;
-      tab.className = "strategy-group-tab";
-      tab.dataset.strategyGroup = group.name;
-      tab.style.cssText = [
-        "padding: 0.5rem 1rem",
-        "border: 1px solid #ddd",
-        "background: #f5f5f5",
-        "cursor: pointer",
-        "border-radius: 4px",
-        "font-size: 0.9em",
-        "transition: all 0.2s"
-      ].join(";") + ";";
+        if (this.value === "__ALL_EXP_MAINT__" && this.checked) {
+          // If "All" selected, turn off others
+          Array.from(menu.querySelectorAll('input[type=checkbox]')).forEach((n) => {
+            if (n.value !== "__ALL_EXP_MAINT__") n.checked = false;
+          });
+          selected = ["__ALL_EXP_MAINT__"];
+        } else if (this.value !== "__ALL_EXP_MAINT__") {
+          // If any specific selected, uncheck All
+          const allCb = menu.querySelector('input[value="__ALL_EXP_MAINT__"]');
+          if (allCb) allCb.checked = false;
+          selected = selected.filter((v) => v !== "__ALL_EXP_MAINT__");
+          if (selected.length === 0) {
+            // keep at least one by falling back to All
+            if (allCb) allCb.checked = true;
+            selected = ["__ALL_EXP_MAINT__"];
+          }
+        }
 
-      if (this.currentStrategyGroup === group.name) {
-        tab.style.background = "#007cbf";
-        tab.style.color = "white";
-        tab.style.borderColor = "#007cbf";
-      }
-
-      tab.addEventListener("click", () => {
-        this.selectStrategyGroup(group.name);
+        self.selectStrategyGroup(selected);
+        updateLabel(selected);
       });
+      lbl.appendChild(cb);
+      lbl.appendChild(document.createTextNode(text));
+      menu.appendChild(lbl);
+    };
 
-      tabsContainer.appendChild(tab);
+    addOption("__ALL_EXP_MAINT__", "All Expansion + Maintenance");
+    availableGroups.forEach((group, index) => {
+      addOption(group.name, `${index + 1}: ${group.name}`);
     });
+
+    const updateLabel = function (vals) {
+      const selected = vals && vals.length ? vals : ["__ALL_EXP_MAINT__"];
+      if (selected.length === 1) {
+        const val = selected[0];
+        if (val === "__ALL_EXP_MAINT__") {
+          labelSpan.textContent = "All Expansion + Maintenance";
+        } else {
+          labelSpan.textContent = val;
+        }
+      } else {
+        labelSpan.textContent = `${selected.length} groups`;
+      }
+    };
+    updateLabel(initialSelection);
+
+    toggleBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      menu.style.display = menu.style.display === "block" ? "none" : "block";
+    });
+    document.addEventListener("click", function () {
+      if (menu) menu.style.display = "none";
+    });
+
+    wrapper.appendChild(toggleBtn);
+    wrapper.appendChild(menu);
+    tabsContainer.appendChild(wrapper);
 
     // Ensure some group is selected
-    if (this.currentStrategyGroup === "__ALL_EXP_MAINT__") {
-      this.selectStrategyGroup("__ALL_EXP_MAINT__");
-    } else if (availableGroups.length > 0) {
-      this.selectStrategyGroup(this.currentStrategyGroup || availableGroups[0].name);
-    }
+    this.selectStrategyGroup(initialSelection);
   },
 
-  // Select a strategy group
-  selectStrategyGroup: function (groupName) {
-    this.currentStrategyGroup = groupName;
-    this.currentOutcomeFilter = null;
+  // Select strategy group(s)
+  selectStrategyGroup: function (groupNames) {
+    const namesArray = Array.isArray(groupNames) ? groupNames : [groupNames].filter(Boolean);
+    this.currentStrategyGroups = namesArray;
+    this.currentOutcomeFilters = null;
 
-    // Update tab styles
-    document.querySelectorAll(".strategy-group-tab").forEach((tab) => {
-      if (tab.dataset.strategyGroup === groupName) {
-        tab.style.background = "#007cbf";
-        tab.style.color = "white";
-        tab.style.borderColor = "#007cbf";
-      } else {
-        tab.style.background = "#f5f5f5";
-        tab.style.color = "#333";
-        tab.style.borderColor = "#ddd";
-      }
-    });
+    // Sync dropdown selection if present
+    const selectEl = document.getElementById("strategy-group-select");
+    if (selectEl) {
+      Array.from(selectEl.options).forEach((opt) => {
+        opt.selected = namesArray.includes(opt.value);
+      });
+    }
 
     // Show prioritization weights section
     const weightsSection = document.getElementById("prioritization-weights-section");
@@ -141,15 +185,15 @@ window.prioritizationUI = {
       weightsSection.style.display = "block";
     }
 
-    // Render subcategory tabs for this group (no-op for combined pseudo-group)
-    this.renderSubgroupTabs(groupName);
+    // Render subcategory selector for this group set
+    this.renderSubgroupTabs(namesArray);
 
-    // Render sliders for this group (special handling for combined pseudo-group)
-    this.renderWeightSliders(groupName);
+    // Render sliders for this group set (uses first selection as base)
+    this.renderWeightSliders(namesArray);
 
     // Render prioritized schools + map
-    this.renderPrioritizedSchools(groupName);
-    this.updateMapVisualization(groupName);
+    this.renderPrioritizedSchools(namesArray);
+    this.updateMapVisualization(namesArray);
   },
 
   // Build slider configuration metadata (keys + labels) for a given group
@@ -159,98 +203,49 @@ window.prioritizationUI = {
     if (baseGroupName === "Closure/Consolidation") {
       // Closure/Consolidation framing
       sliderConfigs.push(
-        {
-          key: "enrollment",
-          label: "Lower Enrollment",
-          description: "Higher weight prioritizes schools with lower total enrollment."
-        },
-        {
-          key: "utilizationRate",
-          label: "Lower Utilization",
-          description: "Higher weight prioritizes schools with lower utilization."
-        },
+        { key: "enrollment", label: "Lower Enrollment", description: "" },
+        { key: "utilizationRate", label: "Lower Utilization", description: "" },
         {
           key: "studentsInAttendanceArea",
           label: "Lower % of Students from Attendance Area",
-          description:
-            "Higher weight prioritizes schools with a lower percentage of students coming from their attendance area."
+          description: ""
         },
         {
           key: "studentEconomicStatus",
           label: "Lower % High-Need Student Enrollment",
-          description:
-            "Higher weight prioritizes schools with a lower share of high-need students (% FRL) when considering closure."
+          description: ""
         },
-        {
-          key: "buildingCondition",
-          label: "Lower Composite Building Score",
-          description:
-            "Higher weight prioritizes schools with poorer building condition scores (lower = worse)."
-        },
-        {
-          key: "academicPerformance",
-          label: "Lower Educational Adequacy (EA)",
-          description: "Higher weight prioritizes schools with lower educational adequacy."
-        },
-        {
-          key: "pastInvestments",
-          label: "Fewer Past Investments",
-          description: "Higher weight prioritizes schools with fewer recent capital investments."
-        },
-        {
-          key: "specialtyProgramOfferings",
-          label: "Specialty Program Offerings",
-          description:
-            "Higher weight prioritizes schools with more specialty program offerings (when such data is available)."
-        }
+        { key: "buildingCondition", label: "Lower Composite Building Score", description: "" },
+        { key: "academicPerformance", label: "Lower Educational Adequacy (EA)", description: "" },
+        { key: "pastInvestments", label: "Fewer Past Investments", description: "" },
+        { key: "specialtyProgramOfferings", label: "Specialty Program Offerings", description: "" }
       );
     } else {
       // Expansion, Maintenance/Investment, Other framing
       sliderConfigs.push(
-        {
-          key: "buildingCondition",
-          label: "Lower Composite Building Score",
-          description:
-            "Higher weight prioritizes schools with poorer building condition scores (lower = worse)."
-        },
-        {
-          key: "academicPerformance",
-          label: "Lower Educational Adequacy (EA)",
-          description: "Higher weight prioritizes schools with lower educational adequacy."
-        },
-        {
-          key: "utilizationRate",
-          label: "Higher Utilization",
-          description: "Higher weight prioritizes schools with higher current utilization."
-        },
-        {
-          key: "enrollment",
-          label: "Higher Enrollment",
-          description: "Higher weight prioritizes schools with larger total enrollment."
-        },
+        { key: "buildingCondition", label: "Lower Composite Building Score", description: "" },
+        { key: "academicPerformance", label: "Lower Educational Adequacy (EA)", description: "" },
+        { key: "utilizationRate", label: "Higher Utilization", description: "" },
+        { key: "enrollment", label: "Higher Enrollment", description: "" },
         {
           key: "studentEconomicStatus",
           label: "Higher Enrollment of High-Need Students",
-          description:
-            "Higher weight prioritizes schools with a higher share of students in poverty (% FRL)."
+          description: ""
         },
         {
           key: "studentsInAttendanceArea",
           label: "Greater Neighborhood Capture Rate",
-          description:
-            "Higher weight prioritizes schools with a higher percentage of students enrolled from their attendance area."
+          description: ""
         },
         {
           key: "welcomedStudents",
           label: "More Students Welcomed from Previous Consolidations",
-          description:
-            "Higher weight prioritizes schools that welcome more students from prior consolidations (when data is available)."
+          description: ""
         },
         {
           key: "distanceFromOtherSchools",
           label: "Greater Distance from Other Schools",
-          description:
-            "Higher weight prioritizes schools that are farther from other schools (more geographically isolated)."
+          description: ""
         }
       );
     }
@@ -259,14 +254,21 @@ window.prioritizationUI = {
   },
 
   // Render weight sliders for a strategy group (left panel only)
-  renderWeightSliders: function (strategyGroupName) {
+  renderWeightSliders: function (strategyGroupNames) {
     const leftPanel = document.getElementById("left-panel-weight-sliders");
 
-    const isCombined = strategyGroupName === "__ALL_EXP_MAINT__";
+    const groupNames = Array.isArray(strategyGroupNames)
+      ? strategyGroupNames
+      : [strategyGroupNames].filter(Boolean);
+    const primaryGroup =
+      groupNames.find((g) => g !== "__ALL_EXP_MAINT__") || "Expansion";
+    const isCombined =
+      groupNames.length > 1 || groupNames.includes("__ALL_EXP_MAINT__");
+
     // For the combined view, use Expansion as the base profile for
     // reading current/default weights, but we will WRITE to BOTH
     // Expansion and Maintenance/Investment when sliders move.
-    const baseGroupName = isCombined ? "Expansion" : strategyGroupName;
+    const baseGroupName = isCombined ? "Expansion" : primaryGroup;
 
     const weights =
       (window.prioritizationLogic.currentWeights &&
@@ -304,7 +306,7 @@ window.prioritizationUI = {
         'data-weight-key="' +
         config.key +
         '" data-strategy-group="' +
-        strategyGroupName +
+        primaryGroup +
         '">' +
         '<div style="font-size: 0.8em; color: #666; margin-top: 0.25rem;">' +
         config.description +
@@ -357,34 +359,37 @@ window.prioritizationUI = {
           // Maintenance/Investment directly, keep both groups in sync.
           const syncGroups =
             isCombined ||
-            strategyGroupName === "Expansion" ||
-            strategyGroupName === "Maintenance/Investment"
+            primaryGroup === "Expansion" ||
+            primaryGroup === "Maintenance/Investment"
               ? ["Expansion", "Maintenance/Investment"]
-              : [strategyGroupName];
+              : [primaryGroup];
 
           syncGroups.forEach(function (gName) {
             window.prioritizationLogic.updateWeights(gName, updates);
           });
         }
 
-        self.renderPrioritizedSchools(strategyGroupName);
-        self.updateMapVisualization(strategyGroupName);
+        self.renderPrioritizedSchools(groupNames);
+        self.updateMapVisualization(groupNames);
       });
     });
   },
 
-  // Render subcategory (decision outcome) tabs within the current strategy group
-  renderSubgroupTabs: function (strategyGroupName) {
+  // Render subcategory (decision outcome) selector within the current strategy group(s), styled like School Type dropdown
+  renderSubgroupTabs: function (strategyGroupNames) {
     const section = document.getElementById("prioritized-schools-section");
     if (!section || !window.prioritizationLogic) return;
+
+    const groupNames = Array.isArray(strategyGroupNames)
+      ? strategyGroupNames
+      : [strategyGroupNames].filter(Boolean);
 
     let container = document.getElementById("strategy-subgroup-tabs");
     const tableContainer = document.getElementById("prioritized-schools-table-container");
     if (!container) {
       container = document.createElement("div");
       container.id = "strategy-subgroup-tabs";
-      container.style.cssText =
-        "display:flex;flex-wrap:wrap;gap:0.25rem;margin-bottom:0.5rem;";
+      container.style.cssText = "margin-bottom:0.5rem;";
       if (tableContainer && tableContainer.parentNode === section) {
         section.insertBefore(container, tableContainer);
       } else {
@@ -392,141 +397,176 @@ window.prioritizationUI = {
       }
     }
 
-    let outcomes;
-    // For the combined Expansion + Maintenance view, build a merged
-    // list of outcomes from both strategy groups so the subcategory
-    // chips (e.g., Building Addition, Targeted Capital Investment)
-    // are still available.
-    if (strategyGroupName === "__ALL_EXP_MAINT__") {
-      const pl = window.prioritizationLogic;
-      const expSummary = pl.getOutcomeSummaryForStrategy("Expansion") || [];
-      const maintSummary =
-        pl.getOutcomeSummaryForStrategy("Maintenance/Investment") || [];
+    const pl = window.prioritizationLogic;
+    const resolveGroups = function (names) {
+      if (names.includes("__ALL_EXP_MAINT__")) {
+        return ["Expansion", "Maintenance/Investment"];
+      }
+      return names;
+    };
 
-      const countMap = {};
-      const addToMap = function (list) {
-        list.forEach((entry) => {
-          const o = entry.outcome;
-          const c = entry.count || 0;
-          countMap[o] = (countMap[o] || 0) + c;
-        });
-      };
+    const countMap = {};
+    const orderedOutcomes = [];
 
-      addToMap(expSummary);
-      addToMap(maintSummary);
-
-      outcomes = [];
-
-      // Preserve the configured outcome order from both groups
-      ["Expansion", "Maintenance/Investment"].forEach((groupName) => {
-        const groupDef = pl.strategyGroups && pl.strategyGroups[groupName];
-        if (!groupDef || !Array.isArray(groupDef.outcomes)) return;
-        groupDef.outcomes.forEach((outcomeName) => {
-          if (Object.prototype.hasOwnProperty.call(countMap, outcomeName)) {
-            outcomes.push({
-              outcome: outcomeName,
-              count: countMap[outcomeName] || 0
-            });
-            // Avoid duplicates if the same outcome appeared in both lists
-            delete countMap[outcomeName];
-          }
-        });
+    resolveGroups(groupNames.length ? groupNames : ["Expansion"]).forEach((gName) => {
+      const list = pl.getOutcomeSummaryForStrategy(gName) || [];
+      list.forEach((entry) => {
+        const o = entry.outcome;
+        const c = entry.count || 0;
+        if (!countMap.hasOwnProperty(o)) {
+          orderedOutcomes.push(o);
+        }
+        countMap[o] = (countMap[o] || 0) + c;
       });
+    });
 
-      // Any remaining outcomes that weren't in the configured arrays
-      Object.keys(countMap).forEach((o) => {
-        outcomes.push({ outcome: o, count: countMap[o] || 0 });
-      });
-    } else {
-      outcomes =
-      window.prioritizationLogic.getOutcomeSummaryForStrategy(strategyGroupName);
-    }
+    const outcomes = orderedOutcomes.map((o) => ({ outcome: o, count: countMap[o] || 0 }));
     if (!outcomes || outcomes.length === 0) {
       container.innerHTML = "";
       return;
     }
 
-    const makeButtonActive = function (btn) {
-      btn.style.background = "#007cbf";
-      btn.style.color = "white";
-      btn.style.borderColor = "#007cbf";
-      btn.style.fontWeight = "600";
-    };
-
-    const baseBtnStyle = [
-      "padding: 0.35rem 0.75rem",
-      "border: 1px solid #ccc",
-      "background: #ffffff",
-      "cursor: pointer",
-      "border-radius: 999px",
-      "font-size: 0.85em",
-      "font-weight: 500",
-      "color: #333333",
-      "transition: all 0.2s",
-      "white-space: nowrap"
-    ].join(";") + ";";
-
     container.innerHTML = "";
 
     const self = this;
 
-    // "All" button
-    const allBtn = document.createElement("button");
-    allBtn.textContent = "All";
-    allBtn.className = "strategy-subgroup-tab";
-    allBtn.style.cssText = baseBtnStyle;
-    if (!this.currentOutcomeFilter) {
-      makeButtonActive(allBtn);
-    }
-    allBtn.addEventListener("click", function () {
-      self.currentOutcomeFilter = null;
-      self.renderSubgroupTabs(strategyGroupName);
-      self.renderPrioritizedSchools(strategyGroupName);
-      self.updateMapVisualization(strategyGroupName);
-    });
-    container.appendChild(allBtn);
+    const wrapper = document.createElement("div");
+    wrapper.className = "filter-dropdown";
+    wrapper.style.maxWidth = "260px";
 
-    // One button per decision outcome in this group
+    const toggleBtn = document.createElement("button");
+    toggleBtn.id = "strategy-subgroup-toggle";
+    toggleBtn.className = "compact-btn";
+    toggleBtn.type = "button";
+    toggleBtn.style.display = "flex";
+    toggleBtn.style.alignItems = "center";
+    toggleBtn.style.justifyContent = "space-between";
+    toggleBtn.style.width = "100%";
+
+    const labelSpan = document.createElement("span");
+    labelSpan.id = "strategy-subgroup-label";
+    labelSpan.textContent = "All outcomes";
+
+    const chevron = document.createElement("span");
+    chevron.className = "chevron";
+    chevron.textContent = "▾";
+
+    toggleBtn.appendChild(labelSpan);
+    toggleBtn.appendChild(chevron);
+
+    const menu = document.createElement("div");
+    menu.id = "strategy-subgroup-menu";
+    menu.className = "filter-dropdown-menu";
+
+    const selectedOutcomes = Array.isArray(this.currentOutcomeFilters)
+      ? this.currentOutcomeFilters
+      : [];
+
+    // Keep dropdown open when interacting inside
+    menu.addEventListener("click", function (e) {
+      e.stopPropagation();
+    });
+
+    const addOption = function (value, text) {
+      const lbl = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.value = value;
+      cb.checked = selectedOutcomes.length === 0 ? value === "" : selectedOutcomes.includes(value);
+      cb.addEventListener("change", function () {
+        let selected = Array.from(menu.querySelectorAll("input[type=checkbox]:checked")).map(
+          (n) => n.value
+        );
+        // If "All" is checked, clear others
+        if (this.value === "" && this.checked) {
+          Array.from(menu.querySelectorAll('input[type=checkbox]')).forEach((n) => {
+            if (n.value !== "") n.checked = false;
+          });
+          selected = [""];
+        } else if (this.value !== "") {
+          const allCb = menu.querySelector('input[value=""]');
+          if (allCb) allCb.checked = false;
+        }
+
+        const filtered = selected.filter((v) => v !== "");
+        self.currentOutcomeFilters = filtered.length ? filtered : null;
+        self.renderSubgroupTabs(groupNames);
+        self.renderPrioritizedSchools(groupNames);
+        self.updateMapVisualization(groupNames);
+      });
+      lbl.appendChild(cb);
+      lbl.appendChild(document.createTextNode(text));
+      menu.appendChild(lbl);
+    };
+
+    addOption("", "All");
     outcomes.forEach(function (entry) {
       const outcome = entry.outcome;
       const count = entry.count;
-      const btn = document.createElement("button");
-      btn.textContent = typeof count === "number" ? outcome + " (" + count + ")" : outcome;
-      btn.className = "strategy-subgroup-tab";
-      btn.style.cssText = baseBtnStyle;
-
-      if (self.currentOutcomeFilter === outcome) {
-        makeButtonActive(btn);
-      }
-      if (!count) {
-        btn.style.opacity = "0.6";
-      }
-
-      btn.addEventListener("click", function () {
-        self.currentOutcomeFilter = outcome;
-        self.renderSubgroupTabs(strategyGroupName);
-        self.renderPrioritizedSchools(strategyGroupName);
-        self.updateMapVisualization(strategyGroupName);
-      });
-
-      container.appendChild(btn);
+      addOption(outcome, typeof count === "number" ? `${outcome} (${count})` : outcome);
     });
+
+    const updateLabel = function () {
+      const selected =
+        Array.isArray(self.currentOutcomeFilters) && self.currentOutcomeFilters.length
+          ? self.currentOutcomeFilters
+          : [];
+      if (!selected.length) {
+        labelSpan.textContent = "All outcomes";
+      } else if (selected.length === 1) {
+        labelSpan.textContent = selected[0];
+      } else {
+        labelSpan.textContent = `${selected.length} outcomes`;
+      }
+    };
+    updateLabel();
+
+    toggleBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      menu.style.display = menu.style.display === "block" ? "none" : "block";
+    });
+    document.addEventListener("click", function () {
+      if (menu) menu.style.display = "none";
+    });
+
+    wrapper.appendChild(toggleBtn);
+    wrapper.appendChild(menu);
+    container.appendChild(wrapper);
   },
 
   // Render prioritized schools table
-  renderPrioritizedSchools: function (strategyGroupName) {
+  renderPrioritizedSchools: function (strategyGroupNames) {
     const container = document.getElementById("prioritized-schools-table-container");
     if (!container || !window.prioritizationLogic) return;
 
-    const outcomeFilter = this.currentOutcomeFilter;
-    const isCombined = strategyGroupName === "__ALL_EXP_MAINT__";
-    const baseGroupName = isCombined ? "Expansion" : strategyGroupName;
-    const rankedSchools = isCombined
-      ? window.prioritizationLogic.rankSchoolsAcrossStrategies(
-          ["Expansion", "Maintenance/Investment"],
-      outcomeFilter
-        )
-      : window.prioritizationLogic.rankSchools(strategyGroupName, outcomeFilter);
+    const groupNames = Array.isArray(strategyGroupNames)
+      ? strategyGroupNames
+      : [strategyGroupNames].filter(Boolean);
+    const outcomeFilters = Array.isArray(this.currentOutcomeFilters)
+      ? this.currentOutcomeFilters
+      : null;
+
+    const resolveGroups = function (names) {
+      if (names.includes("__ALL_EXP_MAINT__")) {
+        return ["Expansion", "Maintenance/Investment"];
+      }
+      return names;
+    };
+
+    const groupsToUse = resolveGroups(groupNames.length ? groupNames : ["Expansion"]);
+    const isCombined = groupsToUse.length > 1;
+    const baseGroupName = groupsToUse[0] || "Expansion";
+
+    let rankedSchools = isCombined
+      ? window.prioritizationLogic.rankSchoolsAcrossStrategies(groupsToUse, null)
+      : window.prioritizationLogic.rankSchools(baseGroupName, null);
+
+    if (outcomeFilters && outcomeFilters.length > 0) {
+      rankedSchools = rankedSchools.filter((s) => {
+        const outcomeName = s.decision || s.outcome || s.strategyOutcome;
+        return outcomeFilters.includes(outcomeName);
+      });
+    }
 
     if (!rankedSchools || rankedSchools.length === 0) {
       container.innerHTML =
@@ -674,10 +714,7 @@ window.prioritizationUI = {
 
     this.setupColumnResizing(tableId);
 
-    // Render equity overview for all schools in the current view
-    // (including All Expansion + Maintenance, where we want the
-    // combined impact across both strategy groups).
-    this.renderEquityAnalysis(rankedSchools);
+    // Equity overview intentionally suppressed per latest requirements.
   },
 
   // Setup column resizing functionality
@@ -777,17 +814,35 @@ window.prioritizationUI = {
   },
 
   // Push scores into map and update circle sizes
-  updateMapVisualization: function (strategyGroupName) {
+  updateMapVisualization: function (strategyGroupNames) {
     if (!window.prioritizationLogic) return;
 
-    const outcomeFilter = this.currentOutcomeFilter;
-    const isCombined = strategyGroupName === "__ALL_EXP_MAINT__";
-    const rankedSchools = isCombined
-      ? window.prioritizationLogic.rankSchoolsAcrossStrategies(
-          ["Expansion", "Maintenance/Investment"],
-      outcomeFilter
-        )
-      : window.prioritizationLogic.rankSchools(strategyGroupName, outcomeFilter);
+    const groupNames = Array.isArray(strategyGroupNames)
+      ? strategyGroupNames
+      : [strategyGroupNames].filter(Boolean);
+    const outcomeFilters = Array.isArray(this.currentOutcomeFilters)
+      ? this.currentOutcomeFilters
+      : null;
+
+    const resolveGroups = function (names) {
+      if (names.includes("__ALL_EXP_MAINT__")) {
+        return ["Expansion", "Maintenance/Investment"];
+      }
+      return names;
+    };
+
+    const groupsToUse = resolveGroups(groupNames.length ? groupNames : ["Expansion"]);
+    let rankedSchools =
+      groupsToUse.length > 1
+        ? window.prioritizationLogic.rankSchoolsAcrossStrategies(groupsToUse, null)
+        : window.prioritizationLogic.rankSchools(groupsToUse[0], null);
+
+    if (outcomeFilters && outcomeFilters.length > 0) {
+      rankedSchools = rankedSchools.filter((s) => {
+        const outcomeName = s.decision || s.outcome || s.strategyOutcome;
+        return outcomeFilters.includes(outcomeName);
+      });
+    }
 
     if (!window.priorityScores) {
       window.priorityScores = {};
@@ -799,7 +854,7 @@ window.prioritizationUI = {
       if (name) {
         window.priorityScores[name] = {
           score: school.priorityScore,
-          strategyGroup: strategyGroupName
+          strategyGroup: groupsToUse.length === 1 ? groupsToUse[0] : "__MULTI__"
         };
       }
     });
@@ -846,8 +901,8 @@ window.prioritizationUI = {
       window.prioritizationLogic.initialize(this.schoolDataWithDecisions);
     }
     this.renderStrategyGroupTabs();
-    if (this.currentStrategyGroup) {
-      this.selectStrategyGroup(this.currentStrategyGroup);
+    if (this.currentStrategyGroups && this.currentStrategyGroups.length) {
+      this.selectStrategyGroup(this.currentStrategyGroups);
     }
   }
 };

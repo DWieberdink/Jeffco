@@ -201,7 +201,6 @@ function mapSliderKeyToThresholdKey(sliderId) {
     utilSlider: "utilization",
     utilHighSlider: "utilizationHigh",
     growthSlider: "enrollmentGrowth",
-    distSlider: "distanceUnderutilized",
     siteCapacitySlider: "siteCapacity",
     attendanceAreaEnrollmentSlider: "attendanceAreaEnrollment",
     buildSlider: "buildingThreshold",
@@ -209,7 +208,6 @@ function mapSliderKeyToThresholdKey(sliderId) {
     buildBelowSlider: "buildingThresholdBelow",
     buildFlow4Slider: "buildingThresholdFlow4",
     progSlider: "adequateProgramsMin",
-    recentInvestSlider: "recentInvestments",
     elementaryDistanceSlider: "elementaryDistance",
     k8DistanceSlider: "k8Distance",
     middleDistanceSlider: "middleDistance",
@@ -254,7 +252,7 @@ function initializeFlowchartData() {
         { id: "F1_UTIL1", label: "Current enrollment or\nutilization below?", ...getPos("F1_UTIL1", -33.21879196166992, 8.875520706176758), thresholdKey: "utilSlider", flow: 1 },
         { id: "F1_UTIL2", label: "Current\nutilization rate above?", ...getPos("F1_UTIL2", -35.97391891479492, -88.93140411376953), thresholdKey: "utilHighSlider", flow: 1 },
         { id: "F1_GROWTH2", label: "-N/A-Projected enrollment\ngrowth above?", ...getPos("F1_GROWTH2", -34.59635543823242, -188.1158905029297), thresholdKey: "growthSlider", flow: 1 },
-        { id: "F1_DIST", label: "Distance to\nwelcoming schools", ...getPos("F1_DIST", -35.97391891479492, 108.06000518798828), thresholdKey: "distSlider", flow: 1 },
+        { id: "F1_DIST", label: "Distance to\nwelcoming schools", ...getPos("F1_DIST", -35.97391891479492, 108.06000518798828), thresholdKey: "F1_DIST_dynamic", flow: 1 },
         { id: "F1_GROWTH", label: "Projected enrollment growth above?", ...getPos("F1_GROWTH", -37.351478576660156, 212.75474548339844), thresholdKey: "growthSlider", flow: 1 },
         
         // FLOW 2 - BUILDING ADDITION (Left column) - Updated with saved layout positions
@@ -279,7 +277,6 @@ function initializeFlowchartData() {
         { id: "F3_OUT4", label: "Building Replacement", ...getPos("F3_OUT4", 215.6329803466797, 171.7837677001953), type: "outcome", flow: 3 },
         
         // FLOW 4 - CONSOLIDATION/CLOSURE (Right column) - Updated with saved layout positions
-        { id: "F4_INVEST", label: "Investments over past 5\nyears above?", ...getPos("F4_INVEST", 394.4226379394531, 291.5306091308594), thresholdKey: "recentInvestSlider", flow: 4 },
         { id: "F4_EDU1", label: "Educational Adequacy\nabove?", ...getPos("F4_EDU1", 393.82550048828125, 387.7051696777344), thresholdKey: "progSlider", flow: 4 },
         { id: "F4_FAC1", label: "Composite Building Score\nabove?", ...getPos("F4_FAC1", 580.3935546875, 382.4497375488281), thresholdKey: "buildFlow4Slider", flow: 4 },
         { id: "F4_FAC2", label: "Composite Building Score\nabove?", ...getPos("F4_FAC2", 397.1777648925781, 480.25665283203125), thresholdKey: "buildFlow4Slider", flow: 4 },
@@ -301,7 +298,7 @@ function initializeFlowchartData() {
                         { source: "F1_DIST", target: "F1_GROWTH", label: "Yes" },
                         { source: "F1_DIST", target: "F3_FAC_ABOVE", label: "No" },
                         { source: "F1_GROWTH", target: "F3_FAC_ABOVE", label: "Yes" },
-                        { source: "F1_GROWTH", target: "F4_INVEST", label: "No" },
+        { source: "F1_GROWTH", target: "F4_EDU1", label: "No" },
         
         // FLOW 2 LINKS
         { source: "F2_ATTENDANCE", target: "F2_EXPAND", label: "Yes" },
@@ -326,8 +323,6 @@ function initializeFlowchartData() {
         { source: "F3_EDU2", target: "F3_OUT1", label: "No" },
         
         // FLOW 4 LINKS
-        { source: "F4_INVEST", target: "F4_OUT1", label: "Yes" },
-        { source: "F4_INVEST", target: "F4_EDU1", label: "No" },
         { source: "F4_EDU1", target: "F4_FAC1", label: "Yes" },
         { source: "F4_EDU1", target: "F4_FAC2", label: "No" },
         { source: "F4_FAC1", target: "F4_OUT1", label: "Yes" },
@@ -643,7 +638,6 @@ function loadSchoolData() {
       adequateProgramsMin: 50,
       attendanceAreaEnrollment: 80,
       siteCapacity: "Yes",
-      recentInvestments: 5,
       // School-level enrollment thresholds
       elementaryEnrollment: 220,
       k8Enrollment: 360,
@@ -688,14 +682,16 @@ function loadSchoolData() {
     header: true,
     skipEmptyLines: true,
     complete: function (res) {
-      // Filter out schools with Include_Flow_Chart = "No"
+      // Filter out schools only when Include_Flow_Chart explicitly says "No"
       schoolData = res.data.filter(row => {
-        const includeFlowChart = row.Include_Flow_Chart;
-        const shouldInclude = includeFlowChart && 
-                             includeFlowChart.toLowerCase() !== 'no' && 
-                             includeFlowChart.trim() !== '';
+        const includeFlowChartRaw = row.Include_Flow_Chart;
+        const normalizedInclude = (includeFlowChartRaw ?? "yes").toString().trim().toLowerCase();
+        const shouldInclude =
+          normalizedInclude !== "no" &&
+          normalizedInclude !== "0" &&
+          normalizedInclude !== "false";
         if (!shouldInclude) {
-          console.log(`🚫 Excluding school from flowchart: ${row["Building Name"]} (Include_Flow_Chart: "${includeFlowChart}")`);
+          console.log(`🚫 Excluding school from flowchart: ${row["Building Name"]} (Include_Flow_Chart: "${includeFlowChartRaw}")`);
         }
         return shouldInclude;
       });
@@ -719,7 +715,6 @@ function loadSchoolData() {
         adequateProgramsMin: 50, // Changed to percentage (0-100)
         attendanceAreaEnrollment: 80, // Percentage threshold for attendance area enrollment (0-100)
         siteCapacity: "Yes",
-        recentInvestments: 5, // Changed to millions of dollars
         // School-level enrollment thresholds
         elementaryEnrollment: 220,
         k8Enrollment: 360,
@@ -762,8 +757,8 @@ function loadSchoolData() {
   });
 }
 
-// Helper: Normalize school level strings to canonical keys
-function normalizeSchoolLevel(rawLevel) {
+// Helper: Normalize school level strings to canonical keys (namespaced to avoid clobbering other globals)
+function normalizeSchoolLevelFlow(rawLevel) {
   if (!rawLevel) {
     console.log("⚠️ normalizeSchoolLevel: rawLevel is falsy");
     return null;
@@ -850,13 +845,13 @@ function formatSliderValue(key, value, schoolData = null) {
           }
         }
         
-        let level = normalizeSchoolLevel(schoolLevelRaw);
+        let level = normalizeSchoolLevelFlow(schoolLevelRaw);
         
         // Special handling: If school level is "Multi-Level" or unrecognized, try to infer from school name
         if (!level && schoolData["Building Name"]) {
           const schoolName = schoolData["Building Name"].toString();
           console.log("🔍 School level not recognized, trying to infer from school name:", schoolName);
-          level = normalizeSchoolLevel(schoolName);
+          level = normalizeSchoolLevelFlow(schoolName);
           if (level) {
             console.log("✅ Inferred school level from name:", level);
           }
@@ -898,8 +893,6 @@ function formatSliderValue(key, value, schoolData = null) {
       return `${Math.round(num * 100)}%`;
     case "growthSlider":
       return `${Math.round(num * 100)}%`;
-    case "distSlider":
-      return `${num.toFixed(1)} mi`;
     case "elementaryDistanceSlider":
     case "k8DistanceSlider":
     case "middleDistanceSlider":
@@ -1077,12 +1070,12 @@ function getEnrollmentDecision(row, t) {
   const utilization = +row.Utilization;
   const enrollment = parseFloat((row.Enrollment || '').toString().replace(/,/g, '').trim());
   let schoolLevelRaw = row["School Level"] || '';
-  let level = normalizeSchoolLevel(schoolLevelRaw);
+  let level = normalizeSchoolLevelFlow(schoolLevelRaw);
   
   // Special handling: If school level is "Multi-Level" or unrecognized, try to infer from school name
   if (!level && row["Building Name"]) {
     const schoolName = row["Building Name"].toString();
-    level = normalizeSchoolLevel(schoolName);
+    level = normalizeSchoolLevelFlow(schoolName);
     if (level) {
       console.log(`✅ getEnrollmentDecision: Inferred level "${level}" from school name "${schoolName}" (original level: "${schoolLevelRaw}")`);
     }
@@ -1133,12 +1126,12 @@ function evaluatePath(row, t) {
     util2: +row.Utilization > t.utilizationHigh ? "Yes" : "No", 
     dist: (() => {
       let schoolLevelRaw = row["School Level"] || '';
-      let level = normalizeSchoolLevel(schoolLevelRaw);
+      let level = normalizeSchoolLevelFlow(schoolLevelRaw);
       
       // Special handling: If school level is "Multi-Level" or unrecognized, try to infer from school name
       if (!level && row["Building Name"]) {
         const schoolName = row["Building Name"].toString();
-        level = normalizeSchoolLevel(schoolName);
+        level = normalizeSchoolLevelFlow(schoolName);
       }
       
       let distanceThreshold;
@@ -1184,17 +1177,17 @@ function evaluatePath(row, t) {
     fac3_above: +row.BuildingScore <= t.buildingThresholdAbove ? "Yes" : "No",
     
     // Flow 4 - Consolidation/Closure
-    invest: +row.RecentInvestments >= t.recentInvestments ? "Yes" : "No",
+    invest: "No",
     edu4: (+row.EducationalAdequacy * 100) >= t.adequateProgramsMin ? "Yes" : "No",
     fac4: +row.BuildingScore <= t.buildingThresholdFlow4 ? "Yes" : "No",
     dist4: (() => {
       let schoolLevelRaw = row["School Level"] || '';
-      let level = normalizeSchoolLevel(schoolLevelRaw);
+      let level = normalizeSchoolLevelFlow(schoolLevelRaw);
       
       // Special handling: If school level is "Multi-Level" or unrecognized, try to infer from school name
       if (!level && row["Building Name"]) {
         const schoolName = row["Building Name"].toString();
-        level = normalizeSchoolLevel(schoolName);
+        level = normalizeSchoolLevelFlow(schoolName);
       }
       
       let distanceThreshold;
@@ -1233,7 +1226,7 @@ function evaluatePath(row, t) {
         path.push("F3_FAC_ABOVE");
         currentFlow = 3;
       } else {
-        path.push("F4_INVEST");
+        path.push("F4_EDU1");
         currentFlow = 4;
       }
     } else {
@@ -1309,29 +1302,24 @@ function evaluatePath(row, t) {
 
   // FLOW 4 - Consolidation/Closure
   if (currentFlow === 4) {
-    path.push("F4_INVEST");
-    if (decisions.invest === "Yes") {
-      path.push("F4_OUT1"); // CONSOLIDATION (Receiving)
-    } else {
-      path.push("F4_EDU1");
-      if (decisions.edu4 === "Yes") {
-        path.push("F4_FAC1");
-        if (decisions.fac4 === "Yes") {
-          path.push("F4_OUT1"); // CONSOLIDATION (Receiving)
-        } else {
-          path.push("F4_OUT2"); // CONSOLIDATION with CAPITAL
-        }
+    path.push("F4_EDU1");
+    if (decisions.edu4 === "Yes") {
+      path.push("F4_FAC1");
+      if (decisions.fac4 === "Yes") {
+        path.push("F4_OUT1"); // CONSOLIDATION (Receiving)
       } else {
-        path.push("F4_FAC2");
-        if (decisions.fac4 === "Yes") {
-          path.push("F4_OUT2"); // CONSOLIDATION with CAPITAL
+        path.push("F4_OUT2"); // CONSOLIDATION with CAPITAL
+      }
+    } else {
+      path.push("F4_FAC2");
+      if (decisions.fac4 === "Yes") {
+        path.push("F4_OUT2"); // CONSOLIDATION with CAPITAL
+      } else {
+        path.push("F4_DIST");
+        if (decisions.dist4 === "Yes") {
+          path.push("F4_OUT3"); // CLOSURE (Receiving)
         } else {
-          path.push("F4_DIST");
-          if (decisions.dist4 === "Yes") {
-            path.push("F4_OUT3"); // CLOSURE (Receiving)
-          } else {
-            path.push("F4_OUT4"); // CLOSURE & REPLACEMENT
-          }
+          path.push("F4_OUT4"); // CLOSURE & REPLACEMENT
         }
       }
     }
@@ -1914,7 +1902,7 @@ window.exportPositionsAsCode = function() {
       "START", "F1_UTIL1", "F1_UTIL2", "F1_GROWTH2", "F1_DIST", "F1_GROWTH",
       "F2_ATTENDANCE", "F2_EXPAND", "F2_FAC", "F2_EDU1", "F2_EDU2", "F2_OUT1", "F2_OUT2", "F2_OUT3", "F2_OUT4",
       "F3_FAC_ABOVE", "F3_FAC_BELOW", "F3_EDU1", "F3_EDU2", "F3_OUT1", "F3_OUT2", "F3_OUT3", "F3_OUT4",
-      "F4_INVEST", "F4_EDU1", "F4_FAC1", "F4_FAC2", "F4_DIST", "F4_OUT1", "F4_OUT2", "F4_OUT3", "F4_OUT4"
+      "F4_EDU1", "F4_FAC1", "F4_FAC2", "F4_DIST", "F4_OUT1", "F4_OUT2", "F4_OUT3", "F4_OUT4"
     ];
     
     console.log("📋 Current positions from localStorage:");
@@ -2154,12 +2142,6 @@ function updateFlowchartSchoolInfo(name) {
     educationalAdequacy = "N/A";
   }
   
-  // Get Departmental Deficiency
-  let departmentalDeficiency = row["DepartmentalDeficiency"];
-  if (departmentalDeficiency === undefined || departmentalDeficiency === null || departmentalDeficiency === "") {
-    departmentalDeficiency = "N/A";
-  }
-  
   // Get Attendance Area Enrollment
   let attendanceAreaEnrollment = row["AttendanceAreaEnrollment"];
   if (attendanceAreaEnrollment !== undefined && attendanceAreaEnrollment !== null && attendanceAreaEnrollment !== "") {
@@ -2177,22 +2159,6 @@ function updateFlowchartSchoolInfo(name) {
     siteCapacity = siteCapacity === "Yes" || siteCapacity === "yes" || siteCapacity === "YES" ? "Yes" : "No";
   }
   
-  // Get Distance to Underutilized Schools
-  let distanceUnderutilized = row["DistanceUnderutilizedschools"];
-  if (distanceUnderutilized !== undefined && distanceUnderutilized !== null && distanceUnderutilized !== "") {
-    distanceUnderutilized = parseFloat(distanceUnderutilized).toFixed(1) + " mi";
-  } else {
-    distanceUnderutilized = "N/A";
-  }
-  
-  // Get Recent Investments
-  let recentInvestments = row["RecentInvestments"];
-  if (recentInvestments !== undefined && recentInvestments !== null && recentInvestments !== "") {
-    recentInvestments = "$" + parseFloat(recentInvestments).toFixed(1) + "M";
-  } else {
-    recentInvestments = "N/A";
-  }
-  
   // Get Below 50% Percentile EA Category
   let below50PercentileEA = row["Below50PCTL_EA_Cat"];
   if (below50PercentileEA === undefined || below50PercentileEA === null || below50PercentileEA === "") {
@@ -2204,17 +2170,23 @@ function updateFlowchartSchoolInfo(name) {
   
   infoDiv.innerHTML = `<div style='font-size:13px;font-weight:bold;margin-bottom:2px;text-decoration:none;font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif;'>
   ${name}</div>
-  <div style='font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif; font-size:11px; margin-bottom:1px; line-height:1.3;'>
-    School Type: <strong>${schoolType}</strong> &nbsp; | &nbsp; Utilization: <strong>${util}</strong> &nbsp; | &nbsp; Enrollment: <strong>${enroll}</strong> &nbsp; | &nbsp; Growth: <strong>${growth}</strong>
+  <div style='font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif; font-size:11px; margin-bottom:1px; line-height:1.3; display:flex; flex-wrap:wrap; gap:8px; align-items:center;'>
+    <span>School Type: <strong>${schoolType}</strong></span>
+    <span>Utilization: <strong>${util}</strong></span>
+    <span>Enrollment: <strong>${enroll}</strong></span>
+    <span>Growth: <strong>${growth}</strong></span>
   </div>
-  <div style='font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif; font-size:11px; margin-bottom:1px; line-height:1.3;'>
-    Educational Adequacy: <strong>${educationalAdequacy}</strong> &nbsp; | &nbsp; Building Score: <strong>${buildingScore}</strong> &nbsp; | &nbsp; Attendance Area Enrollment: <strong>${attendanceAreaEnrollment}</strong> &nbsp; | &nbsp; Site capacity for building expansion?: <strong>${siteCapacity}</strong> &nbsp; | &nbsp; Distance to welcoming school: <strong>${distanceUnderutilized}</strong>
-    &nbsp; <button type="button" class="welcoming-schools-btn" data-school-name="${name}" style="margin-left:4px;padding:2px 6px;font-size:10px;border:1px solid #007cbf;border-radius:3px;background:#fff;color:#007cbf;cursor:pointer;">
+  <div style='font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif; font-size:11px; margin-bottom:1px; line-height:1.3; display:flex; flex-wrap:wrap; gap:8px; align-items:center;'>
+    <span>Educational Adequacy: <strong>${educationalAdequacy}</strong></span>
+    <span>Building Score: <strong>${buildingScore}</strong></span>
+    <span>Attendance Area Enrollment: <strong>${attendanceAreaEnrollment}</strong></span>
+    <span>Site capacity for building expansion?: <strong>${siteCapacity}</strong></span>
+    <button type="button" class="welcoming-schools-btn" data-school-name="${name}" style="padding:2px 6px;font-size:10px;border:1px solid #007cbf;border-radius:3px;background:#fff;color:#007cbf;cursor:pointer; white-space:nowrap;">
       Nearby schools
     </button>
   </div>
-  <div style='font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif; font-size:11px; line-height:1.3;'>
-    Departmental Deficiency: <strong>${departmentalDeficiency}</strong> &nbsp; | &nbsp; Below 50% Percentile EA: <strong>${below50PercentileEA}</strong> &nbsp; | &nbsp; Recent Investments: <strong>${recentInvestments}</strong>
+  <div style='font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif; font-size:11px; line-height:1.3; display:flex; flex-wrap:wrap; gap:8px; align-items:center;'>
+    <span>Below 50% Percentile EA: <strong>${below50PercentileEA}</strong></span>
   </div>`;
 
   // Ensure welcoming schools list container exists just below the info div
@@ -2274,34 +2246,48 @@ function showNearbyWelcomingSchools(originName) {
     return;
   }
 
-  const rowsByOrigin = window.distanceToWelcomingRowsByOrigin || {};
+  // Prefer the shared SchooltoSchoolDistances lookup if available; otherwise fall back to legacy distance map.
   const uniqueId = originRow.UniqueID || originRow["UniqueID"] || originRow["Unique Id"];
-  const originKey = uniqueId && uniqueId.toString().trim();
+  const originKey = (uniqueId && uniqueId.toString().trim().toLowerCase()) || "";
+  const distancesByOrigin = window.schoolDistancesByOrigin || window.distanceToWelcomingRowsByOrigin || {};
+  const rowsForOrigin = distancesByOrigin[originKey];
 
-  if (!originKey || !rowsByOrigin[originKey] || !Array.isArray(rowsByOrigin[originKey])) {
+  // #region agent log
+  // Debug ingest disabled: 127.0.0.1 endpoint not available in production
+  // #endregion
+
+  if (!originKey || !rowsForOrigin || !Array.isArray(rowsForOrigin)) {
     listDiv.innerHTML = "<em>No nearby schools found in the distance file.</em>";
     return;
   }
 
   // Determine the distance threshold from the sliders based on school level
   const thresholds = window.thresholds || (window.decisionLogic && window.decisionLogic.thresholds) || {};
-  const level = normalizeSchoolLevel(originRow["School Level"] || "");
-  let distanceThreshold;
-  if (level === "elementary") {
-    distanceThreshold = thresholds.elementaryDistance;
-  } else if (level === "k8") {
-    distanceThreshold = thresholds.k8Distance;
-  } else if (level === "middle") {
-    distanceThreshold = thresholds.middleDistance;
-  } else if (level === "high") {
-    distanceThreshold = thresholds.highDistance;
-  } else if (level === "k12") {
-    distanceThreshold = thresholds.k12Distance;
+  const level = normalizeSchoolLevelFlow(originRow["School Level"] || "");
+  const levelDistances = {
+    elementary: thresholds.elementaryDistance,
+    k8: thresholds.k8Distance,
+    middle: thresholds.middleDistance,
+    high: thresholds.highDistance,
+    k12: thresholds.k12Distance
+  };
+  const levelDistance = level ? levelDistances[level] : undefined;
+  const globalDistance = thresholds.distanceUnderutilized;
+
+  // Prefer level-specific distance; otherwise fall back to global slider; default to 5 if neither is set.
+  let distanceThreshold = null;
+  if (isFinite(levelDistance)) {
+    distanceThreshold = levelDistance;
+  } else if (isFinite(globalDistance)) {
+    distanceThreshold = globalDistance;
   } else {
-    distanceThreshold = thresholds.middleDistance || 5.0;
+    distanceThreshold = 5.0;
   }
 
-  if (!distanceThreshold || !isFinite(distanceThreshold)) {
+  // #region agent log
+  // Debug ingest disabled: 127.0.0.1 endpoint not available in production
+  // #endregion
+  if (!isFinite(distanceThreshold) || distanceThreshold <= 0) {
     listDiv.innerHTML = "<em>Distance threshold is not set.</em>";
     return;
   }
@@ -2312,26 +2298,33 @@ function showNearbyWelcomingSchools(originName) {
     : schoolData;
   const destById = new Map(
     (decisionRows || []).map(r => {
-      const uid = (r.UniqueID || r["UniqueID"] || r["Unique Id"] || "").toString().trim();
+      const uid = (r.UniqueID || r["UniqueID"] || r["Unique Id"] || "").toString().trim().toLowerCase();
       return [uid, r];
     })
   );
 
-  const candidatesRaw = rowsByOrigin[originKey];
-  const candidates = candidatesRaw
+  const cleanText = (val) => {
+    const str = (val || "").toString().trim();
+    return str.replace(/^'+\s*/, ""); // strip leading apostrophes often present in CSV
+  };
+
+  const candidatesRaw = rowsForOrigin || [];
+  const finalCandidates = candidatesRaw
     .map(r => {
       const distRaw =
         r["Network Distance (Miles)"] ||
         r["Network Distance"] ||
-        r["NetworkDistanceMiles"];
+        r["NetworkDistanceMiles"] ||
+        r.distanceMiles;
       const dist = parseFloat((distRaw || "").toString().trim());
       if (!isFinite(dist) || dist > distanceThreshold) return null;
 
       const destPrefix =
         r["Destination CDE Prefix"] ||
         r["Destination CDE Prefix "] ||
-        r["DestinationCDEPrefix"];
-      const destRow = destPrefix ? destById.get(destPrefix.toString().trim()) : null;
+        r["DestinationCDEPrefix"] ||
+        r.destId;
+      const destRow = destPrefix ? destById.get(destPrefix.toString().trim().toLowerCase()) : null;
       const destName = (destRow && destRow["Building Name"]) || r["Destination Facility Name"] || "Unknown";
       const destGrades = r["Destination Grades"] || (destRow && destRow["School Level"]) || "N/A";
       const capacity = destRow ? (destRow["Capacity"] || destRow.Capacity) : null;
@@ -2339,43 +2332,60 @@ function showNearbyWelcomingSchools(originName) {
       const availableNum = available !== undefined && available !== null && available !== ""
         ? Math.max(0, parseFloat(available.toString().replace(/,/g, "")) || 0)
         : null;
+      const gradeOverlapRaw = r["Grade Overlap"] || r.gradeOverlap || "";
+      const gradeOverlapClean = cleanText(gradeOverlapRaw);
+      if (gradeOverlapClean && gradeOverlapClean.toLowerCase() === "no") return null; // skip non-overlapping rows
 
       return {
         name: destName,
         grades: destGrades,
         distance: dist,
         capacity: capacity,
-        canAbsorb: availableNum
+        canAbsorb: availableNum,
+        gradeOverlap: gradeOverlapClean
       };
     })
     .filter(Boolean)
     .sort((a, b) => a.distance - b.distance);
 
-  if (!candidates.length) {
+  // #region agent log
+  // Debug ingest disabled: 127.0.0.1 endpoint not available in production
+  // #endregion
+
+  if (!finalCandidates.length) {
     listDiv.innerHTML = "<em>No schools within the current distance threshold.</em>";
     return;
   }
+
+  // #region agent log
+  // Debug ingest disabled: 127.0.0.1 endpoint not available in production
+  // #endregion
 
   let html = "<div style='margin-top:2px;'><strong>Nearby schools within threshold:</strong></div>";
   html += "<table style='width:100%;border-collapse:collapse;margin-top:2px;'>";
   html += "<thead><tr>" +
     "<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>Name</th>" +
     "<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>Grades</th>" +
+    "<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>Overlapping Grades</th>" +
     "<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>Distance (mi)</th>" +
     "<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>Capacity</th>" +
     "<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>Open seats</th>" +
     "</tr></thead><tbody>";
 
-  candidates.forEach(c => {
+  finalCandidates.forEach(c => {
     const capText = c.capacity !== undefined && c.capacity !== null && c.capacity !== ""
       ? c.capacity
       : "N/A";
     const absorbText = c.canAbsorb !== null && c.canAbsorb !== undefined
       ? c.canAbsorb.toLocaleString()
       : "N/A";
+    const gradesText = cleanText(c.grades) || "—";
+    const overlapClean = cleanText(c.gradeOverlap);
+    const overlapText = overlapClean && overlapClean.toLowerCase() !== "no" ? overlapClean : "—";
     html += "<tr>" +
       `<td style='border:1px solid #ccc;padding:2px 4px;'>${c.name}</td>` +
-      `<td style='border:1px solid #ccc;padding:2px 4px;'>${c.grades}</td>` +
+      `<td style='border:1px solid #ccc;padding:2px 4px;'>${gradesText}</td>` +
+      `<td style='border:1px solid #ccc;padding:2px 4px;'>${overlapText}</td>` +
       `<td style='border:1px solid #ccc;padding:2px 4px;'>${c.distance.toFixed(2)}</td>` +
       `<td style='border:1px solid #ccc;padding:2px 4px;'>${capText}</td>` +
       `<td style='border:1px solid #ccc;padding:2px 4px;'>${absorbText}</td>` +

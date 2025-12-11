@@ -16,7 +16,6 @@ window.decisionLogic = {
     buildingThresholdFlow4: 1.5,
     adequateProgramsMin: 50, // Changed to percentage (0-100)
     attendanceAreaEnrollment: 80, // Percentage threshold for attendance area enrollment (0-100)
-    recentInvestments: 5, // Changed to millions of dollars
     distanceReceiving: 1.0,
     // Enrollment thresholds by school level
     elementaryEnrollment: 220,
@@ -67,17 +66,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 row["Origin CDE Prefix"] ||
                 row["Origin CDE Prefix "] ||
                 row["OriginCDEPrefix"];
-              const gradeOverlap = (
-                row["Grade Overlap"] ||
-                row["GradeOverlap"] ||
-                ""
-              )
-                .toString()
-                .toLowerCase();
 
               if (!originPrefix) return;
-              if (gradeOverlap && gradeOverlap !== "yes") return;
 
+              // Always use Network Distance (Miles); fall back to nearby variants if renamed.
               const distRaw =
                 row["Network Distance (Miles)"] ||
                 row["Network Distance"] ||
@@ -85,7 +77,7 @@ document.addEventListener("DOMContentLoaded", () => {
               const dist = parseFloat((distRaw || "").toString().trim());
               if (!isFinite(dist)) return;
 
-              // Keep the minimum distance for each origin
+              // Keep the minimum network distance for each origin
               if (map[originPrefix] === undefined || dist < map[originPrefix]) {
                 map[originPrefix] = dist;
               }
@@ -98,7 +90,7 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
             console.log(
-              "✅ Loaded distance-to-welcoming map for",
+              "✅ Loaded distance-to-welcoming map (Network Distance, miles) for",
               Object.keys(map).length,
               "schools"
             );
@@ -271,7 +263,7 @@ document.addEventListener("DOMContentLoaded", () => {
       fac3_above: +row.BuildingScore <= t.buildingThresholdAbove ? "Yes" : "No",
       
       // Flow 4 - Consolidation/Closure
-      invest: +row.RecentInvestments >= t.recentInvestments ? "Yes" : "No",
+      invest: "No",
       edu4: (+row.EducationalAdequacy * 100) >= t.adequateProgramsMin ? "Yes" : "No",
       fac4: +row.BuildingScore <= t.buildingThresholdFlow4 ? "Yes" : "No",
       dist4: (() => {
@@ -575,14 +567,16 @@ document.addEventListener("DOMContentLoaded", () => {
         complete: (results) => {
           console.log("✅ Decision data loaded and parsed.");
           
-          // Filter out schools with Include_Flow_Chart = "No"
+          // Filter out schools only when Include_Flow_Chart explicitly says "No"
           self.schoolData = results.data.filter(row => {
-            const includeFlowChart = row.Include_Flow_Chart;
-            const shouldInclude = includeFlowChart && 
-                                 includeFlowChart.toLowerCase() !== 'no' && 
-                                 includeFlowChart.trim() !== '';
+            const includeFlowChartRaw = row.Include_Flow_Chart;
+            const normalizedInclude = (includeFlowChartRaw ?? "yes").toString().trim().toLowerCase();
+            const shouldInclude =
+              normalizedInclude !== "no" &&
+              normalizedInclude !== "0" &&
+              normalizedInclude !== "false";
             if (!shouldInclude) {
-              console.log(`🚫 Excluding school from assessment: ${row["Building Name"]} (Include_Flow_Chart: "${includeFlowChart}")`);
+              console.log(`🚫 Excluding school from assessment: ${row["Building Name"]} (Include_Flow_Chart: "${includeFlowChartRaw}")`);
             }
             return shouldInclude;
           });
@@ -686,12 +680,10 @@ document.addEventListener("DOMContentLoaded", () => {
   let assignmentChartInstance;
   let distanceCompareChartInstance;
   
+  // Assignment results UI removed; keep handler as no-op to avoid console errors.
   self.handleAssignmentResults = function(resultsData) {
     if (resultsData) {
-      console.log("✅ Handling assignment results:", resultsData);
-      renderAssignmentSummary(resultsData);
-      renderEnrollmentChart(resultsData.enrollmentChartData);
-      renderDistanceChart(resultsData.distanceChartData);
+      console.log("ℹ️ Assignment results received (UI disabled).");
     }
   };
 

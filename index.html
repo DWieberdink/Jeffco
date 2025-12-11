@@ -27,6 +27,337 @@
 
 
   <style>
+    /* Compact map filter styling */
+    #filter-panel-content {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 12px;
+      padding: 6px 8px 10px 8px;
+    }
+    #filter-panel-content h3 {
+      margin: 4px 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: #111827;
+    }
+    .filter-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      flex-wrap: wrap;
+    }
+    .filter-label {
+      font-weight: 600;
+      color: #111827;
+      white-space: nowrap;
+    }
+    .filter-chip {
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-size: 12px;
+      color: #374151;
+    }
+    .compact-btn {
+      padding: 4px 8px;
+      font-size: 11px;
+      border-radius: 4px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #0f172a;
+      cursor: pointer;
+    }
+    .compact-btn.primary {
+      border-color: #007cbf;
+      color: #007cbf;
+    }
+    .compact-btn:hover {
+      background: #f3f4f6;
+    }
+    .compact-slider {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .compact-slider .noUi-target {
+      height: 8px !important;
+      border: none !important;
+      box-shadow: none !important;
+      background: #e5e7eb !important;
+      margin: 4px 0 6px !important;
+    }
+    .compact-slider .noUi-connect {
+      background: #007cbf !important;
+    }
+    .compact-slider .noUi-handle {
+      width: 14px !important;
+      height: 14px !important;
+      top: -3px !important;
+      border-radius: 50% !important;
+      border: 1px solid #0f172a !important;
+      box-shadow: none !important;
+      background: #fff !important;
+    }
+    /* Force noUi styles inside filter panel */
+    #filter-panel .compact-slider .noUi-horizontal {
+      height: 8px !important;
+    }
+    #filter-panel .compact-slider .noUi-horizontal .noUi-handle {
+      width: 14px !important;
+      height: 14px !important;
+      top: -3px !important;
+      border-radius: 50% !important;
+      border: 2px solid #007cbf !important;
+      background: #fff !important;
+      box-shadow: none !important;
+    }
+    #filter-panel .compact-slider .noUi-horizontal .noUi-handle:before,
+    #filter-panel .compact-slider .noUi-horizontal .noUi-handle:after {
+      display: none !important;
+    }
+    #filter-panel .compact-slider .noUi-base {
+      height: 2px !important;
+      background: transparent !important;
+      border-radius: 2px !important;
+      box-shadow: none !important;
+    }
+    #filter-panel .compact-slider .noUi-connect {
+      background: #1e90ff !important;
+      height: 2px !important;
+      border-radius: 2px !important;
+      box-shadow: none !important;
+    }
+    /* Remove any default noUi background/border shadows */
+    #filter-panel .compact-slider {
+      margin: 0 !important;
+      padding: 0 !important;
+      height: 18px !important; /* ensure handles are fully visible */
+      box-sizing: border-box;
+      width: 100% !important;
+    }
+    #filter-panel .compact-slider .noUi-target,
+    #filter-panel .compact-slider .noUi-base,
+    #filter-panel .compact-slider .noUi-background,
+    #filter-panel .compact-slider .noUi-origin {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      height: 2px !important;
+      border-radius: 2px !important;
+      margin: 0 !important;
+    }
+    #filter-panel .compact-slider .noUi-target:before,
+    #filter-panel .compact-slider .noUi-target:after {
+      display: none !important;
+    }
+    /* Final override to strip any box/background from sliders */
+    #filter-panel .noUi-target {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      padding: 0 !important;
+      width: calc(100% - 16px) !important;
+      margin: 4px 8px 6px 0 !important;
+    }
+    #filter-panel .noUi-base,
+    #filter-panel .noUi-background,
+    #filter-panel .noUi-origin {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      height: 2px !important;
+      border-radius: 2px !important;
+    }
+    #filter-panel .noUi-connect {
+      height: 2px !important;
+      border-radius: 2px !important;
+      background: #1e90ff !important;
+      box-shadow: none !important;
+    }
+
+    /* --- Flow sliders (Step 1 & 2) --- */
+    .flow-section { --flow-color: #1e90ff; }
+    .flow-section.flow1 { --flow-color: #007cbf; }
+    .flow-section.flow2 { --flow-color: #28a745; }
+    .flow-section.flow3 { --flow-color: #f59e0b; }
+    .flow-section.flow4 { --flow-color: #dc2626; }
+
+    #decision-input-panel input[type="range"],
+    #scenario-output-panel input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 14px;
+      background: transparent;
+      margin: 4px 0 10px;
+      padding: 0;
+    }
+    /* WebKit */
+    #decision-input-panel input[type="range"]::-webkit-slider-runnable-track,
+    #scenario-output-panel input[type="range"]::-webkit-slider-runnable-track {
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      border: none;
+    }
+    #decision-input-panel input[type="range"]::-webkit-slider-thumb,
+    #scenario-output-panel input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff !important;
+      border: 2px solid var(--flow-color, #1e90ff) !important;
+      margin-top: -4px;
+      box-shadow: none;
+    }
+    /* Firefox */
+    #decision-input-panel input[type="range"]::-moz-range-track,
+    #scenario-output-panel input[type="range"]::-moz-range-track {
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      border: none;
+    }
+    #decision-input-panel input[type="range"]::-moz-range-thumb,
+    #scenario-output-panel input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff !important;
+      border: 2px solid var(--flow-color, #1e90ff) !important;
+      box-shadow: none;
+    }
+    /* Step 2 (weights) compact sliders, same look as Flow 2 */
+    #scenario-input-panel {
+      --flow-color: #28a745;
+    }
+    #scenario-input-panel input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 14px;
+      background: transparent;
+      margin: 4px 0 6px;
+      padding: 0;
+    }
+    #scenario-input-panel input[type="range"]::-webkit-slider-runnable-track {
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      border: none;
+    }
+    #scenario-input-panel input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff !important;
+      border: 2px solid var(--flow-color, #28a745) !important;
+      margin-top: -4px;
+      box-shadow: none;
+    }
+    #scenario-input-panel input[type="range"]::-moz-range-track {
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      border: none;
+    }
+    #scenario-input-panel input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff !important;
+      border: 2px solid var(--flow-color, #28a745) !important;
+      box-shadow: none;
+    }
+    #scenario-input-panel label {
+      display: block;
+      margin: 6px 0;
+      font-weight: 500;
+      color: #374151;
+    }
+    /* Spacing for flow labels */
+    #decision-input-panel .flow-content label,
+    #scenario-output-panel .flow-content label {
+      display: block;
+      margin: 6px 0;
+    }
+    #filter-panel .compact-slider .noUi-target {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      margin: 4px 0 6px !important;
+    }
+    /* School type dropdown */
+    .filter-dropdown {
+      position: relative;
+      width: 100%;
+    }
+    .filter-dropdown button {
+      width: 100%;
+      text-align: left;
+      justify-content: space-between;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .filter-dropdown .chevron {
+      margin-left: auto;
+      font-size: 10px;
+      color: #6b7280;
+    }
+    .filter-dropdown-menu {
+      position: absolute;
+      z-index: 1000;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+      padding: 6px 8px;
+      display: none;
+      max-height: 240px;
+      overflow: auto;
+    }
+    .filter-dropdown-menu.open {
+      display: block;
+    }
+    .filter-dropdown-menu label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      padding: 4px 2px;
+      color: #111827;
+    }
+    .filter-dropdown-menu input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+    }
+    .compact-toggle-group {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .compact-toggle-group button {
+      padding: 4px 8px;
+      font-size: 11px;
+      border-radius: 4px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #0f172a;
+      cursor: pointer;
+    }
+    .compact-toggle-group button.active {
+      background: #007cbf;
+      border-color: #007cbf;
+      color: #fff;
+    }
     /* General Layout */
    
     /* McKinsey-inspired typography */
@@ -234,19 +565,21 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 6px;
       cursor: pointer;
-      font-size: 12px;
-      padding: 2px 4px;
-      border-radius: 4px;
-      background: #f2f4f7;
-      color: #222;
-      border: 1px solid #d0d7de;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 4px 2px;
+      border: none;
+      background: transparent;
+      color: #111;
       user-select: none;
     }
 
     .legend-toggle span.chevron {
       font-size: 11px;
-      margin-left: 6px;
+      margin-left: 0;
+      margin-right: 6px;
     }
 
     .legend.legend-collapsed #legend-content {
@@ -760,21 +1093,54 @@
     /* ✅ Styles for map-overlay filter panel */
     #filter-panel {
       position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 10;
+      top: 20px; /* within map area */
+      left: 20px;
+      z-index: 1200;
       background: white;
       border-radius: 4px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      resize: both;
+      overflow: auto;
+      min-width: 220px;
+      max-width: 420px;
+      min-height: 0;
     }
+    #filter-panel[open] {
+      min-height: 240px;
+    }
+    #filter-panel:not([open]) {
+      min-height: 0;
+      height: auto;
+      resize: none;
+      overflow: visible;
+      top: 20px !important;
+      left: 20px !important;
+      position: absolute !important;
+    }
+    /* Nearby section adjustments */
+    #nearbySchoolsSection summary::-webkit-details-marker { display: none; }
+    #nearbySchoolsSection summary::marker { content: ""; }
+    #nearbySchoolsSection summary { display: flex; align-items: center; gap: 6px; }
+    #nearbySchoolsSection summary::before { content: "▸"; font-size: 11px; color: #6b7280; transition: transform 0.15s ease; }
+    #nearbySchoolsSection[open] summary::before { transform: rotate(90deg); }
     #filter-panel summary {
       padding: 8px 10px;
       background-color: #fff;
       font-size: 13px;
     }
     #filter-panel-content {
-      padding: 0 10px 10px 10px;
-      width: 200px;
+      padding: 8px 10px 12px 10px;
+      width: auto;
+      min-width: 200px;
+      max-width: 100%;
+      box-sizing: border-box;
+      max-height: 70vh;
+      overflow: auto;
+    }
+    /* Ensure filter children align to the same width */
+    #filter-panel-content > * {
+      width: 100%;
+      box-sizing: border-box;
     }
     #filter-panel-content h3 {
       font-size: 1em;
@@ -796,15 +1162,51 @@
     #filter-panel .noUi-handle:after, #filter-panel .noUi-handle:before {
         display: none;
     }
-    #filter-panel .toggle-buttons {
+    /* School selection inline with map filters */
+    #filter-panel .school-select-filter {
+      margin-bottom: 12px;
+      padding: 0;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      width: 100%;
+    }
+    #nearbySchoolsSection,
+    #nearbySchoolsContainer {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    #filter-panel .school-select-header {
       display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #filter-panel .school-select-header h3 {
+      margin: 0;
+      font-size: 13px;
+    }
+    #mapOriginSchoolSelect {
+      width: 100%;
+      margin-top: 6px;
+      font-size: 12px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      box-sizing: border-box;
+      background: white;
+    }
+    #filter-panel .toggle-buttons,
+    #filter-panel .compact-toggle-group {
+      display: inline-flex;
+      align-items: center;
       gap: 0;
       border: 1px solid #007cbf;
       border-radius: 4px;
       overflow: hidden;
       margin-top: 5px;
     }
-    #filter-panel .toggle-buttons button {
+    #filter-panel .toggle-buttons button,
+    #filter-panel .compact-toggle-group button {
       flex-grow: 1;
       margin: 0;
       border: none;
@@ -812,7 +1214,8 @@
       color: #007cbf;
       border-radius: 0;
     }
-    #filter-panel .toggle-buttons button.active {
+    #filter-panel .toggle-buttons button.active,
+    #filter-panel .compact-toggle-group button.active {
       background-color: #007cbf;
       color: white;
     }
@@ -1391,18 +1794,18 @@
             <strong>Step 1: Strategic Sorting</strong> uses decision thresholds to categorize schools into strategy groups. Adjust the sliders below to change how schools are evaluated, which is reflected in <strong>Step 1: Strategic Sorting: Results</strong> on the right sidebar.<br>
             The flowchart allows you to visualize the decision logic dynamically by school.<br><br>
             <strong>Flow 1: Decision Routing</strong><br>
-            <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
-              <li><strong>Enrollment Thresholds by School Level</strong><br>
-                Minimum enrollment thresholds for Elementary, K-8, Middle, High, and 6-12 schools</li>
-              <li><strong>Current Utilization Threshold</strong><br>
-                Minimum percentage of capacity used before a school is considered underutilized (0-100%, default: 60%)</li>
-              <li><strong>High Utilization Threshold</strong><br>
-                Percentage threshold for identifying highly utilized or overcrowded schools (0-120%, default: 100%)</li>
-              <li><strong>Enrollment Growth Threshold</strong><br>
-                Minimum expected change in student enrollment (-50% to +50%, default: 0%)</li>
-              <li><strong>Distance to Underutilized Schools</strong><br>
-                Maximum distance to look for nearby underutilized schools (miles, varies by school level)</li>
-            </ul>
+  <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
+    <li><strong>Enrollment Thresholds by School Level</strong><br>
+      Minimum enrollment thresholds for Elementary, K-8, Middle, High, and 6-12 schools (driven by Decision Data Export enrollment)</li>
+    <li><strong>Current Utilization Threshold</strong><br>
+      Minimum percentage of capacity used before a school is considered underutilized (0-100%, default: 60%)</li>
+    <li><strong>High Utilization Threshold</strong><br>
+      Percentage threshold for identifying highly utilized or overcrowded schools (0-120%, default: 100%)</li>
+    <li><strong>Enrollment Growth Threshold</strong><br>
+      Minimum expected change in student enrollment (-50% to +50%, default: 0%)</li>
+    <li><strong>Distance to Welcoming Schools by School Level</strong><br>
+      Distance thresholds for identifying nearby welcoming schools (miles, varies by school level)</li>
+  </ul>
             <strong>Flow 2: Expansion</strong><br>
             <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
               <li><strong>Attendance Area Enrollment</strong><br>
@@ -1419,8 +1822,6 @@
             </ul>
             <strong>Flow 4: Closure/Consolidation</strong><br>
             <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
-              <li><strong>Recent Investments</strong><br>
-                Investment threshold in millions (0-50M, default: $5M)</li>
               <li><strong>Composite Building Score</strong><br>
                 Building condition score threshold (1-10 scale, default: 5)</li>
               <li><strong>Distance to Welcoming Schools</strong><br>
@@ -1430,16 +1831,16 @@
         </span>
       </span>
     </summary>
-    <div id="decision-sliders" style="padding-top: 1rem;">
+    <div id="decision-sliders" style="padding-top: 0.125rem;">
       <!-- FLOW 1: Decision Routing -->
-      <details class="flow-section" open>
-        <summary class="flow-summary" style="color: #0066cc; margin-top: 32px; margin-bottom: 16px; border-bottom: 2px solid #0066cc; padding-bottom: 8px; cursor: pointer; font-weight: 600; list-style: none; font-size: 16px;">
-          <span style="display: inline-block; margin-right: 8px;">▶</span>Flow 1: Decision Routing
+      <details class="flow-section flow1" open>
+        <summary class="flow-summary" style="color: #0066cc; margin-top: 6px; margin-bottom: 4px; border-bottom: 2px solid #0066cc; padding-bottom: 2px; cursor: pointer; font-weight: 600; list-style: none; font-size: 15px;">
+          <span style="display: inline-block; margin-right: 4px;">▶</span>Flow 1: Decision Routing
         </summary>
-        <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
-          <details class="flow-section" style="margin-bottom: 15px;">
+        <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
+          <details class="flow-section flow1" style="margin-bottom: 6px;">
             <summary style="color: black; font-weight: bold; cursor: pointer;">Enrollment Thresholds by School Level</summary>
-            <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
+            <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
               <label>Elementary School: <span id="elementaryEnrollmentOut">220</span> students
                 <input type="range" id="elementaryEnrollmentSlider" min="100" max="500" step="10" value="220" oninput="document.getElementById('elementaryEnrollmentOut').textContent = this.value">
               </label>
@@ -1458,20 +1859,17 @@
             </div>
           </details>
           
-          <label>Current Utilization Threshold: <span id="utilOut">60</span>%
+          <label style="display:block; margin-bottom:6px;">Current Utilization Threshold: <span id="utilOut">60</span>%
             <input type="range" id="utilSlider" min="0" max="100" step="1" value="60" oninput="document.getElementById('utilOut').textContent = this.value">
           </label>
-          <label>High Utilization Threshold: <span id="utilHighOut">100</span>%
+          <label style="display:block; margin-bottom:6px;">High Utilization Threshold: <span id="utilHighOut">100</span>%
             <input type="range" id="utilHighSlider" min="0" max="120" step="1" value="100" oninput="document.getElementById('utilHighOut').textContent = this.value">
           </label>
-          <label>Enrollment Growth Threshold: <span id="growthOut">0</span>%
+          <label style="display:block; margin-bottom:6px;">Enrollment Growth Threshold: <span id="growthOut">0</span>%
             <input type="range" id="growthSlider" min="-50" max="50" step="1" value="0" oninput="document.getElementById('growthOut').textContent = this.value">
           </label>
-          <label>Distance to Underutilized Schools (miles): <span id="distOut">3.5</span>
-            <input type="range" id="distSlider" min="0" max="10" step="0.1" value="3.5" oninput="document.getElementById('distOut').textContent = this.value">
-          </label>
           
-          <details class="flow-section" style="margin-bottom: 15px;">
+      <details class="flow-section flow4" style="margin-bottom: 15px;">
             <summary style="color: black; font-weight: bold; cursor: pointer;">Distance to Underutilized Schools by School Level</summary>
             <div style="margin-left: 20px; margin-top: 10px;">
               <label style="display: block; margin-bottom: 12px;">Elementary: <span id="elementaryDistanceOut">3.5</span> mi
@@ -1496,66 +1894,63 @@
       </details>
       
       <!-- FLOW 2: Expansion -->
-      <details class="flow-section" open>
-        <summary class="flow-summary" style="color: #28a745; margin-top: 20px; margin-bottom: 10px; border-bottom: 2px solid #28a745; padding-bottom: 5px; cursor: pointer; font-weight: bold; list-style: none;">
-          <span style="display: inline-block; margin-right: 8px;">▶</span>Flow 2: Expansion
+      <details class="flow-section flow2" open>
+        <summary class="flow-summary" style="color: #28a745; margin-top: 6px; margin-bottom: 4px; border-bottom: 2px solid #28a745; padding-bottom: 2px; cursor: pointer; font-weight: 600; list-style: none; font-size: 15px;">
+          <span style="display: inline-block; margin-right: 4px;">▶</span>Flow 2: Expansion
         </summary>
-        <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
-          <label style="display: block; margin-bottom: 16px; font-weight: 500; color: #374151;">Attendance Area Enrollment: <span id="attendanceAreaEnrollmentOut" style="font-weight: 600;">80</span>%
+        <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
+          <label style="display: block; margin-bottom: 6px; font-weight: 500; color: #374151;">Attendance Area Enrollment: <span id="attendanceAreaEnrollmentOut" style="font-weight: 600;">80</span>%
             <input type="range" id="attendanceAreaEnrollmentSlider" min="60" max="100" step="1" value="80">
           </label>
-          <label style="display: block; margin-bottom: 16px; font-weight: 500; color: #374151;">Composite Building Score: <span id="buildOut" style="font-weight: 600;">5</span>
+          <label style="display: block; margin-bottom: 6px; font-weight: 500; color: #374151;">Composite Building Score: <span id="buildOut" style="font-weight: 600;">5</span>
             <input type="range" id="buildSlider" min="1" max="10" step="1" value="5">
           </label>
-          <label>Educational Adequacy: <span id="progOut">50</span>
+          <label style="display: block; margin-bottom: 6px; font-weight: 500; color: #374151;">Educational Adequacy: <span id="progOut">50</span>
             <input type="range" id="progSlider" min="0" max="100" step="1" value="50">
           </label>
         </div>
       </details>
       
       <!-- FLOW 3: Maintenance/Investment -->
-      <details class="flow-section" open>
-        <summary class="flow-summary" style="color: #f59e0b; margin-top: 32px; margin-bottom: 16px; border-bottom: 2px solid #f59e0b; padding-bottom: 8px; cursor: pointer; font-weight: 600; list-style: none; font-size: 16px;">
-          <span style="display: inline-block; margin-right: 8px;">▶</span>Flow 3: Maintenance/Investment
+      <details class="flow-section flow3" open>
+        <summary class="flow-summary" style="color: #f59e0b; margin-top: 6px; margin-bottom: 4px; border-bottom: 2px solid #f59e0b; padding-bottom: 2px; cursor: pointer; font-weight: 600; list-style: none; font-size: 15px;">
+          <span style="display: inline-block; margin-right: 4px;">▶</span>Flow 3: Maintenance/Investment
         </summary>
-        <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
-          <label>Composite Building Score Above Threshold: <span id="buildAboveOut">5</span>
+        <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
+          <label style="display: block; margin-bottom: 6px;">Composite Building Score Above Threshold: <span id="buildAboveOut">5</span>
             <input type="range" id="buildAboveSlider" min="1" max="10" step="1" value="5">
           </label>
-          <label>Composite Building Score Below Threshold: <span id="buildBelowOut">5</span>
+          <label style="display: block; margin-bottom: 6px;">Composite Building Score Below Threshold: <span id="buildBelowOut">5</span>
             <input type="range" id="buildBelowSlider" min="1" max="10" step="1" value="5">
           </label>
         </div>
       </details>
       
       <!-- FLOW 4: Closure/Consolidation -->
-      <details class="flow-section" open>
-        <summary class="flow-summary" style="color: #dc2626; margin-top: 32px; margin-bottom: 16px; border-bottom: 2px solid #dc2626; padding-bottom: 8px; cursor: pointer; font-weight: 600; list-style: none; font-size: 16px;">
-          <span style="display: inline-block; margin-right: 8px;">▶</span>Flow 4: Closure/Consolidation
+      <details class="flow-section flow4" open>
+        <summary class="flow-summary" style="color: #dc2626; margin-top: 6px; margin-bottom: 4px; border-bottom: 2px solid #dc2626; padding-bottom: 2px; cursor: pointer; font-weight: 600; list-style: none; font-size: 15px;">
+          <span style="display: inline-block; margin-right: 4px;">▶</span>Flow 4: Closure/Consolidation
         </summary>
-        <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
-          <label>Recent Investments in Past 5 Years (millions): <span id="recentInvestOut">$5M</span>
-            <input type="range" id="recentInvestSlider" min="0" max="50" step="1" value="5">
-          </label>
-          <label>Composite Building Score: <span id="buildFlow4Out">5</span>
+        <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
+          <label style="display:block; margin-bottom:6px;">Composite Building Score: <span id="buildFlow4Out">5</span>
             <input type="range" id="buildFlow4Slider" min="1" max="10" step="1" value="5">
           </label>
-          <details class="flow-section" style="margin-bottom: 15px;">
+          <details class="flow-section" style="margin-bottom: 6px;">
             <summary style="color: black; font-weight: bold; cursor: pointer;">Distance to Welcoming Schools by School Level</summary>
-            <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
-              <label>Elementary School: <span id="elementaryDistanceOut">4.0</span> miles
+            <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
+              <label style="display:block; margin-bottom:4px;">Elementary School: <span id="elementaryDistanceOut">4.0</span> miles
                 <input type="range" id="elementaryDistanceSlider" min="1" max="10" step="0.5" value="4.0" oninput="document.getElementById('elementaryDistanceOut').textContent = this.value">
               </label>
-              <label>K-8 School: <span id="k8DistanceOut">6.0</span> miles
+              <label style="display:block; margin-bottom:4px;">K-8 School: <span id="k8DistanceOut">6.0</span> miles
                 <input type="range" id="k8DistanceSlider" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('k8DistanceOut').textContent = this.value">
               </label>
-              <label>Middle School: <span id="middleDistanceOut">6.0</span> miles
+              <label style="display:block; margin-bottom:4px;">Middle School: <span id="middleDistanceOut">6.0</span> miles
                 <input type="range" id="middleDistanceSlider" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('middleDistanceOut').textContent = this.value">
               </label>
-              <label>High School: <span id="highDistanceOut">6.0</span> miles
+              <label style="display:block; margin-bottom:4px;">High School: <span id="highDistanceOut">6.0</span> miles
                 <input type="range" id="highDistanceSlider" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('highDistanceOut').textContent = this.value">
               </label>
-              <label>6-12 School: <span id="k12DistanceOut">6.0</span> miles
+              <label style="display:block; margin-bottom:4px;">6-12 School: <span id="k12DistanceOut">6.0</span> miles
                 <input type="range" id="k12DistanceSlider" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('k12DistanceOut').textContent = this.value">
               </label>
             </div>
@@ -1598,7 +1993,7 @@
           </span>
         </span>
       </summary>
-    <div class="details-content-wrapper" style="padding: 0.5rem;">
+    <div class="details-content-wrapper" style="padding: 0.25rem;">
       <!-- Hidden dropdown for backward compatibility with existing code -->
       <select id="decisionFilter" style="display: none;">
         <option value="">-- All Decisions --</option>
@@ -1618,9 +2013,9 @@
     <!-- Prioritization Weights Section (replaces Assignment Mode) -->
     <details open class="nested-details" id="prioritizationWeightsDetails">
       <summary><strong>Prioritization Weights</strong></summary>
-      <div id="prioritization-weights-left-panel" style="padding-top: 5px;">
-        <p style="font-size: 0.75em; color: #666; margin-bottom: 0.5rem; line-height: 1.3;">
-          Adjust weights to prioritize schools. Select a strategy group from the right panel.
+      <div id="prioritization-weights-left-panel" style="padding-top: 3px;">
+        <p style="font-size: 0.75em; color: #666; margin-bottom: 0.25rem; line-height: 1.25;">
+          Adjust weights to prioritize schools. Higher weight increases the influence of that factor in the overall score.
         </p>
         <div id="left-panel-weight-sliders">
           <!-- Weight sliders will be dynamically generated here -->
@@ -1659,40 +2054,96 @@
 
     <div id="map-legend" class="legend">
       <div id="legend-toggle" class="legend-toggle">
-        <span>Decision Types</span>
+        <span>Decision Types Legend</span>
         <span class="chevron">▾</span>
       </div>
       <div id="legend-content"></div>
     </div>
     
    
-    <details id="filter-panel">
+    <details id="filter-panel" open>
         <summary><strong>Map Filters</strong></summary>
         <div id="filter-panel-content">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <h3>School Type</h3>
-              <button id="unselectAllSchoolsBtn" style="font-size: 11px; padding: 2px 5px; margin: 0; border-radius: 3px; cursor: pointer;">Unselect All</button>
+            <div class="school-select-filter">
+              <div class="school-select-header" style="margin-bottom:6px;">
+                <h3 style="margin:0;">School Selection</h3>
+              </div>
+              <select id="mapOriginSchoolSelect">
+                <option value="">-- Select School --</option>
+              </select>
+              <details id="nearbySchoolsSection" open style="margin-top:8px;">
+                <summary style="font-weight:600; font-size:13px; cursor:pointer; padding:4px 2px; display:flex; align-items:center; gap:8px;">
+                  <span>School Matches</span>
+                  <button id="showNearbySchoolsBtn" style="padding:4px 8px; font-size:11px; border:1px solid #007cbf; background:#fff; color:#007cbf; border-radius:3px; cursor:pointer;">Show Overlapping Grades Schools</button>
+                </summary>
+                <div id="nearbySchoolsContainer" style="padding:6px 0; border:1px solid #e5e7eb; border-radius:6px; background:transparent; max-height:220px; overflow:auto;">
+                  <div id="nearbySchoolsList" style="font-size:12px; color:#444;">Click “Show Overlapping Grades Schools” after selecting a school.</div>
+                </div>
+              </details>
             </div>
-            <select id="schoolTypeFilter" multiple size="5">
-                <option value="Elementary">Elementary</option>
-                <option value="Middle">Middle</option>
-                <option value="High">High</option>
-                <option value="K-8">K-8</option>
-                <option value="Alternative">Alternative</option>
+            <div class="filter-row" style="align-items:flex-start;">
+              <span class="filter-label">School Type</span>
+              <div style="display:flex; gap:6px; align-items:center; width:100%; justify-content:flex-start;">
+                <div class="filter-dropdown" style="max-width: 240px;">
+                  <button id="schoolTypeDropdownToggle" class="compact-btn" type="button">
+                    <span id="schoolTypeDropdownLabel">All types</span>
+                    <span class="chevron">▾</span>
+                  </button>
+                  <div id="schoolTypeDropdownMenu" class="filter-dropdown-menu">
+                    <label><input type="checkbox" value="Elementary" checked>Elementary</label>
+                    <label><input type="checkbox" value="Middle" checked>Middle</label>
+                    <label><input type="checkbox" value="High" checked>High</label>
+                    <label><input type="checkbox" value="K-8" checked>K-8</label>
+                    <label><input type="checkbox" value="Alternative" checked>Alternative</label>
+                  </div>
+                </div>
+                <button id="unselectAllSchoolsBtn" class="compact-btn" type="button">Clear</button>
+              </div>
+            </div>
+            <select id="schoolTypeFilter" multiple size="5" style="display:none;">
+                <option value="Elementary" selected>Elementary</option>
+                <option value="Middle" selected>Middle</option>
+                <option value="High" selected>High</option>
+                <option value="K-8" selected>K-8</option>
+                <option value="Alternative" selected>Alternative</option>
             </select>
 
-            <h3>Enrollment Range</h3>
-            <div id="enrollmentRangeSlider"></div>
-            <div>Min: <span id="minEnrollDisplay">0</span> – Max: <span id="maxEnrollDisplay">2000</span></div>
+            <div class="filter-row">
+              <span class="filter-label">Enrollment Range</span>
+              <span class="filter-chip"><span id="minEnrollDisplay">0</span> – <span id="maxEnrollDisplay">2000</span></span>
+            </div>
+            <div id="enrollmentRangeSlider" class="compact-slider"></div>
 
-            <h3>Available Seats</h3>
-            <div id="seatsRangeSlider"></div>
-            <div>Min: <span id="minSeatsDisplay">-500</span> – Max: <span id="maxSeatsDisplay">500</span></div>
+            <div class="filter-row">
+              <span class="filter-label">Available Seats</span>
+              <span class="filter-chip"><span id="minSeatsDisplay">-500</span> – <span id="maxSeatsDisplay">500</span></span>
+            </div>
+            <div id="seatsRangeSlider" class="compact-slider"></div>
 
-            <h3>Show Size by Capacity</h3>
-            <div class="toggle-buttons">
+            <div class="filter-row">
+              <span class="filter-label">Show Size by Capacity</span>
+              <div class="compact-toggle-group">
                 <button id="toggleYes">Yes</button>
                 <button id="toggleNo" class="active">No</button>
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:6px; margin-top:6px; font-size:12px;">
+              <label style="display:flex; align-items:center; gap:6px;">
+                <input type="checkbox" id="toggleNearbyHighlight" checked style="width:14px; height:14px;">
+                <span>Show nearby school highlights</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:6px;">
+                <input type="checkbox" id="toggleUtilizationPie" style="width:14px; height:14px;">
+                <span>Show utilization pie charts</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:6px;">
+                <input type="checkbox" id="toggleIncludeNonEval" style="width:14px; height:14px;">
+                <span>Include schools not part of the evaluation</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:6px;">
+                <input type="checkbox" id="toggleIncludeClosed" style="width:14px; height:14px;">
+                <span>Include closed schools</span>
+              </label>
             </div>
         </div>
     </details>
@@ -1700,8 +2151,17 @@
     
     <!-- Map Controls -->
     <div style="position: absolute; bottom: 20px; right: 20px; z-index: 999; display: flex; flex-direction: column; gap: 8px; align-items: flex-end;">
-      <button id="fitToSchoolsBtn" onclick="if(typeof window.fitMapToAllSchools === 'function') window.fitMapToAllSchools();" style="background: #007cbf; color: white; border: none; border-radius: 6px; padding: 8px 16px; font-size: 13px; font-weight: 500; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: background 0.2s;" onmouseover="this.style.background='#005a9e'" onmouseout="this.style.background='#007cbf'">
-        Fit to All Schools
+      <button id="fitToSchoolsBtn" aria-label="Fit to all schools" onclick="if(typeof window.fitMapToAllSchools === 'function') window.fitMapToAllSchools();" style="background: #007cbf; color: white; border: none; border-radius: 6px; padding: 8px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: background 0.2s;" onmouseover="this.style.background='#005a9e'" onmouseout="this.style.background='#007cbf'">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="5 9 5 5 9 5"></polyline>
+          <polyline points="15 5 19 5 19 9"></polyline>
+          <polyline points="19 15 19 19 15 19"></polyline>
+          <polyline points="9 19 5 19 5 15"></polyline>
+          <line x1="9" y1="5" x2="5" y2="9"></line>
+          <line x1="15" y1="5" x2="19" y2="9"></line>
+          <line x1="19" y1="15" x2="15" y2="19"></line>
+          <line x1="9" y1="19" x2="5" y2="15"></line>
+        </svg>
       </button>
       <div class="toggle-buttons map-flowchart-toggle">
         <button id="toggleMapFlowchartMap" class="active" onclick="if(typeof window.switchToMap === 'function') window.switchToMap();">Show Map</button>
@@ -1709,13 +2169,6 @@
       </div>
     </div>
 
-    <!-- Origin school dropdown overlayed on the map -->
-    <div id="map-origin-select-container" style="position:absolute; top: 10px; left: 220px; z-index: 1000; background:white; padding:4px 8px; border-radius:4px; box-shadow:0 1px 4px rgba(0,0,0,0.25); font-size:11px;">
-      <label for="mapOriginSchoolSelect" style="margin-right:4px;">School:</label>
-      <select id="mapOriginSchoolSelect" style="font-size:11px; padding:2px 4px; max-width:220px;">
-        <option value="">-- Select School --</option>
-      </select>
-    </div>
   </div>
 
   <!-- 👇 Flowchart Container - Centered with Flexbox -->
@@ -1874,17 +2327,16 @@
             <div class="details-content-wrapper" style="padding: 1rem;">
                 <!-- Strategy Candidate Groups Section -->
                 <div id="strategy-candidate-groups">
-                    <div style="margin-bottom: 1rem;">
-                        <h3>Strategy Candidate Groups</h3>
-                        <p style="font-size: 0.9em; color: #666; margin-bottom: 1rem;">
-                            This section allows you to prioritize schools within each strategy group based on customizable criteria. 
-                            Select a strategy group using the tabs below, then adjust the weight sliders to reflect your priorities. 
-                            Schools will be ranked based on your weighting, with higher priority schools appearing at the top of the list 
-                            and as larger circles on the map.
-                        </p>
+                    <div style="margin-bottom: 0.75rem;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; flex-wrap:wrap;">
+                          <h3 style="margin:0;">Strategy Candidate Groups</h3>
+                          <span style="font-size:0.8em; color:#555; line-height:1.4;">
+                            Pick a group, then adjust weights; higher weight increases influence.
+                          </span>
+                        </div>
                         
                         <!-- Strategy Group Tabs -->
-                        <div id="strategy-group-tabs" style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.5rem; border-bottom: 2px solid #e5e5e5; padding-bottom: 0.25rem;">
+                        <div id="strategy-group-tabs" style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0.35rem 0 0.5rem 0; border-bottom: 1px solid #e5e5e5; padding-bottom: 0.25rem;">
                             <!-- Tabs will be dynamically generated -->
                         </div>
 
@@ -1892,14 +2344,18 @@
                         <div id="prioritization-weights-section" style="display: none;">
                             <!-- Prioritized Schools Table -->
                             <div id="prioritized-schools-section">
-                                <h4>Prioritized Schools</h4>
-                                <div id="prioritized-schools-table-container" style="max-height: 400px; overflow-y: auto;">
+                                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; margin-bottom:0.5rem;">
+                                  <h4 style="margin:0;">Prioritized Schools</h4>
+                                  <span style="font-size:0.8em; color:#555;">Ranked by your current weights.</span>
+                                </div>
+                                <div id="prioritized-schools-table-container" style="max-height: 360px; overflow-y: auto;">
                                     <!-- Table will be dynamically generated -->
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+            
             </div>
           </details>
         </div>
@@ -1945,13 +2401,6 @@
 
 <!-- Scripts -->
 <!-- The script tags have been moved to the <head> for better dependency management -->
-
-<!-- Assignment Results Modal -->
-<div id="assignmentResultsModal" style="display:none; position:fixed; top:20%; left:50%; transform:translate(-50%,0); background:white; border:2px solid #333; padding:30px; z-index:2000; min-width:350px; box-shadow:0 4px 24px rgba(0,0,0,0.2);">
-  <div id="assignmentResultsContent"></div>
-  <button onclick="document.getElementById('assignmentResultsModal').style.display='none'" style="margin-top:20px; padding:8px 18px; background:#007cbf; color:white; border:none; border-radius:4px;">Close</button>
-</div>
-<!-- End Assignment Results Modal -->
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -2156,18 +2605,18 @@ document.addEventListener('DOMContentLoaded', function() {
   <strong>Step 1: Strategic Sorting</strong> uses decision thresholds to categorize schools into strategy groups. Adjust the sliders below to change how schools are evaluated, which is reflected in <strong>Step 1: Strategic Sorting: Results</strong> on the right sidebar.<br>
   The flowchart allows you to visualize the decision logic dynamically by school.<br><br>
   <strong>Flow 1: Decision Routing</strong><br>
-  <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
-    <li><strong>Enrollment Thresholds by School Level</strong><br>
-      Minimum enrollment thresholds for Elementary, K-8, Middle, High, and 6-12 schools</li>
-    <li><strong>Current Utilization Threshold</strong><br>
-      Minimum percentage of capacity used before a school is considered underutilized (0-100%, default: 60%)</li>
-    <li><strong>High Utilization Threshold</strong><br>
-      Percentage threshold for identifying highly utilized or overcrowded schools (0-120%, default: 100%)</li>
-    <li><strong>Enrollment Growth Threshold</strong><br>
-      Minimum expected change in student enrollment (-50% to +50%, default: 0%)</li>
-    <li><strong>Distance to Underutilized Schools</strong><br>
-      Maximum distance to look for nearby underutilized schools (miles, varies by school level)</li>
-  </ul>
+            <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
+              <li><strong>Enrollment Thresholds by School Level</strong><br>
+                Minimum enrollment thresholds for Elementary, K-8, Middle, High, and 6-12 schools (driven by Decision Data Export enrollment)</li>
+              <li><strong>Current Utilization Threshold</strong><br>
+                Minimum percentage of capacity used before a school is considered underutilized (0-100%, default: 60%)</li>
+              <li><strong>High Utilization Threshold</strong><br>
+                Percentage threshold for identifying highly utilized or overcrowded schools (0-120%, default: 100%)</li>
+              <li><strong>Enrollment Growth Threshold</strong><br>
+                Minimum expected change in student enrollment (-50% to +50%, default: 0%)</li>
+              <li><strong>Distance to Welcoming Schools by School Level</strong><br>
+                Distance thresholds for identifying nearby welcoming schools (miles, varies by school level)</li>
+            </ul>
   <strong>Flow 2: Expansion</strong><br>
   <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
     <li><strong>Attendance Area Enrollment</strong><br>
@@ -2184,8 +2633,6 @@ document.addEventListener('DOMContentLoaded', function() {
   </ul>
   <strong>Flow 4: Closure/Consolidation</strong><br>
   <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
-    <li><strong>Recent Investments</strong><br>
-      Investment threshold in millions (0-50M, default: $5M)</li>
     <li><strong>Composite Building Score</strong><br>
       Building condition score threshold (1-10 scale, default: 5)</li>
     <li><strong>Distance to Welcoming Schools</strong><br>
