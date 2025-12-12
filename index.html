@@ -178,113 +178,6 @@
       background: #1e90ff !important;
       box-shadow: none !important;
     }
-
-    /* --- Flow sliders (Step 1 & 2) --- */
-    .flow-section { --flow-color: #1e90ff; }
-    .flow-section.flow1 { --flow-color: #007cbf; }
-    .flow-section.flow2 { --flow-color: #28a745; }
-    .flow-section.flow3 { --flow-color: #f59e0b; }
-    .flow-section.flow4 { --flow-color: #dc2626; }
-
-    #decision-input-panel input[type="range"],
-    #scenario-output-panel input[type="range"] {
-      -webkit-appearance: none;
-      width: 100%;
-      height: 14px;
-      background: transparent;
-      margin: 4px 0 10px;
-      padding: 0;
-    }
-    /* WebKit */
-    #decision-input-panel input[type="range"]::-webkit-slider-runnable-track,
-    #scenario-output-panel input[type="range"]::-webkit-slider-runnable-track {
-      height: 6px;
-      background: #e5e7eb;
-      border-radius: 999px;
-      border: none;
-    }
-    #decision-input-panel input[type="range"]::-webkit-slider-thumb,
-    #scenario-output-panel input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: #fff !important;
-      border: 2px solid var(--flow-color, #1e90ff) !important;
-      margin-top: -4px;
-      box-shadow: none;
-    }
-    /* Firefox */
-    #decision-input-panel input[type="range"]::-moz-range-track,
-    #scenario-output-panel input[type="range"]::-moz-range-track {
-      height: 6px;
-      background: #e5e7eb;
-      border-radius: 999px;
-      border: none;
-    }
-    #decision-input-panel input[type="range"]::-moz-range-thumb,
-    #scenario-output-panel input[type="range"]::-moz-range-thumb {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: #fff !important;
-      border: 2px solid var(--flow-color, #1e90ff) !important;
-      box-shadow: none;
-    }
-    /* Step 2 (weights) compact sliders, same look as Flow 2 */
-    #scenario-input-panel {
-      --flow-color: #28a745;
-    }
-    #scenario-input-panel input[type="range"] {
-      -webkit-appearance: none;
-      width: 100%;
-      height: 14px;
-      background: transparent;
-      margin: 4px 0 6px;
-      padding: 0;
-    }
-    #scenario-input-panel input[type="range"]::-webkit-slider-runnable-track {
-      height: 6px;
-      background: #e5e7eb;
-      border-radius: 999px;
-      border: none;
-    }
-    #scenario-input-panel input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: #fff !important;
-      border: 2px solid var(--flow-color, #28a745) !important;
-      margin-top: -4px;
-      box-shadow: none;
-    }
-    #scenario-input-panel input[type="range"]::-moz-range-track {
-      height: 6px;
-      background: #e5e7eb;
-      border-radius: 999px;
-      border: none;
-    }
-    #scenario-input-panel input[type="range"]::-moz-range-thumb {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: #fff !important;
-      border: 2px solid var(--flow-color, #28a745) !important;
-      box-shadow: none;
-    }
-    #scenario-input-panel label {
-      display: block;
-      margin: 6px 0;
-      font-weight: 500;
-      color: #374151;
-    }
-    /* Spacing for flow labels */
-    #decision-input-panel .flow-content label,
-    #scenario-output-panel .flow-content label {
-      display: block;
-      margin: 6px 0;
-    }
     #filter-panel .compact-slider .noUi-target {
       background: transparent !important;
       border: none !important;
@@ -511,19 +404,29 @@
     /* Map Legend */
     .legend {
       position: absolute;
-      bottom: 60px;
+      /* Align vertically with the Map/Flowchart toggle buttons (which sit at bottom: 20px) */
+      bottom: 20px;
       left: 20px;
       background: white;
-      border-radius: 6px;
-      padding: 4px 5px 6px 5px;
+      border-radius: 4px;
+      padding: 0;
       font-size: 13px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      /* Ensure legend can sit over Mapbox attribution/logo/link */
+      z-index: 2001;
       
       display: flex;
-      flex-direction: column;
+      /* Keep the clickable header at the bottom, with legend content above */
+      flex-direction: column-reverse;
       gap: 4px;
       align-items: stretch;
       max-width: 280px;
+    }
+
+    /* Keep Mapbox attribution below our custom UI overlays when they overlap */
+    .mapboxgl-ctrl-bottom-left,
+    .mapboxgl-ctrl-bottom-right {
+      z-index: 500;
     }
 
     .legend h4 {
@@ -564,23 +467,38 @@
     .legend-toggle {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 6px;
+      justify-content: flex-start;
       cursor: pointer;
       font-size: 13px;
-      font-weight: 600;
-      padding: 4px 2px;
-      border: none;
-      background: transparent;
+      font-weight: bold;
+      padding: 8px 10px;
+      background: #fff;
       color: #111;
+      border: none;
       user-select: none;
+      gap: 6px;
+    }
+
+    /* Make the legend title explicitly match Map Filters' bold header text */
+    .legend-toggle .legend-title {
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.2;
     }
 
     .legend-toggle span.chevron {
+      order: -1; /* arrow on the left */
       font-size: 11px;
-      margin-left: 0;
-      margin-right: 6px;
+      margin: 0 6px 0 0;
+      color: #6b7280;
+      display: inline-block;
+      transition: transform 0.15s ease;
+      transform-origin: center;
     }
+
+    /* Arrow angle: match Map Filters (collapsed: 0°; expanded: 90°) */
+    .legend.legend-collapsed .legend-toggle span.chevron { transform: rotate(0deg); }
+    .legend:not(.legend-collapsed) .legend-toggle span.chevron { transform: rotate(90deg); }
 
     .legend.legend-collapsed #legend-content {
       display: none;
@@ -1113,9 +1031,6 @@
       height: auto;
       resize: none;
       overflow: visible;
-      top: 20px !important;
-      left: 20px !important;
-      position: absolute !important;
     }
     /* Nearby section adjustments */
     #nearbySchoolsSection summary::-webkit-details-marker { display: none; }
@@ -1127,7 +1042,24 @@
       padding: 8px 10px;
       background-color: #fff;
       font-size: 13px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      list-style: none; /* helps suppress default marker in Firefox */
     }
+    /* Custom arrow for Map Filters summary (so it matches the legend header) */
+    #filter-panel summary::-webkit-details-marker { display: none; }
+    #filter-panel summary::marker { content: ""; }
+    #filter-panel summary::before {
+      content: "▸";
+      font-size: 11px;
+      color: #6b7280;
+      display: inline-block;
+      margin-right: 6px;
+      transition: transform 0.15s ease;
+      transform: rotate(0deg); /* collapsed */
+    }
+    #filter-panel[open] summary::before { transform: rotate(90deg); }
     #filter-panel-content {
       padding: 8px 10px 12px 10px;
       width: auto;
@@ -1831,16 +1763,16 @@
         </span>
       </span>
     </summary>
-    <div id="decision-sliders" style="padding-top: 0.125rem;">
+    <div id="decision-sliders" style="padding-top: 1rem;">
       <!-- FLOW 1: Decision Routing -->
-      <details class="flow-section flow1" open>
-        <summary class="flow-summary" style="color: #0066cc; margin-top: 6px; margin-bottom: 4px; border-bottom: 2px solid #0066cc; padding-bottom: 2px; cursor: pointer; font-weight: 600; list-style: none; font-size: 15px;">
-          <span style="display: inline-block; margin-right: 4px;">▶</span>Flow 1: Decision Routing
+      <details class="flow-section" open>
+        <summary class="flow-summary" style="color: #0066cc; margin-top: 32px; margin-bottom: 16px; border-bottom: 2px solid #0066cc; padding-bottom: 8px; cursor: pointer; font-weight: 600; list-style: none; font-size: 16px;">
+          <span style="display: inline-block; margin-right: 8px;">▶</span>Flow 1: Decision Routing
         </summary>
-        <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
-          <details class="flow-section flow1" style="margin-bottom: 6px;">
+        <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
+          <details class="flow-section" style="margin-bottom: 15px;">
             <summary style="color: black; font-weight: bold; cursor: pointer;">Enrollment Thresholds by School Level</summary>
-            <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
+            <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
               <label>Elementary School: <span id="elementaryEnrollmentOut">220</span> students
                 <input type="range" id="elementaryEnrollmentSlider" min="100" max="500" step="10" value="220" oninput="document.getElementById('elementaryEnrollmentOut').textContent = this.value">
               </label>
@@ -1859,17 +1791,17 @@
             </div>
           </details>
           
-          <label style="display:block; margin-bottom:6px;">Current Utilization Threshold: <span id="utilOut">60</span>%
+          <label>Current Utilization Threshold: <span id="utilOut">60</span>%
             <input type="range" id="utilSlider" min="0" max="100" step="1" value="60" oninput="document.getElementById('utilOut').textContent = this.value">
           </label>
-          <label style="display:block; margin-bottom:6px;">High Utilization Threshold: <span id="utilHighOut">100</span>%
+          <label>High Utilization Threshold: <span id="utilHighOut">100</span>%
             <input type="range" id="utilHighSlider" min="0" max="120" step="1" value="100" oninput="document.getElementById('utilHighOut').textContent = this.value">
           </label>
-          <label style="display:block; margin-bottom:6px;">Enrollment Growth Threshold: <span id="growthOut">0</span>%
+          <label>Enrollment Growth Threshold: <span id="growthOut">0</span>%
             <input type="range" id="growthSlider" min="-50" max="50" step="1" value="0" oninput="document.getElementById('growthOut').textContent = this.value">
           </label>
           
-      <details class="flow-section flow4" style="margin-bottom: 15px;">
+          <details class="flow-section" style="margin-bottom: 15px;">
             <summary style="color: black; font-weight: bold; cursor: pointer;">Distance to Underutilized Schools by School Level</summary>
             <div style="margin-left: 20px; margin-top: 10px;">
               <label style="display: block; margin-bottom: 12px;">Elementary: <span id="elementaryDistanceOut">3.5</span> mi
@@ -1894,63 +1826,63 @@
       </details>
       
       <!-- FLOW 2: Expansion -->
-      <details class="flow-section flow2" open>
-        <summary class="flow-summary" style="color: #28a745; margin-top: 6px; margin-bottom: 4px; border-bottom: 2px solid #28a745; padding-bottom: 2px; cursor: pointer; font-weight: 600; list-style: none; font-size: 15px;">
-          <span style="display: inline-block; margin-right: 4px;">▶</span>Flow 2: Expansion
+      <details class="flow-section" open>
+        <summary class="flow-summary" style="color: #28a745; margin-top: 20px; margin-bottom: 10px; border-bottom: 2px solid #28a745; padding-bottom: 5px; cursor: pointer; font-weight: bold; list-style: none;">
+          <span style="display: inline-block; margin-right: 8px;">▶</span>Flow 2: Expansion
         </summary>
-        <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
-          <label style="display: block; margin-bottom: 6px; font-weight: 500; color: #374151;">Attendance Area Enrollment: <span id="attendanceAreaEnrollmentOut" style="font-weight: 600;">80</span>%
+        <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
+          <label style="display: block; margin-bottom: 16px; font-weight: 500; color: #374151;">Attendance Area Enrollment: <span id="attendanceAreaEnrollmentOut" style="font-weight: 600;">80</span>%
             <input type="range" id="attendanceAreaEnrollmentSlider" min="60" max="100" step="1" value="80">
           </label>
-          <label style="display: block; margin-bottom: 6px; font-weight: 500; color: #374151;">Composite Building Score: <span id="buildOut" style="font-weight: 600;">5</span>
+          <label style="display: block; margin-bottom: 16px; font-weight: 500; color: #374151;">Composite Building Score: <span id="buildOut" style="font-weight: 600;">5</span>
             <input type="range" id="buildSlider" min="1" max="10" step="1" value="5">
           </label>
-          <label style="display: block; margin-bottom: 6px; font-weight: 500; color: #374151;">Educational Adequacy: <span id="progOut">50</span>
+          <label>Educational Adequacy: <span id="progOut">50</span>
             <input type="range" id="progSlider" min="0" max="100" step="1" value="50">
           </label>
         </div>
       </details>
       
       <!-- FLOW 3: Maintenance/Investment -->
-      <details class="flow-section flow3" open>
-        <summary class="flow-summary" style="color: #f59e0b; margin-top: 6px; margin-bottom: 4px; border-bottom: 2px solid #f59e0b; padding-bottom: 2px; cursor: pointer; font-weight: 600; list-style: none; font-size: 15px;">
-          <span style="display: inline-block; margin-right: 4px;">▶</span>Flow 3: Maintenance/Investment
+      <details class="flow-section" open>
+        <summary class="flow-summary" style="color: #f59e0b; margin-top: 32px; margin-bottom: 16px; border-bottom: 2px solid #f59e0b; padding-bottom: 8px; cursor: pointer; font-weight: 600; list-style: none; font-size: 16px;">
+          <span style="display: inline-block; margin-right: 8px;">▶</span>Flow 3: Maintenance/Investment
         </summary>
-        <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
-          <label style="display: block; margin-bottom: 6px;">Composite Building Score Above Threshold: <span id="buildAboveOut">5</span>
+        <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
+          <label>Composite Building Score Above Threshold: <span id="buildAboveOut">5</span>
             <input type="range" id="buildAboveSlider" min="1" max="10" step="1" value="5">
           </label>
-          <label style="display: block; margin-bottom: 6px;">Composite Building Score Below Threshold: <span id="buildBelowOut">5</span>
+          <label>Composite Building Score Below Threshold: <span id="buildBelowOut">5</span>
             <input type="range" id="buildBelowSlider" min="1" max="10" step="1" value="5">
           </label>
         </div>
       </details>
       
       <!-- FLOW 4: Closure/Consolidation -->
-      <details class="flow-section flow4" open>
-        <summary class="flow-summary" style="color: #dc2626; margin-top: 6px; margin-bottom: 4px; border-bottom: 2px solid #dc2626; padding-bottom: 2px; cursor: pointer; font-weight: 600; list-style: none; font-size: 15px;">
-          <span style="display: inline-block; margin-right: 4px;">▶</span>Flow 4: Closure/Consolidation
+      <details class="flow-section" open>
+        <summary class="flow-summary" style="color: #dc2626; margin-top: 32px; margin-bottom: 16px; border-bottom: 2px solid #dc2626; padding-bottom: 8px; cursor: pointer; font-weight: 600; list-style: none; font-size: 16px;">
+          <span style="display: inline-block; margin-right: 8px;">▶</span>Flow 4: Closure/Consolidation
         </summary>
-        <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
-          <label style="display:block; margin-bottom:6px;">Composite Building Score: <span id="buildFlow4Out">5</span>
+        <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
+          <label>Composite Building Score: <span id="buildFlow4Out">5</span>
             <input type="range" id="buildFlow4Slider" min="1" max="10" step="1" value="5">
           </label>
-          <details class="flow-section" style="margin-bottom: 6px;">
+          <details class="flow-section" style="margin-bottom: 15px;">
             <summary style="color: black; font-weight: bold; cursor: pointer;">Distance to Welcoming Schools by School Level</summary>
-            <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
-              <label style="display:block; margin-bottom:4px;">Elementary School: <span id="elementaryDistanceOut">4.0</span> miles
+            <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
+              <label>Elementary School: <span id="elementaryDistanceOut">4.0</span> miles
                 <input type="range" id="elementaryDistanceSlider" min="1" max="10" step="0.5" value="4.0" oninput="document.getElementById('elementaryDistanceOut').textContent = this.value">
               </label>
-              <label style="display:block; margin-bottom:4px;">K-8 School: <span id="k8DistanceOut">6.0</span> miles
+              <label>K-8 School: <span id="k8DistanceOut">6.0</span> miles
                 <input type="range" id="k8DistanceSlider" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('k8DistanceOut').textContent = this.value">
               </label>
-              <label style="display:block; margin-bottom:4px;">Middle School: <span id="middleDistanceOut">6.0</span> miles
+              <label>Middle School: <span id="middleDistanceOut">6.0</span> miles
                 <input type="range" id="middleDistanceSlider" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('middleDistanceOut').textContent = this.value">
               </label>
-              <label style="display:block; margin-bottom:4px;">High School: <span id="highDistanceOut">6.0</span> miles
+              <label>High School: <span id="highDistanceOut">6.0</span> miles
                 <input type="range" id="highDistanceSlider" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('highDistanceOut').textContent = this.value">
               </label>
-              <label style="display:block; margin-bottom:4px;">6-12 School: <span id="k12DistanceOut">6.0</span> miles
+              <label>6-12 School: <span id="k12DistanceOut">6.0</span> miles
                 <input type="range" id="k12DistanceSlider" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('k12DistanceOut').textContent = this.value">
               </label>
             </div>
@@ -1993,7 +1925,7 @@
           </span>
         </span>
       </summary>
-    <div class="details-content-wrapper" style="padding: 0.25rem;">
+    <div class="details-content-wrapper" style="padding: 0.5rem;">
       <!-- Hidden dropdown for backward compatibility with existing code -->
       <select id="decisionFilter" style="display: none;">
         <option value="">-- All Decisions --</option>
@@ -2013,9 +1945,9 @@
     <!-- Prioritization Weights Section (replaces Assignment Mode) -->
     <details open class="nested-details" id="prioritizationWeightsDetails">
       <summary><strong>Prioritization Weights</strong></summary>
-      <div id="prioritization-weights-left-panel" style="padding-top: 3px;">
-        <p style="font-size: 0.75em; color: #666; margin-bottom: 0.25rem; line-height: 1.25;">
-          Adjust weights to prioritize schools. Higher weight increases the influence of that factor in the overall score.
+      <div id="prioritization-weights-left-panel" style="padding-top: 5px;">
+        <p style="font-size: 0.75em; color: #666; margin-bottom: 0.5rem; line-height: 1.3;">
+          Adjust weights to prioritize schools. Select a strategy group from the right panel.
         </p>
         <div id="left-panel-weight-sliders">
           <!-- Weight sliders will be dynamically generated here -->
@@ -2052,16 +1984,16 @@
     <!-- Start Tour Button -->
     <button id="startTourBtn" class="tour-btn" style="position: absolute; top: 50px; right: 16px; z-index: 1200; background: #FFD600; color: #222; font-weight: bold; border: none; border-radius: 6px; padding: 6px 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.12); cursor: pointer; font-size: 12px;">Start Tour</button>
 
-    <div id="map-legend" class="legend">
+    <div id="map-legend" class="legend legend-collapsed">
       <div id="legend-toggle" class="legend-toggle">
-        <span>Decision Types Legend</span>
-        <span class="chevron">▾</span>
+        <span class="legend-title">Decision Types Legend</span>
+        <span class="chevron">▸</span>
       </div>
       <div id="legend-content"></div>
     </div>
     
    
-    <details id="filter-panel" open>
+    <details id="filter-panel">
         <summary><strong>Map Filters</strong></summary>
         <div id="filter-panel-content">
             <div class="school-select-filter">
@@ -2327,16 +2259,17 @@
             <div class="details-content-wrapper" style="padding: 1rem;">
                 <!-- Strategy Candidate Groups Section -->
                 <div id="strategy-candidate-groups">
-                    <div style="margin-bottom: 0.75rem;">
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; flex-wrap:wrap;">
-                          <h3 style="margin:0;">Strategy Candidate Groups</h3>
-                          <span style="font-size:0.8em; color:#555; line-height:1.4;">
-                            Pick a group, then adjust weights; higher weight increases influence.
-                          </span>
-                        </div>
+                    <div style="margin-bottom: 1rem;">
+                        <h3>Strategy Candidate Groups</h3>
+                        <p style="font-size: 0.9em; color: #666; margin-bottom: 1rem;">
+                            This section allows you to prioritize schools within each strategy group based on customizable criteria. 
+                            Select a strategy group using the tabs below, then adjust the weight sliders to reflect your priorities. 
+                            Schools will be ranked based on your weighting, with higher priority schools appearing at the top of the list 
+                            and as larger circles on the map.
+                        </p>
                         
                         <!-- Strategy Group Tabs -->
-                        <div id="strategy-group-tabs" style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0.35rem 0 0.5rem 0; border-bottom: 1px solid #e5e5e5; padding-bottom: 0.25rem;">
+                        <div id="strategy-group-tabs" style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.5rem; border-bottom: 2px solid #e5e5e5; padding-bottom: 0.25rem;">
                             <!-- Tabs will be dynamically generated -->
                         </div>
 
@@ -2344,11 +2277,8 @@
                         <div id="prioritization-weights-section" style="display: none;">
                             <!-- Prioritized Schools Table -->
                             <div id="prioritized-schools-section">
-                                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; margin-bottom:0.5rem;">
-                                  <h4 style="margin:0;">Prioritized Schools</h4>
-                                  <span style="font-size:0.8em; color:#555;">Ranked by your current weights.</span>
-                                </div>
-                                <div id="prioritized-schools-table-container" style="max-height: 360px; overflow-y: auto;">
+                                <h4>Prioritized Schools</h4>
+                                <div id="prioritized-schools-table-container" style="max-height: 400px; overflow-y: auto;">
                                     <!-- Table will be dynamically generated -->
                                 </div>
                             </div>
@@ -2356,6 +2286,33 @@
                     </div>
                 </div>
             
+            <!-- Assignment Results & Impact Charts -->
+            <div id="assignment-results-section" style="margin-top: 1rem;">
+              <h3 style="margin-bottom: 0.5rem;">Assignment Results</h3>
+              <div id="assignmentSummary" style="min-height: 24px; font-size: 14px; color: #444;">
+                No assignment results yet. Run a scenario to view impacts.
+              </div>
+              <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px;">
+                <div style="flex: 1 1 320px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                    <h4 style="margin: 0;">Enrollment / Capacity Impact</h4>
+                  </div>
+                  <div id="enrollmentChartPlaceholder" style="display: none; font-size: 12px; color: #6b7280; margin-bottom: 6px;">
+                    Run a scenario to see the enrollment impact chart.
+                  </div>
+                  <canvas id="assignmentChart" height="220"></canvas>
+                </div>
+                <div style="flex: 1 1 320px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                    <h4 style="margin: 0;">Travel Distance Impact</h4>
+                  </div>
+                  <div id="distanceChartPlaceholder" style="display: none; font-size: 12px; color: #6b7280; margin-bottom: 6px;">
+                    Run a scenario to see the distance comparison chart.
+                  </div>
+                  <canvas id="distanceCompareChart" height="220"></canvas>
+                </div>
+              </div>
+            </div>
             </div>
           </details>
         </div>
@@ -2401,6 +2358,13 @@
 
 <!-- Scripts -->
 <!-- The script tags have been moved to the <head> for better dependency management -->
+
+<!-- Assignment Results Modal -->
+<div id="assignmentResultsModal" style="display:none; position:fixed; top:20%; left:50%; transform:translate(-50%,0); background:white; border:2px solid #333; padding:30px; z-index:2000; min-width:350px; box-shadow:0 4px 24px rgba(0,0,0,0.2);">
+  <div id="assignmentResultsContent"></div>
+  <button onclick="document.getElementById('assignmentResultsModal').style.display='none'" style="margin-top:20px; padding:8px 18px; background:#007cbf; color:white; border:none; border-radius:4px;">Close</button>
+</div>
+<!-- End Assignment Results Modal -->
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
