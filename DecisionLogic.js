@@ -439,19 +439,36 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     
-    const allDecisions = [
-      "Building Addition",
-      "Policy Solution for Overcrowding",
-      "Building Replacement",
-      "Building Addition with Capital Investment",
-      "Targeted Capital Investment",
-      "Standard Maintenance",
-      "Major Capital Investment",
-      "Welcoming School",
-      "Welcoming School with Capital Investment",
-      "Closure (Goes to Welcoming School)",
-      "Welcoming School with Building Replacement"
+    // Order summary by major candidate groups, then detailed decisions
+    const decisionGroups = [
+      {
+        label: "Expansion / Overcrowding",
+        items: [
+          "Building Addition",
+          "Building Addition with Capital Investment",
+          "Policy Solution for Overcrowding"
+        ]
+      },
+      {
+        label: "Closure / Consolidation",
+        items: [
+          "Welcoming School",
+          "Welcoming School with Capital Investment",
+          "Closure (Goes to Welcoming School)",
+          "Welcoming School with Building Replacement"
+        ]
+      },
+      {
+        label: "Maintenance / Investment",
+        items: [
+          "Building Replacement",
+          "Targeted Capital Investment",
+          "Standard Maintenance",
+          "Major Capital Investment"
+        ]
+      }
     ];
+    const allDecisions = decisionGroups.flatMap(g => g.items);
   
     const decisionCounts = {};
     allDecisions.forEach(decision => decisionCounts[decision] = 0);
@@ -487,9 +504,26 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log("📊 Decision counts:", decisionCounts);
     console.log("📊 Total schools:", totalCount);
   
-    const summaryRows = allDecisions.map(decision =>
-      `<tr><td class="truncate-cell" data-tooltip="${decision}" style="width: 80%;">${decision}</td><td class="text-center" style="width: 20%; min-width: 60px; max-width: 75px;">${decisionCounts[decision] || 0}</td></tr>`
-    ).join("");
+    const listed = new Set(allDecisions);
+    const extraDecisions = Object.keys(decisionCounts).filter(k => !listed.has(k)).sort();
+
+    const summaryRowsParts = [];
+    decisionGroups.forEach(group => {
+      summaryRowsParts.push(
+        `<tr style="background:#f5f5f5;font-weight:700;"><td class="truncate-cell" data-tooltip="${group.label}" style="width:80%; padding-left:4px;">${group.label}</td><td class="text-center" style="width:20%; min-width:60px; max-width:75px;">${group.items.reduce((sum, d) => sum + (decisionCounts[d] || 0), 0)}</td></tr>`
+      );
+      group.items.forEach(decision => {
+        summaryRowsParts.push(
+          `<tr><td class="truncate-cell" data-tooltip="${decision}" style="width: 80%; padding-left:18px;">${decision}</td><td class="text-center" style="width: 20%; min-width: 60px; max-width: 75px;">${decisionCounts[decision] || 0}</td></tr>`
+        );
+      });
+    });
+    extraDecisions.forEach(decision => {
+      summaryRowsParts.push(
+        `<tr><td class="truncate-cell" data-tooltip="${decision}" style="width: 80%;">${decision}</td><td class="text-center" style="width: 20%; min-width: 60px; max-width: 75px;">${decisionCounts[decision] || 0}</td></tr>`
+      );
+    });
+    const summaryRows = summaryRowsParts.join("");
   
     summaryDiv.innerHTML = `
       <table class="data-table">

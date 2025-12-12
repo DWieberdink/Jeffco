@@ -1545,6 +1545,16 @@ function updateFlowForSchool(name, thresholds) {
     return;
   }
   
+  // Helper to fetch a field by any of several candidate column names (case/spacing agnostic)
+  const getVal = (rowObj, candidates) => {
+    if (!rowObj) return undefined;
+    const norm = (s) => (s || "").toString().trim().toLowerCase().replace(/[\s_]/g, "");
+    const keys = Object.keys(rowObj);
+    const target = candidates.map(norm);
+    const hitKey = keys.find(k => target.includes(norm(k)));
+    return hitKey ? rowObj[hitKey] : undefined;
+  };
+
   const row = schoolData.find(r => r["Building Name"] === name);
   if (row) {
     console.log("✅ Found school data for:", name);
@@ -2113,21 +2123,22 @@ function updateFlowchartSchoolInfo(name) {
     return;
   }
   // Get enrollment from Map_Export.csv if available
-  let enroll = getEnrollmentFromMapExport(name);
-  if (!enroll) enroll = row["Enrollment"] || "N/A";
-  const util = row["Utilization"] ? (parseFloat(row["Utilization"]) * 100).toFixed(1) + "%" : "N/A";
+  // Enrollment from Decision Data Export only (no Map_Export override)
+  let enroll = getVal(row, ["Enrollment"]) || "N/A";
+  const utilRaw = getVal(row, ["Utilization"]);
+  const util = utilRaw ? (parseFloat(utilRaw) * 100).toFixed(1) + "%" : "N/A";
   // Find the actual key for School Level (case-insensitive, trimmed)
   let schoolLevelKey = Object.keys(row).find(k => k.trim().toLowerCase() === "school level");
   let schoolType = (schoolLevelKey && row[schoolLevelKey] && row[schoolLevelKey].trim() !== "") ? row[schoolLevelKey] : "N/A";
 
-  let growth = row["Future_EnrollmentGrowth"];
+  let growth = getVal(row, ["Future_EnrollmentGrowth", "Projected Enrollment Growth"]);
   if (growth !== undefined && growth !== null && growth !== "") {
     growth = (parseFloat(growth) * 100).toFixed(1) + "%";
   } else {
     growth = "N/A";
   }
   // Get building quality score from Decision Data Export.csv
-  let buildingScore = row["BuildingTreshhold"];
+  let buildingScore = getVal(row, ["Building Score (1-9)", "BuildingScore"]);
   if (buildingScore !== undefined && buildingScore !== null && buildingScore !== "") {
     buildingScore = parseFloat(buildingScore).toFixed(2);
   } else {
@@ -2135,7 +2146,7 @@ function updateFlowchartSchoolInfo(name) {
   }
   
   // Get Educational Adequacy
-  let educationalAdequacy = row["EducationalAdequacy"];
+  let educationalAdequacy = getVal(row, ["EducationalAdequacy"]);
   if (educationalAdequacy !== undefined && educationalAdequacy !== null && educationalAdequacy !== "") {
     educationalAdequacy = (parseFloat(educationalAdequacy) * 100).toFixed(1) + "%";
   } else {
@@ -2143,7 +2154,7 @@ function updateFlowchartSchoolInfo(name) {
   }
   
   // Get Attendance Area Enrollment
-  let attendanceAreaEnrollment = row["AttendanceAreaEnrollment"];
+  let attendanceAreaEnrollment = getVal(row, ["AttendanceAreaEnrollment", "Attendance Area Enrollment"]);
   if (attendanceAreaEnrollment !== undefined && attendanceAreaEnrollment !== null && attendanceAreaEnrollment !== "") {
     attendanceAreaEnrollment = parseFloat(attendanceAreaEnrollment).toFixed(1) + "%";
   } else {
@@ -2151,7 +2162,7 @@ function updateFlowchartSchoolInfo(name) {
   }
   
   // Get Site Capacity (Space to expand)
-  let siteCapacity = row["SiteCapacity"];
+  let siteCapacity = getVal(row, ["SiteCapacity", "Sitecapacity", "Site Capacity"]);
   if (siteCapacity === undefined || siteCapacity === null || siteCapacity === "") {
     siteCapacity = "N/A";
   } else {
@@ -2160,7 +2171,7 @@ function updateFlowchartSchoolInfo(name) {
   }
   
   // Get Below 50% Percentile EA Category
-  let below50PercentileEA = row["Below50PCTL_EA_Cat"];
+  let below50PercentileEA = getVal(row, ["Below50PCTL_EA_Cat", "Below50PCTL EA", "Below50PCTL_EA"]);
   if (below50PercentileEA === undefined || below50PercentileEA === null || below50PercentileEA === "") {
     below50PercentileEA = "N/A";
   } else {
