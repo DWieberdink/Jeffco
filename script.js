@@ -1,5 +1,94 @@
 mapboxgl.accessToken = 'pk.eyJ1IjoicGF0d2QwNSIsImEiOiJjbTZ2bGVhajIwMTlvMnFwc2owa3BxZHRoIn0.moDNfqMUolnHphdwsIF87w';
 
+// --- Debug logging -----------------------------------------------------------
+// Set to true if you want verbose console output while developing.
+const DEBUG = false;
+const __origLog = console.log.bind(console);
+if (!DEBUG) {
+  console.log = function () {};
+} else {
+  // Keep a predictable prefix for debug sessions.
+  console.log = (...args) => __origLog('[DEBUG]', ...args);
+}
+
+// Map style management
+const MAP_STYLES = {
+  light: 'mapbox://styles/mapbox/light-v11',
+  standard: 'mapbox://styles/mapbox/standard',
+  satellite: 'mapbox://styles/mapbox/standard-satellite'
+};
+function getSavedMapStyle() {
+  const saved = localStorage.getItem('mapStyleChoice');
+  return saved || MAP_STYLES.light;
+}
+function applyMapStyle(styleId) {
+  if (!window.map || !styleId) return;
+  const mapRef = window.map;
+  const finishApply = () => {
+    try {
+      ensureBaseSourcesLayers();
+      updateLayer();
+    } catch (e) {
+      console.warn('⚠️ Unable to reapply filters after style change:', e);
+    }
+  };
+  const onStyleEvent = () => {
+    mapRef.off('styledata', onStyleEvent);
+    mapRef.off('style.load', onStyleEvent);
+    finishApply();
+  };
+  try {
+    mapRef.on('styledata', onStyleEvent);
+    mapRef.on('style.load', onStyleEvent);
+    mapRef.setStyle(styleId);
+    localStorage.setItem('mapStyleChoice', styleId);
+  } catch (e) {
+    console.warn('⚠️ Unable to set map style:', e);
+    // Fallback to light if the chosen style fails
+    if (styleId !== MAP_STYLES.light) {
+      try {
+        mapRef.setStyle(MAP_STYLES.light);
+        localStorage.setItem('mapStyleChoice', MAP_STYLES.light);
+      } catch (e2) {
+        console.warn('⚠️ Fallback to light style also failed:', e2);
+      }
+    }
+  }
+}
+
+// --- Halo animation (Sending School) ----------------------------------------
+let haloInterval = null;
+let haloRadius = 15;
+let haloGrowing = true;
+
+function startBlinkingHalo() {
+  if (haloInterval) clearInterval(haloInterval);
+  haloRadius = 15;
+  haloGrowing = true;
+  haloInterval = setInterval(() => {
+    if (!map || !map.getLayer || !map.getLayer('sending-school-halo')) return;
+    map.setPaintProperty('sending-school-halo', 'circle-radius', haloRadius);
+    map.setPaintProperty('sending-school-halo', 'circle-opacity', 0.5 + 0.5 * Math.sin(Date.now() / 300));
+    if (haloGrowing) {
+      haloRadius += 1;
+      if (haloRadius >= 30) haloGrowing = false;
+    } else {
+      haloRadius -= 1;
+      if (haloRadius <= 15) haloGrowing = true;
+    }
+  }, 50);
+}
+
+function stopBlinkingHalo() {
+  if (haloInterval) {
+    clearInterval(haloInterval);
+    haloInterval = null;
+  }
+  if (map && map.getLayer && map.getLayer('sending-school-halo')) {
+    map.setPaintProperty('sending-school-halo', 'circle-opacity', 0);
+  }
+}
+
 // Application initialization
 document.addEventListener('DOMContentLoaded', function() {
   // Tour now starts after password authentication (see index.html password overlay)
@@ -8,6 +97,137 @@ document.addEventListener('DOMContentLoaded', function() {
   // Auto-open "School Decision Evaluation: Results" when "School Decision Evaluation" is opened
   const decisionInputPanel = document.getElementById('decision-input-panel');
   const decisionOutputPanel = document.getElementById('decision-output-panel');
+
+  // Sidebar hamburger toggle (collapse/expand)
+  (function setupSidebarToggle() {
+    const toggleBtn = document.getElementById('sidebarToggle');
+    const menu = document.getElementById('sidebarMenu');
+    const closeBtn = document.getElementById('sidebarMenuClose');
+    const body = document.body;
+    const leftToggle = document.getElementById('toggleLeftSidebar');
+    const rightToggle = document.getElementById('toggleRightSidebar');
+    const startTourBtn = document.getElementById('menuStartTour');
+    const dataLogicBtn = document.getElementById('menuDataLogic');
+    const rightSidebar = document.getElementById('map-sidebar');
+    const showMapBtn = document.getElementById('menuShowMap');
+    const showFlowchartBtn = document.getElementById('menuShowFlowchart');
+    const setMenuViewActive = (mode) => {
+      if (showMapBtn) showMapBtn.classList.toggle('active', mode === 'map');
+      if (showFlowchartBtn) showFlowchartBtn.classList.toggle('active', mode === 'flowchart');
+    };
+
+    const syncMenuState = () => {
+      if (leftToggle) leftToggle.checked = !body.classList.contains('sidebar-collapsed');
+      if (rightToggle) rightToggle.checked = !body.classList.contains('right-sidebar-collapsed');
+    };
+
+    const showMenu = () => {
+      if (menu) menu.style.display = 'block';
+      syncMenuState();
+    };
+    const hideMenu = () => {
+      if (menu) menu.style.display = 'none';
+    };
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        if (!menu) return;
+        const isOpen = menu.style.display === 'block';
+        if (isOpen) {
+          hideMenu();
+        } else {
+          showMenu();
+        }
+      });
+    }
+    if (closeBtn) {
+      closeBtn.addEventListener('click', hideMenu);
+    }
+    if (leftToggle) {
+      leftToggle.addEventListener('change', () => {
+        if (leftToggle.checked) {
+          body.classList.remove('sidebar-collapsed');
+        } else {
+          body.classList.add('sidebar-collapsed');
+        }
+        if (window.map && typeof window.map.resize === 'function') {
+          setTimeout(() => window.map.resize(), 50);
+        }
+      });
+    }
+    if (rightToggle) {
+      rightToggle.addEventListener('change', () => {
+        const shouldShow = rightToggle.checked;
+        if (shouldShow) {
+          body.classList.remove('right-sidebar-collapsed');
+        } else {
+          body.classList.add('right-sidebar-collapsed');
+        }
+        if (window.map && typeof window.map.resize === 'function') {
+          setTimeout(() => window.map.resize(), 50);
+        }
+      });
+    }
+    if (startTourBtn) {
+      startTourBtn.addEventListener('click', () => {
+        hideMenu();
+        const startBtn = document.getElementById('startTourBtn');
+        if (typeof window.startOnboardingWalkthrough === 'function') {
+          window.startOnboardingWalkthrough();
+        } else if (startBtn) {
+          startBtn.click();
+        }
+      });
+    }
+    if (dataLogicBtn) {
+      dataLogicBtn.addEventListener('click', () => {
+        hideMenu();
+        window.open('data-viewer.html', '_blank');
+      });
+    }
+    if (showMapBtn) {
+      showMapBtn.addEventListener('click', () => {
+        hideMenu();
+        if (typeof window.switchToMap === 'function') {
+          window.switchToMap();
+        }
+        setMenuViewActive('map');
+      });
+    }
+    if (showFlowchartBtn) {
+      showFlowchartBtn.addEventListener('click', () => {
+        hideMenu();
+        if (typeof window.switchToFlowchart === 'function') {
+          window.switchToFlowchart();
+        }
+        setMenuViewActive('flowchart');
+      });
+    }
+    // Map style radio buttons
+    const styleRadios = document.querySelectorAll('input[name="mapStyle"]');
+    styleRadios.forEach(r => {
+      r.addEventListener('change', () => {
+        if (r.checked) applyMapStyle(r.value);
+      });
+    });
+    // Initialize radio selection from saved style
+    const savedStyle = getSavedMapStyle();
+    styleRadios.forEach(r => { r.checked = r.value === savedStyle; });
+
+    // Close menu on outside click
+    document.addEventListener('click', (e) => {
+      if (!menu || !toggleBtn) return;
+      const target = e.target;
+      if (menu.contains(target) || toggleBtn.contains(target)) return;
+      hideMenu();
+    });
+
+    // Default: hide both sidebars on load
+    body.classList.add('sidebar-collapsed');
+    body.classList.add('right-sidebar-collapsed');
+    syncMenuState();
+    setMenuViewActive('map');
+  })();
   
   if (decisionInputPanel && decisionOutputPanel) {
     decisionInputPanel.addEventListener('toggle', function() {
@@ -133,8 +353,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 row.decision === 'Building & Programmatic Investments' || 
                 row.decision === 'Building Investment'
               ).reduce((sum, row) => sum + (parseFloat(row['SquareFt']) || 0), 0);
-              const totalCost = totalSquareFt * costMultiplier;
-              
               // Rebuild the table with new multiplier
               let tableHTML = `<table class=\"data-table\"><thead><tr><th>School Name</th><th>Square Footage</th><th>Cost <div style=\"display:flex; gap:5px; margin-top:5px; justify-content:center;\">
                 <span class=\"dollar-sign-tooltip\" style=\"cursor:pointer; padding:2px 4px; border-radius:3px; background:${costMultiplier === 300 ? '#007cbf' : '#e0e0e0'}; color:${costMultiplier === 300 ? 'white' : 'black'};\" onclick=\"updateCostMultiplier(300)\" data-tooltip=\"Low level renovation\">$</span>
@@ -194,8 +412,6 @@ document.addEventListener('DOMContentLoaded', function() {
             row.decision === 'Building & Programmatic Investments' || 
             row.decision === 'Building Investment'
           ).reduce((sum, row) => sum + (parseFloat(row['SquareFt']) || 0), 0);
-          const totalCost = totalSquareFt * costMultiplier;
-          
           // Add total row at the top
           tableHTML += `<tr style=\"font-weight:bold; background:#cccccc;\"><td style='border:1px solid #888;'>Total</td><td style='border:1px solid #888;'>${formatSquareFt(totalSquareFt)}</td><td style='border:1px solid #888;'>${formatCost(totalSquareFt)}</td></tr>`;
           
@@ -271,7 +487,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 const map = new mapboxgl.Map({
   container: 'map',
-  style: 'mapbox://styles/mapbox/light-v11'
+  style: getSavedMapStyle()
   // center and zoom will be set dynamically after loading GeoJSON
 });
 
@@ -281,8 +497,7 @@ window.geojsonData = null; // Will be set when geojson is loaded
 
 let geojsonData;
 let originalGeojsonData; // Keep a copy of the original unfiltered data
-let initialDecisionData = null; // Store data if it arrives before geojson
-let mapIsReady = false; // Flag to track if the map's core is loaded
+// (cleanup) Removed unused state placeholders (initialDecisionData, mapIsReady).
 let selectedEnrollment = 0;
 let odData = [];
 let selectedTypes = [];
@@ -295,8 +510,7 @@ let showUtilizationPie = false;
 let selectedFlows = ['expansion', 'maintenance', 'closure', 'other']; // Track selected flows
 let schoolDistancesByOrigin = {}; // Origin UniqueID -> array of destination rows (normalized lower)
 let nearbyFilterIds = null; // Active filter (origin + destinations), stored normalized
-let nearbyOverlapOnly = false; // Whether we are filtering to overlapping grades only
-let nearbyShowAllSchools = false; // Whether we are showing all schools (no nearby filter)
+// (cleanup) Removed unused state placeholders (nearbyOverlapOnly, nearbyShowAllSchools).
 let includeNonEvalSchools = false; // Include Include_Flow_Chart = "No"
 let includeClosedSchools = false; // Include status = "Closed"/"No"
 let mapExportRowsData = []; // Rows from Map_Export.csv
@@ -496,11 +710,257 @@ function buildNearbyFilter(originId, originName, overlapOnly = false, showAllSch
 }
 
 function applyNearbyFilter(originId, originName, overlapOnly = false, showAllSchools = false) {
-  nearbyOverlapOnly = overlapOnly;
-  nearbyShowAllSchools = showAllSchools;
+  // (cleanup) overlapOnly/showAllSchools are passed through to downstream render/update calls.
   buildNearbyFilter(originId, originName, overlapOnly, showAllSchools);
   updateNearbySchoolsPanel(originId, originName, { overlapOnly, showAllSchools });
   updateLayer();
+}
+
+function clearFlowchartSelection() {
+  const flowSelect = document.getElementById('mainFlowchartSchoolSelect');
+  if (flowSelect) {
+    flowSelect.value = '';
+    Array.from(flowSelect.options || []).forEach(opt => { opt.selected = false; });
+  }
+  window.currentSelectedSchoolName = '';
+  window.currentOriginId = '';
+  window.currentOriginName = '';
+}
+
+function clearAllSchoolSelections() {
+  const mapSelect = document.getElementById('mapOriginSchoolSelect');
+  const flowSelect = document.getElementById('mainFlowchartSchoolSelect');
+  if (mapSelect) {
+    mapSelect.value = '';
+    Array.from(mapSelect.options || []).forEach(opt => { opt.selected = false; });
+  }
+  if (flowSelect) {
+    flowSelect.value = '';
+    Array.from(flowSelect.options || []).forEach(opt => { opt.selected = false; });
+  }
+  window.currentSelectedSchoolName = '';
+  window.currentOriginId = '';
+  window.currentOriginName = '';
+}
+
+// Keep flowchart dropdown empty until user explicitly picks a school
+let flowchartUserSelected = false;
+function enforceFlowchartEmptyUntilUser() {
+  const flowSelect = document.getElementById('mainFlowchartSchoolSelect');
+  if (!flowSelect || flowchartUserSelected) return;
+  flowSelect.value = '';
+  Array.from(flowSelect.options || []).forEach(opt => { opt.selected = false; });
+}
+
+// Recreate core map sources/layers after a style change (or if missing)
+function ensureBaseSourcesLayers() {
+  if (!window.map) return;
+  const m = window.map;
+  const data = originalGeojsonData || geojsonData;
+  if (!data) return;
+
+  // Schools source
+  if (!m.getSource('schools')) {
+    m.addSource('schools', { type: 'geojson', data });
+  } else {
+    // Do not reset to unfiltered data; updateLayer will reapply filtered data
+  }
+  // Selected school source
+  if (!m.getSource('selected-school')) {
+    m.addSource('selected-school', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  }
+
+  // Selected school highlight
+  if (!m.getLayer('selected-school-highlight')) {
+    m.addLayer({
+      id: 'selected-school-highlight',
+      type: 'circle',
+      source: 'selected-school',
+      paint: {
+        'circle-radius': 14,
+        'circle-color': '#007cbf',
+        'circle-opacity': 0.35,
+        'circle-blur': 0.4
+      }
+    });
+  }
+  // Selected school center
+  if (!m.getLayer('selected-school-center')) {
+    m.addLayer({
+      id: 'selected-school-center',
+      type: 'circle',
+      source: 'selected-school',
+      paint: {
+        'circle-radius': 6,
+        'circle-color': [
+          'match',
+          ['get', 'Decision Type'],
+          "Building Addition", '#2E8B57',
+          "Policy Solution for Overcrowding", '#66BB6A',
+          "Building Addition with Capital Investment", '#1B5E20',
+          "Building Replacement", '#4B830D',
+          "Targeted Capital Investment", '#FFA726',
+          "Standard Maintenance", '#FFD54F',
+          "Major Capital Investment", '#FB8C00',
+          "Welcoming School", '#C62828',
+          "Welcoming School with Capital Investment", '#E53935',
+          "Closure (Goes to Welcoming School)", '#B71C1C',
+          "Welcoming School with Building Replacement", '#8B0000',
+          "Other / Unknown", '#2F4F4F',
+          '#7f8c8d'
+        ],
+        'circle-stroke-width': 1.5,
+        'circle-stroke-color': '#ffffff'
+      }
+    });
+  }
+
+  // Main schools layer
+  if (!m.getLayer('schools-layer')) {
+    m.addLayer({
+      id: 'schools-layer',
+      type: 'circle',
+      source: 'schools',
+      paint: {
+        'circle-radius': 6,
+        'circle-color': [
+          'match',
+          ['get', 'Decision Type'],
+          "Building Addition", '#2E8B57',
+          "Policy Solution for Overcrowding", '#66BB6A',
+          "Building Addition with Capital Investment", '#1B5E20',
+          "Building Replacement", '#4B830D',
+          "Targeted Capital Investment", '#FFA726',
+          "Standard Maintenance", '#FFD54F',
+          "Major Capital Investment", '#FB8C00',
+          "Welcoming School", '#C62828',
+          "Welcoming School with Capital Investment", '#E53935',
+          "Closure (Goes to Welcoming School)", '#B71C1C',
+          "Welcoming School with Building Replacement", '#8B0000',
+          "Other / Unknown", '#2F4F4F',
+          '#7f8c8d'
+        ]
+      }
+    });
+  }
+
+  // Pie layer
+  if (!m.getLayer('schools-pie-layer')) {
+    m.addLayer({
+      id: 'schools-pie-layer',
+      type: 'symbol',
+      source: 'schools',
+      layout: {
+        'visibility': 'none',
+        'icon-image': ['coalesce', ['get', 'utilPieImage'], 'util-pie-0.0'],
+        'icon-size': 0.8,
+        'icon-allow-overlap': true
+      }
+    });
+  }
+
+  // Closed stripe layer
+  if (!m.getLayer('closed-stripe-layer')) {
+    m.addLayer({
+      id: 'closed-stripe-layer',
+      type: 'symbol',
+      source: 'schools',
+      layout: {
+        'visibility': includeClosedSchools ? 'visible' : 'none',
+        'text-field': '/',
+        'text-size': 22,
+        'text-rotate': 45,
+        'text-allow-overlap': true,
+        'text-ignore-placement': true
+      },
+      paint: {
+        'text-color': '#d32f2f',
+        'text-halo-color': '#ffffff',
+        'text-halo-width': 1.3
+      },
+      filter: ['==', ['get', 'isClosed'], true]
+    });
+  } else {
+    try {
+      m.setLayoutProperty('closed-stripe-layer', 'visibility', includeClosedSchools ? 'visible' : 'none');
+    } catch {}
+  }
+
+  // Nearby destinations highlight layer
+  if (!m.getLayer('nearby-destinations-layer')) {
+    m.addLayer({
+      id: 'nearby-destinations-layer',
+      type: 'circle',
+      source: 'schools',
+      layout: {
+        'visibility': 'none'
+      },
+      paint: {
+        'circle-radius': 10,
+        'circle-color': '#ffffff',
+        'circle-opacity': 0,
+        'circle-stroke-color': '#00bcd4',
+        'circle-stroke-width': 2
+      }
+    });
+  }
+
+  // Assigned schools source/layer (for assignments)
+  if (!m.getSource('assigned-schools')) {
+    m.addSource('assigned-schools', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  }
+  if (!m.getLayer('assigned-schools-layer')) {
+    m.addLayer({
+      id: 'assigned-schools-layer',
+      type: 'circle',
+      source: 'assigned-schools',
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['get', 'assigned'], 0, 4, 10, 8, 50, 16, 100, 24],
+        'circle-color': '#FF530D',
+        'circle-opacity': 0.8,
+        'circle-stroke-color': '#333',
+        'circle-stroke-width': 1
+      }
+    });
+  }
+
+  // Sending school halo source/layer
+  if (!m.getSource('sending-school')) {
+    m.addSource('sending-school', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  }
+  if (!m.getLayer('sending-school-halo')) {
+    m.addLayer({
+      id: 'sending-school-halo',
+      type: 'circle',
+      source: 'sending-school',
+      paint: {
+        'circle-radius': 15,
+        'circle-color': '#FFD700',
+        'circle-opacity': 0.8,
+        'circle-blur': 0.6
+      }
+    });
+  }
+
+  // Isochrone source/layer (leave empty unless computed)
+  if (!m.getSource('isochrone')) {
+    m.addSource('isochrone', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  }
+  if (!m.getLayer('isochrone-layer')) {
+    m.addLayer({
+      id: 'isochrone-layer',
+      type: 'fill',
+      source: 'isochrone',
+      paint: { 'fill-color': '#1E90FF', 'fill-opacity': 0.3 }
+    });
+  }
+
+  // Reapply current filters after ensuring sources/layers exist
+  try {
+    updateLayer();
+  } catch (err) {
+    console.warn("⚠️ Failed to reapply filters after ensuring base layers:", err);
+  }
 }
 
 function updateLayer() {
@@ -509,6 +969,12 @@ function updateLayer() {
       return; 
     }
 
+  // Sync include/exclude toggles from DOM to avoid accidental resets
+  const includeNonEvalEl = document.getElementById('toggleIncludeNonEval');
+  const includeClosedEl = document.getElementById('toggleIncludeClosed');
+  includeNonEvalSchools = !!(includeNonEvalEl && includeNonEvalEl.checked);
+  includeClosedSchools = !!(includeClosedEl && includeClosedEl.checked);
+
   console.log("🔄 Updating layer with filters:", { selectedFlows, selectedTypes, minEnrollment, maxEnrollment });
 
   // Always filter from the original unfiltered data
@@ -516,10 +982,13 @@ function updateLayer() {
   let flow2Filtered = 0;
   
   const filteredFeatures = originalGeojsonData.features.filter(f => {
-    // Include/exclude non-eval schools
+    // Include/exclude non-eval schools (default to NO unless explicitly yes)
     const includeVal = (f.properties['includeFlowChart'] || '').toString().trim().toLowerCase();
+    const includeYes = includeVal === 'yes' || includeVal === 'true' || includeVal === '1';
     const isNonEval =
-      includeVal === 'no' || includeVal === '0' || includeVal === 'false';
+      !includeYes ||
+      includeVal === 'no' || includeVal === '0' || includeVal === 'false' ||
+      f.properties['isNonEval'] === true;
 
     // Include/exclude closed schools
     const statusNorm = (f.properties['status'] || '').toString().trim().toLowerCase();
@@ -528,11 +997,9 @@ function updateLayer() {
       statusNorm === 'no' ||
       statusNorm.includes('closed');
 
-    // Closed schools are controlled only by the closed toggle
+    // Hard gates: exclude non-eval unless explicitly allowed; exclude closed unless allowed
+    if (isNonEval && !includeNonEvalSchools) return false;
     if (isClosed && !includeClosedSchools) return false;
-
-    // Non-eval toggle should NOT include closed schools (closed has its own toggle)
-    if (!isClosed && isNonEval && !includeNonEvalSchools) return false;
 
     const enrollment = parseInt(f.properties['Enrollment']) || 0;
     const availableSeats = parseInt(f.properties['Available Seats']) || 0;
@@ -878,15 +1345,17 @@ function updateLegend() {
   if (!legendContent) return;
   
   legendContent.innerHTML = '';
-  legendContent.style.cssText = 'padding: 5px; line-height: 1.4; max-height: 80vh; overflow-y: auto;';
+  // Match the padding scale used by Map Filters panel content
+  legendContent.style.cssText = 'padding: 8px 10px 12px 10px; line-height: 1.4; max-height: 80vh; overflow-y: auto;';
 
-  // Update the toggle label to reflect current mode (Decision Types vs Assignment View)
+  // Update the toggle label to reflect current mode (Decision Types Legend vs Assignment View)
   if (legendToggle) {
-    const baseLabel = showingAssignments ? 'Assignment View' : 'Decision Types';
+    const baseLabel = showingAssignments ? 'Assignment View' : 'Decision Types Legend';
     const chevron = legendToggle.querySelector('span.chevron');
-    const textSpan = legendToggle.querySelector('span:not(.chevron)');
+    const textSpan = legendToggle.querySelector('.legend-title') || legendToggle.querySelector('span:not(.chevron)');
     if (textSpan) textSpan.textContent = baseLabel;
-    if (chevron) chevron.textContent = legendToggle.parentElement.classList.contains('legend-collapsed') ? '▴' : '▾';
+    // Chevron glyph stays constant; CSS handles rotation based on collapsed/expanded state.
+    if (chevron) chevron.textContent = '▸';
   }
 
   const decisionLegendGroups = {
@@ -1167,6 +1636,7 @@ map.on('load', () => {
 
   Promise.all([geojsonPromise, decisionDataPromise, decisionAllPromise, distancesPromise, mapExportPromise])
     .then(([geojson, decisionData, decisionAll, _distances, mapExportRows]) => {
+      void _distances; // preloaded for side-effects; not otherwise referenced
       console.log("✅ GeoJSON, Decision Data, full Decision export, and Map Export are loaded.");
 
       mapExportRowsData = Array.isArray(mapExportRows) ? mapExportRows : [];
@@ -1375,110 +1845,11 @@ map.on('load', () => {
 
           if (!window.initialSelectionApplied) {
             const restored = tryRestoreSavedSelection();
-            if (!restored) {
-              const firstOption = mapOriginSelect.options[1]; // [0] is placeholder
-              if (firstOption) {
-                const firstId = firstOption.value;
-                const firstName = firstOption.textContent;
-
-                // Track pending selection so flowchart init can apply it if not ready
-                window.pendingFlowchartSchoolName = firstName;
-                window.pendingFlowchartOriginId = firstId;
-                window.currentSelectedSchoolName = firstName;
-                window.currentOriginId = firstId;
-                window.currentOriginName = firstName;
-
-                mapOriginSelect.value = firstId;
-                const evt = new Event('change', { bubbles: true });
-                mapOriginSelect.dispatchEvent(evt);
-                window.initialSelectionApplied = true;
-                console.log("🎯 Auto-selected initial school:", firstName, "(", firstId, ")");
-              }
-            }
+            // If not restored, leave selection empty (no auto-selection)
           }
 
-          // Safety: retry selection after both dropdowns are populated
-          const ensureInitialSelectionWithRetry = (retry = 0) => {
-            if (window.initialSelectionApplied) return;
-            const mapSelect = document.getElementById('mapOriginSchoolSelect');
-            const flowSelect = document.getElementById('mainFlowchartSchoolSelect');
-            if (!mapSelect || !flowSelect || mapSelect.options.length <= 1 || flowSelect.options.length <= 1) {
-              if (retry < 50) setTimeout(() => ensureInitialSelectionWithRetry(retry + 1), 100);
-              return;
-            }
-
-            const targetName =
-              window.currentSelectedSchoolName ||
-              (flowSelect.value || flowSelect.options[1].value);
-
-            // Sync flowchart dropdown
-            flowSelect.value = targetName;
-            Array.from(flowSelect.options || []).forEach(opt => {
-              opt.selected = opt.value === targetName;
-            });
-
-            // Sync map dropdown by ID if possible, otherwise by label
-            const norm = (s) => (s || "").toString().trim().toLowerCase();
-            let originId = "";
-            if (window.decisionLogic && Array.isArray(window.decisionLogic.schoolData)) {
-              const row = window.decisionLogic.schoolData.find(r => norm(r["Building Name"]) === norm(targetName));
-              if (row) {
-                originId = (
-                  row.UniqueID ||
-                  row["UniqueID"] ||
-                  row["Unique Id"] ||
-                  ""
-                ).toString().trim();
-              }
-            }
-
-            if (originId) {
-              let hasIdOption = Array.from(mapSelect.options || []).some(opt => opt.value === originId);
-              if (!hasIdOption) {
-                const opt = document.createElement('option');
-                opt.value = originId;
-                opt.textContent = targetName;
-                mapSelect.appendChild(opt);
-              }
-              mapSelect.value = originId;
-            } else {
-              let match = Array.from(mapSelect.options || []).find(
-                opt => norm(opt.textContent) === norm(targetName) || norm(opt.value) === norm(targetName)
-              );
-              if (!match) {
-                const opt = document.createElement('option');
-                opt.value = targetName;
-                opt.textContent = targetName;
-                mapSelect.appendChild(opt);
-                match = opt;
-              }
-              mapSelect.value = match.value;
-            }
-
-            Array.from(mapSelect.options || []).forEach(opt => {
-              opt.selected = opt.value === mapSelect.value;
-            });
-
-            if (typeof window.updateFlowForSchool === 'function' && targetName) {
-              const thresholdsForFlow =
-                window.thresholds ||
-                (window.decisionLogic && window.decisionLogic.thresholds) ||
-                {};
-              window.updateFlowForSchool(targetName, thresholdsForFlow);
-            }
-
-            if (typeof window.updateNearbyDestinationsHighlight === 'function' && mapSelect.value) {
-              window.currentOriginId = mapSelect.value;
-              window.currentOriginName = targetName;
-              window.updateNearbyDestinationsHighlight(mapSelect.value);
-            }
-
-            window.currentSelectedSchoolName = targetName;
-            window.initialSelectionApplied = true;
-            console.log("🎯 Forced initial selection on load:", targetName, "→ map value:", mapSelect.value);
-          };
-
-          ensureInitialSelectionWithRetry();
+          // No auto-selection: leave empty unless a saved/restored selection was applied
+          window.initialSelectionApplied = true;
         }
       } catch (e) {
         console.warn("⚠️ Unable to initialize map origin dropdown:", e);
@@ -1506,6 +1877,23 @@ map.on('load', () => {
       } catch (initialFilterErr) {
         console.warn("⚠️ Initial filter failed:", initialFilterErr);
       }
+
+        // Ensure dropdowns start empty (no default selection) and stay empty until user picks
+        setTimeout(() => {
+          clearAllSchoolSelections();
+          clearFlowchartSelection();
+          enforceFlowchartEmptyUntilUser();
+          const flowSelect = document.getElementById('mainFlowchartSchoolSelect');
+          if (flowSelect) {
+            flowSelect.addEventListener('change', () => {
+              flowchartUserSelected = !!flowSelect.value;
+            });
+            const mo = new MutationObserver(() => {
+              enforceFlowchartEmptyUntilUser();
+            });
+            mo.observe(flowSelect, { childList: true, subtree: false });
+          }
+        }, 0);
 
       // Fit map to the extent of the loaded GeoJSON
       if (geojsonData.features && geojsonData.features.length > 0) {
@@ -2259,7 +2647,7 @@ map.on('load', () => {
             shouldSort: false
           });
           // Add event listener for select-all
-          excludedSchoolsSelect.addEventListener('change', function(e) {
+          excludedSchoolsSelect.addEventListener('change', function() {
             const selected = Array.from(excludedSchoolsSelect.selectedOptions).map(opt => opt.value);
             // Handle select-all for each group
             ['Elementary and K-8 Schools', 'High Schools', 'Other Schools'].forEach(label => {
@@ -2280,38 +2668,6 @@ map.on('load', () => {
       }
 
       // --- Blinking Halo for Sending School ---
-      let haloInterval = null;
-      let haloRadius = 15;
-      let haloGrowing = true;
-
-      function startBlinkingHalo() {
-        if (haloInterval) clearInterval(haloInterval);
-        haloRadius = 15;
-        haloGrowing = true;
-        haloInterval = setInterval(() => {
-          if (!map.getLayer('sending-school-halo')) return;
-          map.setPaintProperty('sending-school-halo', 'circle-radius', haloRadius);
-          map.setPaintProperty('sending-school-halo', 'circle-opacity', 0.5 + 0.5 * Math.sin(Date.now() / 300));
-          if (haloGrowing) {
-            haloRadius += 1;
-            if (haloRadius >= 30) haloGrowing = false;
-          } else {
-            haloRadius -= 1;
-            if (haloRadius <= 15) haloGrowing = true;
-          }
-        }, 50);
-      }
-
-      function stopBlinkingHalo() {
-        if (haloInterval) {
-          clearInterval(haloInterval);
-          haloInterval = null;
-        }
-        if (map.getLayer('sending-school-halo')) {
-          map.setPaintProperty('sending-school-halo', 'circle-opacity', 0);
-        }
-      }
-
       // Add the sending-school-halo layer on map load
       map.addSource('sending-school', {
         type: 'geojson',
@@ -2351,9 +2707,10 @@ map.on('load', () => {
   const unselectAllSchoolsBtn = document.getElementById('unselectAllSchoolsBtn');
   let enrollmentRangeSynced = false;
   let utilSpritesAdded = false;
-  const savedOriginId = localStorage.getItem('mapSelectedOriginId') || '';
-  const savedOriginName = localStorage.getItem('mapSelectedOriginName') || '';
-  const defaultFilterPosition = { top: '20px', left: '20px' };
+  // Disable restoring prior selections to avoid auto-selecting a school on load
+  const savedOriginId = '';
+  const savedOriginName = '';
+  const defaultFilterPosition = { top: '20px', right: '20px' };
   let mapSelectSyncing = false;
   let showNearbyHighlight = false; // default off; enable via checkbox
 
@@ -2603,7 +2960,7 @@ map.on('load', () => {
         if (window.map && window.map.getLayer && window.map.getLayer('closed-stripe-layer')) {
           window.map.setLayoutProperty('closed-stripe-layer', 'visibility', includeClosedSchools ? 'visible' : 'none');
         }
-      } catch (e) {}
+      } catch {}
       updateLayer();
     };
     // Default OFF on landing page (evaluation-only). Ignore any saved state.
@@ -2613,45 +2970,93 @@ map.on('load', () => {
     applyIncludeClosed();
   }
 
-  // --- Draggable filter panel (returns to default when collapsed) ---
+  // --- Map filter panel positioning (static, no drag) ---
   const filterPanel = document.getElementById('filter-panel');
+  const filterResizeHandle = document.getElementById('filter-resize-handle');
   if (filterPanel) {
-    const summary = filterPanel.querySelector('summary');
-    let dragging = false;
-    let dragOffset = [0, 0];
+    const enableFilterPanelDrag = false;
+    if (enableFilterPanelDrag) {
+      const summary = filterPanel.querySelector('summary');
+      let dragging = false;
+      let dragOffset = [0, 0];
 
-    const startDrag = (e) => {
-      if (!filterPanel.open) return;
-      dragging = true;
-      const rect = filterPanel.getBoundingClientRect();
-      dragOffset = [e.clientX - rect.left, e.clientY - rect.top];
-      document.body.style.userSelect = 'none';
-    };
+      const startDrag = (e) => {
+        if (!filterPanel.open) return;
+        dragging = true;
+        const rect = filterPanel.getBoundingClientRect();
+        dragOffset = [e.clientX - rect.left, e.clientY - rect.top];
+        document.body.style.userSelect = 'none';
+      };
 
-    const endDrag = () => {
-      dragging = false;
-      document.body.style.userSelect = '';
-    };
+      const endDrag = () => {
+        dragging = false;
+        document.body.style.userSelect = '';
+      };
 
-    const onMove = (e) => {
-      if (!dragging) return;
-      filterPanel.style.left = `${e.clientX - dragOffset[0]}px`;
-      filterPanel.style.top = `${e.clientY - dragOffset[1]}px`;
-    };
+      const onMove = (e) => {
+        if (!dragging) return;
+        filterPanel.style.left = `${e.clientX - dragOffset[0]}px`;
+        filterPanel.style.top = `${e.clientY - dragOffset[1]}px`;
+        filterPanel.style.right = 'auto';
+      };
 
-    if (summary) {
-      summary.addEventListener('mousedown', startDrag);
-      document.addEventListener('mouseup', endDrag);
-      document.addEventListener('mousemove', onMove);
+      if (summary) {
+        summary.addEventListener('mousedown', startDrag);
+        document.addEventListener('mouseup', endDrag);
+        document.addEventListener('mousemove', onMove);
+      }
     }
 
-    filterPanel.addEventListener('toggle', () => {
-      if (!filterPanel.open) {
-        filterPanel.style.left = defaultFilterPosition.left;
-        filterPanel.style.top = defaultFilterPosition.top;
-        filterPanel.style.position = 'absolute';
-      }
-    });
+    const resetFilterPanelPosition = () => {
+      filterPanel.style.position = 'absolute';
+      filterPanel.style.top = defaultFilterPosition.top;
+      filterPanel.style.right = defaultFilterPosition.right;
+      filterPanel.style.left = 'auto';
+      filterPanel.style.width = '';
+      filterPanel.style.height = '';
+    };
+
+    resetFilterPanelPosition();
+    filterPanel.addEventListener('toggle', resetFilterPanelPosition);
+
+    // Custom bottom-left resize handle
+    if (filterResizeHandle) {
+      const minW = 200;
+      const maxW = 420;
+      const minH = 160;
+      const maxH = 800;
+      let startX = 0;
+      let startY = 0;
+      let startW = 0;
+      let startH = 0;
+
+      const onMouseMove = (e) => {
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        const newW = Math.min(maxW, Math.max(minW, startW - dx)); // left handle shrinks when dragging right
+        const newH = Math.min(maxH, Math.max(minH, startH + dy));
+        filterPanel.style.width = `${newW}px`;
+        filterPanel.style.height = `${newH}px`;
+      };
+
+      const endResize = () => {
+        document.body.style.userSelect = '';
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', endResize);
+      };
+
+      filterResizeHandle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const rect = filterPanel.getBoundingClientRect();
+        startX = e.clientX;
+        startY = e.clientY;
+        startW = rect.width;
+        startH = rect.height;
+        document.body.style.userSelect = 'none';
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', endResize);
+      });
+    }
   }
 
   // --- School type dropdown logic ---
@@ -2747,9 +3152,6 @@ map.on('load', () => {
   }
 
   // --- SIDEBAR AND MAP RESIZE LOGIC ---
-  const sidebar = document.getElementById('map-sidebar');
-  const mapContainer = document.getElementById('map-container');
-
   // --- INITIAL MAP RESIZE ON LOAD ---
   // Map container will automatically take available space with flex: 1
   // Just ensure map resizes after initial load
@@ -2766,11 +3168,8 @@ map.on('load', () => {
   // The DecisionLogic.js script, once loaded, will expose `window.decisionLogic`.
   
   // --- MAP/FLOWCHART TOGGLE ---
-  let showingFlowchart = false;
-  
   // Define switch functions globally so they can be called from inline handlers
   window.switchToFlowchart = function() {
-    showingFlowchart = true;
     const flowchartContainer = document.getElementById('main-flowchart-container');
     const mapContainer = document.getElementById('map-container');
     const toggleViewContainer = document.querySelector('#map-container .toggle-buttons');
@@ -2788,6 +3187,12 @@ map.on('load', () => {
     if (toggleMapFlowchartFlowchart) toggleMapFlowchartFlowchart.classList.add('active');
     if (toggleMapFlowchartMap2) toggleMapFlowchartMap2.classList.remove('active');
     if (toggleMapFlowchartFlowchart2) toggleMapFlowchartFlowchart2.classList.add('active');
+    const menuShowMap = document.getElementById('menuShowMap');
+    const menuShowFlowchart = document.getElementById('menuShowFlowchart');
+    if (menuShowMap && menuShowFlowchart) {
+      menuShowMap.classList.remove('active');
+      menuShowFlowchart.classList.add('active');
+    }
     
     // Hide the decisions/assignments toggle when in flowchart view
     if (toggleViewContainer) toggleViewContainer.style.display = 'none';
@@ -2798,7 +3203,6 @@ map.on('load', () => {
   };
 
   window.switchToMap = function() {
-    showingFlowchart = false;
     const flowchartContainer = document.getElementById('main-flowchart-container');
     const mapContainer = document.getElementById('map-container');
     const toggleViewContainer = document.querySelector('#map-container .toggle-buttons');
@@ -2816,6 +3220,12 @@ map.on('load', () => {
     if (toggleMapFlowchartFlowchart) toggleMapFlowchartFlowchart.classList.remove('active');
     if (toggleMapFlowchartMap2) toggleMapFlowchartMap2.classList.add('active');
     if (toggleMapFlowchartFlowchart2) toggleMapFlowchartFlowchart2.classList.remove('active');
+    const menuShowMap = document.getElementById('menuShowMap');
+    const menuShowFlowchart = document.getElementById('menuShowFlowchart');
+    if (menuShowMap && menuShowFlowchart) {
+      menuShowMap.classList.add('active');
+      menuShowFlowchart.classList.remove('active');
+    }
     
     // Show the decisions/assignments toggle when in map view
     if (toggleViewContainer) toggleViewContainer.style.display = 'flex';
@@ -3155,7 +3565,8 @@ function injectDecisionsIntoGeoJSON(geojson, decisions) {
   const includeFlowMap = new Map(
     decisions.map(row => {
       const rawInclude = row["Include_Flow_Chart"];
-      const normalizedInclude = (rawInclude ?? "yes").toString().trim().toLowerCase();
+      // Default to "no" unless explicitly flagged, so non-eval do not resurface after re-injection
+      const normalizedInclude = (rawInclude ?? "no").toString().trim().toLowerCase();
       return [normalizeName(row["Building Name"]), normalizedInclude];
     })
   );
@@ -3186,7 +3597,6 @@ function injectDecisionsIntoGeoJSON(geojson, decisions) {
     const uidExistingRaw = (f.properties["UniqueID"] || "").toString().trim();
     const uidExistingNorm = normalizeId(uidExistingRaw);
     const decisionUidRaw = (uniqueIdMap.get(name) || "").toString().trim();
-    const decisionUidNorm = normalizeId(decisionUidRaw);
     const mapRow =
       mapExportLookupMaps.byName.get(name) ||
       (uidExistingNorm ? mapExportLookupMaps.byCode.get(uidExistingNorm) : null);
@@ -3227,13 +3637,24 @@ function injectDecisionsIntoGeoJSON(geojson, decisions) {
     f.properties["DistanceToWelcoming"] = distanceWelcomingMap.get(name) || null;
 
     // Inclusion + status
+    // Preserve original include flag; only override when data explicitly says "yes"
+    if (f.properties._includeFlowChartBase === undefined) {
+      f.properties._includeFlowChartBase = (f.properties["includeFlowChart"] || "").toString().trim().toLowerCase();
+    }
     const includeVal =
       includeFlowMap.get(name) ??
       (decisionAllByName.get(name)?.Include_Flow_Chart ?? decisionAllByName.get(name)?.["Include_Flow_Chart"]) ??
       (decisionAllById.get(normalizeId(f.properties["UniqueID"]))?.Include_Flow_Chart ?? decisionAllById.get(normalizeId(f.properties["UniqueID"]))?.["Include_Flow_Chart"]);
-    const existingInclude = (f.properties["includeFlowChart"] || "").toString().trim().toLowerCase();
-    let includeNorm = (includeVal ?? existingInclude ?? "no").toString().trim().toLowerCase();
-    if (!includeNorm) includeNorm = "no";
+    const yesVals = new Set(["yes", "y", "true", "1"]);
+    const includeNorm = yesVals.has((includeVal || "").toString().trim().toLowerCase()) ? "yes" : "no";
+    if (name.includes("compass")) {
+      console.log("🔎 Compass include check:", {
+        name: f.properties["Building Name"],
+        includeVal,
+        includeNorm,
+        baseInclude: f.properties._includeFlowChartBase
+      });
+    }
     f.properties["includeFlowChart"] = includeNorm;
     f.properties["isNonEval"] =
       includeNorm === "no" || includeNorm === "0" || includeNorm === "false" || f.properties["isNonEval"] === true;
@@ -3397,20 +3818,15 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
-    // Ensure initial state is expanded (chevron down)
+    // Ensure initial state chevron matches the legend's collapsed/expanded class.
     const chevron = toggle.querySelector('span.chevron');
     if (chevron) {
-      chevron.textContent = '▾';
+      // Chevron glyph stays constant; CSS handles rotation based on collapsed/expanded state.
+      chevron.textContent = '▸';
     }
 
     toggle.addEventListener('click', () => {
-      const collapsed = legend.classList.toggle('legend-collapsed');
-      const chev = toggle.querySelector('span.chevron');
-      if (chev) {
-        // When collapsed, show an up-arrow (content collapsed up).
-        // When expanded, show a down-arrow.
-        chev.textContent = collapsed ? '▴' : '▾';
-      }
+      legend.classList.toggle('legend-collapsed');
     });
   })();
 
@@ -3454,7 +3870,6 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
     
-    const [lng, lat] = selectedFeatureForIsochrone.geometry.coordinates;
     selectedEnrollment = parseInt(selectedFeatureForIsochrone.properties['Enrollment']) || 0;
     // Removed automatic flyTo to respect user-set zoom level
 
@@ -3706,7 +4121,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     continue; // Skip if assigning would exceed capacity
                 }
 
-                const availableSeats = parseInt(destProperties["Available Seats"]) || 0;
                 const quality = parseFloat(destProperties["Building Quality"]) || 0;
                 const scorecard = parseFloat(destProperties["Scorecard"]) || 0;
                 const utilization = parseFloat(destProperties["Utilization"]) || 0;
@@ -4078,7 +4492,7 @@ function filterSchoolsInIsochrone(polygon) {
 
   addPercentageListeners(visibleFeatures);
   // Add up/down button listeners for % Assigned
-  document.querySelectorAll('.assign-percent-up').forEach((btn, idx) => {
+  document.querySelectorAll('.assign-percent-up').forEach((btn) => {
     btn.addEventListener('click', function() {
       const input = btn.closest('td').querySelector('.assign-percent');
       let val = parseInt(input.value) || 0;
@@ -4088,7 +4502,7 @@ function filterSchoolsInIsochrone(polygon) {
       }
     });
   });
-  document.querySelectorAll('.assign-percent-down').forEach((btn, idx) => {
+  document.querySelectorAll('.assign-percent-down').forEach((btn) => {
     btn.addEventListener('click', function() {
       const input = btn.closest('td').querySelector('.assign-percent');
       let val = parseInt(input.value) || 0;
@@ -4219,11 +4633,9 @@ function addPercentageListeners(visibleFeatures) {
 
       // --- Update map assignments in real time for manual entry ---
       // Only if 'Show Assignments' is active
-      const assignmentsBtn = document.getElementById('toggleViewAssignments');
-      const showingAssignmentsNow = assignmentsBtn && assignmentsBtn.classList.contains('active');
       // Build summaryCounts from current table
       let summaryCounts = {};
-      document.querySelectorAll('#isoTable tbody tr').forEach((row, idx) => {
+      document.querySelectorAll('#isoTable tbody tr').forEach((row) => {
         const nameCell = row.querySelector('td');
         const assignedCell = row.querySelector('.assigned-count');
         if (nameCell && assignedCell) {
@@ -4315,7 +4727,10 @@ document.addEventListener("DOMContentLoaded", function() {
         
         if (geojsonData && map.getSource('schools')) {
           injectDecisionsIntoGeoJSON(geojsonData, updatedSchoolData);
-          map.getSource('schools').setData(geojsonData);
+          // Keep base copy in sync with latest decisions for future filtering
+          originalGeojsonData = JSON.parse(JSON.stringify(geojsonData));
+          // Reapply current map filters instead of resetting to full data
+          updateLayer();
           updateLegend();
         }
         // Update scenario modeling table/lists if present
@@ -5056,7 +5471,7 @@ function startOnboardingWalkthrough() {
     console.log("✅ Own Path setup complete");
   }
 
-  function drawHighlight(target, step, stepIdx) {
+  function drawHighlight(target, step) {
     // Create overlay
     overlay = document.createElement('div');
     overlay.style.position = 'fixed';
@@ -5666,15 +6081,6 @@ document.addEventListener('DOMContentLoaded', function() {
           // Only adjust if size actually changed significantly (more than 1px)
           if (Math.abs(newWidth - lastWidth) > 1 || Math.abs(newHeight - lastHeight) > 1) {
             isAdjustingZoom = true;
-            
-            // Store current center and zoom before resize
-            const center = window.map.getCenter();
-            const zoom = window.map.getZoom();
-            
-            // Calculate zoom adjustment based on width change (primary dimension for horizontal resize)
-            const widthRatio = lastWidth > 0 ? newWidth / lastWidth : 1;
-            const zoomAdjustment = Math.log2(widthRatio);
-            const newZoom = zoom + zoomAdjustment;
             
             // Get current bounds before resize (as array format)
             const bounds = window.map.getBounds();
