@@ -1,5 +1,49 @@
 mapboxgl.accessToken = 'pk.eyJ1IjoicGF0d2QwNSIsImEiOiJjbTZ2bGVhajIwMTlvMnFwc2owa3BxZHRoIn0.moDNfqMUolnHphdwsIF87w';
 
+// --- Debug logging -----------------------------------------------------------
+// Set to true if you want verbose console output while developing.
+const DEBUG = false;
+const __origLog = console.log.bind(console);
+if (!DEBUG) {
+  console.log = function () {};
+} else {
+  // Keep a predictable prefix for debug sessions.
+  console.log = (...args) => __origLog('[DEBUG]', ...args);
+}
+
+// --- Halo animation (Sending School) ----------------------------------------
+let haloInterval = null;
+let haloRadius = 15;
+let haloGrowing = true;
+
+function startBlinkingHalo() {
+  if (haloInterval) clearInterval(haloInterval);
+  haloRadius = 15;
+  haloGrowing = true;
+  haloInterval = setInterval(() => {
+    if (!map || !map.getLayer || !map.getLayer('sending-school-halo')) return;
+    map.setPaintProperty('sending-school-halo', 'circle-radius', haloRadius);
+    map.setPaintProperty('sending-school-halo', 'circle-opacity', 0.5 + 0.5 * Math.sin(Date.now() / 300));
+    if (haloGrowing) {
+      haloRadius += 1;
+      if (haloRadius >= 30) haloGrowing = false;
+    } else {
+      haloRadius -= 1;
+      if (haloRadius <= 15) haloGrowing = true;
+    }
+  }, 50);
+}
+
+function stopBlinkingHalo() {
+  if (haloInterval) {
+    clearInterval(haloInterval);
+    haloInterval = null;
+  }
+  if (map && map.getLayer && map.getLayer('sending-school-halo')) {
+    map.setPaintProperty('sending-school-halo', 'circle-opacity', 0);
+  }
+}
+
 // Application initialization
 document.addEventListener('DOMContentLoaded', function() {
   // Tour now starts after password authentication (see index.html password overlay)
@@ -133,8 +177,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 row.decision === 'Building & Programmatic Investments' || 
                 row.decision === 'Building Investment'
               ).reduce((sum, row) => sum + (parseFloat(row['SquareFt']) || 0), 0);
-              const totalCost = totalSquareFt * costMultiplier;
-              
               // Rebuild the table with new multiplier
               let tableHTML = `<table class=\"data-table\"><thead><tr><th>School Name</th><th>Square Footage</th><th>Cost <div style=\"display:flex; gap:5px; margin-top:5px; justify-content:center;\">
                 <span class=\"dollar-sign-tooltip\" style=\"cursor:pointer; padding:2px 4px; border-radius:3px; background:${costMultiplier === 300 ? '#007cbf' : '#e0e0e0'}; color:${costMultiplier === 300 ? 'white' : 'black'};\" onclick=\"updateCostMultiplier(300)\" data-tooltip=\"Low level renovation\">$</span>
@@ -194,8 +236,6 @@ document.addEventListener('DOMContentLoaded', function() {
             row.decision === 'Building & Programmatic Investments' || 
             row.decision === 'Building Investment'
           ).reduce((sum, row) => sum + (parseFloat(row['SquareFt']) || 0), 0);
-          const totalCost = totalSquareFt * costMultiplier;
-          
           // Add total row at the top
           tableHTML += `<tr style=\"font-weight:bold; background:#cccccc;\"><td style='border:1px solid #888;'>Total</td><td style='border:1px solid #888;'>${formatSquareFt(totalSquareFt)}</td><td style='border:1px solid #888;'>${formatCost(totalSquareFt)}</td></tr>`;
           
@@ -281,8 +321,7 @@ window.geojsonData = null; // Will be set when geojson is loaded
 
 let geojsonData;
 let originalGeojsonData; // Keep a copy of the original unfiltered data
-let initialDecisionData = null; // Store data if it arrives before geojson
-let mapIsReady = false; // Flag to track if the map's core is loaded
+// (cleanup) Removed unused state placeholders (initialDecisionData, mapIsReady).
 let selectedEnrollment = 0;
 let odData = [];
 let selectedTypes = [];
@@ -295,8 +334,7 @@ let showUtilizationPie = false;
 let selectedFlows = ['expansion', 'maintenance', 'closure', 'other']; // Track selected flows
 let schoolDistancesByOrigin = {}; // Origin UniqueID -> array of destination rows (normalized lower)
 let nearbyFilterIds = null; // Active filter (origin + destinations), stored normalized
-let nearbyOverlapOnly = false; // Whether we are filtering to overlapping grades only
-let nearbyShowAllSchools = false; // Whether we are showing all schools (no nearby filter)
+// (cleanup) Removed unused state placeholders (nearbyOverlapOnly, nearbyShowAllSchools).
 let includeNonEvalSchools = false; // Include Include_Flow_Chart = "No"
 let includeClosedSchools = false; // Include status = "Closed"/"No"
 let mapExportRowsData = []; // Rows from Map_Export.csv
@@ -496,8 +534,7 @@ function buildNearbyFilter(originId, originName, overlapOnly = false, showAllSch
 }
 
 function applyNearbyFilter(originId, originName, overlapOnly = false, showAllSchools = false) {
-  nearbyOverlapOnly = overlapOnly;
-  nearbyShowAllSchools = showAllSchools;
+  // (cleanup) overlapOnly/showAllSchools are passed through to downstream render/update calls.
   buildNearbyFilter(originId, originName, overlapOnly, showAllSchools);
   updateNearbySchoolsPanel(originId, originName, { overlapOnly, showAllSchools });
   updateLayer();
@@ -878,15 +915,17 @@ function updateLegend() {
   if (!legendContent) return;
   
   legendContent.innerHTML = '';
-  legendContent.style.cssText = 'padding: 5px; line-height: 1.4; max-height: 80vh; overflow-y: auto;';
+  // Match the padding scale used by Map Filters panel content
+  legendContent.style.cssText = 'padding: 8px 10px 12px 10px; line-height: 1.4; max-height: 80vh; overflow-y: auto;';
 
-  // Update the toggle label to reflect current mode (Decision Types vs Assignment View)
+  // Update the toggle label to reflect current mode (Decision Types Legend vs Assignment View)
   if (legendToggle) {
-    const baseLabel = showingAssignments ? 'Assignment View' : 'Decision Types';
+    const baseLabel = showingAssignments ? 'Assignment View' : 'Decision Types Legend';
     const chevron = legendToggle.querySelector('span.chevron');
-    const textSpan = legendToggle.querySelector('span:not(.chevron)');
+    const textSpan = legendToggle.querySelector('.legend-title') || legendToggle.querySelector('span:not(.chevron)');
     if (textSpan) textSpan.textContent = baseLabel;
-    if (chevron) chevron.textContent = legendToggle.parentElement.classList.contains('legend-collapsed') ? '▴' : '▾';
+    // Chevron glyph stays constant; CSS handles rotation based on collapsed/expanded state.
+    if (chevron) chevron.textContent = '▸';
   }
 
   const decisionLegendGroups = {
@@ -1167,6 +1206,7 @@ map.on('load', () => {
 
   Promise.all([geojsonPromise, decisionDataPromise, decisionAllPromise, distancesPromise, mapExportPromise])
     .then(([geojson, decisionData, decisionAll, _distances, mapExportRows]) => {
+      void _distances; // preloaded for side-effects; not otherwise referenced
       console.log("✅ GeoJSON, Decision Data, full Decision export, and Map Export are loaded.");
 
       mapExportRowsData = Array.isArray(mapExportRows) ? mapExportRows : [];
@@ -2259,7 +2299,7 @@ map.on('load', () => {
             shouldSort: false
           });
           // Add event listener for select-all
-          excludedSchoolsSelect.addEventListener('change', function(e) {
+          excludedSchoolsSelect.addEventListener('change', function() {
             const selected = Array.from(excludedSchoolsSelect.selectedOptions).map(opt => opt.value);
             // Handle select-all for each group
             ['Elementary and K-8 Schools', 'High Schools', 'Other Schools'].forEach(label => {
@@ -2280,38 +2320,6 @@ map.on('load', () => {
       }
 
       // --- Blinking Halo for Sending School ---
-      let haloInterval = null;
-      let haloRadius = 15;
-      let haloGrowing = true;
-
-      function startBlinkingHalo() {
-        if (haloInterval) clearInterval(haloInterval);
-        haloRadius = 15;
-        haloGrowing = true;
-        haloInterval = setInterval(() => {
-          if (!map.getLayer('sending-school-halo')) return;
-          map.setPaintProperty('sending-school-halo', 'circle-radius', haloRadius);
-          map.setPaintProperty('sending-school-halo', 'circle-opacity', 0.5 + 0.5 * Math.sin(Date.now() / 300));
-          if (haloGrowing) {
-            haloRadius += 1;
-            if (haloRadius >= 30) haloGrowing = false;
-          } else {
-            haloRadius -= 1;
-            if (haloRadius <= 15) haloGrowing = true;
-          }
-        }, 50);
-      }
-
-      function stopBlinkingHalo() {
-        if (haloInterval) {
-          clearInterval(haloInterval);
-          haloInterval = null;
-        }
-        if (map.getLayer('sending-school-halo')) {
-          map.setPaintProperty('sending-school-halo', 'circle-opacity', 0);
-        }
-      }
-
       // Add the sending-school-halo layer on map load
       map.addSource('sending-school', {
         type: 'geojson',
@@ -2603,7 +2611,7 @@ map.on('load', () => {
         if (window.map && window.map.getLayer && window.map.getLayer('closed-stripe-layer')) {
           window.map.setLayoutProperty('closed-stripe-layer', 'visibility', includeClosedSchools ? 'visible' : 'none');
         }
-      } catch (e) {}
+      } catch {}
       updateLayer();
     };
     // Default OFF on landing page (evaluation-only). Ignore any saved state.
@@ -2747,9 +2755,6 @@ map.on('load', () => {
   }
 
   // --- SIDEBAR AND MAP RESIZE LOGIC ---
-  const sidebar = document.getElementById('map-sidebar');
-  const mapContainer = document.getElementById('map-container');
-
   // --- INITIAL MAP RESIZE ON LOAD ---
   // Map container will automatically take available space with flex: 1
   // Just ensure map resizes after initial load
@@ -2766,11 +2771,8 @@ map.on('load', () => {
   // The DecisionLogic.js script, once loaded, will expose `window.decisionLogic`.
   
   // --- MAP/FLOWCHART TOGGLE ---
-  let showingFlowchart = false;
-  
   // Define switch functions globally so they can be called from inline handlers
   window.switchToFlowchart = function() {
-    showingFlowchart = true;
     const flowchartContainer = document.getElementById('main-flowchart-container');
     const mapContainer = document.getElementById('map-container');
     const toggleViewContainer = document.querySelector('#map-container .toggle-buttons');
@@ -2798,7 +2800,6 @@ map.on('load', () => {
   };
 
   window.switchToMap = function() {
-    showingFlowchart = false;
     const flowchartContainer = document.getElementById('main-flowchart-container');
     const mapContainer = document.getElementById('map-container');
     const toggleViewContainer = document.querySelector('#map-container .toggle-buttons');
@@ -3186,7 +3187,6 @@ function injectDecisionsIntoGeoJSON(geojson, decisions) {
     const uidExistingRaw = (f.properties["UniqueID"] || "").toString().trim();
     const uidExistingNorm = normalizeId(uidExistingRaw);
     const decisionUidRaw = (uniqueIdMap.get(name) || "").toString().trim();
-    const decisionUidNorm = normalizeId(decisionUidRaw);
     const mapRow =
       mapExportLookupMaps.byName.get(name) ||
       (uidExistingNorm ? mapExportLookupMaps.byCode.get(uidExistingNorm) : null);
@@ -3397,20 +3397,15 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
-    // Ensure initial state is expanded (chevron down)
+    // Ensure initial state chevron matches the legend's collapsed/expanded class.
     const chevron = toggle.querySelector('span.chevron');
     if (chevron) {
-      chevron.textContent = '▾';
+      // Chevron glyph stays constant; CSS handles rotation based on collapsed/expanded state.
+      chevron.textContent = '▸';
     }
 
     toggle.addEventListener('click', () => {
-      const collapsed = legend.classList.toggle('legend-collapsed');
-      const chev = toggle.querySelector('span.chevron');
-      if (chev) {
-        // When collapsed, show an up-arrow (content collapsed up).
-        // When expanded, show a down-arrow.
-        chev.textContent = collapsed ? '▴' : '▾';
-      }
+      legend.classList.toggle('legend-collapsed');
     });
   })();
 
@@ -3454,7 +3449,6 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
     
-    const [lng, lat] = selectedFeatureForIsochrone.geometry.coordinates;
     selectedEnrollment = parseInt(selectedFeatureForIsochrone.properties['Enrollment']) || 0;
     // Removed automatic flyTo to respect user-set zoom level
 
@@ -3706,7 +3700,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     continue; // Skip if assigning would exceed capacity
                 }
 
-                const availableSeats = parseInt(destProperties["Available Seats"]) || 0;
                 const quality = parseFloat(destProperties["Building Quality"]) || 0;
                 const scorecard = parseFloat(destProperties["Scorecard"]) || 0;
                 const utilization = parseFloat(destProperties["Utilization"]) || 0;
@@ -4078,7 +4071,7 @@ function filterSchoolsInIsochrone(polygon) {
 
   addPercentageListeners(visibleFeatures);
   // Add up/down button listeners for % Assigned
-  document.querySelectorAll('.assign-percent-up').forEach((btn, idx) => {
+  document.querySelectorAll('.assign-percent-up').forEach((btn) => {
     btn.addEventListener('click', function() {
       const input = btn.closest('td').querySelector('.assign-percent');
       let val = parseInt(input.value) || 0;
@@ -4088,7 +4081,7 @@ function filterSchoolsInIsochrone(polygon) {
       }
     });
   });
-  document.querySelectorAll('.assign-percent-down').forEach((btn, idx) => {
+  document.querySelectorAll('.assign-percent-down').forEach((btn) => {
     btn.addEventListener('click', function() {
       const input = btn.closest('td').querySelector('.assign-percent');
       let val = parseInt(input.value) || 0;
@@ -4219,11 +4212,9 @@ function addPercentageListeners(visibleFeatures) {
 
       // --- Update map assignments in real time for manual entry ---
       // Only if 'Show Assignments' is active
-      const assignmentsBtn = document.getElementById('toggleViewAssignments');
-      const showingAssignmentsNow = assignmentsBtn && assignmentsBtn.classList.contains('active');
       // Build summaryCounts from current table
       let summaryCounts = {};
-      document.querySelectorAll('#isoTable tbody tr').forEach((row, idx) => {
+      document.querySelectorAll('#isoTable tbody tr').forEach((row) => {
         const nameCell = row.querySelector('td');
         const assignedCell = row.querySelector('.assigned-count');
         if (nameCell && assignedCell) {
@@ -5056,7 +5047,7 @@ function startOnboardingWalkthrough() {
     console.log("✅ Own Path setup complete");
   }
 
-  function drawHighlight(target, step, stepIdx) {
+  function drawHighlight(target, step) {
     // Create overlay
     overlay = document.createElement('div');
     overlay.style.position = 'fixed';
@@ -5666,15 +5657,6 @@ document.addEventListener('DOMContentLoaded', function() {
           // Only adjust if size actually changed significantly (more than 1px)
           if (Math.abs(newWidth - lastWidth) > 1 || Math.abs(newHeight - lastHeight) > 1) {
             isAdjustingZoom = true;
-            
-            // Store current center and zoom before resize
-            const center = window.map.getCenter();
-            const zoom = window.map.getZoom();
-            
-            // Calculate zoom adjustment based on width change (primary dimension for horizontal resize)
-            const widthRatio = lastWidth > 0 ? newWidth / lastWidth : 1;
-            const zoomAdjustment = Math.log2(widthRatio);
-            const newZoom = zoom + zoomAdjustment;
             
             // Get current bounds before resize (as array format)
             const bounds = window.map.getBounds();
