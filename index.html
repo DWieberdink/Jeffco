@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <!-- CSS Librarie -->
-  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet" />
   <link href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.0/nouislider.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
 
@@ -16,7 +16,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.0/nouislider.min.js" defer></script>
-  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js" defer></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js" defer></script>
   <script src="https://d3js.org/d3.v7.min.js" defer></script>
   <script src="DecisionLogic.js" defer></script>
   <script src="PrioritizationLogic.js" defer></script>
@@ -178,113 +178,6 @@
       background: #1e90ff !important;
       box-shadow: none !important;
     }
-
-    /* --- Flow sliders (Step 1 & 2) --- */
-    .flow-section { --flow-color: #1e90ff; }
-    .flow-section.flow1 { --flow-color: #007cbf; }
-    .flow-section.flow2 { --flow-color: #28a745; }
-    .flow-section.flow3 { --flow-color: #f59e0b; }
-    .flow-section.flow4 { --flow-color: #dc2626; }
-
-    #decision-input-panel input[type="range"],
-    #scenario-output-panel input[type="range"] {
-      -webkit-appearance: none;
-      width: 100%;
-      height: 14px;
-      background: transparent;
-      margin: 4px 0 10px;
-      padding: 0;
-    }
-    /* WebKit */
-    #decision-input-panel input[type="range"]::-webkit-slider-runnable-track,
-    #scenario-output-panel input[type="range"]::-webkit-slider-runnable-track {
-      height: 6px;
-      background: #e5e7eb;
-      border-radius: 999px;
-      border: none;
-    }
-    #decision-input-panel input[type="range"]::-webkit-slider-thumb,
-    #scenario-output-panel input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: #fff !important;
-      border: 2px solid var(--flow-color, #1e90ff) !important;
-      margin-top: -4px;
-      box-shadow: none;
-    }
-    /* Firefox */
-    #decision-input-panel input[type="range"]::-moz-range-track,
-    #scenario-output-panel input[type="range"]::-moz-range-track {
-      height: 6px;
-      background: #e5e7eb;
-      border-radius: 999px;
-      border: none;
-    }
-    #decision-input-panel input[type="range"]::-moz-range-thumb,
-    #scenario-output-panel input[type="range"]::-moz-range-thumb {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: #fff !important;
-      border: 2px solid var(--flow-color, #1e90ff) !important;
-      box-shadow: none;
-    }
-    /* Step 2 (weights) compact sliders, same look as Flow 2 */
-    #scenario-input-panel {
-      --flow-color: #28a745;
-    }
-    #scenario-input-panel input[type="range"] {
-      -webkit-appearance: none;
-      width: 100%;
-      height: 14px;
-      background: transparent;
-      margin: 4px 0 6px;
-      padding: 0;
-    }
-    #scenario-input-panel input[type="range"]::-webkit-slider-runnable-track {
-      height: 6px;
-      background: #e5e7eb;
-      border-radius: 999px;
-      border: none;
-    }
-    #scenario-input-panel input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: #fff !important;
-      border: 2px solid var(--flow-color, #28a745) !important;
-      margin-top: -4px;
-      box-shadow: none;
-    }
-    #scenario-input-panel input[type="range"]::-moz-range-track {
-      height: 6px;
-      background: #e5e7eb;
-      border-radius: 999px;
-      border: none;
-    }
-    #scenario-input-panel input[type="range"]::-moz-range-thumb {
-      width: 14px;
-      height: 14px;
-      border-radius: 50%;
-      background: #fff !important;
-      border: 2px solid var(--flow-color, #28a745) !important;
-      box-shadow: none;
-    }
-    #scenario-input-panel label {
-      display: block;
-      margin: 6px 0;
-      font-weight: 500;
-      color: #374151;
-    }
-    /* Spacing for flow labels */
-    #decision-input-panel .flow-content label,
-    #scenario-output-panel .flow-content label {
-      display: block;
-      margin: 6px 0;
-    }
     #filter-panel .compact-slider .noUi-target {
       background: transparent !important;
       border: none !important;
@@ -369,6 +262,10 @@
       line-height: 1.6;
     }
 
+    :root {
+      --brand-bar-height: 52px;
+    }
+
     body {
       margin: 0;
       display: flex;
@@ -376,8 +273,10 @@
       height: 100vh;
       width: 100vw;
       overflow: hidden; /* Prevent the whole page from scrolling */
+      padding-top: var(--brand-bar-height);
       background-color: #ffffff;
       color: #1a1a1a;
+      box-sizing: border-box;
     }
 
     #container {
@@ -386,7 +285,7 @@
   flex: 1 1 0; /* Allow container to grow and shrink */
   min-width: 0; /* Allow flex item to shrink below content size */
   width: 0; /* Force flex to control width */
-  height: 100vh;
+  height: calc(100vh - var(--brand-bar-height));
   position: relative; /* For positioning child elements like buttons */
   overflow: hidden; /* Prevent container from overflowing */
 }
@@ -410,7 +309,7 @@
   flex-shrink: 1; /* Explicitly allow shrinking */
   flex-grow: 1; /* Explicitly allow growing */
   min-width: 0; /* Allow flex item to shrink below content size */
-  height: 100vh;
+  height: 100%;
   position: relative;
   overflow: hidden; /* Prevent content overflow */
   width: 0; /* Force flex to control width - start at 0 */
@@ -508,22 +407,156 @@
       transition: transform 0.2s ease;
     }
 
+    /* Slim down flow headers and content spacing */
+    .flow-summary {
+      padding: 4px 2px !important;
+      margin: 8px 0 6px 0 !important;
+      font-size: 15px !important;
+      border-bottom-width: 1px !important;
+    }
+    .flow-content {
+      margin-left: 10px !important;
+      margin-top: 6px !important;
+    }
+    #decision-sliders {
+      padding-top: 0.4rem !important;
+    }
+
+    /* --- Slim, sleek sliders for Step 1 & 2 --- */
+    .flow-section { --flow-color: #1e90ff; }
+    .flow-section.flow1 { --flow-color: #007cbf; }
+    .flow-section.flow2 { --flow-color: #28a745; }
+    .flow-section.flow3 { --flow-color: #f59e0b; }
+    .flow-section.flow4 { --flow-color: #dc2626; }
+
+    #decision-input-panel input[type="range"],
+    #scenario-output-panel input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 14px;
+      background: transparent;
+      margin: 4px 0 10px;
+      padding: 0;
+    }
+    /* WebKit */
+    #decision-input-panel input[type="range"]::-webkit-slider-runnable-track,
+    #scenario-output-panel input[type="range"]::-webkit-slider-runnable-track {
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      border: none;
+    }
+    #decision-input-panel input[type="range"]::-webkit-slider-thumb,
+    #scenario-output-panel input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff !important;
+      border: 2px solid var(--flow-color, #1e90ff) !important;
+      margin-top: -4px;
+      box-shadow: none;
+    }
+    /* Firefox */
+    #decision-input-panel input[type="range"]::-moz-range-track,
+    #scenario-output-panel input[type="range"]::-moz-range-track {
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      border: none;
+    }
+    #decision-input-panel input[type="range"]::-moz-range-thumb,
+    #scenario-output-panel input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff !important;
+      border: 2px solid var(--flow-color, #1e90ff) !important;
+      box-shadow: none;
+    }
+
+    /* Step 2 (weights) compact sliders, match Flow 2 look */
+    #scenario-input-panel {
+      --flow-color: #28a745;
+    }
+    #scenario-input-panel input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 14px;
+      background: transparent;
+      margin: 4px 0 6px;
+      padding: 0;
+    }
+    #scenario-input-panel input[type="range"]::-webkit-slider-runnable-track {
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      border: none;
+    }
+    #scenario-input-panel input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff !important;
+      border: 2px solid var(--flow-color, #28a745) !important;
+      margin-top: -4px;
+      box-shadow: none;
+    }
+    #scenario-input-panel input[type="range"]::-moz-range-track {
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      border: none;
+    }
+    #scenario-input-panel input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff !important;
+      border: 2px solid var(--flow-color, #28a745) !important;
+      box-shadow: none;
+    }
+    #scenario-input-panel label {
+      display: block;
+      margin: 6px 0;
+      font-weight: 500;
+      color: #374151;
+    }
+    /* Spacing for flow labels */
+    #decision-input-panel .flow-content label,
+    #scenario-output-panel .flow-content label {
+      display: block;
+      margin: 6px 0;
+    }
+
     /* Map Legend */
     .legend {
       position: absolute;
-      bottom: 60px;
-      left: 20px;
+      /* Align vertically with the map controls; anchored to right side */
+      bottom: 20px;
+      right: 20px;
+      left: auto;
       background: white;
-      border-radius: 6px;
-      padding: 4px 5px 6px 5px;
+      border-radius: 4px;
+      padding: 0;
       font-size: 13px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      /* Ensure legend can sit over Mapbox attribution/logo/link */
+      z-index: 2001;
       
       display: flex;
-      flex-direction: column;
+      /* Keep the clickable header at the bottom, with legend content above */
+      flex-direction: column-reverse;
       gap: 4px;
       align-items: stretch;
       max-width: 280px;
+    }
+
+    /* Keep Mapbox attribution below our custom UI overlays when they overlap */
+    .mapboxgl-ctrl-bottom-left,
+    .mapboxgl-ctrl-bottom-right {
+      z-index: 500;
     }
 
     .legend h4 {
@@ -564,23 +597,38 @@
     .legend-toggle {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 6px;
+      justify-content: flex-start;
       cursor: pointer;
       font-size: 13px;
-      font-weight: 600;
-      padding: 4px 2px;
-      border: none;
-      background: transparent;
+      font-weight: bold;
+      padding: 8px 10px;
+      background: #fff;
       color: #111;
+      border: none;
       user-select: none;
+      gap: 6px;
+    }
+
+    /* Make the legend title explicitly match Map Filters' bold header text */
+    .legend-toggle .legend-title {
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.2;
     }
 
     .legend-toggle span.chevron {
+      order: -1; /* arrow on the left */
       font-size: 11px;
-      margin-left: 0;
-      margin-right: 6px;
+      margin: 0 6px 0 0;
+      color: #6b7280;
+      display: inline-block;
+      transition: transform 0.15s ease;
+      transform-origin: center;
     }
+
+    /* Arrow angle: match Map Filters (collapsed: 0°; expanded: 90°) */
+    .legend.legend-collapsed .legend-toggle span.chevron { transform: rotate(0deg); }
+    .legend:not(.legend-collapsed) .legend-toggle span.chevron { transform: rotate(90deg); }
 
     .legend.legend-collapsed #legend-content {
       display: none;
@@ -1094,28 +1142,30 @@
     #filter-panel {
       position: absolute;
       top: 20px; /* within map area */
-      left: 20px;
+      right: 20px;
+      left: auto;
       z-index: 1200;
       background: white;
       border-radius: 4px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.3);
       resize: both;
       overflow: auto;
-      min-width: 220px;
+      min-width: 200px;
       max-width: 420px;
       min-height: 0;
     }
     #filter-panel[open] {
       min-height: 240px;
+      min-width: 220px;
     }
     #filter-panel:not([open]) {
       min-height: 0;
       height: auto;
       resize: none;
       overflow: visible;
-      top: 20px !important;
-      left: 20px !important;
-      position: absolute !important;
+      width: 200px;
+      min-width: 0;
+      max-width: 240px;
     }
     /* Nearby section adjustments */
     #nearbySchoolsSection summary::-webkit-details-marker { display: none; }
@@ -1127,7 +1177,24 @@
       padding: 8px 10px;
       background-color: #fff;
       font-size: 13px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      list-style: none; /* helps suppress default marker in Firefox */
     }
+    /* Custom arrow for Map Filters summary (so it matches the legend header) */
+    #filter-panel summary::-webkit-details-marker { display: none; }
+    #filter-panel summary::marker { content: ""; }
+    #filter-panel summary::before {
+      content: "▸";
+      font-size: 11px;
+      color: #6b7280;
+      display: inline-block;
+      margin-right: 6px;
+      transition: transform 0.15s ease;
+      transform: rotate(0deg); /* collapsed */
+    }
+    #filter-panel[open] summary::before { transform: rotate(90deg); }
     #filter-panel-content {
       padding: 8px 10px 12px 10px;
       width: auto;
@@ -1142,10 +1209,175 @@
       width: 100%;
       box-sizing: border-box;
     }
+
+    /* Sidebar collapse behavior (Google Maps-style) */
+    body.sidebar-collapsed #sidebar {
+      display: none !important;
+    }
+    body.sidebar-collapsed #left-sidebar-resizer {
+      display: none !important;
+    }
+    body.right-sidebar-collapsed #map-sidebar,
+    body.right-sidebar-collapsed #right-sidebar-resizer {
+      display: none !important;
+    }
+    /* Allow the map to take full width when sidebars are hidden */
+    body.sidebar-collapsed #container,
+    body.right-sidebar-collapsed #container {
+      grid-template-columns: 1fr !important;
+    }
+
+    /* Hamburger dropdown menu readability */
+    #sidebarMenu {
+      font-size: 13px;
+      color: #111;
+    }
+    #sidebarMenu label,
+    #sidebarMenu button {
+      font-size: 13px;
+      color: #111;
+    }
+    #sidebarMenu label:hover,
+    #sidebarMenu button:hover {
+      background: #f5f7fa;
+    }
+    /* View toggle styling inside hamburger menu */
+    #sidebarMenu .menu-view-toggle {
+      display: flex;
+      gap: 6px;
+      width: 100%;
+      margin: 6px 0;
+    }
+    #sidebarMenu .menu-view-toggle button {
+      flex: 1;
+      padding: 6px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    #sidebarMenu .menu-view-toggle button.active {
+      background: #007cbf;
+      color: #fff;
+      border-color: #007cbf;
+      box-shadow: 0 0 0 1px rgba(0,124,191,0.15);
+    }
+
+    /* Top brand bar */
+    #top-brand-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: var(--brand-bar-height);
+      background: #f9fafb;
+      border-bottom: 1px solid #e5e7eb;
+      z-index: 2005;
+      display: flex;
+      align-items: center;
+    }
+    #top-brand-bar .brand-inner {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      width: 100%;
+      box-sizing: border-box;
+      justify-content: flex-start;
+    }
+    #top-brand-bar .brand-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #111827;
+    }
+    #top-brand-bar .brand-title {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      font-size: 26px;
+      font-weight: 700;
+      color: #111827;
+      margin: 0;
+      pointer-events: none;
+      width: 100%;
+    }
+    #top-brand-bar img {
+      height: 26px;
+      width: auto;
+      object-fit: contain;
+    }
+    #top-brand-bar .client-logo {
+      height: 26px;
+      width: auto;
+    }
+    #top-brand-bar .pe-logo {
+      height: 26px;
+      width: auto;
+      object-fit: contain;
+    }
+    /* View toggle styling inside hamburger menu */
+    #sidebarMenu .menu-view-toggle {
+      display: flex;
+      gap: 6px;
+      width: 100%;
+      margin: 6px 0;
+    }
+    #sidebarMenu .menu-view-toggle button {
+      flex: 1;
+      padding: 6px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    #sidebarMenu .menu-view-toggle button.active {
+      background: #007cbf;
+      color: #fff;
+      border-color: #007cbf;
+      box-shadow: 0 0 0 1px rgba(0,124,191,0.15);
+    }
     #filter-panel-content h3 {
       font-size: 1em;
       margin-top: 15px;
       margin-bottom: 5px;
+    }
+    /* Map style toggle inside filter panel */
+    .map-style-row {
+      align-items: center;
+    }
+    .map-style-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .map-style-toggle label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 16px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 12px;
+      color: #111827;
+      user-select: none;
+    }
+    .map-style-toggle input[type="radio"] {
+      width: 14px;
+      height: 14px;
+      accent-color: #007cbf;
+    }
+    .map-style-toggle input[type="radio"]:checked + span {
+      font-weight: 700;
+      color: #007cbf;
     }
     #filter-panel .nouislider-container {
       margin-top: 10px;
@@ -1282,6 +1514,11 @@
     }
     .toggle-buttons.map-flowchart-toggle button:hover {
       filter: brightness(0.97);
+    }
+
+    /* Hide all in-view Show Map / Show Flowchart toggle buttons (now in hamburger menu) */
+    .toggle-buttons.map-flowchart-toggle {
+      display: none !important;
     }
 
     /* Style for the "How to use" section */
@@ -1701,6 +1938,44 @@
 
 <body>
 
+<div id="top-brand-bar">
+  <div class="brand-inner">
+    <span class="brand-label">Developed for</span>
+    <img src="client-logo.png" alt="Client Logo" class="client-logo">
+    <span class="brand-label">by</span>
+    <img src="PerkinsEastmanLogo.svg" alt="Perkins Eastman Logo" class="pe-logo">
+    <span class="brand-title">School Facility Planning Webtool</span>
+  </div>
+</div>
+
+<!-- Map-style hamburger toggle -->
+<button id="sidebarToggle" aria-label="Toggle menu" style="position: absolute; top: calc(var(--brand-bar-height) + 12px); left: 12px; z-index: 2002; width: 36px; height: 36px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.12); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
+  <span style="display:block; width:16px; height:2px; background:#111; box-shadow: 0 5px 0 #111, 0 10px 0 #111;"></span>
+</button>
+<!-- Hamburger dropdown menu -->
+<div id="sidebarMenu" style="display:none; position:absolute; top:52px; left:12px; z-index:2002; background:#fff; border:1px solid #e5e7eb; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.12); padding:8px 10px; width:220px; font-size:13px;">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+    <span style="font-weight:600; color:#111;">Menu</span>
+    <button id="sidebarMenuClose" aria-label="Close menu" style="border:none; background:transparent; cursor:pointer; font-size:16px; line-height:1;">×</button>
+  </div>
+  <label style="display:flex; align-items:center; gap:8px; padding:6px 4px; cursor:pointer;">
+    <input type="checkbox" id="toggleLeftSidebar" />
+    <span>Show left sidebar</span>
+  </label>
+  <label style="display:flex; align-items:center; gap:8px; padding:6px 4px; cursor:pointer;">
+    <input type="checkbox" id="toggleRightSidebar" />
+    <span>Show right sidebar</span>
+  </label>
+  <button id="menuStartTour" style="margin:6px 0; width:100%; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; background:#fff; cursor:pointer; text-align:left;">Start Tour (How To)</button>
+  <div style="height:8px;"></div>
+  <div class="menu-view-toggle">
+    <button id="menuShowMap">Show Map</button>
+    <button id="menuShowFlowchart">Show Flowchart</button>
+  </div>
+  <div style="height:10px;"></div>
+  <button id="menuDataLogic" style="margin:0; width:100%; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; background:#fff; cursor:pointer; text-align:left;">Data & Logic</button>
+</div>
+
 <!-- Password Protection Overlay -->
 <div id="passwordOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.95); display: flex; align-items: center; justify-content: center; z-index: 10000;">
   <div style="background: white; padding: 40px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); text-align: center; max-width: 400px; width: 90%;">
@@ -1763,13 +2038,6 @@
     <p>This tool is intended to support JeffCo facility planning initiatives. Users can explore conditions data and model school choice scenarios to better understand the potential impact of facility decisions.</p>
   </details>
 
-  <!-- Data Viewer Button - Bottom Right -->
-  <div style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;">
-    <a href="data-viewer.html" target="_blank" style="display: inline-block; background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: white; padding: 8px 16px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: transform 0.2s, box-shadow 0.2s;">
-      📊 Data & Logic
-    </a>
-  </div>
-
   
   <script>
   function switchControlIframe(url) {
@@ -1831,16 +2099,16 @@
         </span>
       </span>
     </summary>
-    <div id="decision-sliders" style="padding-top: 0.125rem;">
+    <div id="decision-sliders" style="padding-top: 1rem;">
       <!-- FLOW 1: Decision Routing -->
-      <details class="flow-section flow1" open>
-        <summary class="flow-summary" style="color: #0066cc; margin-top: 6px; margin-bottom: 4px; border-bottom: 2px solid #0066cc; padding-bottom: 2px; cursor: pointer; font-weight: 600; list-style: none; font-size: 15px;">
-          <span style="display: inline-block; margin-right: 4px;">▶</span>Flow 1: Decision Routing
+      <details class="flow-section" open>
+        <summary class="flow-summary" style="color: #0066cc; margin-top: 32px; margin-bottom: 16px; border-bottom: 2px solid #0066cc; padding-bottom: 8px; cursor: pointer; font-weight: 600; list-style: none; font-size: 16px;">
+          <span style="display: inline-block; margin-right: 8px;">▶</span>Flow 1: Decision Routing
         </summary>
-        <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
-          <details class="flow-section flow1" style="margin-bottom: 6px;">
+        <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
+          <details class="flow-section" style="margin-bottom: 15px;">
             <summary style="color: black; font-weight: bold; cursor: pointer;">Enrollment Thresholds by School Level</summary>
-            <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
+            <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
               <label>Elementary School: <span id="elementaryEnrollmentOut">220</span> students
                 <input type="range" id="elementaryEnrollmentSlider" min="100" max="500" step="10" value="220" oninput="document.getElementById('elementaryEnrollmentOut').textContent = this.value">
               </label>
@@ -1859,17 +2127,17 @@
             </div>
           </details>
           
-          <label style="display:block; margin-bottom:6px;">Current Utilization Threshold: <span id="utilOut">60</span>%
+          <label>Current Utilization Threshold: <span id="utilOut">60</span>%
             <input type="range" id="utilSlider" min="0" max="100" step="1" value="60" oninput="document.getElementById('utilOut').textContent = this.value">
           </label>
-          <label style="display:block; margin-bottom:6px;">High Utilization Threshold: <span id="utilHighOut">100</span>%
+          <label>High Utilization Threshold: <span id="utilHighOut">100</span>%
             <input type="range" id="utilHighSlider" min="0" max="120" step="1" value="100" oninput="document.getElementById('utilHighOut').textContent = this.value">
           </label>
-          <label style="display:block; margin-bottom:6px;">Enrollment Growth Threshold: <span id="growthOut">0</span>%
+          <label>Enrollment Growth Threshold: <span id="growthOut">0</span>%
             <input type="range" id="growthSlider" min="-50" max="50" step="1" value="0" oninput="document.getElementById('growthOut').textContent = this.value">
           </label>
           
-      <details class="flow-section flow4" style="margin-bottom: 15px;">
+          <details class="flow-section" style="margin-bottom: 15px;">
             <summary style="color: black; font-weight: bold; cursor: pointer;">Distance to Underutilized Schools by School Level</summary>
             <div style="margin-left: 20px; margin-top: 10px;">
               <label style="display: block; margin-bottom: 12px;">Elementary: <span id="elementaryDistanceOut">3.5</span> mi
@@ -1894,63 +2162,63 @@
       </details>
       
       <!-- FLOW 2: Expansion -->
-      <details class="flow-section flow2" open>
-        <summary class="flow-summary" style="color: #28a745; margin-top: 6px; margin-bottom: 4px; border-bottom: 2px solid #28a745; padding-bottom: 2px; cursor: pointer; font-weight: 600; list-style: none; font-size: 15px;">
-          <span style="display: inline-block; margin-right: 4px;">▶</span>Flow 2: Expansion
+      <details class="flow-section" open>
+        <summary class="flow-summary" style="color: #28a745; margin-top: 20px; margin-bottom: 10px; border-bottom: 2px solid #28a745; padding-bottom: 5px; cursor: pointer; font-weight: bold; list-style: none;">
+          <span style="display: inline-block; margin-right: 8px;">▶</span>Flow 2: Expansion
         </summary>
-        <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
-          <label style="display: block; margin-bottom: 6px; font-weight: 500; color: #374151;">Attendance Area Enrollment: <span id="attendanceAreaEnrollmentOut" style="font-weight: 600;">80</span>%
+        <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
+          <label style="display: block; margin-bottom: 16px; font-weight: 500; color: #374151;">Attendance Area Enrollment: <span id="attendanceAreaEnrollmentOut" style="font-weight: 600;">80</span>%
             <input type="range" id="attendanceAreaEnrollmentSlider" min="60" max="100" step="1" value="80">
           </label>
-          <label style="display: block; margin-bottom: 6px; font-weight: 500; color: #374151;">Composite Building Score: <span id="buildOut" style="font-weight: 600;">5</span>
+          <label style="display: block; margin-bottom: 16px; font-weight: 500; color: #374151;">Composite Building Score: <span id="buildOut" style="font-weight: 600;">5</span>
             <input type="range" id="buildSlider" min="1" max="10" step="1" value="5">
           </label>
-          <label style="display: block; margin-bottom: 6px; font-weight: 500; color: #374151;">Educational Adequacy: <span id="progOut">50</span>
+          <label>Educational Adequacy: <span id="progOut">50</span>
             <input type="range" id="progSlider" min="0" max="100" step="1" value="50">
           </label>
         </div>
       </details>
       
       <!-- FLOW 3: Maintenance/Investment -->
-      <details class="flow-section flow3" open>
-        <summary class="flow-summary" style="color: #f59e0b; margin-top: 6px; margin-bottom: 4px; border-bottom: 2px solid #f59e0b; padding-bottom: 2px; cursor: pointer; font-weight: 600; list-style: none; font-size: 15px;">
-          <span style="display: inline-block; margin-right: 4px;">▶</span>Flow 3: Maintenance/Investment
+      <details class="flow-section" open>
+        <summary class="flow-summary" style="color: #f59e0b; margin-top: 32px; margin-bottom: 16px; border-bottom: 2px solid #f59e0b; padding-bottom: 8px; cursor: pointer; font-weight: 600; list-style: none; font-size: 16px;">
+          <span style="display: inline-block; margin-right: 8px;">▶</span>Flow 3: Maintenance/Investment
         </summary>
-        <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
-          <label style="display: block; margin-bottom: 6px;">Composite Building Score Above Threshold: <span id="buildAboveOut">5</span>
+        <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
+          <label>Composite Building Score Above Threshold: <span id="buildAboveOut">5</span>
             <input type="range" id="buildAboveSlider" min="1" max="10" step="1" value="5">
           </label>
-          <label style="display: block; margin-bottom: 6px;">Composite Building Score Below Threshold: <span id="buildBelowOut">5</span>
+          <label>Composite Building Score Below Threshold: <span id="buildBelowOut">5</span>
             <input type="range" id="buildBelowSlider" min="1" max="10" step="1" value="5">
           </label>
         </div>
       </details>
       
       <!-- FLOW 4: Closure/Consolidation -->
-      <details class="flow-section flow4" open>
-        <summary class="flow-summary" style="color: #dc2626; margin-top: 6px; margin-bottom: 4px; border-bottom: 2px solid #dc2626; padding-bottom: 2px; cursor: pointer; font-weight: 600; list-style: none; font-size: 15px;">
-          <span style="display: inline-block; margin-right: 4px;">▶</span>Flow 4: Closure/Consolidation
+      <details class="flow-section" open>
+        <summary class="flow-summary" style="color: #dc2626; margin-top: 32px; margin-bottom: 16px; border-bottom: 2px solid #dc2626; padding-bottom: 8px; cursor: pointer; font-weight: 600; list-style: none; font-size: 16px;">
+          <span style="display: inline-block; margin-right: 8px;">▶</span>Flow 4: Closure/Consolidation
         </summary>
-        <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
-          <label style="display:block; margin-bottom:6px;">Composite Building Score: <span id="buildFlow4Out">5</span>
+        <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
+          <label>Composite Building Score: <span id="buildFlow4Out">5</span>
             <input type="range" id="buildFlow4Slider" min="1" max="10" step="1" value="5">
           </label>
-          <details class="flow-section" style="margin-bottom: 6px;">
+          <details class="flow-section" style="margin-bottom: 15px;">
             <summary style="color: black; font-weight: bold; cursor: pointer;">Distance to Welcoming Schools by School Level</summary>
-            <div class="flow-content" style="margin-left: 12px; margin-top: 4px;">
-              <label style="display:block; margin-bottom:4px;">Elementary School: <span id="elementaryDistanceOut">4.0</span> miles
+            <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
+              <label>Elementary School: <span id="elementaryDistanceOut">4.0</span> miles
                 <input type="range" id="elementaryDistanceSlider" min="1" max="10" step="0.5" value="4.0" oninput="document.getElementById('elementaryDistanceOut').textContent = this.value">
               </label>
-              <label style="display:block; margin-bottom:4px;">K-8 School: <span id="k8DistanceOut">6.0</span> miles
+              <label>K-8 School: <span id="k8DistanceOut">6.0</span> miles
                 <input type="range" id="k8DistanceSlider" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('k8DistanceOut').textContent = this.value">
               </label>
-              <label style="display:block; margin-bottom:4px;">Middle School: <span id="middleDistanceOut">6.0</span> miles
+              <label>Middle School: <span id="middleDistanceOut">6.0</span> miles
                 <input type="range" id="middleDistanceSlider" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('middleDistanceOut').textContent = this.value">
               </label>
-              <label style="display:block; margin-bottom:4px;">High School: <span id="highDistanceOut">6.0</span> miles
+              <label>High School: <span id="highDistanceOut">6.0</span> miles
                 <input type="range" id="highDistanceSlider" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('highDistanceOut').textContent = this.value">
               </label>
-              <label style="display:block; margin-bottom:4px;">6-12 School: <span id="k12DistanceOut">6.0</span> miles
+              <label>6-12 School: <span id="k12DistanceOut">6.0</span> miles
                 <input type="range" id="k12DistanceSlider" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('k12DistanceOut').textContent = this.value">
               </label>
             </div>
@@ -1993,7 +2261,7 @@
           </span>
         </span>
       </summary>
-    <div class="details-content-wrapper" style="padding: 0.25rem;">
+    <div class="details-content-wrapper" style="padding: 0.5rem;">
       <!-- Hidden dropdown for backward compatibility with existing code -->
       <select id="decisionFilter" style="display: none;">
         <option value="">-- All Decisions --</option>
@@ -2013,9 +2281,9 @@
     <!-- Prioritization Weights Section (replaces Assignment Mode) -->
     <details open class="nested-details" id="prioritizationWeightsDetails">
       <summary><strong>Prioritization Weights</strong></summary>
-      <div id="prioritization-weights-left-panel" style="padding-top: 3px;">
-        <p style="font-size: 0.75em; color: #666; margin-bottom: 0.25rem; line-height: 1.25;">
-          Adjust weights to prioritize schools. Higher weight increases the influence of that factor in the overall score.
+      <div id="prioritization-weights-left-panel" style="padding-top: 5px;">
+        <p style="font-size: 0.75em; color: #666; margin-bottom: 0.5rem; line-height: 1.3;">
+          Adjust weights to prioritize schools. Select a strategy group from the right panel.
         </p>
         <div id="left-panel-weight-sliders">
           <!-- Weight sliders will be dynamically generated here -->
@@ -2044,26 +2312,31 @@
 <!-- Left Sidebar Resizer -->
 <div class="sidebar-resizer" id="left-sidebar-resizer"></div>
 
-<div id="container">
+<div id="container" class="start-collapsed">
   
     <div id="map-container">
     <div id="map"></div>
 
-    <!-- Start Tour Button -->
-    <button id="startTourBtn" class="tour-btn" style="position: absolute; top: 50px; right: 16px; z-index: 1200; background: #FFD600; color: #222; font-weight: bold; border: none; border-radius: 6px; padding: 6px 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.12); cursor: pointer; font-size: 12px;">Start Tour</button>
-
-    <div id="map-legend" class="legend">
+    <div id="map-legend" class="legend legend-collapsed">
       <div id="legend-toggle" class="legend-toggle">
-        <span>Decision Types Legend</span>
-        <span class="chevron">▾</span>
+        <span class="legend-title">Decision Types Legend</span>
+        <span class="chevron">▸</span>
       </div>
       <div id="legend-content"></div>
     </div>
     
    
-    <details id="filter-panel" open>
+    <details id="filter-panel">
         <summary><strong>Map Filters</strong></summary>
         <div id="filter-panel-content">
+            <div class="filter-row map-style-row">
+              <span class="filter-label">Map Style</span>
+              <div class="map-style-toggle">
+                <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/light-v11" id="mapStyleLight"><span>Light</span></label>
+                <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/standard" id="mapStyleStandard"><span>Standard</span></label>
+                <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/standard-satellite" id="mapStyleSatellite"><span>Standard Satellite</span></label>
+              </div>
+            </div>
             <div class="school-select-filter">
               <div class="school-select-header" style="margin-bottom:6px;">
                 <h3 style="margin:0;">School Selection</h3>
@@ -2150,7 +2423,7 @@
 
     
     <!-- Map Controls -->
-    <div style="position: absolute; bottom: 20px; right: 20px; z-index: 999; display: flex; flex-direction: column; gap: 8px; align-items: flex-end;">
+    <div style="position: absolute; bottom: 16px; left: 16px; right: auto; z-index: 999; display: flex; flex-direction: column; gap: 8px; align-items: flex-start;">
       <button id="fitToSchoolsBtn" aria-label="Fit to all schools" onclick="if(typeof window.fitMapToAllSchools === 'function') window.fitMapToAllSchools();" style="background: #007cbf; color: white; border: none; border-radius: 6px; padding: 8px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: background 0.2s;" onmouseover="this.style.background='#005a9e'" onmouseout="this.style.background='#007cbf'">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <polyline points="5 9 5 5 9 5"></polyline>
@@ -2163,7 +2436,7 @@
           <line x1="9" y1="19" x2="5" y2="15"></line>
         </svg>
       </button>
-      <div class="toggle-buttons map-flowchart-toggle">
+      <div class="toggle-buttons map-flowchart-toggle" style="display:none;">
         <button id="toggleMapFlowchartMap" class="active" onclick="if(typeof window.switchToMap === 'function') window.switchToMap();">Show Map</button>
         <button id="toggleMapFlowchartFlowchart" onclick="console.log('Flowchart button clicked'); if(typeof window.switchToFlowchart === 'function') { console.log('Calling switchToFlowchart'); window.switchToFlowchart(); } else { console.error('switchToFlowchart not found'); }">Show Flowchart</button>
       </div>
@@ -2327,16 +2600,17 @@
             <div class="details-content-wrapper" style="padding: 1rem;">
                 <!-- Strategy Candidate Groups Section -->
                 <div id="strategy-candidate-groups">
-                    <div style="margin-bottom: 0.75rem;">
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; flex-wrap:wrap;">
-                          <h3 style="margin:0;">Strategy Candidate Groups</h3>
-                          <span style="font-size:0.8em; color:#555; line-height:1.4;">
-                            Pick a group, then adjust weights; higher weight increases influence.
-                          </span>
-                        </div>
+                    <div style="margin-bottom: 1rem;">
+                        <h3>Strategy Candidate Groups</h3>
+                        <p style="font-size: 0.9em; color: #666; margin-bottom: 1rem;">
+                            This section allows you to prioritize schools within each strategy group based on customizable criteria. 
+                            Select a strategy group using the tabs below, then adjust the weight sliders to reflect your priorities. 
+                            Schools will be ranked based on your weighting, with higher priority schools appearing at the top of the list 
+                            and as larger circles on the map.
+                        </p>
                         
                         <!-- Strategy Group Tabs -->
-                        <div id="strategy-group-tabs" style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0.35rem 0 0.5rem 0; border-bottom: 1px solid #e5e5e5; padding-bottom: 0.25rem;">
+                        <div id="strategy-group-tabs" style="display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.5rem; border-bottom: 2px solid #e5e5e5; padding-bottom: 0.25rem;">
                             <!-- Tabs will be dynamically generated -->
                         </div>
 
@@ -2344,11 +2618,8 @@
                         <div id="prioritization-weights-section" style="display: none;">
                             <!-- Prioritized Schools Table -->
                             <div id="prioritized-schools-section">
-                                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; margin-bottom:0.5rem;">
-                                  <h4 style="margin:0;">Prioritized Schools</h4>
-                                  <span style="font-size:0.8em; color:#555;">Ranked by your current weights.</span>
-                                </div>
-                                <div id="prioritized-schools-table-container" style="max-height: 360px; overflow-y: auto;">
+                                <h4>Prioritized Schools</h4>
+                                <div id="prioritized-schools-table-container" style="max-height: 400px; overflow-y: auto;">
                                     <!-- Table will be dynamically generated -->
                                 </div>
                             </div>
@@ -2356,6 +2627,33 @@
                     </div>
                 </div>
             
+            <!-- Assignment Results & Impact Charts -->
+            <div id="assignment-results-section" style="margin-top: 1rem;">
+              <h3 style="margin-bottom: 0.5rem;">Assignment Results</h3>
+              <div id="assignmentSummary" style="min-height: 24px; font-size: 14px; color: #444;">
+                No assignment results yet. Run a scenario to view impacts.
+              </div>
+              <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px;">
+                <div style="flex: 1 1 320px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                    <h4 style="margin: 0;">Enrollment / Capacity Impact</h4>
+                  </div>
+                  <div id="enrollmentChartPlaceholder" style="display: none; font-size: 12px; color: #6b7280; margin-bottom: 6px;">
+                    Run a scenario to see the enrollment impact chart.
+                  </div>
+                  <canvas id="assignmentChart" height="220"></canvas>
+                </div>
+                <div style="flex: 1 1 320px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                    <h4 style="margin: 0;">Travel Distance Impact</h4>
+                  </div>
+                  <div id="distanceChartPlaceholder" style="display: none; font-size: 12px; color: #6b7280; margin-bottom: 6px;">
+                    Run a scenario to see the distance comparison chart.
+                  </div>
+                  <canvas id="distanceCompareChart" height="220"></canvas>
+                </div>
+              </div>
+            </div>
             </div>
           </details>
         </div>
@@ -2401,6 +2699,13 @@
 
 <!-- Scripts -->
 <!-- The script tags have been moved to the <head> for better dependency management -->
+
+<!-- Assignment Results Modal -->
+<div id="assignmentResultsModal" style="display:none; position:fixed; top:20%; left:50%; transform:translate(-50%,0); background:white; border:2px solid #333; padding:30px; z-index:2000; min-width:350px; box-shadow:0 4px 24px rgba(0,0,0,0.2);">
+  <div id="assignmentResultsContent"></div>
+  <button onclick="document.getElementById('assignmentResultsModal').style.display='none'" style="margin-top:20px; padding:8px 18px; background:#007cbf; color:white; border:none; border-radius:4px;">Close</button>
+</div>
+<!-- End Assignment Results Modal -->
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
