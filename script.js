@@ -3645,8 +3645,14 @@ function injectDecisionsIntoGeoJSON(geojson, decisions) {
       includeFlowMap.get(name) ??
       (decisionAllByName.get(name)?.Include_Flow_Chart ?? decisionAllByName.get(name)?.["Include_Flow_Chart"]) ??
       (decisionAllById.get(normalizeId(f.properties["UniqueID"]))?.Include_Flow_Chart ?? decisionAllById.get(normalizeId(f.properties["UniqueID"]))?.["Include_Flow_Chart"]);
+    const existingInclude = (f.properties["includeFlowChart"] || "").toString().trim().toLowerCase();
     const yesVals = new Set(["yes", "y", "true", "1"]);
-    const includeNorm = yesVals.has((includeVal || "").toString().trim().toLowerCase()) ? "yes" : "no";
+    const noVals = new Set(["no", "n", "false", "0"]);
+    let includeNorm;
+    const candidate = (includeVal || existingInclude || f.properties._includeFlowChartBase || "").toString().trim().toLowerCase();
+    if (yesVals.has(candidate)) includeNorm = "yes";
+    else if (noVals.has(candidate)) includeNorm = "no";
+    else includeNorm = "yes"; // default to included unless explicitly excluded
     if (name.includes("compass")) {
       console.log("🔎 Compass include check:", {
         name: f.properties["Building Name"],
