@@ -9,6 +9,7 @@ window.prioritizationLogic = {
       id: "expansion",
       outcomes: [
         "Building Addition",
+        "Policy Solution for Overcrowding",
         "Building Replacement",
         "Building Addition with Capital Investment"
       ],
@@ -36,7 +37,6 @@ window.prioritizationLogic = {
     "Other": {
       id: "other",
       outcomes: [
-        "Policy Solution for Overcrowding",
         "Other / Unknown"
       ],
       description: "Other or unclassified strategies"
@@ -124,6 +124,10 @@ window.prioritizationLogic = {
   // Current weights (can be modified by user)
   currentWeights: {},
 
+  // Enabled/disabled weights per strategy group.
+  // If a key is explicitly set to false, it is excluded from scoring.
+  enabledWeights: {},
+
   // School data with decisions
   schoolData: [],
 
@@ -135,6 +139,15 @@ window.prioritizationLogic = {
     // Initialize current weights with defaults
     Object.keys(this.strategyGroups).forEach(groupName => {
       this.currentWeights[groupName] = { ...this.defaultWeights[groupName] };
+    });
+
+    // Default: all weight dimensions enabled unless explicitly toggled off by the UI.
+    this.enabledWeights = {};
+    Object.keys(this.strategyGroups).forEach(groupName => {
+      const keys = Object.keys(this.defaultWeights[groupName] || {});
+      const enabledMap = {};
+      keys.forEach(k => { enabledMap[k] = true; });
+      this.enabledWeights[groupName] = enabledMap;
     });
 
     return this;
@@ -239,6 +252,11 @@ window.prioritizationLogic = {
   // Calculate priority score for a school
   calculatePriorityScore: function(school, strategyGroupName) {
     const weights = this.currentWeights[strategyGroupName] || this.defaultWeights[strategyGroupName];
+    const enabled =
+      (this.enabledWeights && this.enabledWeights[strategyGroupName]) || {};
+    const isEnabled = function (key) {
+      return enabled[key] !== false;
+    };
     
     let score = 0;
     let totalWeightUsed = 0;
@@ -251,7 +269,7 @@ window.prioritizationLogic = {
     const reverseUtil =
       strategyGroupName === "Closure/Consolidation";
     const utilScore = this.normalizeValue(utilization, 0, 130, reverseUtil);
-    const utilWeight = weights.utilizationRate || 0;
+    const utilWeight = isEnabled("utilizationRate") ? (weights.utilizationRate || 0) : 0;
     components.utilizationRate = (utilScore / 100) * utilWeight;
     score += components.utilizationRate;
     totalWeightUsed += utilWeight;
@@ -264,7 +282,7 @@ window.prioritizationLogic = {
     const enrollment = parseInt(school.Enrollment || 0, 10);
     const reverseEnrollment = isClosure;
     const enrollmentScore = this.normalizeValue(enrollment, 0, 1500, reverseEnrollment);
-    const enrollmentWeight = weights.enrollment || 0;
+    const enrollmentWeight = isEnabled("enrollment") ? (weights.enrollment || 0) : 0;
     components.enrollment = (enrollmentScore / 100) * enrollmentWeight;
     score += components.enrollment;
     totalWeightUsed += enrollmentWeight;
@@ -275,7 +293,7 @@ window.prioritizationLogic = {
     const frlPercent = parseFloat(school["% FRL"] || school["Free Reduced Lunch"] || 0, 10);
     const reverseHighNeed = isClosure;
     const frlScore = this.normalizeValue(frlPercent, 0, 100, reverseHighNeed);
-    const highNeedWeight = weights.highNeedStudents || 0;
+    const highNeedWeight = isEnabled("highNeedStudents") ? (weights.highNeedStudents || 0) : 0;
     components.highNeedStudents = (frlScore / 100) * highNeedWeight;
     score += components.highNeedStudents;
     totalWeightUsed += highNeedWeight;
@@ -283,7 +301,7 @@ window.prioritizationLogic = {
     // Building Condition (Composite Building Score) - lower score = higher priority
     const buildingScore = parseFloat(school.BuildingScore || 0, 10);
     const buildingNormalized = this.normalizeValue(buildingScore, 0, 10, true); // Reverse: lower score = higher priority
-    const buildingWeight = weights.buildingCondition || 0;
+    const buildingWeight = isEnabled("buildingCondition") ? (weights.buildingCondition || 0) : 0;
     components.buildingCondition = (buildingNormalized / 100) * buildingWeight;
     score += components.buildingCondition;
     totalWeightUsed += buildingWeight;
@@ -291,7 +309,7 @@ window.prioritizationLogic = {
     // Educational Adequacy (EA) - lower EA = higher priority
     const eaRaw = parseFloat(school.EducationalAdequacy || 0, 10) * 100; // convert to %
     const eaScore = this.normalizeValue(eaRaw, 0, 100, true);
-    const eaWeight = weights.educationalAdequacy || 0;
+    const eaWeight = isEnabled("educationalAdequacy") ? (weights.educationalAdequacy || 0) : 0;
     components.educationalAdequacy = (eaScore / 100) * eaWeight;
     score += components.educationalAdequacy;
     totalWeightUsed += eaWeight;
@@ -302,7 +320,7 @@ window.prioritizationLogic = {
     const capturePercent = parseFloat(school.AttendanceAreaEnrollment || 0, 10);
     const reverseCapture = isClosure;
     const captureScore = this.normalizeValue(capturePercent, 0, 100, reverseCapture);
-    const captureWeight = weights.neighborhoodCapture || 0;
+    const captureWeight = isEnabled("neighborhoodCapture") ? (weights.neighborhoodCapture || 0) : 0;
     components.neighborhoodCapture = (captureScore / 100) * captureWeight;
     score += components.neighborhoodCapture;
     totalWeightUsed += captureWeight;
@@ -310,7 +328,7 @@ window.prioritizationLogic = {
     // Students welcomed from previous consolidations (if/when data is available)
     const welcomed = parseInt(school["Welcomed Students"] || school["Students Welcomed"] || 0, 10);
     const welcomedScore = this.normalizeValue(welcomed, 0, 2000, false);
-    const welcomedWeight = weights.welcomedStudents || 0;
+    const welcomedWeight = isEnabled("welcomedStudents") ? (weights.welcomedStudents || 0) : 0;
     components.welcomedStudents = (welcomedScore / 100) * welcomedWeight;
     score += components.welcomedStudents;
     totalWeightUsed += welcomedWeight;
@@ -318,7 +336,7 @@ window.prioritizationLogic = {
     // Distance from other schools (using DistanceUnderutilizedschools as proxy) - greater distance = higher priority
     const distance = parseFloat(school.DistanceUnderutilizedschools || 0, 10);
     const distanceScore = this.normalizeValue(distance, 0, 10, false);
-    const distanceWeight = weights.distanceFromOtherSchools || 0;
+    const distanceWeight = isEnabled("distanceFromOtherSchools") ? (weights.distanceFromOtherSchools || 0) : 0;
     components.distanceFromOtherSchools = (distanceScore / 100) * distanceWeight;
     score += components.distanceFromOtherSchools;
     totalWeightUsed += distanceWeight;
@@ -329,7 +347,7 @@ window.prioritizationLogic = {
     const investments = parseFloat(school.RecentInvestments || 0, 10);
     const reverseInvest = isClosure;
     const investScore = this.normalizeValue(investments, 0, 50, reverseInvest);
-    const investWeight = weights.pastInvestments || 0;
+    const investWeight = isEnabled("pastInvestments") ? (weights.pastInvestments || 0) : 0;
     components.pastInvestments = (investScore / 100) * investWeight;
     score += components.pastInvestments;
     totalWeightUsed += investWeight;
@@ -340,7 +358,7 @@ window.prioritizationLogic = {
       parseFloat(school.SpecialtyPrograms || school["Specialty Programs"] || 0, 10) ||
       (school.SpecialtyProgram || school["Specialty Program"] ? 1 : 0);
     const specialtyScore = this.normalizeValue(specialtyRaw, 0, 10, false);
-    const specialtyWeight = weights.specialtyPrograms || 0;
+    const specialtyWeight = isEnabled("specialtyPrograms") ? (weights.specialtyPrograms || 0) : 0;
     components.specialtyPrograms = (specialtyScore / 100) * specialtyWeight;
     score += components.specialtyPrograms;
     totalWeightUsed += specialtyWeight;
@@ -426,6 +444,15 @@ window.prioritizationLogic = {
       this.currentWeights[strategyGroupName] = {};
     }
     Object.assign(this.currentWeights[strategyGroupName], newWeights);
+  },
+
+  // Enable/disable specific weight dimensions for a strategy group.
+  // Pass an object like { enrollment: true, educationalAdequacy: false }
+  updateEnabledWeights: function(strategyGroupName, enabledMap) {
+    if (!this.enabledWeights[strategyGroupName]) {
+      this.enabledWeights[strategyGroupName] = {};
+    }
+    Object.assign(this.enabledWeights[strategyGroupName], enabledMap);
   },
 
   // Calculate equity metrics for a set of schools

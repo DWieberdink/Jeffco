@@ -44,7 +44,11 @@ window.prioritizationUI = {
       return;
     }
 
-    const availableGroups = window.prioritizationLogic.getAvailableStrategyGroups();
+    const rawGroups = window.prioritizationLogic.getAvailableStrategyGroups();
+    // "Other" should not be user-selectable in Step 2.
+    const availableGroups = Array.isArray(rawGroups)
+      ? rawGroups.filter((g) => g && g.name !== "Other" && (!g.config || g.config.id !== "other"))
+      : [];
 
     if (!availableGroups || availableGroups.length === 0) {
       tabsContainer.innerHTML =
@@ -82,10 +86,12 @@ window.prioritizationUI = {
     menu.className = "filter-dropdown-menu";
 
     const self = this;
-    const initialSelection =
+    const initialSelectionRaw =
       Array.isArray(this.currentStrategyGroups) && this.currentStrategyGroups.length > 0
         ? this.currentStrategyGroups
         : ["__ALL_EXP_MAINT__"];
+    // Never show/select "Other" in the group selector
+    const initialSelection = initialSelectionRaw.filter((v) => v !== "Other");
 
     // Keep dropdown open when interacting inside
     menu.addEventListener("click", function (e) {
@@ -167,8 +173,9 @@ window.prioritizationUI = {
 
   // Select strategy group(s)
   selectStrategyGroup: function (groupNames) {
-    const namesArray = Array.isArray(groupNames) ? groupNames : [groupNames].filter(Boolean);
-    this.currentStrategyGroups = namesArray;
+    const namesArrayRaw = Array.isArray(groupNames) ? groupNames : [groupNames].filter(Boolean);
+    const namesArray = namesArrayRaw.filter((n) => n !== "Other");
+    this.currentStrategyGroups = namesArray.length ? namesArray : ["__ALL_EXP_MAINT__"];
     this.currentOutcomeFilters = null;
 
     // Sync dropdown selection if present
@@ -253,6 +260,23 @@ window.prioritizationUI = {
     return sliderConfigs;
   },
 
+  // Map UI slider keys to the internal weight keys used by PrioritizationLogic.calculatePriorityScore
+  // (The UI labels are friendlier aliases of the underlying dimensions.)
+  mapUiKeyToWeightKey: function (uiKey) {
+    switch (uiKey) {
+      case "academicPerformance":
+        return "educationalAdequacy";
+      case "studentEconomicStatus":
+        return "highNeedStudents";
+      case "studentsInAttendanceArea":
+        return "neighborhoodCapture";
+      case "specialtyProgramOfferings":
+        return "specialtyPrograms";
+      default:
+        return uiKey;
+    }
+  },
+
   // Render weight sliders for a strategy group (left panel only)
   renderWeightSliders: function (strategyGroupNames) {
     const leftPanel = document.getElementById("left-panel-weight-sliders");
@@ -277,21 +301,39 @@ window.prioritizationUI = {
         window.prioritizationLogic.defaultWeights[baseGroupName]) ||
       {};
 
+    const enabledWeights =
+      (window.prioritizationLogic.enabledWeights &&
+        window.prioritizationLogic.enabledWeights[baseGroupName]) ||
+      {};
+
     // Build slider configs
     const sliderConfigs = this.getSliderConfigs(baseGroupName);
 
     // Helper to generate slider HTML
-    const createSliderHTML = function (config, internalValue) {
+    const createSliderHTML = function (config, internalValue, enabled) {
       const safeInternal =
         typeof internalValue === "number" && !isNaN(internalValue) ? internalValue : 0;
       const uiValue = safeInternal / 10; // 0–10 scale
       const displayValue = uiValue.toFixed(1).replace(/\.0$/, "");
+      const checkedAttr = enabled ? " checked" : "";
+      const disabledAttr = enabled ? "" : " disabled";
+      const dimStyle = enabled ? "" : "opacity:0.55;";
       return (
-        '<div style="margin-bottom: 1rem;">' +
-        '<label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">' +
-        '<span style="font-weight: 500; font-size: 0.9em;">' +
+        '<div style="margin-bottom: 1rem; ' +
+        dimStyle +
+        '">' +
+        '<label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem; gap: 8px;">' +
+        '<span style="display:flex; align-items:center; gap:6px; font-weight: 500; font-size: 0.9em;">' +
+        '<input type="checkbox" id="' +
+        config.key +
+        '-enabled" data-ui-key="' +
+        config.key +
+        '"' +
+        checkedAttr +
+        ' style="width:14px;height:14px; cursor:pointer;">' +
+        "<span>" +
         config.label +
-        "</span>" +
+        "</span></span>" +
         '<span id="' +
         config.key +
         '-value" style="font-weight: 600; color: #007cbf; min-width: 3rem; text-align: right;">' +
@@ -302,7 +344,9 @@ window.prioritizationUI = {
         config.key +
         '-slider" min="0" max="10" step="0.5" value="' +
         uiValue +
-        '" style="width: 100%;" ' +
+        '"' +
+        disabledAttr +
+        ' style="width: 100%;" ' +
         'data-weight-key="' +
         config.key +
         '" data-strategy-group="' +
@@ -315,11 +359,14 @@ window.prioritizationUI = {
       );
     };
 
+    const self = this;
     var slidersHTML = "";
     sliderConfigs.forEach(function (config) {
+      const weightKey = self.mapUiKeyToWeightKey(config.key);
       const internalValue =
-        weights && typeof weights[config.key] === "number" ? weights[config.key] : 0;
-      slidersHTML += createSliderHTML(config, internalValue);
+        weights && typeof weights[weightKey] === "number" ? weights[weightKey] : 0;
+      const enabled = enabledWeights[weightKey] !== false;
+      slidersHTML += createSliderHTML(config, internalValue, enabled);
     });
 
     if (leftPanel) {
@@ -337,11 +384,13 @@ window.prioritizationUI = {
     }
 
     // Wire up slider change events
-    const self = this;
     sliderConfigs.forEach(function (config) {
       const slider = document.getElementById(config.key + "-slider");
       const valueDisplay = document.getElementById(config.key + "-value");
+      const enabledCb = document.getElementById(config.key + "-enabled");
       if (!slider || !valueDisplay) return;
+
+      const weightKey = self.mapUiKeyToWeightKey(config.key);
 
       slider.addEventListener("input", function (e) {
         const uiValue = parseFloat(e.target.value);
@@ -352,7 +401,7 @@ window.prioritizationUI = {
 
         const internalWeight = Math.round((isNaN(uiValue) ? 0 : uiValue) * 10); // 0–100
         const updates = {};
-        updates[config.key] = internalWeight;
+        updates[weightKey] = internalWeight;
 
         if (window.prioritizationLogic && window.prioritizationLogic.updateWeights) {
           // For combined view OR when adjusting either Expansion or
@@ -372,6 +421,36 @@ window.prioritizationUI = {
         self.renderPrioritizedSchools(groupNames);
         self.updateMapVisualization(groupNames);
       });
+
+      // Wire checkbox enable/disable
+      if (enabledCb) {
+        enabledCb.addEventListener("change", function () {
+          const enabled = !!enabledCb.checked;
+          // Toggle the slider enabled state without losing its value
+          slider.disabled = !enabled;
+          // Update enabled map in logic
+          if (
+            window.prioritizationLogic &&
+            window.prioritizationLogic.updateEnabledWeights
+          ) {
+            const syncGroups =
+              isCombined ||
+              primaryGroup === "Expansion" ||
+              primaryGroup === "Maintenance/Investment"
+                ? ["Expansion", "Maintenance/Investment"]
+                : [primaryGroup];
+            const enabledMap = {};
+            enabledMap[weightKey] = enabled;
+            syncGroups.forEach(function (gName) {
+              window.prioritizationLogic.updateEnabledWeights(gName, enabledMap);
+            });
+          }
+          // Re-render so columns appear/disappear and scores update
+          self.renderWeightSliders(groupNames);
+          self.renderPrioritizedSchools(groupNames);
+          self.updateMapVisualization(groupNames);
+        });
+      }
     });
   },
 
@@ -575,42 +654,81 @@ window.prioritizationUI = {
     }
 
     const tableId = "prioritized-schools-table";
-    const sliderConfigs = this.getSliderConfigs(baseGroupName);
+    const self = this;
+    const sliderConfigsAll = this.getSliderConfigs(baseGroupName);
+    const enabledWeights =
+      (window.prioritizationLogic.enabledWeights &&
+        window.prioritizationLogic.enabledWeights[isCombined ? "Expansion" : baseGroupName]) ||
+      {};
+    const sliderConfigs = sliderConfigsAll.filter(function (cfg) {
+      const weightKey = self.mapUiKeyToWeightKey(cfg.key);
+      return enabledWeights[weightKey] !== false;
+    });
     let html = "";
+
+    const headerTableId = tableId + "-header";
+    const bodyTableId = tableId + "-body";
+
+    // Build column width model so header/body stay perfectly aligned.
+    const colWidths = [];
+    colWidths.push("40px"); // Rank
+    if (isCombined) colWidths.push("110px"); // Strategy Group
+    colWidths.push("120px"); // School
+    colWidths.push("70px"); // Score
+    sliderConfigs.forEach(() => colWidths.push("80px")); // enabled metrics only
+
+    const buildColGroupHTML = function () {
+      return (
+        "<colgroup>" +
+        colWidths.map((w) => '<col style="width:' + w + '">').join("") +
+        "</colgroup>"
+      );
+    };
 
     html +=
       "<style>" +
+      // The container in index.html has its own max-height/overflow.
+      // Disable that so we don't get double scrollbars and can control scrolling here.
+      "#prioritized-schools-table-container { max-height: none !important; overflow: visible !important; }" +
+      ".ps-prioritized-table-wrap { border: 1px solid #e5e5e5; border-radius: 6px; overflow: hidden; background: #fff; }" +
+      ".ps-prioritized-table-body-scroll { max-height: 400px; overflow-y: auto; overflow-x: hidden; }" +
       "#" +
-      tableId +
-      " { width: 100%; font-size: 0.75em; border-collapse: collapse; table-layout: fixed; }" +
+      headerTableId +
+      ", #" +
+      bodyTableId +
+      " { width: 100%; font-size: 0.75em; border-collapse: separate; border-spacing: 0; table-layout: fixed; }" +
       "#" +
-      tableId +
+      headerTableId +
       " th, #" +
-      tableId +
+      bodyTableId +
       " td { padding: 4px 6px; text-align: left; border: 1px solid #e5e5e5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }" +
       "#" +
-      tableId +
+      headerTableId +
       " th { background: #f5f5f5; font-weight: 600; position: relative; user-select: none; }" +
       "#" +
-      tableId +
+      bodyTableId +
       " tbody tr:hover { background: #f9f9f9; }" +
       ".column-resizer { position: absolute; top: 0; right: 0; width: 4px; height: 100%; cursor: col-resize; background: transparent; z-index: 10; }" +
       ".column-resizer:hover { background: #007cbf; }" +
       ".column-resizer.dragging { background: #007cbf; }" +
       "</style>";
 
+    // Header table (no body; stays visible)
     html +=
+      '<div class="ps-prioritized-table-wrap">' +
       '<table id="' +
-      tableId +
-      '"><thead><tr>' +
-      '<th style="width:40px;"><span>Rank</span><div class="column-resizer" data-col="0"></div></th>' +
+      headerTableId +
+      '">' +
+      buildColGroupHTML() +
+      "<thead><tr>" +
+      '<th><span>Rank</span><div class="column-resizer" data-col="0"></div></th>' +
       (isCombined
-        ? '<th style="width:110px;"><span>Strategy Group</span><div class="column-resizer" data-col="1"></div></th>'
+        ? '<th><span>Strategy Group</span><div class="column-resizer" data-col="1"></div></th>'
         : "") +
-      '<th style="width:120px;"><span>School</span><div class="column-resizer" data-col="' +
+      '<th><span>School</span><div class="column-resizer" data-col="' +
       (isCombined ? "2" : "1") +
       '"></div></th>' +
-      '<th style="width:70px;"><span>Score</span><div class="column-resizer" data-col="' +
+      '<th><span>Score</span><div class="column-resizer" data-col="' +
       (isCombined ? "3" : "2") +
       '"></div></th>';
 
@@ -619,14 +737,23 @@ window.prioritizationUI = {
     sliderConfigs.forEach(function (config, idx) {
       const colIndex = metricStartColIndex + idx;
       html +=
-        '<th style="width:80px;"><span>' +
+        '<th><span>' +
         config.label +
         '</span><div class="column-resizer" data-col="' +
         colIndex +
         '"></div></th>';
     });
 
-    html += "</tr></thead><tbody>";
+    html += "</tr></thead></table>";
+
+    // Body table (scrolls)
+    html +=
+      '<div class="ps-prioritized-table-body-scroll">' +
+      '<table id="' +
+      bodyTableId +
+      '">' +
+      buildColGroupHTML() +
+      "<tbody>";
 
     // Helper to format values according to the metric key
     const formatValue = function (key, raw) {
@@ -676,8 +803,6 @@ window.prioritizationUI = {
       }
     };
 
-    const self = this;
-
     rankedSchools.forEach(function (school, index) {
       const raw = school.rawData || {};
       const buildingName = school["Building Name"] || school.name || "Unknown";
@@ -708,7 +833,7 @@ window.prioritizationUI = {
       html += "</tr>";
     });
 
-    html += "</tbody></table>";
+    html += "</tbody></table></div></div>";
 
     container.innerHTML = html;
 
@@ -719,14 +844,19 @@ window.prioritizationUI = {
 
   // Setup column resizing functionality
   setupColumnResizing: function (tableId) {
-    const table = document.getElementById(tableId);
-    if (!table) return;
+    // Supports both the legacy single-table layout and the new 2-table layout:
+    // - `${tableId}-header` contains the resizable header
+    // - `${tableId}-body` contains the scrolling body
+    const headerTable = document.getElementById(tableId + "-header") || document.getElementById(tableId);
+    const bodyTable = document.getElementById(tableId + "-body") || headerTable;
+    if (!headerTable || !bodyTable) return;
 
-    const resizers = table.querySelectorAll(".column-resizer");
+    const resizers = headerTable.querySelectorAll(".column-resizer");
     let currentResizer = null;
     let startX = 0;
     let startWidth = 0;
     let currentCol = null;
+    let currentIndex = -1;
 
     resizers.forEach(function (resizer, index) {
       resizer.addEventListener("mousedown", function (e) {
@@ -734,7 +864,8 @@ window.prioritizationUI = {
         e.stopPropagation();
         currentResizer = resizer;
         startX = e.clientX;
-        currentCol = table.querySelectorAll("th")[index];
+        currentIndex = index;
+        currentCol = headerTable.querySelectorAll("th")[index];
         startWidth = currentCol.offsetWidth;
         resizer.classList.add("dragging");
         document.body.style.cursor = "col-resize";
@@ -743,19 +874,20 @@ window.prioritizationUI = {
     });
 
     document.addEventListener("mousemove", function (e) {
-      if (!currentResizer || !currentCol) return;
+      if (!currentResizer || !currentCol || currentIndex < 0) return;
       const diff = e.clientX - startX;
       const newWidth = Math.max(30, startWidth + diff);
+      // Update colgroup widths so both header and body stay aligned.
+      const headerCols = headerTable.querySelectorAll("colgroup col");
+      const bodyCols = bodyTable.querySelectorAll("colgroup col");
+      if (headerCols && headerCols[currentIndex]) {
+        headerCols[currentIndex].style.width = newWidth + "px";
+      }
+      if (bodyCols && bodyCols[currentIndex]) {
+        bodyCols[currentIndex].style.width = newWidth + "px";
+      }
+      // Also reflect on the <th> for immediate feedback.
       currentCol.style.width = newWidth + "px";
-      const colIndex = Array.prototype.indexOf.call(
-        table.querySelectorAll("th"),
-        currentCol
-      );
-      table
-        .querySelectorAll("td:nth-child(" + (colIndex + 1) + ")")
-        .forEach(function (cell) {
-          cell.style.width = newWidth + "px";
-        });
     });
 
     document.addEventListener("mouseup", function () {
@@ -763,6 +895,7 @@ window.prioritizationUI = {
         currentResizer.classList.remove("dragging");
         currentResizer = null;
         currentCol = null;
+        currentIndex = -1;
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
       }
@@ -869,22 +1002,37 @@ window.prioritizationUI = {
     }
 
     const map = window.map;
-    const geojsonData = window.geojsonData;
+    // IMPORTANT:
+    // The main app's `updateLayer()` owns filtering (including hiding non-eval/closed).
+    // Do NOT call `map.getSource("schools").setData(window.geojsonData)` here because
+    // that overwrites the filtered dataset and causes hidden schools to "pop back in"
+    // when sliders change (since prioritizationUI.refresh() runs on slider updates).
+    //
+    // Instead: attach priorityScore to the base data object and ask `updateLayer()`
+    // to reapply filters to the map source.
+    const baseData = (typeof originalGeojsonData !== "undefined" && originalGeojsonData && originalGeojsonData.features)
+      ? originalGeojsonData
+      : window.geojsonData;
 
-    geojsonData.features.forEach(function (feature) {
+    baseData.features.forEach(function (feature) {
       const name = feature.properties["Building Name"];
       const p = window.priorityScores && window.priorityScores[name];
       feature.properties.priorityScore = p ? p.score : null;
     });
 
-    if (map.getSource("schools")) {
-      map.getSource("schools").setData(geojsonData);
-    }
-
     if (map.getLayer("schools-layer")) {
       // Keep all schools the same size on the map; priority scores are still
       // attached as properties, but no longer drive circle radius.
       map.setPaintProperty("schools-layer", "circle-radius", 6);
+    }
+
+    // Reapply filters + update the `schools` source without overriding the filter logic.
+    try {
+      if (typeof updateLayer === "function") {
+        updateLayer();
+      }
+    } catch (e) {
+      console.warn("⚠️ Unable to reapply map filters after priority update:", e);
     }
 
     console.log("✅ Map circle sizes updated (constant radius)");

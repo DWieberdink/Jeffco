@@ -24,22 +24,46 @@ function getSavedMapStyle() {
 function applyMapStyle(styleId) {
   if (!window.map || !styleId) return;
   const mapRef = window.map;
-  const finishApply = () => {
+  // Style switching can rebuild the style from scratch; sources/layers/images are wiped.
+  // `style.load` can fire before the style is actually ready for addSource/addLayer.
+  // Use a retry loop + `idle` to guarantee we re-add our layers.
+  const applyToken = (window.__mapStyleApplyToken = (window.__mapStyleApplyToken || 0) + 1);
+  const tryFinishApply = (attempt = 0) => {
+    // Stop if a newer style change started.
+    if (window.__mapStyleApplyToken !== applyToken) return;
+    // Wait for style readiness.
+    try {
+      if (typeof mapRef.isStyleLoaded === 'function' && !mapRef.isStyleLoaded()) {
+        if (attempt < 80) setTimeout(() => tryFinishApply(attempt + 1), 75);
+        return;
+      }
+    } catch {}
     try {
       ensureBaseSourcesLayers();
-      updateLayer();
+      // ensureBaseSourcesLayers may call updateLayer internally, but call once more
+      // to ensure we restore visibility/filters after layers exist.
+      try { updateLayer(); } catch {}
     } catch (e) {
-      console.warn('⚠️ Unable to reapply filters after style change:', e);
+      // If we raced the style rebuild, retry briefly.
+      if (attempt < 80) {
+        setTimeout(() => tryFinishApply(attempt + 1), 75);
+      } else {
+        console.warn('⚠️ Unable to reapply filters after style change:', e);
+      }
     }
   };
-  const onStyleEvent = () => {
-    mapRef.off('styledata', onStyleEvent);
-    mapRef.off('style.load', onStyleEvent);
-    finishApply();
+
+  const onStyleLoadOnce = () => {
+    // Schedule after the style has had a chance to fully rebuild.
+    setTimeout(() => tryFinishApply(0), 0);
+    try {
+      mapRef.once('idle', () => tryFinishApply(0));
+    } catch {}
   };
   try {
-    mapRef.on('styledata', onStyleEvent);
-    mapRef.on('style.load', onStyleEvent);
+    // Avoid piling up listeners from rapid clicks
+    mapRef.off('style.load', onStyleLoadOnce);
+    mapRef.on('style.load', onStyleLoadOnce);
     mapRef.setStyle(styleId);
     localStorage.setItem('mapStyleChoice', styleId);
   } catch (e) {
@@ -573,6 +597,79 @@ function getOriginIdForName(schoolName) {
   return (row.UniqueID || row["UniqueID"] || row["Unique Id"] || '').toString().trim();
 }
 
+// Clear the selected-school highlight ring on the map
+function clearSelectedSchoolHighlight() {
+  try {
+    if (!window.map || typeof window.map.getSource !== 'function') return;
+    const src = window.map.getSource('selected-school');
+    if (!src || typeof src.setData !== 'function') return;
+    src.setData({ type: 'FeatureCollection', features: [] });
+  } catch (e) {
+    console.warn("⚠️ Unable to clear selected-school highlight:", e);
+  }
+}
+
+// Given an origin + destination, show the distance using the SchooltoSchoolDistances.csv data.
+// This is used when an origin is already selected and the user clicks a different school on the map.
+window.updateDistanceToSelected = function(originId, destId, destName, coordinates) {
+  const norm = (s) => (s || '').toString().trim().toLowerCase();
+  const originKey = norm(originId);
+  const destKey = norm(destId);
+  const originName = window.currentOriginName || 'selected school';
+  const destinationName = destName || destId || 'destination school';
+
+  let distMiles = null;
+  try {
+    if (originKey && destKey && originKey === destKey) {
+      distMiles = 0;
+    } else if (originKey && window.schoolDistancesByOrigin && Array.isArray(window.schoolDistancesByOrigin[originKey])) {
+      const rows = window.schoolDistancesByOrigin[originKey];
+      const match =
+        rows.find(r => norm(r.destId) === destKey) ||
+        rows.find(r => norm(r.destName) === norm(destinationName));
+      if (match && match.distanceMiles !== null && match.distanceMiles !== undefined && match.distanceMiles !== '') {
+        const v = parseFloat(match.distanceMiles);
+        if (isFinite(v)) distMiles = v;
+      }
+    }
+
+    // Fallback: try reverse direction if origin->dest isn't present in the loaded slice
+    if (distMiles === null && destKey && window.schoolDistancesByOrigin && Array.isArray(window.schoolDistancesByOrigin[destKey])) {
+      const rowsRev = window.schoolDistancesByOrigin[destKey];
+      const matchRev = rowsRev.find(r => norm(r.destId) === originKey);
+      if (matchRev && matchRev.distanceMiles !== null && matchRev.distanceMiles !== undefined && matchRev.distanceMiles !== '') {
+        const v = parseFloat(matchRev.distanceMiles);
+        if (isFinite(v)) distMiles = v;
+      }
+    }
+  } catch (e) {
+    console.warn("⚠️ updateDistanceToSelected lookup failed:", e);
+  }
+
+  const distText = (distMiles === null || distMiles === undefined || !isFinite(distMiles))
+    ? 'N/A'
+    : distMiles.toFixed(1);
+
+  // Show a popup at the clicked destination (if we have a coordinate), otherwise do nothing visual.
+  try {
+    if (window.map && window.mapboxgl && coordinates && Array.isArray(coordinates) && coordinates.length === 2) {
+      new window.mapboxgl.Popup({ closeOnMove: true })
+        .setLngLat(coordinates)
+        .setHTML(
+          `<div style="font-size:12px; line-height:1.25;">
+            <div style="font-weight:700; margin-bottom:4px;">${destinationName}</div>
+            <div>Distance to <span style="font-weight:600;">${originName}</span>: <span style="font-weight:700;">${distText} mi</span></div>
+          </div>`
+        )
+        .addTo(window.map);
+    } else {
+      console.log(`📏 Distance to ${originName} from ${destinationName}: ${distText} mi`);
+    }
+  } catch (ePopup) {
+    console.warn("⚠️ Unable to display distance popup:", ePopup);
+  }
+};
+
 function updateNearbySchoolsPanel(originId, schoolName, options = {}) {
   const { overlapOnly = false, showAllSchools = false } = options;
   const container = document.getElementById('nearbySchoolsList');
@@ -756,8 +853,24 @@ function enforceFlowchartEmptyUntilUser() {
 function ensureBaseSourcesLayers() {
   if (!window.map) return;
   const m = window.map;
+  // When switching styles, Mapbox may not be ready for addSource/addLayer yet.
+  try {
+    if (typeof m.isStyleLoaded === 'function' && !m.isStyleLoaded()) {
+      return;
+    }
+  } catch {}
   const data = originalGeojsonData || geojsonData;
   if (!data) return;
+
+  // If utilization pie mode is active, sprites must be re-registered after setStyle()
+  // because Mapbox clears images when the style is rebuilt.
+  try {
+    if (showUtilizationPie && typeof window.ensureUtilizationPieSprites === 'function') {
+      window.ensureUtilizationPieSprites();
+    }
+  } catch (e) {
+    console.warn("⚠️ Unable to ensure utilization pie sprites after style change:", e);
+  }
 
   // Schools source
   if (!m.getSource('schools')) {
@@ -851,13 +964,22 @@ function ensureBaseSourcesLayers() {
       type: 'symbol',
       source: 'schools',
       layout: {
-        'visibility': 'none',
+        'visibility': showUtilizationPie ? 'visible' : 'none',
         'icon-image': ['coalesce', ['get', 'utilPieImage'], 'util-pie-0.0'],
         'icon-size': 0.8,
         'icon-allow-overlap': true
       }
     });
   }
+  // Ensure circle vs pie visibility is consistent after a style change
+  try {
+    if (m.getLayer('schools-layer')) {
+      m.setLayoutProperty('schools-layer', 'visibility', showUtilizationPie ? 'none' : 'visible');
+    }
+    if (m.getLayer('schools-pie-layer')) {
+      m.setLayoutProperty('schools-pie-layer', 'visibility', showUtilizationPie ? 'visible' : 'none');
+    }
+  } catch {}
 
   // Closed stripe layer
   if (!m.getLayer('closed-stripe-layer')) {
@@ -885,6 +1007,12 @@ function ensureBaseSourcesLayers() {
       m.setLayoutProperty('closed-stripe-layer', 'visibility', includeClosedSchools ? 'visible' : 'none');
     } catch {}
   }
+  // Keep the closed stripe on top of the school symbols/circles so it stays visible.
+  try {
+    if (m.getLayer('closed-stripe-layer')) {
+      m.moveLayer('closed-stripe-layer');
+    }
+  } catch {}
 
   // Nearby destinations highlight layer
   if (!m.getLayer('nearby-destinations-layer')) {
@@ -975,6 +1103,22 @@ function updateLayer() {
   includeNonEvalSchools = !!(includeNonEvalEl && includeNonEvalEl.checked);
   includeClosedSchools = !!(includeClosedEl && includeClosedEl.checked);
 
+  // If utilization pie mode is enabled, make sure sprite images exist.
+  // Slider updates can change the underlying data and users can toggle pie right after.
+  try {
+    if (
+      showUtilizationPie &&
+      typeof window.ensureUtilizationPieSprites === 'function' &&
+      window.map &&
+      typeof window.map.hasImage === 'function' &&
+      !window.map.hasImage('util-pie-0.0')
+    ) {
+      window.ensureUtilizationPieSprites();
+    }
+  } catch (e) {
+    console.warn("⚠️ Unable to ensure utilization pie sprites in updateLayer:", e);
+  }
+
   console.log("🔄 Updating layer with filters:", { selectedFlows, selectedTypes, minEnrollment, maxEnrollment });
 
   // Always filter from the original unfiltered data
@@ -984,23 +1128,34 @@ function updateLayer() {
   const filteredFeatures = originalGeojsonData.features.filter(f => {
     const nameRaw = (f.properties['Building Name'] || '').toString();
     const nameNorm = nameRaw.toLowerCase();
-    // Include/exclude non-eval schools (default to NO unless explicitly yes)
+    // Read precomputed flags injected into GeoJSON (keeps behavior consistent after slider updates/style changes)
     const includeVal = (f.properties['includeFlowChart'] || '').toString().trim().toLowerCase();
-    const includeYes = includeVal === 'yes' || includeVal === 'true' || includeVal === '1';
-    const isNonEval =
-      !includeYes ||
-      includeVal === 'no' || includeVal === '0' || includeVal === 'false' ||
-      f.properties['isNonEval'] === true;
+    const includeYes = includeVal === 'yes' || includeVal === 'y' || includeVal === 'true' || includeVal === '1';
+    const isNonEval = (f.properties['isNonEval'] === true) || (!includeYes);
 
-    // Include/exclude closed schools
     const statusNorm = (f.properties['status'] || '').toString().trim().toLowerCase();
     const isClosed =
       f.properties.isClosed === true ||
+      f.properties['isClosed'] === true ||
       statusNorm === 'no' ||
       statusNorm.includes('closed');
 
-    // Hard gates: exclude non-eval unless explicitly allowed; exclude closed unless allowed
-    if (isNonEval && !includeNonEvalSchools) {
+    // Hard gates (independent) + BYPASS behavior:
+    // - If "Include closed" is ON, closed schools should show regardless of all other filters.
+    // - If "Include non-eval" is ON, non-eval (but not closed) schools should show regardless of all other filters.
+    // - A school that is both closed and non-eval is governed by the closed toggle.
+    if (isClosed) {
+      return includeClosedSchools;
+    }
+    if (isNonEval) {
+      if (!includeNonEvalSchools) {
+        return false;
+      }
+      return true; // bypass all other filters for non-eval schools
+    }
+
+    // Eval + open schools continue through normal filters
+    if (!isClosed && isNonEval && !includeNonEvalSchools) {
       if (nameNorm.includes('compass')) {
         console.log("🚫 Filtered (non-eval) Compass:", {
           name: nameRaw,
@@ -1011,7 +1166,6 @@ function updateLayer() {
       }
       return false;
     }
-    if (isClosed && !includeClosedSchools) return false;
 
     const enrollment = parseInt(f.properties['Enrollment']) || 0;
     const availableSeats = parseInt(f.properties['Available Seats']) || 0;
@@ -1030,13 +1184,6 @@ function updateLayer() {
       ? true
       : nearbyFilterIds.includes(uid) || nearbyFilterIds.includes(name);
 
-    // If explicitly including non-eval (non-closed) or closed, bypass ALL other filters.
-    // This ensures schools like Molholm (closed + Enrollment=0) appear when closed toggle is on.
-    const bypass =
-      (isClosed && includeClosedSchools) ||
-      (isNonEval && !isClosed && includeNonEvalSchools);
-    if (bypass) return true;
-    
     // Track Flow 2 (expansion) schools
     if (flowNumber === 2) {
       flow2Count++;
@@ -1769,6 +1916,10 @@ map.on('load', () => {
             const selectedId = mapOriginSelect.value;
             if (!selectedId) {
               updateNearbySchoolsPanel('', '');
+              window.currentSelectedSchoolName = '';
+              window.currentOriginId = '';
+              window.currentOriginName = '';
+              clearSelectedSchoolHighlight();
               nearbyFilterIds = null;
               updateLayer();
               return;
@@ -2207,7 +2358,7 @@ map.on('load', () => {
           try {
             const originId = window.currentOriginId || getOriginIdForName(window.currentOriginName);
             if (originId && destId && typeof window.updateDistanceToSelected === 'function') {
-              window.updateDistanceToSelected(originId, destId, destName);
+              window.updateDistanceToSelected(originId, destId, destName, coordinates);
             } else if (map && mapboxgl && coordinates) {
               new mapboxgl.Popup({ closeOnMove: true })
                 .setLngLat(coordinates)
@@ -2379,6 +2530,13 @@ map.on('load', () => {
         if (!originName) {
           console.warn("⚠️ showOnMapFromFlowchart called with empty originName");
           return;
+        }
+
+        // Style changes wipe sources/layers; ensure they're recreated before we try to highlight.
+        try {
+          ensureBaseSourcesLayers();
+        } catch (e) {
+          console.warn("⚠️ Unable to ensure base sources/layers before showOnMapFromFlowchart:", e);
         }
 
         if (!window.map || !window.geojsonData || !Array.isArray(window.geojsonData.features)) {
@@ -2678,8 +2836,16 @@ map.on('load', () => {
 
   // Generate and register pie icon sprites for utilization buckets
   function ensureUtilizationPieSprites() {
-    if (utilSpritesAdded || !window.map) return;
     const mapRef = window.map;
+    if (!mapRef) return;
+    // Styles wipes all custom images. If the flag is set but the images are gone,
+    // allow re-registering.
+    try {
+      if (utilSpritesAdded && mapRef.hasImage && mapRef.hasImage('util-pie-0.0')) {
+        return;
+      }
+    } catch {}
+    utilSpritesAdded = false;
     const buckets = [];
     for (let i = 0; i <= 12; i++) { // 0.0 to 1.2 in 0.1 increments
       buckets.push((i / 10).toFixed(1));
@@ -2726,6 +2892,8 @@ map.on('load', () => {
     });
     utilSpritesAdded = true;
   }
+  // Expose so style switching + updateLayer can re-register images after map.setStyle()
+  window.ensureUtilizationPieSprites = ensureUtilizationPieSprites;
 
   noUiSlider.create(enrollmentSlider, {
     start: [0, 2000], connect: true, step: 10, range: { min: 0, max: 2000 }
@@ -2878,11 +3046,11 @@ map.on('load', () => {
     });
   }
 
-  if (typeof ensureUtilizationPieSprites === 'function' && toggleUtilizationPie) {
+  if (typeof window.ensureUtilizationPieSprites === 'function' && toggleUtilizationPie) {
     const applyUtilizationToggle = () => {
       showUtilizationPie = toggleUtilizationPie.checked;
       if (showUtilizationPie) {
-        ensureUtilizationPieSprites();
+        window.ensureUtilizationPieSprites();
       }
       if (window.map) {
         if (window.map.getLayer('schools-pie-layer')) {
@@ -3379,6 +3547,11 @@ map.on('load', () => {
         // components can use it even if the user switches back to the map.
         if (selectedSchool) {
           window.currentSelectedSchoolName = selectedSchool;
+        } else {
+          window.currentSelectedSchoolName = '';
+          window.currentOriginId = '';
+          window.currentOriginName = '';
+          clearSelectedSchoolHighlight();
         }
 
         // Keep the map-origin dropdown in sync when user selects from the flowchart dropdown
@@ -3502,7 +3675,7 @@ function normalizeName(name) {
   return name?.toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
-function injectDecisionsIntoGeoJSON(geojson, decisions) {
+function injectDecisionsIntoGeoJSON(geojson, decisions, options = {}) {
   console.log("🔄 injectDecisionsIntoGeoJSON called with", decisions.length, "decision records");
   
   // Log sample decision data to see if flow is present
@@ -3524,19 +3697,27 @@ function injectDecisionsIntoGeoJSON(geojson, decisions) {
   const schoolLevelMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), row["School Level"] || "Unknown"]));
   const flowMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), row["flow"] || 0]));
   const uniqueIdMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), (row.UniqueID || row["UniqueID"] || row["Unique Id"] || "").toString().trim()]));
+  // IMPORTANT:
+  // - `window.decisionLogic.schoolData` (used by sliders) often does NOT include
+  //   Include_Flow_Chart or Status columns.
+  // - If we default missing values to "no"/"" we accidentally overwrite the base
+  //   inclusion/closed flags, which then breaks the map filters and toggles.
+  // So: store `null` when the column is missing/empty so downstream `??`/`||`
+  // fallbacks can use the full decision export or existing feature values.
   const includeFlowMap = new Map(
     decisions.map(row => {
       const rawInclude = row["Include_Flow_Chart"];
-      // Default to "no" unless explicitly flagged
-      const normalizedInclude = (rawInclude ?? "no").toString().trim().toLowerCase();
-      return [normalizeName(row["Building Name"]), normalizedInclude];
+      const cleaned = (rawInclude ?? "").toString().trim();
+      if (!cleaned) return [normalizeName(row["Building Name"]), null];
+      return [normalizeName(row["Building Name"]), cleaned.toLowerCase()];
     })
   );
   const statusMap = new Map(
     decisions.map(row => {
       const rawStatus = row["Status"];
-      const normalizedStatus = (rawStatus ?? "").toString().trim();
-      return [normalizeName(row["Building Name"]), normalizedStatus];
+      const cleaned = (rawStatus ?? "").toString().trim();
+      if (!cleaned) return [normalizeName(row["Building Name"]), null];
+      return [normalizeName(row["Building Name"]), cleaned];
     })
   );
   const distanceWelcomingMap = new Map(
@@ -3599,37 +3780,58 @@ function injectDecisionsIntoGeoJSON(geojson, decisions) {
     f.properties["DistanceToWelcoming"] = distanceWelcomingMap.get(name) || null;
 
     // Inclusion + status
-    // Preserve original include flag; only override when data explicitly says "yes"
-    if (f.properties._includeFlowChartBase === undefined) {
-      f.properties._includeFlowChartBase = (f.properties["includeFlowChart"] || "").toString().trim().toLowerCase();
-    }
-    const includeVal =
-      includeFlowMap.get(name) ??
-      (decisionAllByName.get(name)?.Include_Flow_Chart ?? decisionAllByName.get(name)?.["Include_Flow_Chart"]) ??
-      (decisionAllById.get(normalizeId(f.properties["UniqueID"]))?.Include_Flow_Chart ?? decisionAllById.get(normalizeId(f.properties["UniqueID"]))?.["Include_Flow_Chart"]);
-    const yesVals = new Set(["yes", "y", "true", "1"]);
-    const noVals = new Set(["no", "n", "false", "0"]);
-    const candidate = (includeVal || "").toString().trim().toLowerCase();
-    let includeNorm = "no"; // default exclude unless explicitly yes
-    if (yesVals.has(candidate)) includeNorm = "yes";
-    else if (noVals.has(candidate)) includeNorm = "no";
-    else includeNorm = "no";
-    f.properties["includeFlowChart"] = includeNorm;
-    f.properties["isNonEval"] = includeNorm !== "yes";
+    // During slider updates we only want to recompute decisions/flows, not which schools
+    // are considered closed or non-eval. Those flags come from the full export + Map_Export
+    // merge and must remain stable unless the user toggles filters.
+    const updateInclusionStatus = options.updateInclusionStatus !== false;
+    // Preserve original include flag; only override when we have real data.
+    if (updateInclusionStatus) {
+      if (f.properties._includeFlowChartBase === undefined) {
+        f.properties._includeFlowChartBase = (f.properties["includeFlowChart"] || "").toString().trim().toLowerCase();
+      }
 
-    const statusValDecision =
-      statusMap.get(name) ||
-      (decisionAllByName.get(name)?.Status ?? decisionAllByName.get(name)?.["Status"]) ||
-      (decisionAllById.get(normalizeId(f.properties["UniqueID"]))?.Status ?? decisionAllById.get(normalizeId(f.properties["UniqueID"]))?.["Status"]) ||
-      "";
-    const statusExisting = f.properties["status"] || "";
-    const statusVal = statusValDecision || statusExisting || "";
-    const statusNorm = statusVal.toString().trim().toLowerCase();
-    f.properties["status"] = statusVal;
-    f.properties["isClosed"] =
-      f.properties.isClosed === true ||
-      statusNorm === "no" ||
-      statusNorm.includes("closed");
+      const includeVal =
+        includeFlowMap.get(name) ??
+        (decisionAllByName.get(name)?.Include_Flow_Chart ?? decisionAllByName.get(name)?.["Include_Flow_Chart"]) ??
+        (decisionAllById.get(normalizeId(f.properties["UniqueID"]))?.Include_Flow_Chart ?? decisionAllById.get(normalizeId(f.properties["UniqueID"]))?.["Include_Flow_Chart"]);
+
+      const yesVals = new Set(["yes", "y", "true", "1"]);
+      const noVals = new Set(["no", "n", "false", "0"]);
+      const candidate = (includeVal ?? "").toString().trim().toLowerCase();
+      const hasExplicitInclude = !!candidate;
+      if (hasExplicitInclude) {
+        let includeNorm = "no"; // default exclude unless explicitly yes
+        if (yesVals.has(candidate)) includeNorm = "yes";
+        else if (noVals.has(candidate)) includeNorm = "no";
+        else includeNorm = "no";
+        f.properties["includeFlowChart"] = includeNorm;
+        f.properties["isNonEval"] = includeNorm !== "yes";
+      } else {
+        // If no include flag is available, do not overwrite.
+        const existingInclude = (f.properties["includeFlowChart"] ?? f.properties._includeFlowChartBase ?? "").toString().trim().toLowerCase();
+        if (existingInclude) {
+          f.properties["includeFlowChart"] = existingInclude;
+          f.properties["isNonEval"] = existingInclude !== "yes";
+        }
+      }
+
+      const statusValDecision =
+        statusMap.get(name) ||
+        (decisionAllByName.get(name)?.Status ?? decisionAllByName.get(name)?.["Status"]) ||
+        (decisionAllById.get(normalizeId(f.properties["UniqueID"]))?.Status ?? decisionAllById.get(normalizeId(f.properties["UniqueID"]))?.["Status"]) ||
+        "";
+      const statusExisting = f.properties["status"] || "";
+      const statusVal = statusValDecision || statusExisting || "";
+      const statusNorm = statusVal.toString().trim().toLowerCase();
+      if (statusVal) {
+        f.properties["status"] = statusVal;
+      }
+      f.properties["isClosed"] =
+        f.properties.isClosed === true ||
+        f.properties["isClosed"] === true ||
+        statusNorm === "no" ||
+        statusNorm.includes("closed");
+    }
 
     const utilVal = utilizationMap.get(name);
     const utilNum = Number.isFinite(utilVal) ? utilVal : 0;
@@ -4684,7 +4886,8 @@ document.addEventListener("DOMContentLoaded", function() {
         const updatedSchoolData = window.decisionLogic.schoolData;
         
         if (geojsonData && map.getSource('schools')) {
-          injectDecisionsIntoGeoJSON(geojsonData, updatedSchoolData);
+          // Slider updates should not change which schools are considered closed/non-eval.
+          injectDecisionsIntoGeoJSON(geojsonData, updatedSchoolData, { updateInclusionStatus: false });
           // Keep base copy in sync with latest decisions for future filtering
           originalGeojsonData = JSON.parse(JSON.stringify(geojsonData));
           // Reapply current map filters instead of resetting to full data

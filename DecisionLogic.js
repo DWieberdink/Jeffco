@@ -413,6 +413,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (decision.includes("Welcoming") || decision.includes("Closure")) {
       return "Closure/Consolidation";
     }
+    // Treat Building Replacement as an Expansion strategy in the dashboard grouping
+    // (it increases/renews capacity similar to other Expansion outcomes).
+    if (decision.includes("Building Replacement")) {
+      return "Expansion";
+    }
     if (
       decision.includes("Building Addition") ||
       decision.includes("Overcrowding")
@@ -445,6 +450,7 @@ document.addEventListener("DOMContentLoaded", () => {
         label: "Expansion / Overcrowding",
         items: [
           "Building Addition",
+          "Building Replacement",
           "Building Addition with Capital Investment",
           "Policy Solution for Overcrowding"
         ]
@@ -461,7 +467,6 @@ document.addEventListener("DOMContentLoaded", () => {
       {
         label: "Maintenance / Investment",
         items: [
-          "Building Replacement",
           "Targeted Capital Investment",
           "Standard Maintenance",
           "Major Capital Investment"
