@@ -2197,94 +2197,44 @@ map.on('load', () => {
 
         console.log("🖱️ Canonical school name resolved from map click:", schoolName, "originRow found?", !!originRow, "originUniqueId:", originUniqueId);
 
-        // Always sync the main landing "School" dropdown with the clicked map school,
-        // so the user sees the selected school reflected in the dropdown on the left.
-        try {
-          const landingSelect = document.getElementById('schoolSelect');
-          if (landingSelect && schoolName) {
-            const norm = (s) => (s || "").toString().trim().toLowerCase();
-            const targetNorm = norm(schoolName);
-            let matchedValue = "";
-            for (const opt of Array.from(landingSelect.options || [])) {
-              if (norm(opt.value) === targetNorm || norm(opt.textContent) === targetNorm) {
-                matchedValue = opt.value;
-                break;
-              }
+        const hasOrigin = (window.currentOriginId && window.currentOriginId.trim()) ||
+                          (window.currentOriginName && window.currentOriginName.trim());
+        const destName = schoolName;
+        const destId = originUniqueId || getOriginIdForName(destName) || "";
+
+        // If an origin is already selected, treat map clicks as destination lookups only (do not change origin)
+        if (hasOrigin) {
+          try {
+            const originId = window.currentOriginId || getOriginIdForName(window.currentOriginName);
+            if (originId && destId && typeof window.updateDistanceToSelected === 'function') {
+              window.updateDistanceToSelected(originId, destId, destName);
+            } else if (map && mapboxgl && coordinates) {
+              new mapboxgl.Popup({ closeOnMove: true })
+                .setLngLat(coordinates)
+                .setHTML(`<div style="font-size:12px;"><strong>${destName}</strong></div>`)
+                .addTo(map);
             }
-            if (matchedValue) {
-              landingSelect.value = matchedValue;
-            } else {
-              // Fall back to setting the raw name; UI may still show placeholder
-              landingSelect.value = schoolName;
-              console.warn("⚠️ Could not find matching option in #schoolSelect for", schoolName);
-            }
+          } catch (eDistance) {
+            console.warn("⚠️ Unable to compute distance to selected origin:", eDistance);
           }
-        } catch (eSyncLanding) {
-          console.warn("⚠️ Unable to sync #schoolSelect from map click:", eSyncLanding);
+          return;
         }
 
-        // Treat every map click as selecting a new origin school so that the
-        // map-origin dropdown and flowchart stay in sync with what the user
-        // just clicked. Drive this primarily by the canonical school name, so
-        // behavior matches the flowchart → map path that is already working.
+        // No origin selected yet: first map click sets the origin, but avoid changing other dropdowns
         if (schoolName) {
-          // Track the current selection globally so slider updates and other
-          // components can use it even if the flowchart dropdown hasn't been
-          // interacted with yet.
           window.currentSelectedSchoolName = schoolName;
-          // Store pending info so flowchart initialization can apply it later
-          // even if the user hasn't opened the flowchart yet.
-          window.pendingFlowchartSchoolName = schoolName;
-          window.pendingFlowchartOriginId = originUniqueId || "";
+          window.currentOriginId = originUniqueId;
+          window.currentOriginName = schoolName;
           updateNearbySchoolsPanel(originUniqueId || getOriginIdForName(schoolName), schoolName);
-
-          try {
-            const mapOriginSelect = document.getElementById('mapOriginSchoolSelect');
-            const flowchartSelect = document.getElementById('mainFlowchartSchoolSelect');
-
-            console.log("🧩 mapOriginSchoolSelect on map click:", {
-              exists: !!mapOriginSelect,
-              optionCount: mapOriginSelect ? mapOriginSelect.options.length : 0,
-              currentValue: mapOriginSelect ? mapOriginSelect.value : null
-            });
-
-            // Ensure the map dropdown shows the selected school name and persist it
-            const persistedId = originUniqueId || getOriginIdForName(schoolName) || schoolName;
-            setMapOriginSelect(persistedId, schoolName);
-            localStorage.setItem('mapSelectedOriginId', persistedId);
+          if (originUniqueId) {
+            localStorage.setItem('mapSelectedOriginId', originUniqueId);
             localStorage.setItem('mapSelectedOriginName', schoolName);
-
-            console.log("🧩 mapOriginSchoolSelect AFTER update:", {
-              exists: !!mapOriginSelect,
-              value: mapOriginSelect ? mapOriginSelect.value : null
-            });
-
-            // Keep the flowchart dropdown's visible value in sync with the map
-            // selection where possible, but do not rely on its change handler
-            // (we'll drive the flowchart update directly below).
-            if (flowchartSelect) {
-              let hasOption = Array.from(flowchartSelect.options || []).some(
-                opt => opt.value === schoolName
-              );
-              if (!hasOption) {
-                const opt = document.createElement('option');
-                opt.value = schoolName;
-                opt.textContent = schoolName;
-                flowchartSelect.appendChild(opt);
-                hasOption = true;
-                console.log("➕ Added missing option to mainFlowchartSchoolSelect for", schoolName);
-              }
-              if (hasOption) {
-                flowchartSelect.value = schoolName;
-                // Ensure the selected option is visually selected
-                Array.from(flowchartSelect.options || []).forEach(opt => {
-                  opt.selected = opt.value === schoolName;
-                });
-                console.log("🎯 mainFlowchartSchoolSelect set directly from map click:", schoolName);
-              }
-            }
-          } catch (syncErr) {
-            console.warn("⚠️ Unable to sync origin selection from map click:", syncErr);
+          }
+          if (typeof window.updateFlowForSchool === 'function') {
+            window.updateFlowForSchool(schoolName, window.thresholds || {});
+          }
+          if (typeof window.showOnMapFromFlowchart === 'function') {
+            window.showOnMapFromFlowchart(schoolName);
           }
         }
 
@@ -3664,14 +3614,6 @@ function injectDecisionsIntoGeoJSON(geojson, decisions) {
     if (yesVals.has(candidate)) includeNorm = "yes";
     else if (noVals.has(candidate)) includeNorm = "no";
     else includeNorm = "no";
-    if (name.includes("compass")) {
-      console.log("🔎 Compass include check:", {
-        name: f.properties["Building Name"],
-        includeVal,
-        includeNorm,
-        baseInclude: f.properties._includeFlowChartBase
-      });
-    }
     f.properties["includeFlowChart"] = includeNorm;
     f.properties["isNonEval"] = includeNorm !== "yes";
 
