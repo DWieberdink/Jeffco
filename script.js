@@ -982,6 +982,8 @@ function updateLayer() {
   let flow2Filtered = 0;
   
   const filteredFeatures = originalGeojsonData.features.filter(f => {
+    const nameRaw = (f.properties['Building Name'] || '').toString();
+    const nameNorm = nameRaw.toLowerCase();
     // Include/exclude non-eval schools (default to NO unless explicitly yes)
     const includeVal = (f.properties['includeFlowChart'] || '').toString().trim().toLowerCase();
     const includeYes = includeVal === 'yes' || includeVal === 'true' || includeVal === '1';
@@ -998,7 +1000,17 @@ function updateLayer() {
       statusNorm.includes('closed');
 
     // Hard gates: exclude non-eval unless explicitly allowed; exclude closed unless allowed
-    if (isNonEval && !includeNonEvalSchools) return false;
+    if (isNonEval && !includeNonEvalSchools) {
+      if (nameNorm.includes('compass')) {
+        console.log("🚫 Filtered (non-eval) Compass:", {
+          name: nameRaw,
+          includeVal,
+          isNonEval,
+          includeNonEvalSchools
+        });
+      }
+      return false;
+    }
     if (isClosed && !includeClosedSchools) return false;
 
     const enrollment = parseInt(f.properties['Enrollment']) || 0;
@@ -3565,7 +3577,7 @@ function injectDecisionsIntoGeoJSON(geojson, decisions) {
   const includeFlowMap = new Map(
     decisions.map(row => {
       const rawInclude = row["Include_Flow_Chart"];
-      // Default to "no" unless explicitly flagged, so non-eval do not resurface after re-injection
+      // Default to "no" unless explicitly flagged
       const normalizedInclude = (rawInclude ?? "no").toString().trim().toLowerCase();
       return [normalizeName(row["Building Name"]), normalizedInclude];
     })
@@ -3645,14 +3657,13 @@ function injectDecisionsIntoGeoJSON(geojson, decisions) {
       includeFlowMap.get(name) ??
       (decisionAllByName.get(name)?.Include_Flow_Chart ?? decisionAllByName.get(name)?.["Include_Flow_Chart"]) ??
       (decisionAllById.get(normalizeId(f.properties["UniqueID"]))?.Include_Flow_Chart ?? decisionAllById.get(normalizeId(f.properties["UniqueID"]))?.["Include_Flow_Chart"]);
-    const existingInclude = (f.properties["includeFlowChart"] || "").toString().trim().toLowerCase();
     const yesVals = new Set(["yes", "y", "true", "1"]);
     const noVals = new Set(["no", "n", "false", "0"]);
-    let includeNorm;
-    const candidate = (includeVal || existingInclude || f.properties._includeFlowChartBase || "").toString().trim().toLowerCase();
+    const candidate = (includeVal || "").toString().trim().toLowerCase();
+    let includeNorm = "no"; // default exclude unless explicitly yes
     if (yesVals.has(candidate)) includeNorm = "yes";
     else if (noVals.has(candidate)) includeNorm = "no";
-    else includeNorm = "yes"; // default to included unless explicitly excluded
+    else includeNorm = "no";
     if (name.includes("compass")) {
       console.log("🔎 Compass include check:", {
         name: f.properties["Building Name"],
@@ -3662,8 +3673,7 @@ function injectDecisionsIntoGeoJSON(geojson, decisions) {
       });
     }
     f.properties["includeFlowChart"] = includeNorm;
-    f.properties["isNonEval"] =
-      includeNorm === "no" || includeNorm === "0" || includeNorm === "false" || f.properties["isNonEval"] === true;
+    f.properties["isNonEval"] = includeNorm !== "yes";
 
     const statusValDecision =
       statusMap.get(name) ||

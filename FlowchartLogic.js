@@ -7,6 +7,16 @@ let links = [];
 let schoolData = [];
 let mapExportData = null;
 
+// Helper: fetch a field by any of several candidate column names (case/spacing agnostic)
+function getVal(rowObj, candidates) {
+  if (!rowObj) return undefined;
+  const norm = (s) => (s || "").toString().trim().toLowerCase().replace(/[\s_]/g, "");
+  const keys = Object.keys(rowObj);
+  const target = candidates.map(norm);
+  const hitKey = keys.find(k => target.includes(norm(k)));
+  return hitKey ? rowObj[hitKey] : undefined;
+}
+
 // ✅ Global initialization function for main page
 window.initializeFlowchartFromScript = function(svgElement) {
   console.log("🎯 Initializing flowchart from main script...");
