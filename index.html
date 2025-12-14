@@ -1245,6 +1245,75 @@
       grid-template-columns: 1fr !important;
     }
 
+    /* -------------------------------
+       Responsive (phone/iPad) drawer UI
+       - Both Controls + Results can be opened at once (overlay drawers)
+       -------------------------------- */
+    @media (max-width: 1024px) {
+      /* Keep the map/flowchart full width; sidebars become overlay drawers */
+      #left-sidebar-resizer,
+      #right-sidebar-resizer {
+        display: none !important;
+      }
+
+      /* Left sidebar (Controls) becomes left drawer */
+      #sidebar {
+        position: fixed !important;
+        top: var(--brand-bar-height);
+        left: 0;
+        bottom: 0;
+        width: min(92vw, 380px);
+        max-width: 92vw;
+        z-index: 2100;
+        box-shadow: 0 12px 36px rgba(0,0,0,0.25);
+        transform: translateX(0);
+        transition: transform 0.18s ease;
+      }
+      body.sidebar-collapsed #sidebar {
+        display: flex !important; /* override desktop collapse behavior */
+        transform: translateX(-105%);
+      }
+
+      /* Right sidebar (Results) becomes right drawer */
+      #map-sidebar {
+        position: fixed !important;
+        top: var(--brand-bar-height);
+        right: 0;
+        left: auto;
+        bottom: 0;
+        width: min(92vw, 420px);
+        max-width: 92vw;
+        z-index: 2101; /* slightly above left so both can be open */
+        box-shadow: 0 12px 36px rgba(0,0,0,0.25);
+        transform: translateX(0);
+        transition: transform 0.18s ease;
+      }
+      body.right-sidebar-collapsed #map-sidebar {
+        display: flex !important; /* override desktop collapse behavior */
+        transform: translateX(105%);
+      }
+
+      /* Always keep the main content full width on small screens */
+      #container {
+        width: 100% !important;
+        flex: 1 1 auto;
+      }
+      #map-container,
+      #main-flowchart-container {
+        width: 100% !important;
+      }
+
+      /* Hamburger menu: fixed so it doesn't go off-screen on mobile */
+      #sidebarMenu {
+        position: fixed !important;
+        top: calc(var(--brand-bar-height) - 4px) !important;
+        right: 12px !important;
+        left: auto !important;
+        max-width: 92vw;
+        z-index: 2200;
+      }
+    }
+
     /* Hamburger dropdown menu readability */
     #sidebarMenu {
       font-size: 13px;
@@ -1259,28 +1328,40 @@
     #sidebarMenu button:hover {
       background: #f5f7fa;
     }
-    /* View toggle styling inside hamburger menu */
+    /* View toggle styling inside hamburger menu (segmented control) */
     #sidebarMenu .menu-view-toggle {
       display: flex;
-      gap: 6px;
+      gap: 0;
       width: 100%;
-      margin: 6px 0;
+      margin: 0;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
     }
     #sidebarMenu .menu-view-toggle button {
       flex: 1;
-      padding: 6px 10px;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
-      background: #fff;
+      /* Match height of other hamburger menu buttons (e.g., Start Tour / Dashboard Data & Logic) */
+      min-height: 32px;
+      padding: 0;
+      border: 0;
+      border-right: 1px solid #d1d5db;
+      border-radius: 0;
+      background: transparent;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       text-align: center;
-      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s;
+    }
+    #sidebarMenu .menu-view-toggle button:last-child {
+      border-right: 0;
     }
     #sidebarMenu .menu-view-toggle button.active {
       background: #007cbf;
       color: #fff;
-      border-color: #007cbf;
-      box-shadow: 0 0 0 1px rgba(0,124,191,0.15);
     }
 
     /* Top brand bar */
@@ -1337,28 +1418,40 @@
       width: auto;
       object-fit: contain;
     }
-    /* View toggle styling inside hamburger menu */
+    /* View toggle styling inside hamburger menu (segmented control) */
     #sidebarMenu .menu-view-toggle {
       display: flex;
-      gap: 6px;
+      gap: 0;
       width: 100%;
-      margin: 6px 0;
+      margin: 0;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
     }
     #sidebarMenu .menu-view-toggle button {
       flex: 1;
-      padding: 6px 10px;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
-      background: #fff;
+      /* Match height of other hamburger menu buttons (e.g., Start Tour / Dashboard Data & Logic) */
+      min-height: 32px;
+      padding: 0;
+      border: 0;
+      border-right: 1px solid #d1d5db;
+      border-radius: 0;
+      background: transparent;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       text-align: center;
-      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s;
+    }
+    #sidebarMenu .menu-view-toggle button:last-child {
+      border-right: 0;
     }
     #sidebarMenu .menu-view-toggle button.active {
       background: #007cbf;
       color: #fff;
-      border-color: #007cbf;
-      box-shadow: 0 0 0 1px rgba(0,124,191,0.15);
     }
     #filter-panel-content h3 {
       font-size: 1em;
@@ -1986,20 +2079,20 @@
   </div>
   <label style="display:flex; align-items:center; gap:8px; padding:6px 4px; cursor:pointer;">
     <input type="checkbox" id="toggleLeftSidebar" />
-    <span>Show left sidebar</span>
+    <span>Show controls panel</span>
   </label>
   <label style="display:flex; align-items:center; gap:8px; padding:6px 4px; cursor:pointer;">
     <input type="checkbox" id="toggleRightSidebar" />
-    <span>Show right sidebar</span>
+    <span>Show results panel</span>
   </label>
   <button id="menuStartTour" style="margin:6px 0; width:100%; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; background:#fff; cursor:pointer; text-align:left;">Start Tour (How To)</button>
   <div style="height:8px;"></div>
   <div class="menu-view-toggle">
-    <button id="menuShowMap">Show Map</button>
-    <button id="menuShowFlowchart">Show Flowchart</button>
+    <button id="menuShowMap" class="active" aria-label="Show map view">Map</button>
+    <button id="menuShowFlowchart" aria-label="Show flowchart view">Flowchart</button>
   </div>
   <div style="height:10px;"></div>
-  <button id="menuDataLogic" style="margin:0; width:100%; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; background:#fff; cursor:pointer; text-align:left;">Data & Logic</button>
+  <button id="menuDataLogic" style="margin:0; width:100%; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; background:#fff; cursor:pointer; text-align:left;">Dashboard Data &amp; Logic</button>
 </div>
 
 <!-- Password Protection Overlay -->
@@ -2083,45 +2176,7 @@
               <text x="10" y="15" text-anchor="middle" font-size="13" font-family="Franklin Gothic Book, Franklin Gothic, Arial Narrow, Arial, sans-serif" fill="white" font-weight="bold">?</text>
             </svg>
           </span>
-          <span id="decision-help-tooltip" class ="tooltip">
-            <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-            <strong>Step 1: Strategic Sorting</strong> uses decision thresholds to categorize schools into strategy groups. Adjust the sliders below to change how schools are evaluated, which is reflected in <strong>Step 1: Strategic Sorting: Results</strong> on the right sidebar.<br>
-            The flowchart allows you to visualize the decision logic dynamically by school.<br><br>
-            <strong>Flow 1: Decision Routing</strong><br>
-  <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
-    <li><strong>Enrollment Thresholds by School Level</strong><br>
-      Minimum enrollment thresholds for Elementary, K-8, Middle, High, and 6-12 schools (driven by Decision Data Export enrollment)</li>
-    <li><strong>Current Utilization Threshold</strong><br>
-      Minimum percentage of capacity used before a school is considered underutilized (0-100%, default: 60%)</li>
-    <li><strong>High Utilization Threshold</strong><br>
-      Percentage threshold for identifying highly utilized or overcrowded schools (0-120%, default: 100%)</li>
-    <li><strong>Enrollment Growth Threshold</strong><br>
-      Minimum expected change in student enrollment (-50% to +50%, default: 0%)</li>
-    <li><strong>Distance to Welcoming Schools by School Level</strong><br>
-      Distance thresholds for identifying nearby welcoming schools (miles, varies by school level)</li>
-  </ul>
-            <strong>Flow 2: Expansion</strong><br>
-            <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
-              <li><strong>Attendance Area Enrollment</strong><br>
-                Percentage threshold for attendance area enrollment (60-100%, default: 80%)</li>
-              <li><strong>Composite Building Score</strong><br>
-                Building condition score threshold (1-10 scale, default: 5)</li>
-              <li><strong>Educational Adequacy</strong><br>
-                Minimum percentage threshold for educational adequacy (0-100%, default: 50%)</li>
-            </ul>
-            <strong>Flow 3: Maintenance/Investment</strong><br>
-            <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
-              <li><strong>Composite Building Score Above/Below Threshold</strong><br>
-                Building condition score thresholds (1-10 scale, default: 5)</li>
-            </ul>
-            <strong>Flow 4: Closure/Consolidation</strong><br>
-            <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
-              <li><strong>Composite Building Score</strong><br>
-                Building condition score threshold (1-10 scale, default: 5)</li>
-              <li><strong>Distance to Welcoming Schools</strong><br>
-                Distance thresholds by school level (miles)</li>
-            </ul>
-          </span>
+          <!-- Tooltip moved to global tooltip section at bottom of page -->
         </span>
       </span>
     </summary>
@@ -2266,25 +2321,7 @@
               <text x="10" y="15" text-anchor="middle" font-size="13" font-family="Franklin Gothic Book, Franklin Gothic, Arial Narrow, Arial, sans-serif" fill="white" font-weight="bold">?</text>
             </svg>
           </span>
-          <span id="scenario-help-tooltip" class = "tooltip";>
-            <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-            <strong>Step 2: Prioritization within Strategy Sorting</strong> allows you to prioritize schools within each strategy group (decision type) using weighted criteria.<br><br>
-            <strong>Prioritization Weights (Left Panel):</strong><br>
-            Adjust weight sliders (0–10 scale, 0.5 increments) to prioritize schools within the selected strategy group. Higher values indicate greater importance for that criterion.<br><br>
-            <strong>Weighted Criteria:</strong><br>
-            <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
-              <li>Utilization Rate</li>
-              <li>Students in Attendance Area</li>
-              <li>Student Economic Status (%FRL)</li>
-              <li>Academic Performance</li>
-              <li>Building Condition</li>
-              <li>Pre-1978 Building Lead Risk</li>
-              <li>ADA Accessibility</li>
-              <li>AC Status</li>
-            </ul>
-            <strong>Strategy Candidate Groups (Right Panel):</strong><br>
-            Select a strategy group to see prioritized schools ranked by priority score. Schools are displayed as larger circles on the map based on their priority score.
-          </span>
+          <!-- Tooltip moved to global tooltip section at bottom of page -->
         </span>
       </summary>
     <div class="details-content-wrapper" style="padding: 0.5rem;">
@@ -2490,10 +2527,7 @@
                 <text x="10" y="15" text-anchor="middle" font-size="13" font-family="Franklin Gothic Book, Franklin Gothic, Arial Narrow, Arial, sans-serif" fill="white" font-weight="bold">?</text>
               </svg>
             </span>
-            <span id="flowchart-help-tooltip" style="display:none;position:absolute;z-index:1000;background:#fff;color:#222;border:1px solid #007cbf;border-radius:6px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:14px;width:300px;right:0;top:28px;">
-              <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-              Select a school from the dropdown to view its decision flowchart. The flowchart visualizes how the Step 1: Strategic Sorting thresholds lead to the recommended decision type (strategy group) for the selected school. Active decision nodes are highlighted, and threshold values are displayed dynamically.
-            </span>
+            <!-- Tooltip moved to global tooltip section at bottom of page -->
           </span>
         </div>
         <div style="display: flex; align-items: center; gap: 10px;">
@@ -2557,12 +2591,7 @@
         <text x="10" y="15" text-anchor="middle" font-size="13" font-family="Franklin Gothic Book, Franklin Gothic, Arial Narrow, Arial, sans-serif" fill="white" font-weight="bold">?</text>
            </svg>
         </span>
-       <span id="decision-results-help-tooltip" class="tooltip" style="display:none;">
-         <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-         <strong>Step 1: Strategic Sorting: Results</strong> displays the decision outcomes for all schools based on the threshold sliders in Step 1: Strategic Sorting.<br><br>
-         <strong>Summary Table:</strong> Shows count of schools by decision type (strategy group).<br>
-         <strong>Decision by School:</strong> Lists each school with its assigned decision type based on the evaluation criteria.
-        </span>
+       <!-- Tooltip moved to global tooltip section at bottom of page -->
          </span>
         </summary>
 
@@ -2617,10 +2646,7 @@
                       <text x="10" y="15" text-anchor="middle" font-size="13" font-family="Franklin Gothic Book, Franklin Gothic, Arial Narrow, Arial, sans-serif" fill="white" font-weight="bold">?</text>
                     </svg>
                   </span>
-                  <span id="model-output-help-tooltip" style="display:none;position:absolute;z-index:1000;background:#fff;color:#222;border:1px solid #007cbf;border-radius:6px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:14px;width:300px;right:0;top:28px;">
-                    <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-                    This section displays impact analysis for Step 2: Prioritization within Strategy Sorting, showing prioritized schools within the selected strategy group. Schools are ranked by priority score calculated from the weight sliders.
-                  </span>
+                  <!-- Tooltip moved to global tooltip section at bottom of page -->
                 </span>
               </span>
             </summary>
@@ -2644,8 +2670,7 @@
                         <!-- Prioritized Schools Section (will be shown when a tab is selected) -->
                         <div id="prioritization-weights-section" style="display: none;">
                             <!-- Prioritized Schools Table -->
-                            <div id="prioritized-schools-section">
-                                <h4>Prioritized Schools</h4>
+                        <div id="prioritized-schools-section">
                                 <div id="prioritized-schools-table-container" style="max-height: 400px; overflow-y: auto;">
                                     <!-- Table will be dynamically generated -->
                                 </div>
@@ -2919,8 +2944,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 Percentage threshold for identifying highly utilized or overcrowded schools (0-120%, default: 100%)</li>
               <li><strong>Enrollment Growth Threshold</strong><br>
                 Minimum expected change in student enrollment (-50% to +50%, default: 0%)</li>
-              <li><strong>Distance to Welcoming Schools by School Level</strong><br>
-                Distance thresholds for identifying nearby welcoming schools (miles, varies by school level)</li>
+              <li><strong>Distance to Nearby Schools by School Level</strong><br>
+                Distance thresholds (miles, varies by school level) used to determine whether nearby schools are within a “reasonable” distance</li>
             </ul>
   <strong>Flow 2: Expansion</strong><br>
   <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
@@ -2946,22 +2971,14 @@ document.addEventListener('DOMContentLoaded', function() {
 </span>
 <span id="scenario-help-tooltip" class="tooltip" style="display:none;">
   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-  <strong>Step 2: Prioritization within Strategy Sorting</strong> allows you to prioritize schools within each strategy group (decision type) using weighted criteria.<br><br>
-  <strong>Prioritization Weights (Left Panel):</strong><br>
-  Adjust weight sliders (1-10 scale, 0.5 increments) to prioritize schools within the selected strategy group. All weights default to 5. Higher weights indicate greater importance.<br><br>
-  <strong>Weighted Criteria:</strong><br>
-  <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
-    <li>Utilization Rate</li>
-    <li>Students in Attendance Area</li>
-    <li>Student Economic Status (%FRL)</li>
-    <li>Academic Performance</li>
-    <li>Building Condition</li>
-    <li>Pre-1978 Building Lead Risk</li>
-    <li>ADA Accessibility</li>
-    <li>AC Status</li>
-  </ul>
-  <strong>Strategy Candidate Groups (Right Panel):</strong><br>
-  Select a strategy group to see prioritized schools ranked by priority score. Schools are displayed as larger circles on the map based on their priority score.
+  <strong>Step 2: Prioritization within Strategy Sorting</strong> lets you prioritize schools <em>within</em> a strategy group using weighted criteria.<br><br>
+  <strong>Controls panel (Left):</strong><br>
+  Use the weight sliders (0–10, 0.5 increments). You can also disable a metric using its checkbox. Higher weights increase that metric’s influence on the priority score.<br><br>
+  <strong>Results panel (Right):</strong><br>
+  Select one or more strategy groups to generate a prioritized list. Each group row has a <strong>▸</strong> arrow that opens a flyout where you can optionally filter to specific outcomes within that group.<br><br>
+  <strong>Table display:</strong><br>
+  Use the “Show values / Show scores” toggle above the table to switch between the raw values (%, miles, counts) and the normalized 0–100 metric scores. This toggle does not change the ranking.<br><br>
+  <strong>Note:</strong> Priority scores are normalized and shown in the table; map markers are not resized by priority.
 </span>
 <span id="decision-results-help-tooltip" class="tooltip" style="display:none;">
   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
@@ -2971,11 +2988,12 @@ document.addEventListener('DOMContentLoaded', function() {
 </span>
 <span id="model-output-help-tooltip" class="tooltip" style="display:none;">
   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-  This section displays the impact analysis of your scenario, including enrollment, utilization, and travel distance changes.
+  This section shows the <strong>Step 2 results</strong>: strategy candidate groups and the prioritized list driven by the Step 2 weights.<br><br>
+  Use the <strong>▸</strong> arrow on a group to filter to specific outcomes, and use the table toggle to switch between <strong>values</strong> and <strong>scores</strong> for each metric column.
 </span>
 <span id="flowchart-help-tooltip" class="tooltip" style="display:none;">
   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-  Select a school to view its decision flowchart. The flowchart visualizes how the evaluation criteria lead to the recommended action for the selected school.
+  Select a school to view its decision flowchart. The flowchart shows how the Step 1 thresholds lead to the recommended strategy group for that school. Active decision nodes and threshold values are highlighted.
 </span>
 </body>
 </html>

@@ -135,6 +135,104 @@ document.addEventListener('DOMContentLoaded', function() {
     const rightSidebar = document.getElementById('map-sidebar');
     const showMapBtn = document.getElementById('menuShowMap');
     const showFlowchartBtn = document.getElementById('menuShowFlowchart');
+
+    // --- Mobile/iPad drawer helpers (allow both sidebars open at once) ---
+    const isSmallScreen = () => {
+      try {
+        return window.matchMedia && window.matchMedia('(max-width: 1024px)').matches;
+      } catch (e) {
+        return false;
+      }
+    };
+
+    const ensureBackdrop = () => {
+      let el = document.getElementById('mobileDrawerBackdrop');
+      if (el) return el;
+      el = document.createElement('div');
+      el.id = 'mobileDrawerBackdrop';
+      el.style.position = 'fixed';
+      el.style.left = '0';
+      el.style.top = '0';
+      el.style.width = '100vw';
+      el.style.height = '100vh';
+      el.style.background = 'rgba(0,0,0,0.35)';
+      el.style.zIndex = '2090';
+      el.style.display = 'none';
+      el.addEventListener('click', () => {
+        // Close BOTH drawers (user requested both can be open, but tapping backdrop closes all)
+        body.classList.add('sidebar-collapsed');
+        body.classList.add('right-sidebar-collapsed');
+        if (leftToggle) leftToggle.checked = false;
+        if (rightToggle) rightToggle.checked = false;
+        updateMobileBackdrop();
+        if (window.map && typeof window.map.resize === 'function') {
+          setTimeout(() => window.map.resize(), 50);
+        }
+      });
+      document.body.appendChild(el);
+      return el;
+    };
+
+    const updateMobileBackdrop = () => {
+      const backdrop = ensureBackdrop();
+      if (!isSmallScreen()) {
+        backdrop.style.display = 'none';
+        return;
+      }
+      const leftOpen = !body.classList.contains('sidebar-collapsed');
+      const rightOpen = !body.classList.contains('right-sidebar-collapsed');
+      backdrop.style.display = (leftOpen || rightOpen) ? 'block' : 'none';
+    };
+
+    const ensureDrawerHeader = (sidebarEl, title, onClose) => {
+      if (!sidebarEl) return;
+      if (sidebarEl.querySelector('.mobile-drawer-header')) return;
+      const header = document.createElement('div');
+      header.className = 'mobile-drawer-header';
+      header.style.display = isSmallScreen() ? 'flex' : 'none';
+      header.style.alignItems = 'center';
+      header.style.justifyContent = 'space-between';
+      header.style.gap = '8px';
+      header.style.padding = '10px 12px';
+      header.style.borderBottom = '1px solid #e5e7eb';
+      header.style.background = '#fff';
+      header.style.position = 'sticky';
+      header.style.top = '0';
+      header.style.zIndex = '1';
+
+      const label = document.createElement('div');
+      label.textContent = title;
+      label.style.fontWeight = '700';
+      label.style.fontSize = '14px';
+      label.style.color = '#111';
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = 'Close';
+      btn.style.border = '1px solid #d1d5db';
+      btn.style.background = '#fff';
+      btn.style.borderRadius = '8px';
+      btn.style.padding = '8px 10px';
+      btn.style.cursor = 'pointer';
+      btn.style.fontSize = '13px';
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose && onClose();
+      });
+
+      header.appendChild(label);
+      header.appendChild(btn);
+      sidebarEl.insertBefore(header, sidebarEl.firstChild);
+
+      // Keep header visibility in sync with breakpoints
+      const syncHeaderVisibility = () => {
+        header.style.display = isSmallScreen() ? 'flex' : 'none';
+      };
+      syncHeaderVisibility();
+      window.addEventListener('resize', syncHeaderVisibility);
+    };
+
     const setMenuViewActive = (mode) => {
       if (showMapBtn) showMapBtn.classList.toggle('active', mode === 'map');
       if (showFlowchartBtn) showFlowchartBtn.classList.toggle('active', mode === 'flowchart');
@@ -148,9 +246,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const showMenu = () => {
       if (menu) menu.style.display = 'block';
       syncMenuState();
+      updateMobileBackdrop();
     };
     const hideMenu = () => {
       if (menu) menu.style.display = 'none';
+      updateMobileBackdrop();
     };
 
     if (toggleBtn) {
@@ -174,6 +274,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
           body.classList.add('sidebar-collapsed');
         }
+        updateMobileBackdrop();
         if (window.map && typeof window.map.resize === 'function') {
           setTimeout(() => window.map.resize(), 50);
         }
@@ -187,6 +288,7 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
           body.classList.add('right-sidebar-collapsed');
         }
+        updateMobileBackdrop();
         if (window.map && typeof window.map.resize === 'function') {
           setTimeout(() => window.map.resize(), 50);
         }
@@ -251,6 +353,24 @@ document.addEventListener('DOMContentLoaded', function() {
     body.classList.add('right-sidebar-collapsed');
     syncMenuState();
     setMenuViewActive('map');
+    updateMobileBackdrop();
+
+    // Mobile drawer headers + close buttons
+    ensureDrawerHeader(document.getElementById('sidebar'), 'Controls', () => {
+      body.classList.add('sidebar-collapsed');
+      if (leftToggle) leftToggle.checked = false;
+      updateMobileBackdrop();
+      if (window.map && typeof window.map.resize === 'function') setTimeout(() => window.map.resize(), 50);
+    });
+    ensureDrawerHeader(document.getElementById('map-sidebar'), 'Results', () => {
+      body.classList.add('right-sidebar-collapsed');
+      if (rightToggle) rightToggle.checked = false;
+      updateMobileBackdrop();
+      if (window.map && typeof window.map.resize === 'function') setTimeout(() => window.map.resize(), 50);
+    });
+
+    // Keep backdrop correct on resize/orientation changes
+    window.addEventListener('resize', updateMobileBackdrop);
   })();
   
   if (decisionInputPanel && decisionOutputPanel) {
@@ -5082,6 +5202,12 @@ document.addEventListener("DOMContentLoaded", function() {
 let isSettingUpPath = false; // Flag to track if we're setting up a specific path
 
 function startOnboardingWalkthrough() {
+  // If a tour is already running, end it first (prevents duplicate listeners/overlays)
+  if (window.__onboardingTourCleanup && typeof window.__onboardingTourCleanup === 'function') {
+    try { window.__onboardingTourCleanup(); } catch (e) {}
+    window.__onboardingTourCleanup = null;
+  }
+
   // Close all major details sections before starting the tour
   const detailsIds = [
     'decision-input-panel',
@@ -5099,62 +5225,142 @@ function startOnboardingWalkthrough() {
   const steps = [
     {
       target: 'body',
-      title: 'How to use this Tool',
-      text: 'We will walk you through the main features of this tool. You can skip this explanation at any time.',
+      title: 'Welcome to the JeffCo Facility Planning Dashboard',
+      text: 'This quick tour explains how the dashboard is organized and where to click to access the panels and tools. You can exit at any time using the “×” button or pressing Esc.',
       isIntro: true
     },
     {
-      target: '#sidebar',
-      title: 'Input Sidebar',
-      text: 'This sidebar contains the input controls for the planning tool, including criteria for school decision evaluations and scenario modeling.'
+      target: '#sidebarToggle',
+      title: 'Hamburger Menu (important)',
+      text: 'Click the hamburger menu in the top bar to open the dashboard menu. From there you can show/hide the left and right panels, start this tour again, and switch between Map and Flowchart views.',
+      ensureMenuClosed: true
     },
-    // New step for right sidebar
     {
-      target: '#map-sidebar',
-      title: 'Results Sidebar',
-      text: 'This sidebar displays the results of your evaluations and scenario modeling, including recommended actions and impact analysis.'
+      target: '#toggleLeftSidebar',
+      title: 'Show the Left Panel (Inputs)',
+      text: 'Use this toggle to show/hide the left panel. The left panel contains Step 1 inputs (threshold sliders) and Step 2 scenario controls.',
+      openMenu: true
+    },
+    {
+      target: '#toggleRightSidebar',
+      title: 'Show the Right Panel (Results)',
+      text: 'Use this toggle to show/hide the right panel. The right panel contains Step 1 results (summary + by-school) and Step 2 scenario outputs.',
+      openMenu: true
+    },
+    {
+      target: '#sidebar',
+      title: 'Left Panel: Inputs',
+      text: 'This is where you control the assumptions. Expand each section (Step 1 / Step 2) to see sliders, options, and help tips.',
+      ensureLeftSidebar: true
     },
     {
       target: '#decision-input-panel',
-      title: 'School Decision Evaluation',
-      text: 'Adjust how schools are evaluated using these sliders. This affects the results and recommendations.'
+      title: 'Step 1: Strategic Sorting (Inputs)',
+      text: 'Adjust the threshold sliders to change how schools are categorized into strategy groups. As you change sliders, the results update immediately on the right.',
+      ensureLeftSidebar: true
+    },
+    {
+      target: '#map-sidebar',
+      title: 'Right Panel: Results',
+      text: 'This panel shows the outcomes of your inputs. Step 1 results update live; Step 2 outputs appear after you run a scenario.',
+      ensureRightSidebar: true
     },
     {
       target: '#decision-output-panel',
-      title: 'School Decision Evaluation: Results',
-      text: 'This section summarizes recommended actions for each school based on the criteria you set on the left. You can view both a summary and detailed results for each school.'
+      title: 'Step 1: Strategic Sorting (Results)',
+      text: 'Open “Summary Table” to see counts by strategy group, and “Decision by School” to see each school’s assigned outcome. Use the help icons (?) for definitions.',
+      ensureRightSidebar: true
     },
     {
       target: '#map-container',
-      title: 'Output Visualizations: Map',
-      text: 'The map shows all schools and their current decision status. You can interact with the map to explore decision and student assignment data.'
+      title: 'Map View: Explore Schools',
+      text: 'Use the map to pan/zoom and explore schools spatially. Clicking a school will surface its data and help you connect results to geography.',
+      ensureMapView: true,
+      ensureMenuClosed: true
     },
     {
-      target: '#main-flowchart-container',
-      title: 'Output Visualizations: Flowchart',
-      text: 'The flowchart visualizes the decision logic for a selected school chosen from the dropdown menu.'
+      target: '#fitToSchoolsBtn',
+      title: 'Fit to Schools',
+      text: 'Click this button to zoom the map to show all schools.',
+      ensureMapView: true
     },
     {
       target: '#scenario-input-panel',
-      title: 'Scenario Modeling',
-      text: 'Test and evaluate the impact of different decision types here.'
+      title: 'Step 2: Scenario Modeling (Inputs)',
+      text: 'Use scenario modeling to test different decision types and see how student enrollment, utilization, and travel distance could change.',
+      ensureLeftSidebar: true
     },
     {
       target: '#scenario-output-panel',
-      title: 'Model Output: Impact Analysis',
-      text: 'After running a scenario or simulation, this section shows changes in enrollment, utilization, and travel distances for students. Use this to understand the effects of your decisions on the school system.'
+      title: 'Step 2: Scenario Modeling (Outputs)',
+      text: 'After running a scenario, review the output here to understand impacts (enrollment shifts, utilization changes, and travel distance changes).',
+      ensureRightSidebar: true
+    },
+    {
+      target: '#toggleMapFlowchartFlowchart2',
+      title: 'Flowchart View',
+      text: 'Switch to the Flowchart view to understand the Step 1 decision logic for a specific school.',
+      ensureFlowchartView: true
+    },
+    {
+      target: '#mainFlowchartSchoolSelect',
+      title: 'Select a School (Flowchart)',
+      text: 'Choose a school from this dropdown to render its decision flowchart and see which thresholds are “active” for that school.',
+      ensureFlowchartView: true
+    },
+    {
+      target: '#flowchartShowOnMapBtn',
+      title: 'Show on Map',
+      text: 'Use “Show on map” to jump back to the map centered on the selected school.',
+      ensureFlowchartView: true
     },
     {
       target: 'body',
-      title: 'Choose Your Path',
-      text: 'Now that you\'ve seen the main features, choose how you\'d like to start using the tool.',
-      isChoice: true
+      title: 'All set',
+      text: 'You’re ready to explore. Re-open the hamburger menu any time to start the tour again.',
+      ensureMenuClosed: true
     }
   ];
 
   let currentStep = 0;
   let overlay = null;
   let popup = null;
+  let keyHandler = null;
+  let resizeHandler = null;
+  const body = document.body;
+  const menu = document.getElementById('sidebarMenu');
+  const leftToggle = document.getElementById('toggleLeftSidebar');
+  const rightToggle = document.getElementById('toggleRightSidebar');
+
+  function setSidebarVisibility({ left, right } = {}) {
+    if (typeof left === 'boolean') {
+      if (left) body.classList.remove('sidebar-collapsed');
+      else body.classList.add('sidebar-collapsed');
+      if (leftToggle) leftToggle.checked = left;
+    }
+    if (typeof right === 'boolean') {
+      if (right) body.classList.remove('right-sidebar-collapsed');
+      else body.classList.add('right-sidebar-collapsed');
+      if (rightToggle) rightToggle.checked = right;
+    }
+    if (window.map && typeof window.map.resize === 'function') {
+      setTimeout(() => window.map.resize(), 50);
+    }
+  }
+
+  function openMenu() {
+    if (menu) menu.style.display = 'block';
+  }
+  function closeMenu() {
+    if (menu) menu.style.display = 'none';
+  }
+
+  function ensureMapView() {
+    if (typeof window.switchToMap === 'function') window.switchToMap();
+  }
+  function ensureFlowchartView() {
+    if (typeof window.switchToFlowchart === 'function') window.switchToFlowchart();
+  }
 
   function showStep(stepIdx) {
     // Remove previous overlay/popup
@@ -5163,11 +5369,13 @@ function startOnboardingWalkthrough() {
 
     const step = steps[stepIdx];
     
-    // Handle choice screen
-    if (step.isChoice) {
-      showChoiceScreen();
-      return;
-    }
+    // Menu + visibility preconditions
+    if (step.openMenu) openMenu();
+    if (step.ensureMenuClosed) closeMenu();
+    if (step.ensureLeftSidebar) setSidebarVisibility({ left: true });
+    if (step.ensureRightSidebar) setSidebarVisibility({ right: true });
+    if (step.ensureMapView) ensureMapView();
+    if (step.ensureFlowchartView) ensureFlowchartView();
     
     let target = document.querySelector(step.target);
     // Open dropdown <details> if the step is for a details section
@@ -5232,95 +5440,64 @@ function startOnboardingWalkthrough() {
       return;
     }
 
+    // Scroll target into view unless it's the intro body step
+    if (!step.isIntro && step.target !== 'body') {
+      try {
+        target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      } catch (e) {}
+    }
+
     // Default: draw highlight and popup immediately
     drawHighlight(target, step, stepIdx);
     drawPopup(target, step, stepIdx);
   }
 
-  function showChoiceScreen() {
-    // Create overlay
-    overlay = document.createElement('div');
-    overlay.style.position = 'fixed';
-    overlay.style.top = '0';
-    overlay.style.left = '0';
-    overlay.style.width = '100vw';
-    overlay.style.height = '100vh';
-    overlay.style.background = 'rgba(0,0,0,0.8)';
-    overlay.style.zIndex = '20000';
-    overlay.style.display = 'flex';
-    overlay.style.justifyContent = 'center';
-    overlay.style.alignItems = 'center';
-    document.body.appendChild(overlay);
+  // ---- Exit-anytime + resize safety helpers ----
+  function clamp(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+  }
 
-    // Create choice container
-    const choiceContainer = document.createElement('div');
-    choiceContainer.style.background = '#fff';
-    choiceContainer.style.borderRadius = '12px';
-    choiceContainer.style.padding = '40px';
-    choiceContainer.style.maxWidth = '900px';
-    choiceContainer.style.width = '90%';
-    choiceContainer.style.textAlign = 'center';
-    choiceContainer.style.boxShadow = '0 8px 32px rgba(0,0,0,0.3)';
-    choiceContainer.style.fontFamily = "'Franklin Gothic Book', 'Franklin Gothic', 'Arial Narrow', Arial, sans-serif";
+  function positionPopup(target, step) {
+    if (!popup) return;
+    const margin = 12;
 
-    // Title
-    const title = document.createElement('h2');
-    title.textContent = 'Choose Your Path';
-    title.style.color = '#007cbf';
-    title.style.marginBottom = '30px';
-    title.style.fontSize = '28px';
-    title.style.fontWeight = 'bold';
-    choiceContainer.appendChild(title);
+    // Ensure popup stays inside viewport even on small screens
+    popup.style.maxHeight = `calc(100vh - ${margin * 2}px)`;
+    popup.style.overflowY = 'auto';
 
-    // Subtitle
-    const subtitle = document.createElement('p');
-    subtitle.textContent = 'Now that you\'ve seen the main features, choose how you\'d like to start using the tool.';
-    subtitle.style.color = '#666';
-    subtitle.style.marginBottom = '40px';
-    subtitle.style.fontSize = '18px';
-    choiceContainer.appendChild(subtitle);
+    // Measure after DOM append
+    const popupRect = popup.getBoundingClientRect();
+    const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
 
-    // Buttons container
-    const buttonsContainer = document.createElement('div');
-    buttonsContainer.style.display = 'flex';
-    buttonsContainer.style.gap = '20px';
-    buttonsContainer.style.justifyContent = 'center';
-    buttonsContainer.style.flexWrap = 'nowrap';
-    buttonsContainer.style.alignItems = 'stretch';
+    // Default desired position
+    let desiredLeft = margin;
+    let desiredTop = margin;
 
-    // Button 1: School Decision Evaluation
-    const btn1 = createChoiceButton(
-      '🏫',
-      'Start the School Decision Evaluation',
-      'Begin by evaluating schools using the decision criteria sliders',
-      '#007cbf',
-      () => setupSchoolDecisionEvaluation()
-    );
+    if (step.isIntro || step.target === 'body') {
+      desiredLeft = (vw - popupRect.width) / 2;
+      desiredTop = Math.max(margin, Math.round(vh * 0.18));
+    } else {
+      const rect = target.getBoundingClientRect();
 
-    // Button 2: Scenario Modeling
-    const btn2 = createChoiceButton(
-      '📊',
-      'Go Directly into Scenario Modeling',
-      'Jump straight into testing different portfolio decisions',
-      '#27ae60',
-      () => setupScenarioModeling()
-    );
+      // Prefer right of target
+      desiredLeft = rect.right + 20;
+      desiredTop = rect.top;
 
-    // Button 3: Choose Own Path
-    const btn3 = createChoiceButton(
-      '🗺️',
-      'Choose My Own Path',
-      'Start with a clean slate and explore at your own pace',
-      '#9b59b6',
-      () => setupOwnPath()
-    );
+      // If right would overflow, try left of target
+      if (desiredLeft + popupRect.width + margin > vw) {
+        desiredLeft = rect.left - popupRect.width - 20;
+      }
 
-    buttonsContainer.appendChild(btn1);
-    buttonsContainer.appendChild(btn2);
-    buttonsContainer.appendChild(btn3);
-    choiceContainer.appendChild(buttonsContainer);
+      // If still overflow (or target is near edges), clamp
+      desiredLeft = clamp(desiredLeft, margin, Math.max(margin, vw - popupRect.width - margin));
+      desiredTop = clamp(desiredTop, margin, Math.max(margin, vh - popupRect.height - margin));
+    }
 
-    overlay.appendChild(choiceContainer);
+    popup.style.left = `${desiredLeft}px`;
+    popup.style.top = `${desiredTop}px`;
+    popup.style.right = '';
+    popup.style.transform = '';
   }
 
   function createChoiceButton(icon, title, description, color, onClick) {
@@ -5642,7 +5819,8 @@ function startOnboardingWalkthrough() {
     overlay.style.height = '100vh';
     overlay.style.background = 'rgba(0,0,0,0.1)';
     overlay.style.zIndex = '20000';
-    overlay.style.pointerEvents = 'auto';
+    // IMPORTANT: allow user to interact with the app during the tour (hamburger menu, panels, sliders, etc.)
+    overlay.style.pointerEvents = 'none';
     document.body.appendChild(overlay);
 
     // Highlight target (skip for intro step)
@@ -5711,34 +5889,8 @@ function startOnboardingWalkthrough() {
     // Create popup
     popup = document.createElement('div');
     popup.style.position = 'fixed';
-    if (step.isIntro) {
-      popup.style.left = '50%';
-      popup.style.top = '20%';
-      popup.style.transform = 'translate(-50%, 0)';
-    } else if (step.target === '#decision-output-panel' || step.target === '#scenario-output-panel') {
-      // Position to the left of the panel, with a larger gap
-      const rect = target.getBoundingClientRect();
-      const popupWidth = 340;
-      const gap = 100; // Consistent gap for both panels
-      popup.style.left = (rect.left - popupWidth - gap > 20 ? rect.left - popupWidth - gap : 20) + 'px';
-      popup.style.top = rect.top + 'px';
-      popup.style.right = '';
-      popup.style.transform = '';
-    } else if (step.target === '#map-sidebar') {
-      // Always position to the left of the sidebar for the Results Sidebar step
-      const rect = target.getBoundingClientRect();
-      const popupWidth = 340;
-      const gap = 100;
-      popup.style.left = (rect.left - popupWidth - gap > 20 ? rect.left - popupWidth - gap : 20) + 'px';
-      popup.style.top = rect.top + 'px';
-      popup.style.right = '';
-      popup.style.transform = '';
-    } else {
-      const rect = target.getBoundingClientRect();
-      popup.style.left = (rect.left + rect.width + 20) + 'px';
-      popup.style.top = rect.top + 'px';
-      popup.style.transform = '';
-    }
+    popup.style.left = '12px';
+    popup.style.top = '12px';
     popup.style.background = '#fff';
     popup.style.color = '#222';
     popup.style.border = '2px solid #007cbf';
@@ -5750,6 +5902,26 @@ function startOnboardingWalkthrough() {
     popup.style.fontSize = '16px';
     popup.style.fontFamily = "'Franklin Gothic Book', 'Franklin Gothic', 'Arial Narrow', Arial, sans-serif";
     popup.innerHTML = `<h3 style='margin-top:0;color:#007cbf;'>${step.title}</h3><p>${step.text}</p>`;
+
+    // Prevent overlay click from closing when interacting with popup
+    popup.addEventListener('click', (e) => e.stopPropagation());
+
+    // Exit any time: close (×)
+    const closeBtn = document.createElement('button');
+    closeBtn.setAttribute('aria-label', 'Close tour');
+    closeBtn.textContent = '×';
+    closeBtn.style.position = 'absolute';
+    closeBtn.style.top = '8px';
+    closeBtn.style.right = '10px';
+    closeBtn.style.border = 'none';
+    closeBtn.style.background = 'transparent';
+    closeBtn.style.cursor = 'pointer';
+    closeBtn.style.fontSize = '22px';
+    closeBtn.style.lineHeight = '1';
+    closeBtn.style.color = '#007cbf';
+    closeBtn.onclick = endWalkthrough;
+    popup.appendChild(closeBtn);
+
     // Next/Close/Skip button(s)
     if (step.isIntro) {
       // Skip button
@@ -5799,6 +5971,22 @@ function startOnboardingWalkthrough() {
         backBtn.onclick = previousStep;
         popup.appendChild(backBtn);
       }
+
+      // End tour button (always available)
+      const endBtn = document.createElement('button');
+      endBtn.textContent = 'End Tour';
+      endBtn.style.marginTop = '18px';
+      endBtn.style.background = '#e74c3c';
+      endBtn.style.color = '#fff';
+      endBtn.style.border = 'none';
+      endBtn.style.borderRadius = '4px';
+      endBtn.style.padding = '8px 20px';
+      endBtn.style.fontSize = '16px';
+      endBtn.style.fontFamily = "'Franklin Gothic Book', 'Franklin Gothic', 'Arial Narrow', Arial, sans-serif";
+      endBtn.style.cursor = 'pointer';
+      endBtn.style.marginRight = '12px';
+      endBtn.onclick = endWalkthrough;
+      popup.appendChild(endBtn);
       
       const btn = document.createElement('button');
       btn.textContent = (stepIdx === steps.length - 1) ? 'Finish' : 'Next';
@@ -5821,6 +6009,8 @@ function startOnboardingWalkthrough() {
       popup.appendChild(btn);
     }
     document.body.appendChild(popup);
+    // After append, clamp to viewport (prevents falling outside the window)
+    positionPopup(target, step);
   }
 
   function nextStep() {
@@ -5874,9 +6064,22 @@ function startOnboardingWalkthrough() {
   function endWalkthrough() {
     if (overlay) overlay.remove();
     if (popup) popup.remove();
+
+    // Remove listeners
+    if (keyHandler) {
+      document.removeEventListener('keydown', keyHandler, true);
+      keyHandler = null;
+    }
+    if (resizeHandler) {
+      window.removeEventListener('resize', resizeHandler);
+      resizeHandler = null;
+    }
     
     // Only close panels if we're not setting up a specific path
     if (!isSettingUpPath) {
+      // Close hamburger menu (if open)
+      closeMenu();
+
       // Close all dropdown sections
       const panels = [
         document.getElementById('decision-input-panel'),
@@ -5885,6 +6088,9 @@ function startOnboardingWalkthrough() {
         document.getElementById('scenario-output-panel')
       ];
       panels.forEach(panel => { if (panel && panel.open) panel.open = false; });
+
+      // Collapse both sidebars back to the default "everything collapsed" state
+      setSidebarVisibility({ left: false, right: false });
       
       // Switch to map view if currently on flowchart (only when not setting up a path)
       const mapBtn = document.getElementById('toggleMapFlowchartMap');
@@ -5898,6 +6104,28 @@ function startOnboardingWalkthrough() {
       }, 1000);
     }
   }
+
+  // Exit any time: Esc
+  keyHandler = (e) => {
+    if (e && e.key === 'Escape') {
+      e.preventDefault();
+      endWalkthrough();
+    }
+  };
+  document.addEventListener('keydown', keyHandler, true);
+
+  // Keep the popup inside the viewport on resize
+  resizeHandler = () => {
+    try {
+      const step = steps[currentStep];
+      const target = document.querySelector(step?.target || 'body');
+      if (popup && target && step) positionPopup(target, step);
+    } catch (e) {}
+  };
+  window.addEventListener('resize', resizeHandler);
+
+  // Expose cleanup so a new tour run can safely terminate the previous one
+  window.__onboardingTourCleanup = endWalkthrough;
 
   showStep(currentStep);
 }

@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Jeffco Dashboard - Data & Logic</title>
+    <title>School Facility Planning Tool | Data &amp; Logic</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
     <!-- Updated: EducationalAdequacy OR logic with DepartmentalDeficiency in Flow 3 -->
     <!-- CACHE BUST: 2024-01-15-tab-fix-v2 -->
@@ -18,10 +18,10 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            font-family: 'Franklin Gothic Book', 'Franklin Gothic', 'Arial Narrow', Arial, sans-serif;
             line-height: 1.5;
             color: #1a1a1a;
-            background-color: #ffffff;
+            background-color: #f9fafb;
             font-size: 16px;
             font-weight: 400;
         }
@@ -32,48 +32,104 @@
             padding: 0 24px;
         }
 
-        .header {
-            background: #1a1a1a;
-            color: white;
-            padding: 24px 0;
-            margin-bottom: 24px;
-            text-align: left;
+        :root {
+            --accent: #007cbf;
+            --surface: #ffffff;
+            --border: #e5e7eb;
+            --text: #111827;
+            --muted: #6b7280;
+            --brand-bar-height: 52px;
         }
 
-        .header h1 {
-            font-size: 28px;
+        /* Top brand bar (match dashboard) */
+        #top-brand-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: var(--brand-bar-height);
+            background: #f9fafb;
+            border-bottom: 1px solid var(--border);
+            z-index: 2005;
+            display: flex;
+            align-items: center;
+        }
+        #top-brand-bar .brand-inner {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            width: 100%;
+            box-sizing: border-box;
+            justify-content: flex-start;
+        }
+        #top-brand-bar .brand-label {
+            font-size: 12px;
             font-weight: 600;
-            line-height: 1.2;
-            margin-bottom: 8px;
-            letter-spacing: -0.01em;
+            color: #111827;
+            white-space: nowrap;
+        }
+        #top-brand-bar .brand-title {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            font-size: 18px;
+            font-weight: 700;
+            color: #111827;
+            margin: 0;
+            pointer-events: none;
+            width: 100%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 0 160px; /* leave room for back button on right */
+            box-sizing: border-box;
+        }
+        #top-brand-bar img {
+            height: 26px;
+            width: auto;
+            object-fit: contain;
+        }
+        #top-brand-bar .client-logo {
+            height: 26px;
+            width: auto;
+            max-width: 120px;
+            display: block;
+        }
+        #top-brand-bar .pe-logo {
+            height: 26px;
+            width: auto;
+            max-width: 160px; /* prevent SVG from blowing out layout */
+            display: block;
         }
 
-        .header p {
-            font-size: 16px;
-            font-weight: 400;
-            color: #cccccc;
-            line-height: 1.4;
-        }
-
-        .back-button {
+        .top-back-button {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
             display: inline-flex;
             align-items: center;
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            padding: 8px 16px;
+            background: #fff;
+            color: #111827;
+            padding: 8px 12px;
             text-decoration: none;
-            border-radius: 6px;
-            margin-bottom: 16px;
-            transition: all 0.2s ease;
-            font-size: 14px;
-            font-weight: 500;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            transition: background 0.2s ease;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1px solid #d1d5db;
+            cursor: pointer;
+            z-index: 2006;
         }
+        .top-back-button:hover { background: #f3f4f6; }
 
-        .back-button:hover {
-            background: rgba(255, 255, 255, 0.2);
-            border-color: rgba(255, 255, 255, 0.3);
-        }
+        /* Page layout below fixed top bar */
+        body { padding-top: var(--brand-bar-height); }
+
+        /* Legacy header styles removed (now using #top-brand-bar) */
 
         /* Tab Styles */
         .tab-container {
@@ -86,20 +142,21 @@
 
         .tab-buttons {
             display: flex;
-            background: #f8f9fa;
-            border-bottom: 1px solid #e1e5e9;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
             overflow-x: auto;
             padding: 0;
+            gap: 4px;
         }
 
         .tab-button {
             background: none;
             border: none;
-            padding: 16px 24px;
+            padding: 12px 14px;
             cursor: pointer;
-            font-size: 16px;
-            font-weight: 500;
-            color: #6c757d;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--muted);
             transition: all 0.2s ease;
             white-space: nowrap;
             border-bottom: 2px solid transparent;
@@ -107,19 +164,22 @@
         }
 
         .tab-button:hover {
-            background: rgba(0, 0, 0, 0.04);
-            color: #1a1a1a;
+            background: #f3f4f6;
+            color: var(--text);
         }
 
         .tab-button.active {
-            background: white;
-            color: #1a1a1a;
-            border-bottom-color: #1a1a1a;
+            background: #fff;
+            color: var(--accent);
+            border-bottom-color: var(--accent);
         }
+
+        /* Data Sources should be the right-most tab, but not separated by a huge gap */
+        .tab-button.data-sources { margin-left: 0; }
 
         .tab-content {
             display: none;
-            padding: 48px 0;
+            padding: 28px 0;
             min-height: auto;
         }
 
@@ -130,20 +190,20 @@
         }
 
         h2 {
-            font-size: 32px;
-            font-weight: 700;
+            font-size: 26px;
+            font-weight: 800;
             line-height: 1.2;
             margin-bottom: 24px;
-            color: #1a1a1a;
+            color: var(--text);
             letter-spacing: -0.01em;
         }
 
         h3 {
-            font-size: 24px;
-            font-weight: 600;
+            font-size: 18px;
+            font-weight: 800;
             line-height: 1.3;
             margin: 32px 0 16px 0;
-            color: #1a1a1a;
+            color: var(--text);
         }
 
         h4 {
@@ -158,7 +218,7 @@
             font-size: 16px;
             line-height: 1.6;
             margin-bottom: 16px;
-            color: #4a4a4a;
+            color: #374151;
         }
 
         ul, ol {
@@ -176,7 +236,7 @@
             width: 100%;
             border-collapse: collapse;
             margin: 32px 0;
-            background: white;
+            background: var(--surface);
             font-size: 14px;
         }
 
@@ -190,28 +250,81 @@
         }
 
         .data-table th {
-            background: #f8f9fa;
+            background: #f3f4f6;
             font-weight: 600;
-            color: #1a1a1a;
+            color: var(--text);
             font-size: 13px;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
 
         .data-table tr:hover {
-            background: #f8f9fa;
+            background: #f9fafb;
         }
 
         .data-table tr:last-child td {
             border-bottom: none;
         }
 
-        .flow-step {
+        /* Dropdown + "needs confirmation" highlight */
+        .control-row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin: 16px 0;
+        }
+        .control-row label {
+            font-size: 14px;
+            color: #1a1a1a;
+            font-weight: 500;
+        }
+        select.data-select {
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            min-width: 320px;
+            max-width: 100%;
+            background: #fff;
+        }
+        .meta-box {
             background: #f8f9fa;
-            border-left: 3px solid #1a1a1a;
+            border: 1px solid #e1e5e9;
+            border-radius: 10px;
+            padding: 14px;
+            margin: 14px 0;
+        }
+        .meta-box strong { color: #111; }
+        .needs-confirmation {
+            color: #b91c1c;
+            font-weight: 700;
+        }
+        .needs-confirmation-box {
+            background: #fff1f2;
+            border: 1px solid #fecdd3;
+            border-left: 4px solid #b91c1c;
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin: 12px 0;
+        }
+        .code-chip {
+            display: inline-block;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 12px;
+            background: #111827;
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 6px;
+        }
+
+        .flow-step {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--accent);
             padding: 24px;
             margin: 24px 0;
-            border-radius: 0;
+            border-radius: 10px;
         }
 
         .decision-category {
@@ -242,10 +355,10 @@
         }
 
         .card {
-            background: #f8f9fa;
-            border: 1px solid #e1e5e9;
+            background: #fff;
+            border: 1px solid var(--border);
             padding: 24px;
-            border-radius: 6px;
+            border-radius: 10px;
         }
 
         .emoji {
@@ -312,21 +425,26 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <a href="index.html" class="back-button">← Back to Dashboard</a>
-            <h1>📊 Jeffco Dashboard Data & Logic</h1>
-            <p>Comprehensive view of all data sources, calculations, and decision logic</p>
+    <div id="top-brand-bar">
+        <div class="brand-inner">
+            <span class="brand-label">Developed for</span>
+            <img src="client-logo.png" alt="Client Logo" class="client-logo">
+            <span class="brand-label">by</span>
+            <img src="PerkinsEastmanLogo.svg" alt="Perkins Eastman Logo" class="pe-logo">
+            <span class="brand-title">School Facility Planning Tool | Data &amp; Logic</span>
+            <a href="index.html" class="top-back-button">Back to Dashboard</a>
         </div>
+    </div>
+
+    <div class="container">
 
         <div class="tab-container">
             <div class="tab-buttons">
-                <button class="tab-button active" onclick="showTab('overview')">📋 Dashboard Overview</button>
-                <button class="tab-button" onclick="showTab('decision-data')">📊 Decision Data Export.csv</button>
-                <button class="tab-button" onclick="showTab('map-data')">🗺️ Schools.geojson</button>
-                <button class="tab-button" onclick="showTab('decision-logic')">🔧 Decision Logic Flow</button>
-                <button class="tab-button" onclick="showTab('flowchart-logic')">📊 Flowchart Logic</button>
-                <button class="tab-button" onclick="showTab('formulas')">🧮 Formulas & Calculations</button>
+                <button class="tab-button active" onclick="showTab('overview')">Dashboard Overview</button>
+                <button class="tab-button" onclick="showTab('decision-logic')">Decision Logic</button>
+                <button class="tab-button" onclick="showTab('flowchart-logic')">Flowchart Logic</button>
+                <button class="tab-button" onclick="showTab('formulas')">Formulas</button>
+                <button class="tab-button data-sources" onclick="showTab('data-sources')">Data Sources</button>
             </div>
 
             <!-- Dashboard Overview Tab -->
@@ -409,6 +527,31 @@
                         Schools to be closed and replaced
                     </div>
                 </div>
+            </div>
+
+            <!-- Data Sources Tab (dropdown-driven) -->
+            <div id="data-sources" class="tab-content">
+                <h2>📁 Data Sources</h2>
+                <p>Select a dataset below to view a preview of the raw data the dashboard uses.</p>
+
+                <div class="control-row">
+                    <label for="dataSourceSelect"><strong>Dataset</strong></label>
+                    <select id="dataSourceSelect" class="data-select"></select>
+                    <button id="dataSourceDownloadBtn" type="button" style="padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;background:#fff;color:#111827;font-weight:700;font-size:13px;cursor:pointer;">
+                        Download file
+                    </button>
+                </div>
+
+                <div class="control-row" id="dataSourceCsvFilters" style="display:none;">
+                    <label style="display:flex;align-items:center;gap:8px;">
+                        <input type="checkbox" id="dataSourceFilterIncludeFlowChart" checked>
+                        Match default dashboard view (exclude non-eval schools where <span class="code-chip">Include_Flow_Chart = No</span>)
+                    </label>
+                </div>
+
+                <div id="dataSourceMeta" class="meta-box"></div>
+                <div id="dataSourceNeedsConfirmation" class="needs-confirmation-box" style="display:none;"></div>
+                <div id="dataSourcePreview"></div>
             </div>
 
             <!-- Decision Data Export Tab -->
@@ -3141,90 +3284,27 @@
             <!-- Formulas & Calculations Tab -->
             <div id="formulas" class="tab-content">
                 <h2>🧮 Formulas & Calculations</h2>
-                <p>Detailed explanations of all calculations and thresholds used in the decision logic.</p>
+                <p>Select a topic to see how the dashboard calculates decisions and scores. Anything not confidently derived from the code/data is flagged in <span class="needs-confirmation">red</span>.</p>
 
-                <h3>🗺️ Utilization Rate</h3>
-                <div class="formula-box">
-                    Utilization = Current Enrollment / Capacity
+                <div class="control-row">
+                    <label for="calcTopicSelect"><strong>Topic</strong></label>
+                    <select id="calcTopicSelect" class="data-select">
+                        <option value="step1">Step 1: Strategic Sorting (Decision Logic)</option>
+                        <option value="step2">Step 2: Prioritization (Weights + Scoring)</option>
+                        <option value="step2-display">Step 2: Table Display (Values vs Scores)</option>
+                        <option value="flowchart">Flowchart Display Logic</option>
+                    </select>
                 </div>
-                <p><strong>Threshold:</strong> 60% (default)<br>
-                <strong>High Utilization Threshold:</strong> 100% (default)<br>
-                <strong>Purpose:</strong> Identifies underutilized and overcrowded schools</p>
 
-                <h3>📊 Enrollment Growth (2014-2024)</h3>
-                <div class="formula-box">
-                    Growth Rate = (2024 Enrollment - 2014 Enrollment) / 2014 Enrollment
-                </div>
-                <p><strong>Threshold:</strong> 0% (default)<br>
-                <strong>Purpose:</strong> Identifies schools with declining enrollment trends</p>
-
-                <h3>??????? Building Quality Score</h3>
-                <div class="formula-box">
-                    Lower scores = Better building condition
-                </div>
-                <p><strong>Threshold:</strong> 5 (1-10 scale, default)<br>
-                <strong>Purpose:</strong> Identifies schools needing facility improvements (lower scores = better condition)</p>
-
-                <h3>🎯 Enrollment Threshold (Decision Data)</h3>
-                <div class="formula-box">
-                    Enrollment compared to level-based thresholds (from Decision Data Export enrollment)
-                </div>
-                <p><strong>Defaults (level-based):</strong> Elem 220, K-8 360, Middle 500, High 700, 6-12 600 students<br>
-                <strong>Purpose:</strong> Drives Flow 1 underutilization checks using each school's enrollment</p>
-
-                <h3>🗺️ Educational Adequacy</h3>
-                <div class="formula-box">
-                    <strong>Flows 2 & 4:</strong> Count of academic and extracurricular programs<br>
-                    <strong>Flow 3:</strong> Bottom 50% EA (score &lt; 3) OR safety/security issues in DepartmentalDeficiency
-                </div>
-                <p><strong>Threshold:</strong> 2 programs (default) for Flows 2 & 4<br>
-                <strong>Flow 3 Logic:</strong> OR function - either bottom 50% EA or safety/security issues<br>
-                <strong>Purpose:</strong> Identifies schools needing program enhancements or safety improvements</p>
-
-                <h3>?? Adjustable Parameters</h3>
-                <p>All thresholds can be adjusted using the sliders in the dashboard:</p>
-                <ul>
-                    <li><strong>Enrollment Thresholds by School Level:</strong>
-                        <ul>
-                            <li>Elementary School: 100-500 students (default: 220)</li>
-                            <li>K-8 School: 200-600 students (default: 360)</li>
-                            <li>Middle School: 300-800 students (default: 500)</li>
-                            <li>High School: 400-1200 students (default: 700)</li>
-                            <li>6-12 School: 300-1000 students (default: 600)</li>
-                        </ul>
-                    </li>
-                    <li><strong>Utilization Threshold:</strong> 0-100% (default: 60%)</li>
-                    <li><strong>High Utilization Threshold:</strong> 0-120% (default: 100%)</li>
-                    <li><strong>Enrollment Growth Threshold:</strong> -50% to +50% (default: 0%)</li>
-                    <li><strong>Distance Threshold:</strong> 0-5 miles (default: 3.5)</li>
-                    <li><strong>Composite Building Score:</strong> 1-10 scale (default: 5)</li>
-                    <li><strong>Educational Adequacy Minimum:</strong> 0-10 programs (default: 2)</li>
-                    <li><strong>Recent Investment Threshold:</strong> 0-20 years (default: 5)</li>
-                    <li><strong>Distance to Welcoming Schools (by school level):</strong>
-                        <ul>
-                            <li>Elementary School: 1-10 miles (default: 4.0)</li>
-                            <li>K-8 School: 1-10 miles (default: 6.0)</li>
-                            <li>Middle School: 1-10 miles (default: 6.0)</li>
-                            <li>High School: 1-10 miles (default: 6.0)</li>
-                            <li>6-12 School: 1-10 miles (default: 6.0)</li>
-                        </ul>
-                    </li>
-                </ul>
-
-                <h3>🎯 Flow-based Filtering</h3>
-                <p>The dashboard includes flow-based filtering that groups decision types into logical categories:</p>
-                <ul>
-                    <li><strong>Expansion:</strong> Building Addition, Building Replacement, Building Addition with Capital Investment</li>
-                    <li><strong>Maintenance/Investment:</strong> Targeted Capital Investment, Standard Maintenance, Major Capital Investment</li>
-                    <li><strong>Closure/Consolidation:</strong> Welcoming School, Welcoming School with Capital Investment, Closure (Goes to Welcoming School), Welcoming School with Building Replacement</li>
-                    <li><strong>Other:</strong> Policy Solution for Overcrowding, Other / Unknown</li>
-                </ul>
+                <div id="calcTopicContent"></div>
             </div>
         </div>
     </div>
 
     <script>
         let csvData = null;
+        let dataSourcesInitialized = false;
+        const dataCache = new Map(); // key -> parsed {type, headers, rows, raw, ...}
 
         function showTab(tabName) {
             // Hide all tab contents - FORCE hide them
@@ -3252,9 +3332,13 @@
                 targetTab.style.visibility = 'visible';
                 targetTab.style.opacity = '1';
                 
-                // Load CSV data if needed
-                if (tabName === 'decision-data' && !csvData) {
-                    loadCSVData();
+                // Initialize data sources dropdown
+                if (tabName === 'data-sources') {
+                    initDataSourcesTab();
+                }
+                // Initialize formulas dropdown content
+                if (tabName === 'formulas') {
+                    initFormulasTab();
                 }
             }
 
@@ -3327,6 +3411,375 @@
             html += `<p><strong>Total rows:</strong> ${csvData.length}</p>`;
             
             container.innerHTML = html;
+        }
+
+        // -----------------------------
+        // Data Sources (dropdown)
+        // -----------------------------
+        const DATA_SOURCES = [
+            {
+                key: 'decision_export',
+                label: 'Decision Data Export.csv',
+                url: 'Decision Data Export.csv',
+                type: 'csv',
+                usedBy: 'Step 1 evaluation + Step 2 prioritization + map popups',
+                notes: []
+            },
+            {
+                key: 'map_export',
+                label: 'Map_Export.csv',
+                url: 'Map_Export.csv',
+                type: 'csv',
+                usedBy: 'Map enrichment (Building Code/UniqueID fill, capacity/seats, include/closed status)',
+                notes: []
+            },
+            {
+                key: 'schools_geojson',
+                label: 'Schools.geojson',
+                url: 'Schools.geojson',
+                type: 'geojson',
+                usedBy: 'Map geometry (school points) and base properties',
+                notes: []
+            },
+            {
+                key: 'distances',
+                label: 'SchooltoSchoolDistances.csv',
+                url: 'SchooltoSchoolDistances.csv',
+                type: 'csv',
+                usedBy: '“School Matches” / distance lookups when comparing selected schools',
+                notes: [
+                    { type: 'confirm', text: 'Confirm which UI panels consume this file (map clicks vs “School Matches” section), and whether the file is symmetric or directional.' }
+                ]
+            },
+            {
+                key: 'od_remote',
+                label: 'OD_Draft.csv (used by dashboard – remote)',
+                url: 'https://raw.githubusercontent.com/DWieberdink/JeffCo/main/OD_Draft.csv',
+                type: 'csv',
+                usedBy: 'Scenario/model simulation (OD matrix)',
+                notes: [
+                    { type: 'confirm', text: 'The dashboard currently downloads OD_Draft.csv from GitHub. Confirm this is the intended source for production.' }
+                ]
+            },
+            {
+                key: 'od_local',
+                label: 'OD_Draft.csv (local file)',
+                url: 'OD_Draft.csv',
+                type: 'csv',
+                usedBy: 'Not used by the dashboard by default',
+                notes: [
+                    { type: 'confirm', text: 'A local OD_Draft.csv exists in this folder but the dashboard uses the remote URL. Confirm whether the local file should be used instead.' }
+                ]
+            }
+        ];
+
+        function initDataSourcesTab() {
+            if (dataSourcesInitialized) return;
+            dataSourcesInitialized = true;
+
+            const select = document.getElementById('dataSourceSelect');
+            if (!select) return;
+
+            select.innerHTML = '';
+            DATA_SOURCES.forEach(ds => {
+                const opt = document.createElement('option');
+                opt.value = ds.key;
+                opt.textContent = ds.label;
+                select.appendChild(opt);
+            });
+
+            const filterCb = document.getElementById('dataSourceFilterIncludeFlowChart');
+            const filterWrap = document.getElementById('dataSourceCsvFilters');
+            const downloadBtn = document.getElementById('dataSourceDownloadBtn');
+
+            const refresh = () => {
+                const key = select.value;
+                const ds = DATA_SOURCES.find(d => d.key === key);
+                if (!ds) return;
+                if (filterWrap) filterWrap.style.display = ds.type === 'csv' ? 'flex' : 'none';
+                if (downloadBtn) {
+                    downloadBtn.disabled = false;
+                    downloadBtn.textContent = ds.type === 'csv' ? 'Download CSV' : (ds.type === 'geojson' ? 'Download GeoJSON' : 'Download file');
+                    downloadBtn.onclick = () => downloadDataSource(ds);
+                }
+                loadAndRenderDataSource(ds);
+            };
+
+            select.addEventListener('change', refresh);
+            if (filterCb) filterCb.addEventListener('change', refresh);
+
+            // initial render
+            refresh();
+        }
+
+        async function downloadDataSource(ds) {
+            try {
+                // For same-origin files this could be a plain link, but using fetch+blob
+                // works for both local files and remote URLs consistently.
+                const res = await fetch(ds.url, { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const blob = await res.blob();
+                const a = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                a.href = url;
+                a.download = inferFilename(ds.url);
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                alert('Download failed: ' + (e.message || String(e)));
+            }
+        }
+
+        function inferFilename(url) {
+            try {
+                const u = String(url || '');
+                const last = u.split('/').pop() || 'download';
+                return decodeURIComponent(last.split('?')[0] || last);
+            } catch (e) {
+                return 'download';
+            }
+        }
+
+        async function loadAndRenderDataSource(ds) {
+            const metaEl = document.getElementById('dataSourceMeta');
+            const previewEl = document.getElementById('dataSourcePreview');
+            const needsEl = document.getElementById('dataSourceNeedsConfirmation');
+            const filterCb = document.getElementById('dataSourceFilterIncludeFlowChart');
+
+            if (metaEl) {
+                metaEl.innerHTML = `
+                    <div><strong>File:</strong> <span class="code-chip">${escapeHtml(ds.url)}</span></div>
+                    <div style="margin-top:6px;"><strong>Used by:</strong> ${escapeHtml(ds.usedBy || '—')}</div>
+                `;
+            }
+
+            if (needsEl) {
+                const confirmNotes = (ds.notes || []).filter(n => n.type === 'confirm');
+                if (confirmNotes.length) {
+                    needsEl.style.display = 'block';
+                    needsEl.innerHTML = `
+                        <div class="needs-confirmation">Needs confirmation</div>
+                        <ul style="margin:8px 0 0 18px;">
+                          ${confirmNotes.map(n => `<li>${escapeHtml(n.text)}</li>`).join('')}
+                        </ul>
+                    `;
+                } else {
+                    needsEl.style.display = 'none';
+                    needsEl.innerHTML = '';
+                }
+            }
+
+            if (previewEl) {
+                previewEl.innerHTML = '<p>Loading…</p>';
+            }
+
+            try {
+                const cached = dataCache.get(ds.key);
+                let parsed = cached;
+
+                if (!parsed) {
+                    const res = await fetch(ds.url, { cache: 'no-store' });
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    if (ds.type === 'geojson') {
+                        const json = await res.json();
+                        parsed = { type: 'geojson', json };
+                    } else {
+                        const text = await res.text();
+                        parsed = { type: 'csv', text };
+                    }
+                    dataCache.set(ds.key, parsed);
+                }
+
+                if (ds.type === 'geojson') {
+                    renderGeoJsonPreview(parsed.json, previewEl);
+                } else {
+                    const matchDashboard = !!(filterCb && filterCb.checked);
+                    renderCsvPreview(parsed.text, previewEl, { matchDashboard });
+                }
+            } catch (e) {
+                if (previewEl) {
+                    previewEl.innerHTML = `<p style="color:red;">Error loading dataset: ${escapeHtml(e.message || String(e))}</p>`;
+                }
+            }
+        }
+
+        // Basic CSV parser for preview (handles quoted commas; not multiline quoted fields)
+        function parseCsvLine(line) {
+            const out = [];
+            let cur = '';
+            let inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                const ch = line[i];
+                if (ch === '"') {
+                    if (inQuotes && line[i + 1] === '"') {
+                        cur += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (ch === ',' && !inQuotes) {
+                    out.push(cur);
+                    cur = '';
+                } else {
+                    cur += ch;
+                }
+            }
+            out.push(cur);
+            return out;
+        }
+
+        function renderCsvPreview(csvText, container, options) {
+            if (!container) return;
+            const lines = csvText.split(/\r?\n/).filter(l => l.trim() !== '');
+            if (!lines.length) {
+                container.innerHTML = '<p>No data.</p>';
+                return;
+            }
+            const headers = parseCsvLine(lines[0]).map(h => h.trim());
+            const totalRows = Math.max(0, lines.length - 1);
+
+            // Optional filter to match dashboard default view (exclude Include_Flow_Chart = No)
+            const matchDashboard = !!(options && options.matchDashboard);
+            const canFilter = matchDashboard && headers.includes('Include_Flow_Chart');
+
+            // Render skeleton; fill rows incrementally so large files don’t lock the UI
+            container.innerHTML = `
+                <h3>All rows</h3>
+                <p><strong>Total rows:</strong> ${totalRows}${canFilter ? ' (filter applied)' : ''}</p>
+                <div id="csvRenderStatus" style="font-size:12px;color:#6b7280;margin:6px 0 10px 0;"></div>
+                <div style="overflow-x:auto;">
+                  <table class="data-table" style="font-size:12px;">
+                    <thead><tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
+                    <tbody id="csvAllRowsBody"></tbody>
+                  </table>
+                </div>
+            `;
+
+            const tbody = container.querySelector('#csvAllRowsBody');
+            const status = container.querySelector('#csvRenderStatus');
+            if (!tbody) return;
+
+            let rendered = 0;
+            const chunkSize = 200;
+
+            const shouldIncludeRow = (rowObj) => {
+                if (!canFilter) return true;
+                const v = (rowObj['Include_Flow_Chart'] || '').toString().trim().toLowerCase();
+                return v !== 'no';
+            };
+
+            const renderChunk = (startIdx) => {
+                const frag = document.createDocumentFragment();
+                const endIdx = Math.min(lines.length, startIdx + chunkSize);
+                for (let i = startIdx; i < endIdx; i++) {
+                    const values = parseCsvLine(lines[i]);
+                    const rowObj = {};
+                    headers.forEach((h, idx) => {
+                        rowObj[h] = values[idx] !== undefined ? values[idx] : '';
+                    });
+                    if (!shouldIncludeRow(rowObj)) continue;
+                    const tr = document.createElement('tr');
+                    headers.forEach((h) => {
+                        const td = document.createElement('td');
+                        td.textContent = rowObj[h] ?? '';
+                        tr.appendChild(td);
+                    });
+                    frag.appendChild(tr);
+                    rendered++;
+                }
+                tbody.appendChild(frag);
+                if (status) status.textContent = `Rendered ${rendered} row(s)…`;
+                if (endIdx < lines.length) {
+                    requestAnimationFrame(() => renderChunk(endIdx));
+                } else {
+                    if (status) status.textContent = `Rendered ${rendered} row(s).`;
+                }
+            };
+
+            requestAnimationFrame(() => renderChunk(1));
+        }
+
+        function renderGeoJsonPreview(json, container) {
+            if (!container) return;
+            const features = (json && json.features) ? json.features : [];
+            const props = features.length ? (features[0].properties || {}) : {};
+            const keys = Object.keys(props);
+            let html = `<h3>All features (raw)</h3>`;
+            html += `<p><strong>Feature count:</strong> ${features.length}</p>`;
+            html += `<p><strong>Property keys (sample):</strong> ${keys.slice(0, 20).map(k => `<span class="code-chip" style="background:#374151;margin-right:6px;">${escapeHtml(k)}</span>`).join('')}</p>`;
+            html += `<div style="border:1px solid #e5e7eb;border-radius:10px;background:#fff;padding:12px;overflow:auto;max-height:70vh;">`;
+            html += `<pre style="margin:0;font-size:12px;line-height:1.4;white-space:pre;">${escapeHtml(JSON.stringify(json, null, 2))}</pre>`;
+            html += `</div>`;
+            container.innerHTML = html;
+        }
+
+        function escapeHtml(str) {
+            return (str == null ? '' : String(str))
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // -----------------------------
+        // Formulas & Calculations dropdown
+        // -----------------------------
+        function initFormulasTab() {
+            const select = document.getElementById('calcTopicSelect');
+            const out = document.getElementById('calcTopicContent');
+            if (!select || !out) return;
+
+            const render = () => {
+                const v = select.value;
+                out.innerHTML = buildCalcTopicHtml(v);
+            };
+            select.addEventListener('change', render);
+            render();
+        }
+
+        function buildCalcTopicHtml(topic) {
+            if (topic === 'step2') {
+                return `
+                  <h3>Step 2: Prioritization (Weights + Scoring)</h3>
+                  <p>Schools are ranked within a selected strategy group using weighted criteria. Each metric is normalized to a 0–100 index over the currently ranked set, then combined using a weighted average.</p>
+                  <div class="formula-box">priorityScore = (Σ (normalizedMetricScore/100 × metricWeight)) / (Σ metricWeight / 100)</div>
+                  <p><strong>Directions:</strong> Some metrics are “reversed” for Closure/Consolidation (e.g. lower enrollment/utilization → higher priority).</p>
+                  <p class="needs-confirmation"><strong>Needs confirmation:</strong> Which Step 2 output(s) are considered “official” for reporting (table only vs exporting) and whether any metrics are intentionally excluded by default.</p>
+                `;
+            }
+            if (topic === 'step2-display') {
+                return `
+                  <h3>Step 2: Table Display (Values vs Scores)</h3>
+                  <p>The Step 2 table has a display toggle:</p>
+                  <ul>
+                    <li><strong>Show values</strong>: shows raw units (%, miles, counts, etc.).</li>
+                    <li><strong>Show scores</strong>: shows the normalized 0–100 metric score used in the weighting (this does not change ranking).</li>
+                  </ul>
+                `;
+            }
+            if (topic === 'flowchart') {
+                return `
+                  <h3>Flowchart Display Logic</h3>
+                  <p>The flowchart is a visualization of the Step 1 decision routing. It displays the currently selected school’s path and shows current threshold values from the sliders.</p>
+                  <div class="needs-confirmation-box">
+                    <div class="needs-confirmation">Needs confirmation</div>
+                    <p style="margin:8px 0 0 0;">If you want the exact boolean expressions per node (e.g., which field compares to which threshold), we should confirm the authoritative source is <span class="code-chip">DecisionLogic.js</span> and then document node-by-node mapping.</p>
+                  </div>
+                `;
+            }
+
+            // default: step1
+            return `
+              <h3>Step 1: Strategic Sorting (Decision Logic)</h3>
+              <p>Each school is evaluated using the Step 1 thresholds (enrollment, utilization, growth, distance, building score, educational adequacy, etc.). The flowchart and the “Results” panel reflect the resulting decision outcome.</p>
+              <div class="needs-confirmation-box">
+                <div class="needs-confirmation">Needs confirmation</div>
+                <p style="margin:8px 0 0 0;">Some labels in historical documentation differ from the current dashboard (e.g., “welcoming schools” wording). If you want this page to be 100% canonical, I will document each Flow 1–4 node directly from <span class="code-chip">DecisionLogic.js</span> with the exact field/threshold comparisons.</p>
+              </div>
+            `;
         }
     </script>
 </body>

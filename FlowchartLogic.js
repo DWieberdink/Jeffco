@@ -7,6 +7,281 @@ let links = [];
 let schoolData = [];
 let mapExportData = null;
 
+// --- Flowchart link hover menu (Cursor-like flyout) ---
+let flowLinkMenuEl = null;
+let flowLinkMenuHideTimer = null;
+let flowLinkMenuPinned = false; // pinned by click/tap (useful on touch devices)
+
+function ensureFlowLinkMenuStyles() {
+  if (document.getElementById('flow-link-menu-style')) return;
+  const style = document.createElement('style');
+  style.id = 'flow-link-menu-style';
+  style.textContent = `
+    .flow-link-menu {
+      position: fixed;
+      z-index: 30000;
+      min-width: 260px;
+      max-width: 340px;
+      background: #fff;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.22);
+      font-family: 'Franklin Gothic Book', 'Franklin Gothic', 'Arial Narrow', Arial, sans-serif;
+      color: #111;
+      overflow: hidden;
+    }
+    .flow-link-menu .flm-header {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e5e7eb;
+      background: #f9fafb;
+      font-weight: 700;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .flow-link-menu .flm-chip {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      background: #fff;
+      white-space: nowrap;
+    }
+    .flow-link-menu .flm-body {
+      padding: 10px 12px;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .flow-link-menu .flm-kv {
+      display: grid;
+      grid-template-columns: 72px 1fr;
+      gap: 6px 10px;
+    }
+    .flow-link-menu .flm-k {
+      color: #6b7280;
+      font-weight: 700;
+    }
+    .flow-link-menu .flm-v {
+      color: #111827;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .flow-link-menu .flm-actions {
+      margin-top: 10px;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .flow-link-menu .flm-item {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      user-select: none;
+      color: #111827;
+    }
+    .flow-link-menu .flm-item:hover {
+      background: #f3f4f6;
+    }
+    .flow-link-menu .flm-item .flm-arrow {
+      color: #6b7280;
+      font-weight: 700;
+    }
+    .flow-link-menu .flm-submenu {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: calc(100% - 6px);
+      min-width: 220px;
+      background: #fff;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.22);
+      padding: 6px;
+      z-index: 30001;
+    }
+    .flow-link-menu .flm-item:hover .flm-submenu {
+      display: block;
+    }
+    .flow-link-menu .flm-subitem {
+      padding: 8px 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      color: #111827;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .flow-link-menu .flm-subitem:hover {
+      background: #f3f4f6;
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function ensureFlowLinkMenuEl() {
+  ensureFlowLinkMenuStyles();
+  if (flowLinkMenuEl) return flowLinkMenuEl;
+  flowLinkMenuEl = document.createElement('div');
+  flowLinkMenuEl.className = 'flow-link-menu';
+  flowLinkMenuEl.style.display = 'none';
+  flowLinkMenuEl.addEventListener('mouseenter', () => {
+    if (flowLinkMenuHideTimer) clearTimeout(flowLinkMenuHideTimer);
+  });
+  flowLinkMenuEl.addEventListener('mouseleave', () => {
+    if (!flowLinkMenuPinned) scheduleHideFlowLinkMenu();
+  });
+  document.body.appendChild(flowLinkMenuEl);
+
+  // Click outside closes (useful for touch)
+  document.addEventListener('mousedown', (e) => {
+    if (!flowLinkMenuEl || flowLinkMenuEl.style.display === 'none') return;
+    if (flowLinkMenuEl.contains(e.target)) return;
+    flowLinkMenuPinned = false;
+    hideFlowLinkMenu();
+  });
+  document.addEventListener('touchstart', (e) => {
+    if (!flowLinkMenuEl || flowLinkMenuEl.style.display === 'none') return;
+    if (flowLinkMenuEl.contains(e.target)) return;
+    flowLinkMenuPinned = false;
+    hideFlowLinkMenu();
+  }, { passive: true });
+
+  return flowLinkMenuEl;
+}
+
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function scheduleHideFlowLinkMenu() {
+  if (flowLinkMenuHideTimer) clearTimeout(flowLinkMenuHideTimer);
+  flowLinkMenuHideTimer = setTimeout(() => {
+    if (!flowLinkMenuPinned) hideFlowLinkMenu();
+  }, 180);
+}
+
+function hideFlowLinkMenu() {
+  if (!flowLinkMenuEl) return;
+  flowLinkMenuEl.style.display = 'none';
+}
+
+function formatNodeTitle(node) {
+  if (!node) return '';
+  return (node.label || node.id || '').toString().replace(/\n/g, ' ').trim();
+}
+
+function getThresholdDisplayForNode(node) {
+  if (!node || !node.thresholdKey) return null;
+  const sliderId = node.thresholdKey;
+  const key = mapSliderKeyToThresholdKey(sliderId);
+  const raw = (window.thresholds && key) ? window.thresholds[key] : undefined;
+  if (raw === undefined || raw === null) return null;
+  return { sliderId, key, value: raw };
+}
+
+function showFlowLinkMenuAt(clientX, clientY, linkDatum) {
+  const el = ensureFlowLinkMenuEl();
+  if (!linkDatum) return;
+
+  const sourceNode = nodes.find(n => n.id === linkDatum.source);
+  const targetNode = nodes.find(n => n.id === linkDatum.target);
+  const label = linkDatum.label || 'Next';
+  const chipColor = label === 'Yes' ? '#28a745' : (label === 'No' ? '#dc3545' : '#6c757d');
+  const thresholdInfo = getThresholdDisplayForNode(sourceNode);
+  const thresholdLine = thresholdInfo
+    ? `${thresholdInfo.sliderId} (${thresholdInfo.key}): ${thresholdInfo.value}`
+    : null;
+
+  // Build menu
+  el.innerHTML = `
+    <div class="flm-header">
+      <div>Link details</div>
+      <div class="flm-chip" style="border-color:${chipColor}; color:${chipColor};">${label}</div>
+    </div>
+    <div class="flm-body">
+      <div class="flm-kv">
+        <div class="flm-k">From</div><div class="flm-v" title="${formatNodeTitle(sourceNode)}">${formatNodeTitle(sourceNode) || (linkDatum.source || '')}</div>
+        <div class="flm-k">To</div><div class="flm-v" title="${formatNodeTitle(targetNode)}">${formatNodeTitle(targetNode) || (linkDatum.target || '')}</div>
+        ${thresholdLine ? `<div class="flm-k">Threshold</div><div class="flm-v" title="${thresholdLine}">${thresholdLine}</div>` : ``}
+      </div>
+      <div class="flm-actions">
+        <div class="flm-item" data-action="more">
+          <span>More options</span>
+          <span class="flm-arrow">▸</span>
+          <div class="flm-submenu">
+            <div class="flm-subitem" data-action="copy-link">Copy link info</div>
+            <div class="flm-subitem" data-action="copy-from">Copy “From” node id</div>
+            <div class="flm-subitem" data-action="copy-to">Copy “To” node id</div>
+            <div class="flm-subitem" data-action="jump-from">Center on “From” node</div>
+            <div class="flm-subitem" data-action="jump-to">Center on “To” node</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const onAction = async (action) => {
+    try {
+      if (action === 'copy-link') {
+        const payload = JSON.stringify({ source: linkDatum.source, target: linkDatum.target, label: linkDatum.label || null }, null, 2);
+        await navigator.clipboard.writeText(payload);
+      } else if (action === 'copy-from') {
+        await navigator.clipboard.writeText((linkDatum.source || '').toString());
+      } else if (action === 'copy-to') {
+        await navigator.clipboard.writeText((linkDatum.target || '').toString());
+      } else if (action === 'jump-from') {
+        if (sourceNode && typeof window.centerFlowchartOnNode === 'function') window.centerFlowchartOnNode(sourceNode.id);
+      } else if (action === 'jump-to') {
+        if (targetNode && typeof window.centerFlowchartOnNode === 'function') window.centerFlowchartOnNode(targetNode.id);
+      }
+    } catch (e) {
+      console.warn("⚠️ Flow link menu action failed:", e);
+    }
+  };
+
+  el.querySelectorAll('[data-action]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const action = btn.getAttribute('data-action');
+      if (!action || action === 'more') return;
+      onAction(action);
+      // Keep open on desktop hover; on touch/click, close after action
+      if (flowLinkMenuPinned) {
+        flowLinkMenuPinned = false;
+        hideFlowLinkMenu();
+      }
+    });
+    btn.addEventListener('touchstart', (e) => {
+      // ensure taps register without delaying by scrolling
+      e.stopPropagation();
+    }, { passive: true });
+  });
+
+  // Position
+  el.style.display = 'block';
+  const margin = 10;
+  const rect = el.getBoundingClientRect();
+  const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+  const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+  const left = clamp(clientX + 12, margin, Math.max(margin, vw - rect.width - margin));
+  const top = clamp(clientY + 12, margin, Math.max(margin, vh - rect.height - margin));
+  el.style.left = left + 'px';
+  el.style.top = top + 'px';
+}
+
 // Helper: fetch a field by any of several candidate column names (case/spacing agnostic)
 function getVal(rowObj, candidates) {
   if (!rowObj) return undefined;
@@ -441,8 +716,15 @@ function renderFlowchart() {
     .classed("dimmed", true);
 
   // Draw Lines (Links) - simple straight lines with arrows
-  g.select(".links")
-    .selectAll("path")
+  const linkPath = (d) => {
+    const source = nodes.find(n => n.id === d.source);
+    const target = nodes.find(n => n.id === d.target);
+    if (!source || !target) return "";
+    return `M${source.fx},${source.fy} L${target.fx},${target.fy}`;
+  };
+
+  const visibleLinks = g.select(".links")
+    .selectAll("path.link-visible")
     .data(links)
     .join("path")
     .attr("class", d => {
@@ -450,6 +732,7 @@ function renderFlowchart() {
       if (d.label === "No") return "link link-no";
       return "link";
     })
+    .classed("link-visible", true)
     .style("stroke-width", "3")
     .style("fill", "none")
     .attr("marker-end", d => {
@@ -457,14 +740,41 @@ function renderFlowchart() {
       if (d.label === "No") return "url(#arrow-no)";
       return "url(#arrow-neutral)";
     })
-    .attr("d", d => {
-      const source = nodes.find(n => n.id === d.source);
-      const target = nodes.find(n => n.id === d.target);
-      
-      if (!source || !target) return "";
-      
-      // Simple straight line between node centers
-        return `M${source.fx},${source.fy} L${target.fx},${target.fy}`;
+    .attr("d", linkPath)
+    .style("pointer-events", "none"); // interactions handled by hit paths below
+
+  // Add invisible "hit" paths so hover/tap is easy (especially on touch devices)
+  const hitLinks = g.select(".links")
+    .selectAll("path.link-hit")
+    .data(links)
+    .join("path")
+    .attr("class", "link-hit")
+    .attr("d", linkPath)
+    .style("fill", "none")
+    .style("stroke", "transparent")
+    .style("stroke-width", "18")
+    .style("pointer-events", "stroke")
+    .style("cursor", "pointer");
+
+  // Hover/click behavior: show a popover menu near the cursor (Cursor-like flyout)
+  hitLinks
+    .on("mouseenter", function(event, d) {
+      if (flowLinkMenuHideTimer) clearTimeout(flowLinkMenuHideTimer);
+      if (flowLinkMenuPinned) return;
+      showFlowLinkMenuAt(event.clientX, event.clientY, d);
+    })
+    .on("mousemove", function(event, d) {
+      if (flowLinkMenuPinned) return;
+      showFlowLinkMenuAt(event.clientX, event.clientY, d);
+    })
+    .on("mouseleave", function() {
+      if (!flowLinkMenuPinned) scheduleHideFlowLinkMenu();
+    })
+    .on("click", function(event, d) {
+      // Click toggles pinned open (helps on mobile where hover doesn't exist)
+      event.stopPropagation();
+      flowLinkMenuPinned = true;
+      showFlowLinkMenuAt(event.clientX, event.clientY, d);
     });
 
   g.select(".nodes")
@@ -2587,4 +2897,37 @@ window.zoomFlowchartToFit = function() {
     svg.transition().duration(400)
       .call(d3.zoom().transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
   }, 250);
+};
+
+// Center the flowchart view on a specific node id (used by the link hover menu)
+window.centerFlowchartOnNode = function(nodeId) {
+  try {
+    if (!svg || !g || !Array.isArray(nodes)) return;
+    const node = nodes.find(n => n && n.id === nodeId);
+    if (!node) return;
+
+    const svgNode = svg.node();
+    if (!svgNode) return;
+
+    const width = svgNode.clientWidth || (svgNode.parentNode ? svgNode.parentNode.clientWidth : 0) || 0;
+    const height = svgNode.clientHeight || (svgNode.parentNode ? svgNode.parentNode.clientHeight : 0) || 0;
+    if (!width || !height) return;
+
+    // Keep current zoom level; just pan to center the node.
+    let current = null;
+    try {
+      current = d3.zoomTransform(svgNode);
+    } catch (e) {
+      current = null;
+    }
+    const k = current && typeof current.k === "number" ? current.k : 1;
+
+    const tx = (width / 2) - (node.fx * k);
+    const ty = (height / 2) - (node.fy * k);
+
+    svg.transition().duration(250)
+      .call(d3.zoom().transform, d3.zoomIdentity.translate(tx, ty).scale(k));
+  } catch (e) {
+    console.warn("⚠️ centerFlowchartOnNode failed:", e);
+  }
 };

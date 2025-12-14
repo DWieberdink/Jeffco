@@ -130,6 +130,10 @@ window.prioritizationLogic = {
 
   // School data with decisions
   schoolData: [],
+  
+  // Cache of the most recent normalization stats used for Step 2 scoring.
+  // Recomputed whenever `rankSchools` / `rankSchoolsAcrossStrategies` runs.
+  lastNormalizationStats: null,
 
   // Initialize prioritization logic
   initialize: function(schoolDataWithDecisions) {
@@ -215,31 +219,53 @@ window.prioritizationLogic = {
           })
         : allSchoolsForGroup;
 
+      // Collect first; we’ll compute normalization stats across the combined set
+      // and then score consistently.
       schools.forEach(school => {
-        const scoreData = this.calculatePriorityScore(school, groupName);
         combined.push({
           ...school,
-          priorityScore: scoreData.totalScore,
-          scoreComponents: scoreData.components,
-          rawData: scoreData.rawData,
           strategyGroup: groupName
         });
       });
     });
 
-    combined.sort((a, b) => b.priorityScore - a.priorityScore);
-    return combined;
+    const normalizationStats = this.computeNormalizationStats(combined);
+    this.lastNormalizationStats = {
+      scope: "combined",
+      strategyGroups: groups.slice(),
+      stats: normalizationStats
+    };
+
+    const scored = combined.map(school => {
+      const groupName = school.strategyGroup;
+      const scoreData = this.calculatePriorityScore(school, groupName, normalizationStats);
+      return {
+        ...school,
+        priorityScore: scoreData.totalScore,
+        scoreComponents: scoreData.components,
+        normalizedData: scoreData.normalizedData,
+        rawData: scoreData.rawData,
+        strategyGroup: groupName
+      };
+    });
+
+    scored.sort((a, b) => b.priorityScore - a.priorityScore);
+    return scored;
   },
 
   // Normalize a value to 0-100 scale
   normalizeValue: function(value, min, max, reverse = false) {
     if (value === null || value === undefined || isNaN(value)) return 50; // Default middle value
+    const lo = Number(min);
+    const hi = Number(max);
+    if (!isFinite(lo) || !isFinite(hi)) return 50;
+    if (hi === lo) return 50;
     
     // Clamp value to range
-    const clamped = Math.max(min, Math.min(max, value));
+    const clamped = Math.max(lo, Math.min(hi, value));
     
     // Normalize to 0-100
-    let normalized = ((clamped - min) / (max - min)) * 100;
+    let normalized = ((clamped - lo) / (hi - lo)) * 100;
     
     // Reverse if needed (e.g., lower utilization is better for closure)
     if (reverse) {
@@ -249,8 +275,86 @@ window.prioritizationLogic = {
     return normalized;
   },
 
+  // Map internal metric keys to raw numeric values from a school row.
+  // These correspond to the internal weight keys used in calculatePriorityScore.
+  getRawMetricValue: function(school, metricKey) {
+    switch (metricKey) {
+      case "utilizationRate": {
+        // Stored as ratio in most CSVs (0–1.3), but some exports may already be percent.
+        const raw = parseFloat(school.Utilization || 0);
+        const util = isFinite(raw) ? raw : 0;
+        return util <= 1.5 ? util * 100 : util;
+      }
+      case "enrollment":
+        return parseInt(school.Enrollment || 0, 10);
+      case "highNeedStudents":
+        return parseFloat(school["% FRL"] || school["Free Reduced Lunch"] || 0, 10);
+      case "buildingCondition":
+        return parseFloat(school.BuildingScore || 0, 10);
+      case "educationalAdequacy": {
+        const raw = parseFloat(school.EducationalAdequacy || 0, 10);
+        return (isFinite(raw) ? raw : 0) * 100; // convert to %
+      }
+      case "neighborhoodCapture":
+        return parseFloat(school.AttendanceAreaEnrollment || 0, 10);
+      case "welcomedStudents":
+        return parseInt(school["Welcomed Students"] || school["Students Welcomed"] || 0, 10);
+      case "distanceFromOtherSchools":
+        return parseFloat(school.DistanceUnderutilizedschools || 0, 10);
+      case "pastInvestments":
+        return parseFloat(school.RecentInvestments || 0, 10);
+      case "specialtyPrograms":
+        return (
+          parseFloat(school.SpecialtyPrograms || school["Specialty Programs"] || 0, 10) ||
+          (school.SpecialtyProgram || school["Specialty Program"] ? 1 : 0)
+        );
+      default:
+        return null;
+    }
+  },
+
+  // Compute min/max per metric over a set of schools.
+  computeNormalizationStats: function(schools, metricKeys) {
+    const keys = Array.isArray(metricKeys) && metricKeys.length
+      ? metricKeys
+      : [
+          "utilizationRate",
+          "enrollment",
+          "highNeedStudents",
+          "buildingCondition",
+          "educationalAdequacy",
+          "neighborhoodCapture",
+          "welcomedStudents",
+          "distanceFromOtherSchools",
+          "pastInvestments",
+          "specialtyPrograms"
+        ];
+
+    const stats = {};
+    keys.forEach(k => {
+      let min = Infinity;
+      let max = -Infinity;
+      (schools || []).forEach(s => {
+        const v = this.getRawMetricValue(s, k);
+        if (v === null || v === undefined) return;
+        const n = Number(v);
+        if (!isFinite(n)) return;
+        if (n < min) min = n;
+        if (n > max) max = n;
+      });
+      // Fallback: avoid divide-by-zero; normalization returns 50 if min==max anyway.
+      if (min === Infinity || max === -Infinity) {
+        stats[k] = { min: 0, max: 1 };
+      } else {
+        stats[k] = { min, max };
+      }
+    });
+    return stats;
+  },
+
   // Calculate priority score for a school
-  calculatePriorityScore: function(school, strategyGroupName) {
+  // `normalizationStats` should be computed over the currently ranked set.
+  calculatePriorityScore: function(school, strategyGroupName, normalizationStats) {
     const weights = this.currentWeights[strategyGroupName] || this.defaultWeights[strategyGroupName];
     const enabled =
       (this.enabledWeights && this.enabledWeights[strategyGroupName]) || {};
@@ -261,27 +365,32 @@ window.prioritizationLogic = {
     let score = 0;
     let totalWeightUsed = 0;
     const components = {};
+    const normalizedData = {};
+    const stats = normalizationStats || {};
+    const getStat = (k) => stats[k] || { min: 0, max: 100 };
 
     // Utilization Rate
     // For Expansion & Maintenance/Investment, higher utilization = higher priority.
     // For Closure/Consolidation, lower utilization = higher priority (reverse).
-    const utilization = parseFloat(school.Utilization || 0) * 100;
-    const reverseUtil =
-      strategyGroupName === "Closure/Consolidation";
-    const utilScore = this.normalizeValue(utilization, 0, 130, reverseUtil);
+    const isClosure = (strategyGroupName === "Closure/Consolidation");
+    const utilization = this.getRawMetricValue(school, "utilizationRate");
+    const reverseUtil = isClosure;
+    const utilStat = getStat("utilizationRate");
+    const utilScore = this.normalizeValue(utilization, utilStat.min, utilStat.max, reverseUtil);
+    normalizedData.utilizationRate = utilScore;
     const utilWeight = isEnabled("utilizationRate") ? (weights.utilizationRate || 0) : 0;
     components.utilizationRate = (utilScore / 100) * utilWeight;
     score += components.utilizationRate;
     totalWeightUsed += utilWeight;
 
-    const isClosure = (strategyGroupName === "Closure/Consolidation");
-
     // Enrollment
     // For Expansion & Maintenance/Investment, higher enrollment = higher priority.
     // For Closure/Consolidation, LOWER enrollment = higher priority.
-    const enrollment = parseInt(school.Enrollment || 0, 10);
+    const enrollment = this.getRawMetricValue(school, "enrollment");
     const reverseEnrollment = isClosure;
-    const enrollmentScore = this.normalizeValue(enrollment, 0, 1500, reverseEnrollment);
+    const enrollmentStat = getStat("enrollment");
+    const enrollmentScore = this.normalizeValue(enrollment, enrollmentStat.min, enrollmentStat.max, reverseEnrollment);
+    normalizedData.enrollment = enrollmentScore;
     const enrollmentWeight = isEnabled("enrollment") ? (weights.enrollment || 0) : 0;
     components.enrollment = (enrollmentScore / 100) * enrollmentWeight;
     score += components.enrollment;
@@ -290,25 +399,31 @@ window.prioritizationLogic = {
     // High-need students (% FRL)
     // For Expansion & Maintenance/Investment, higher % FRL = higher priority.
     // For Closure/Consolidation, higher % FRL = lower priority (reverse).
-    const frlPercent = parseFloat(school["% FRL"] || school["Free Reduced Lunch"] || 0, 10);
+    const frlPercent = this.getRawMetricValue(school, "highNeedStudents");
     const reverseHighNeed = isClosure;
-    const frlScore = this.normalizeValue(frlPercent, 0, 100, reverseHighNeed);
+    const frlStat = getStat("highNeedStudents");
+    const frlScore = this.normalizeValue(frlPercent, frlStat.min, frlStat.max, reverseHighNeed);
+    normalizedData.highNeedStudents = frlScore;
     const highNeedWeight = isEnabled("highNeedStudents") ? (weights.highNeedStudents || 0) : 0;
     components.highNeedStudents = (frlScore / 100) * highNeedWeight;
     score += components.highNeedStudents;
     totalWeightUsed += highNeedWeight;
 
     // Building Condition (Composite Building Score) - lower score = higher priority
-    const buildingScore = parseFloat(school.BuildingScore || 0, 10);
-    const buildingNormalized = this.normalizeValue(buildingScore, 0, 10, true); // Reverse: lower score = higher priority
+    const buildingScore = this.getRawMetricValue(school, "buildingCondition");
+    const buildingStat = getStat("buildingCondition");
+    const buildingNormalized = this.normalizeValue(buildingScore, buildingStat.min, buildingStat.max, true); // Reverse: lower score = higher priority
+    normalizedData.buildingCondition = buildingNormalized;
     const buildingWeight = isEnabled("buildingCondition") ? (weights.buildingCondition || 0) : 0;
     components.buildingCondition = (buildingNormalized / 100) * buildingWeight;
     score += components.buildingCondition;
     totalWeightUsed += buildingWeight;
 
     // Educational Adequacy (EA) - lower EA = higher priority
-    const eaRaw = parseFloat(school.EducationalAdequacy || 0, 10) * 100; // convert to %
-    const eaScore = this.normalizeValue(eaRaw, 0, 100, true);
+    const eaRaw = this.getRawMetricValue(school, "educationalAdequacy");
+    const eaStat = getStat("educationalAdequacy");
+    const eaScore = this.normalizeValue(eaRaw, eaStat.min, eaStat.max, true);
+    normalizedData.educationalAdequacy = eaScore;
     const eaWeight = isEnabled("educationalAdequacy") ? (weights.educationalAdequacy || 0) : 0;
     components.educationalAdequacy = (eaScore / 100) * eaWeight;
     score += components.educationalAdequacy;
@@ -317,25 +432,31 @@ window.prioritizationLogic = {
     // Neighborhood capture rate (Attendance Area Enrollment %)
     // For Expansion & Maintenance/Investment, higher capture = higher priority.
     // For Closure/Consolidation, LOWER capture = higher priority.
-    const capturePercent = parseFloat(school.AttendanceAreaEnrollment || 0, 10);
+    const capturePercent = this.getRawMetricValue(school, "neighborhoodCapture");
     const reverseCapture = isClosure;
-    const captureScore = this.normalizeValue(capturePercent, 0, 100, reverseCapture);
+    const captureStat = getStat("neighborhoodCapture");
+    const captureScore = this.normalizeValue(capturePercent, captureStat.min, captureStat.max, reverseCapture);
+    normalizedData.neighborhoodCapture = captureScore;
     const captureWeight = isEnabled("neighborhoodCapture") ? (weights.neighborhoodCapture || 0) : 0;
     components.neighborhoodCapture = (captureScore / 100) * captureWeight;
     score += components.neighborhoodCapture;
     totalWeightUsed += captureWeight;
 
     // Students welcomed from previous consolidations (if/when data is available)
-    const welcomed = parseInt(school["Welcomed Students"] || school["Students Welcomed"] || 0, 10);
-    const welcomedScore = this.normalizeValue(welcomed, 0, 2000, false);
+    const welcomed = this.getRawMetricValue(school, "welcomedStudents");
+    const welcomedStat = getStat("welcomedStudents");
+    const welcomedScore = this.normalizeValue(welcomed, welcomedStat.min, welcomedStat.max, false);
+    normalizedData.welcomedStudents = welcomedScore;
     const welcomedWeight = isEnabled("welcomedStudents") ? (weights.welcomedStudents || 0) : 0;
     components.welcomedStudents = (welcomedScore / 100) * welcomedWeight;
     score += components.welcomedStudents;
     totalWeightUsed += welcomedWeight;
 
     // Distance from other schools (using DistanceUnderutilizedschools as proxy) - greater distance = higher priority
-    const distance = parseFloat(school.DistanceUnderutilizedschools || 0, 10);
-    const distanceScore = this.normalizeValue(distance, 0, 10, false);
+    const distance = this.getRawMetricValue(school, "distanceFromOtherSchools");
+    const distanceStat = getStat("distanceFromOtherSchools");
+    const distanceScore = this.normalizeValue(distance, distanceStat.min, distanceStat.max, false);
+    normalizedData.distanceFromOtherSchools = distanceScore;
     const distanceWeight = isEnabled("distanceFromOtherSchools") ? (weights.distanceFromOtherSchools || 0) : 0;
     components.distanceFromOtherSchools = (distanceScore / 100) * distanceWeight;
     score += components.distanceFromOtherSchools;
@@ -344,9 +465,11 @@ window.prioritizationLogic = {
     // Past investments (RecentInvestments)
     // For Closure/Consolidation: FEWER past investments = higher priority (reverse).
     // For other groups: higher investments can be given weight if desired.
-    const investments = parseFloat(school.RecentInvestments || 0, 10);
+    const investments = this.getRawMetricValue(school, "pastInvestments");
     const reverseInvest = isClosure;
-    const investScore = this.normalizeValue(investments, 0, 50, reverseInvest);
+    const investStat = getStat("pastInvestments");
+    const investScore = this.normalizeValue(investments, investStat.min, investStat.max, reverseInvest);
+    normalizedData.pastInvestments = investScore;
     const investWeight = isEnabled("pastInvestments") ? (weights.pastInvestments || 0) : 0;
     components.pastInvestments = (investScore / 100) * investWeight;
     score += components.pastInvestments;
@@ -354,10 +477,10 @@ window.prioritizationLogic = {
 
     // Specialty program offerings (placeholder until explicit data field exists)
     // Assumes higher value/flag = more specialty offerings.
-    const specialtyRaw =
-      parseFloat(school.SpecialtyPrograms || school["Specialty Programs"] || 0, 10) ||
-      (school.SpecialtyProgram || school["Specialty Program"] ? 1 : 0);
-    const specialtyScore = this.normalizeValue(specialtyRaw, 0, 10, false);
+    const specialtyRaw = this.getRawMetricValue(school, "specialtyPrograms");
+    const specialtyStat = getStat("specialtyPrograms");
+    const specialtyScore = this.normalizeValue(specialtyRaw, specialtyStat.min, specialtyStat.max, false);
+    normalizedData.specialtyPrograms = specialtyScore;
     const specialtyWeight = isEnabled("specialtyPrograms") ? (weights.specialtyPrograms || 0) : 0;
     components.specialtyPrograms = (specialtyScore / 100) * specialtyWeight;
     score += components.specialtyPrograms;
@@ -374,6 +497,7 @@ window.prioritizationLogic = {
     return {
       totalScore: Math.min(100, Math.max(0, score)), // Keep in 0–100, but no longer easily saturates
       components: components,
+      normalizedData: normalizedData,
       rawData: {
         utilizationRate: utilization,
         enrollment: enrollment,
@@ -403,12 +527,20 @@ window.prioritizationLogic = {
         })
       : allSchools;
     
+    const normalizationStats = this.computeNormalizationStats(schools);
+    this.lastNormalizationStats = {
+      scope: "single",
+      strategyGroups: [strategyGroupName],
+      stats: normalizationStats
+    };
+    
     const ranked = schools.map(school => {
-      const scoreData = this.calculatePriorityScore(school, strategyGroupName);
+      const scoreData = this.calculatePriorityScore(school, strategyGroupName, normalizationStats);
       return {
         ...school,
         priorityScore: scoreData.totalScore,
         scoreComponents: scoreData.components,
+        normalizedData: scoreData.normalizedData,
         rawData: scoreData.rawData
       };
     });

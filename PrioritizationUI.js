@@ -5,12 +5,26 @@ window.prioritizationUI = {
   currentStrategyGroups: [],
   schoolDataWithDecisions: [],
   currentOutcomeFilters: null,
+  // Per-group outcome filters for Step 2 (used by the group flyout ▸ menus).
+  // Example:
+  //   {
+  //     "__ALL_EXP_MAINT__": ["Building Addition", ...],
+  //     "Closure/Consolidation": ["Closure (Goes to Welcoming School)"]
+  //   }
+  outcomeFiltersByGroup: {},
+  _prioritizedTableSyncHandler: null,
+  // Step 2 table metric columns display mode:
+  // - "values": show underlying raw values (%, mi, counts, etc.)
+  // - "scores": show normalized 0–100 indices used for weighting (does NOT change ranking)
+  metricDisplayMode: "values",
+  _outcomeFlyoutStyleInjected: false,
 
   // Initialize the prioritization UI
   initialize: function (schoolDataWithDecisions) {
     console.log("🎨 Initializing Prioritization UI");
     this.schoolDataWithDecisions = schoolDataWithDecisions || [];
     this.currentOutcomeFilters = null;
+    this.outcomeFiltersByGroup = {};
 
     if (!window.prioritizationLogic || !window.prioritizationLogic.initialize) {
       console.error("❌ prioritizationLogic is not available");
@@ -98,8 +112,172 @@ window.prioritizationUI = {
       e.stopPropagation();
     });
 
+    // Resolve group names for the combined selector
+    const resolveGroups = function (names) {
+      if (names.includes("__ALL_EXP_MAINT__")) {
+        return ["Expansion", "Maintenance/Investment"];
+      }
+      return names;
+    };
+
+    // Build an outcome list (with counts) for ONE group or a combined group.
+    const getOutcomeOptionsForGroupKey = function (groupKey) {
+      const groupsToUse = groupKey === "__ALL_EXP_MAINT__"
+        ? ["Expansion", "Maintenance/Investment"]
+        : [groupKey];
+
+      const countMap = {};
+      const ordered = [];
+      groupsToUse.forEach((gName) => {
+        const list =
+          (window.prioritizationLogic && window.prioritizationLogic.getOutcomeSummaryForStrategy)
+            ? (window.prioritizationLogic.getOutcomeSummaryForStrategy(gName) || [])
+            : [];
+        list.forEach((entry) => {
+          const o = entry && entry.outcome;
+          if (!o) return;
+          if (o === "Other / Unknown") return;
+          if (!countMap.hasOwnProperty(o)) ordered.push(o);
+          countMap[o] = (countMap[o] || 0) + (entry.count || 0);
+        });
+      });
+      return ordered.map((o) => ({ outcome: o, count: countMap[o] || 0 }));
+    };
+
+    // Cursor-style separate flyout panel (appended to body)
+    const isTouch = () => {
+      try {
+        return (
+          (window.matchMedia && window.matchMedia("(hover: none)").matches) ||
+          ("ontouchstart" in window)
+        );
+      } catch (e) {
+        return false;
+      }
+    };
+
+    const ensureFlyoutStyle = () => {
+      if (self._outcomeFlyoutStyleInjected) return;
+      const style = document.createElement("style");
+      style.id = "ps-group-outcome-flyout-style";
+      style.textContent =
+        ".ps-group-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}" +
+        ".ps-group-row .ps-group-left{display:flex;align-items:center;gap:8px;min-width:0;}" +
+        ".ps-group-row .ps-group-arrow{margin-left:auto;color:#6b7280;font-size:12px;cursor:pointer;padding:2px 4px;border-radius:4px;}" +
+        ".ps-group-row .ps-group-arrow:hover{background:#eef2f7;color:#111;}" +
+        ".ps-group-flyout{position:fixed;min-width:320px;max-width:420px;max-height:380px;overflow:auto;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 14px 36px rgba(0,0,0,0.22);padding:10px;z-index:5000;display:none;}" +
+        ".ps-group-flyout .title{font-size:13px;font-weight:800;color:#111827;margin:2px 0 6px 0;}" +
+        ".ps-group-flyout .hint{font-size:11px;color:#6b7280;margin:0 0 10px 0;line-height:1.3;}" +
+        ".ps-group-flyout label{display:flex;align-items:center;gap:8px;padding:6px 6px;border-radius:8px;cursor:pointer;font-size:13px;color:#111827;}" +
+        ".ps-group-flyout label:hover{background:#f3f4f6;}" +
+        ".ps-group-flyout input[type=checkbox]{width:14px;height:14px;}";
+      document.head.appendChild(style);
+      self._outcomeFlyoutStyleInjected = true;
+    };
+
+    const ensureFlyoutEl = () => {
+      ensureFlyoutStyle();
+      let el = document.getElementById("psGroupOutcomeFlyout");
+      if (el) return el;
+      el = document.createElement("div");
+      el.id = "psGroupOutcomeFlyout";
+      el.className = "ps-group-flyout";
+      el.addEventListener("click", (e) => e.stopPropagation());
+      document.body.appendChild(el);
+      return el;
+    };
+
+    let flyoutCloseTimer = null;
+    const closeFlyout = () => {
+      const el = document.getElementById("psGroupOutcomeFlyout");
+      if (!el) return;
+      el.style.display = "none";
+      el.dataset.groupKey = "";
+    };
+    const scheduleCloseFlyout = () => {
+      if (flyoutCloseTimer) clearTimeout(flyoutCloseTimer);
+      flyoutCloseTimer = setTimeout(() => closeFlyout(), 140);
+    };
+    const cancelCloseFlyout = () => {
+      if (flyoutCloseTimer) clearTimeout(flyoutCloseTimer);
+      flyoutCloseTimer = null;
+    };
+
+    const openFlyoutForGroup = (anchorEl, groupKey, groupLabel) => {
+      cancelCloseFlyout();
+      const flyout = ensureFlyoutEl();
+      flyout.innerHTML = "";
+
+      const title = document.createElement("div");
+      title.className = "title";
+      title.textContent = `${groupLabel}: Outcomes`;
+
+      const hint = document.createElement("div");
+      hint.className = "hint";
+      hint.textContent =
+        "Select outcomes to filter the prioritized list for this group. Leave all unchecked to include the whole group.";
+
+      flyout.appendChild(title);
+      flyout.appendChild(hint);
+
+      const options = getOutcomeOptionsForGroupKey(groupKey);
+      const selected = Array.isArray(self.outcomeFiltersByGroup[groupKey])
+        ? self.outcomeFiltersByGroup[groupKey]
+        : [];
+
+      options.forEach((entry) => {
+        const lbl = document.createElement("label");
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.value = entry.outcome;
+        cb.checked = selected.includes(entry.outcome);
+        cb.addEventListener("change", () => {
+          const checked = Array.from(flyout.querySelectorAll('input[type="checkbox"]:checked')).map(
+            (n) => n.value
+          );
+          self.outcomeFiltersByGroup[groupKey] = checked.length ? checked : null;
+          // Keep the main dropdown label explicit about the difference
+          updateLabel(self.currentStrategyGroups);
+          // Fluid interactivity
+          self.renderPrioritizedSchools(self.currentStrategyGroups);
+          self.updateMapVisualization(self.currentStrategyGroups);
+        });
+
+        lbl.appendChild(cb);
+        lbl.appendChild(
+          document.createTextNode(
+            typeof entry.count === "number" ? `${entry.outcome} (${entry.count})` : entry.outcome
+          )
+        );
+        flyout.appendChild(lbl);
+      });
+
+      // Position like Cursor: separate popup next to the dropdown
+      flyout.style.display = "block";
+      flyout.dataset.groupKey = groupKey;
+
+      const a = anchorEl.getBoundingClientRect();
+      const flyRect = flyout.getBoundingClientRect();
+
+      let left = a.right + 10;
+      let top = a.top - 8;
+      if (left + flyRect.width > window.innerWidth - 8) {
+        left = a.left - flyRect.width - 10;
+      }
+      left = Math.max(8, Math.min(left, window.innerWidth - flyRect.width - 8));
+      top = Math.max(8, Math.min(top, window.innerHeight - flyRect.height - 8));
+
+      flyout.style.left = left + "px";
+      flyout.style.top = top + "px";
+    };
+
     const addOption = function (value, text) {
       const lbl = document.createElement("label");
+      // Wrap content so we can place an arrow on the right (Cursor-style)
+      const row = document.createElement("div");
+      row.className = "ps-group-row";
+      const left = document.createElement("div");
+      left.className = "ps-group-left";
       const cb = document.createElement("input");
       cb.type = "checkbox";
       cb.value = value;
@@ -128,10 +306,41 @@ window.prioritizationUI = {
         }
 
         self.selectStrategyGroup(selected);
+        // When groups change, clear outcome filters for groups that are no longer selected.
+        // Special case: "__ALL_EXP_MAINT__" implies Expansion + Maintenance/Investment are in scope,
+        // so keep their filters too (even if their checkboxes are not selected).
+        const stillSelected = new Set(selected);
+        if (stillSelected.has("__ALL_EXP_MAINT__")) {
+          stillSelected.add("Expansion");
+          stillSelected.add("Maintenance/Investment");
+        }
+        Object.keys(self.outcomeFiltersByGroup || {}).forEach((k) => {
+          if (!stillSelected.has(k)) delete self.outcomeFiltersByGroup[k];
+        });
         updateLabel(selected);
       });
-      lbl.appendChild(cb);
-      lbl.appendChild(document.createTextNode(text));
+      left.appendChild(cb);
+      left.appendChild(document.createTextNode(text));
+
+      const arrow = document.createElement("span");
+      arrow.className = "ps-group-arrow";
+      arrow.textContent = "▸";
+      arrow.title = "Filter outcomes…";
+      arrow.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        openFlyoutForGroup(arrow, value, text);
+      });
+      arrow.addEventListener("mouseenter", () => {
+        if (!isTouch()) openFlyoutForGroup(arrow, value, text);
+      });
+      arrow.addEventListener("mouseleave", () => {
+        if (!isTouch()) scheduleCloseFlyout();
+      });
+
+      row.appendChild(left);
+      row.appendChild(arrow);
+      lbl.appendChild(row);
       menu.appendChild(lbl);
     };
 
@@ -142,15 +351,31 @@ window.prioritizationUI = {
 
     const updateLabel = function (vals) {
       const selected = vals && vals.length ? vals : ["__ALL_EXP_MAINT__"];
+      const activeGroups = selected;
+      let totalSelectedOutcomes = 0;
+      const groupsToCount = new Set(activeGroups || []);
+      if (groupsToCount.has("__ALL_EXP_MAINT__")) {
+        // Also count per-group filters applied while in combined view
+        groupsToCount.add("Expansion");
+        groupsToCount.add("Maintenance/Investment");
+      }
+      Array.from(groupsToCount).forEach((g) => {
+        const arr = self.outcomeFiltersByGroup ? self.outcomeFiltersByGroup[g] : null;
+        if (Array.isArray(arr)) totalSelectedOutcomes += arr.length;
+      });
+      const outcomeSuffix = totalSelectedOutcomes
+        ? ` (filtered: ${totalSelectedOutcomes} outcome${totalSelectedOutcomes === 1 ? "" : "s"})`
+        : "";
+
       if (selected.length === 1) {
         const val = selected[0];
         if (val === "__ALL_EXP_MAINT__") {
-          labelSpan.textContent = "All Expansion + Maintenance";
+          labelSpan.textContent = "All Expansion + Maintenance" + outcomeSuffix;
         } else {
-          labelSpan.textContent = val;
+          labelSpan.textContent = val + outcomeSuffix;
         }
       } else {
-        labelSpan.textContent = `${selected.length} groups`;
+        labelSpan.textContent = `${selected.length} groups` + outcomeSuffix;
       }
     };
     updateLabel(initialSelection);
@@ -158,9 +383,24 @@ window.prioritizationUI = {
     toggleBtn.addEventListener("click", function (e) {
       e.stopPropagation();
       menu.style.display = menu.style.display === "block" ? "none" : "block";
+      if (menu.style.display !== "block") closeFlyout();
     });
-    document.addEventListener("click", function () {
-      if (menu) menu.style.display = "none";
+    document.addEventListener("click", function (e) {
+      if (!menu || !toggleBtn) return;
+      const fly = document.getElementById("psGroupOutcomeFlyout");
+      const t = e && e.target;
+      if (menu.contains(t) || toggleBtn.contains(t) || (fly && fly.contains(t))) return;
+      menu.style.display = "none";
+      closeFlyout();
+    });
+
+    // Keep flyout open while hovering it (desktop)
+    const fly = ensureFlyoutEl();
+    fly.addEventListener("mouseenter", () => {
+      if (!isTouch()) cancelCloseFlyout();
+    });
+    fly.addEventListener("mouseleave", () => {
+      if (!isTouch()) scheduleCloseFlyout();
     });
 
     wrapper.appendChild(toggleBtn);
@@ -176,7 +416,8 @@ window.prioritizationUI = {
     const namesArrayRaw = Array.isArray(groupNames) ? groupNames : [groupNames].filter(Boolean);
     const namesArray = namesArrayRaw.filter((n) => n !== "Other");
     this.currentStrategyGroups = namesArray.length ? namesArray : ["__ALL_EXP_MAINT__"];
-    this.currentOutcomeFilters = null;
+    // NOTE: Do not always reset outcome filters here; the integrated dropdown controls them.
+    // We only clear them when group selection changes (handled in renderStrategyGroupTabs).
 
     // Sync dropdown selection if present
     const selectEl = document.getElementById("strategy-group-select");
@@ -192,8 +433,10 @@ window.prioritizationUI = {
       weightsSection.style.display = "block";
     }
 
-    // Render subcategory selector for this group set
-    this.renderSubgroupTabs(namesArray);
+    // If the legacy subgroup dropdown exists from a prior build, clear it
+    // (outcome filtering is now integrated into the main dropdown).
+    const legacySubgroup = document.getElementById("strategy-subgroup-tabs");
+    if (legacySubgroup) legacySubgroup.innerHTML = "";
 
     // Render sliders for this group set (uses first selection as base)
     this.renderWeightSliders(namesArray);
@@ -456,6 +699,11 @@ window.prioritizationUI = {
 
   // Render subcategory (decision outcome) selector within the current strategy group(s), styled like School Type dropdown
   renderSubgroupTabs: function (strategyGroupNames) {
+    // Deprecated: outcome filtering is now handled via per-group ▸ flyouts in the main dropdown.
+    // Keep this as a no-op to avoid rendering a second, confusing filter UI.
+    const legacy = document.getElementById("strategy-subgroup-tabs");
+    if (legacy) legacy.innerHTML = "";
+    return;
     const section = document.getElementById("prioritized-schools-section");
     if (!section || !window.prioritizationLogic) return;
 
@@ -621,9 +869,7 @@ window.prioritizationUI = {
     const groupNames = Array.isArray(strategyGroupNames)
       ? strategyGroupNames
       : [strategyGroupNames].filter(Boolean);
-    const outcomeFilters = Array.isArray(this.currentOutcomeFilters)
-      ? this.currentOutcomeFilters
-      : null;
+    const outcomeFiltersByGroup = this.outcomeFiltersByGroup || {};
 
     const resolveGroups = function (names) {
       if (names.includes("__ALL_EXP_MAINT__")) {
@@ -640,10 +886,23 @@ window.prioritizationUI = {
       ? window.prioritizationLogic.rankSchoolsAcrossStrategies(groupsToUse, null)
       : window.prioritizationLogic.rankSchools(baseGroupName, null);
 
-    if (outcomeFilters && outcomeFilters.length > 0) {
+    // Apply per-group outcome filters (Cursor-style ▸ flyouts).
+    if (rankedSchools && rankedSchools.length) {
       rankedSchools = rankedSchools.filter((s) => {
         const outcomeName = s.decision || s.outcome || s.strategyOutcome;
-        return outcomeFilters.includes(outcomeName);
+        const sg = s.strategyGroup || baseGroupName;
+
+        // If using the combined pseudo-group, allow it to filter both Expansion + Maintenance.
+        const combinedSelected = Array.isArray(outcomeFiltersByGroup["__ALL_EXP_MAINT__"])
+          ? outcomeFiltersByGroup["__ALL_EXP_MAINT__"]
+          : null;
+        const specificSelected = Array.isArray(outcomeFiltersByGroup[sg])
+          ? outcomeFiltersByGroup[sg]
+          : null;
+
+        const selected = specificSelected || (combinedSelected && (sg === "Expansion" || sg === "Maintenance/Investment") ? combinedSelected : null);
+        if (!selected || !selected.length) return true;
+        return selected.includes(outcomeName);
       });
     }
 
@@ -685,6 +944,8 @@ window.prioritizationUI = {
       );
     };
 
+    const displayMode = self.metricDisplayMode === "scores" ? "scores" : "values";
+
     html +=
       "<style>" +
       // The container in index.html has its own max-height/overflow.
@@ -692,6 +953,9 @@ window.prioritizationUI = {
       "#prioritized-schools-table-container { max-height: none !important; overflow: visible !important; }" +
       ".ps-prioritized-table-wrap { border: 1px solid #e5e5e5; border-radius: 6px; overflow: hidden; background: #fff; }" +
       ".ps-prioritized-table-body-scroll { max-height: 400px; overflow-y: auto; overflow-x: hidden; }" +
+      ".ps-metric-toggle { display:inline-flex; border:1px solid #d1d5db; border-radius:8px; overflow:hidden; background:#fff; }" +
+      ".ps-metric-toggle button { border:0; background:transparent; padding:4px 10px; font-size:12px; cursor:pointer; color:#111; }" +
+      ".ps-metric-toggle button.active { background:#007cbf; color:#fff; }" +
       "#" +
       headerTableId +
       ", #" +
@@ -712,6 +976,18 @@ window.prioritizationUI = {
       ".column-resizer:hover { background: #007cbf; }" +
       ".column-resizer.dragging { background: #007cbf; }" +
       "</style>";
+
+    // Small toggle to switch metric columns between raw values and normalized scores
+    html +=
+      '<div style="display:flex; justify-content:flex-end; margin: 0 0 6px 0;">' +
+      '<div class="ps-metric-toggle" role="group" aria-label="Metric columns display">' +
+      '<button type="button" id="psMetricModeValues" data-mode="values"' +
+      (displayMode === "values" ? ' class="active"' : "") +
+      ">Show values</button>" +
+      '<button type="button" id="psMetricModeScores" data-mode="scores"' +
+      (displayMode === "scores" ? ' class="active"' : "") +
+      ">Show scores</button>" +
+      "</div></div>";
 
     // Header table (no body; stays visible)
     html +=
@@ -755,56 +1031,47 @@ window.prioritizationUI = {
       buildColGroupHTML() +
       "<tbody>";
 
-    // Helper to format values according to the metric key
-    const formatValue = function (key, raw) {
-      switch (key) {
+    // Helper to format either raw values or normalized scores, depending on toggle.
+    const formatValue = function (uiKey, school) {
+      if (!school) return "N/A";
+
+      if (displayMode === "scores") {
+        const weightKey = self.mapUiKeyToWeightKey(uiKey);
+        const val = school.normalizedData ? school.normalizedData[weightKey] : null;
+        if (val === null || val === undefined || isNaN(val)) return "N/A";
+        // Display as an index 0–100 (higher = higher priority for this metric, respecting direction).
+        return Number(val).toFixed(0);
+      }
+
+      // displayMode === "values"
+      const raw = school.rawData || {};
+      switch (uiKey) {
         case "utilizationRate":
-          return raw.utilizationRate != null
-            ? raw.utilizationRate.toFixed(1) + "%"
-            : "N/A";
+          return raw.utilizationRate != null ? Number(raw.utilizationRate).toFixed(1) + "%" : "N/A";
         case "studentsInAttendanceArea":
-          return raw.studentsInAttendanceArea != null
-            ? raw.studentsInAttendanceArea.toFixed(1) + "%"
-            : "N/A";
+          return raw.studentsInAttendanceArea != null ? Number(raw.studentsInAttendanceArea).toFixed(1) + "%" : "N/A";
         case "studentEconomicStatus":
-          return raw.studentEconomicStatus != null
-            ? raw.studentEconomicStatus.toFixed(1) + "%"
-            : "N/A";
+          return raw.studentEconomicStatus != null ? Number(raw.studentEconomicStatus).toFixed(1) + "%" : "N/A";
         case "buildingCondition":
-          return raw.buildingCondition != null
-            ? raw.buildingCondition.toFixed(1)
-            : "N/A";
+          return raw.buildingCondition != null ? Number(raw.buildingCondition).toFixed(1) : "N/A";
         case "academicPerformance":
-          return raw.academicPerformance != null
-            ? raw.academicPerformance.toFixed(1) + "%"
-            : "N/A";
+          return raw.academicPerformance != null ? Number(raw.academicPerformance).toFixed(1) + "%" : "N/A";
         case "enrollment":
-          return raw.enrollment != null
-            ? Number(raw.enrollment).toLocaleString()
-            : "N/A";
+          return raw.enrollment != null ? Number(raw.enrollment).toLocaleString() : "N/A";
         case "welcomedStudents":
-          return raw.welcomedStudents != null
-            ? Number(raw.welcomedStudents).toLocaleString()
-            : "N/A";
+          return raw.welcomedStudents != null ? Number(raw.welcomedStudents).toLocaleString() : "N/A";
         case "distanceFromOtherSchools":
-          return raw.distanceFromOtherSchools != null
-            ? raw.distanceFromOtherSchools.toFixed(2) + " mi"
-            : "N/A";
+          return raw.distanceFromOtherSchools != null ? Number(raw.distanceFromOtherSchools).toFixed(2) + " mi" : "N/A";
         case "pastInvestments":
-          return raw.pastInvestments != null
-            ? "$" + raw.pastInvestments.toFixed(1) + "M"
-            : "N/A";
+          return raw.pastInvestments != null ? "$" + Number(raw.pastInvestments).toFixed(1) + "M" : "N/A";
         case "specialtyProgramOfferings":
-          return raw.specialtyPrograms != null
-            ? raw.specialtyPrograms.toFixed(0)
-            : "N/A";
+          return raw.specialtyPrograms != null ? Number(raw.specialtyPrograms).toFixed(0) : "N/A";
         default:
           return "N/A";
       }
     };
 
     rankedSchools.forEach(function (school, index) {
-      const raw = school.rawData || {};
       const buildingName = school["Building Name"] || school.name || "Unknown";
       const strategyLabel = school.strategyGroup || "";
 
@@ -825,9 +1092,9 @@ window.prioritizationUI = {
         school.priorityScore.toFixed(1) +
         "</td>";
 
-      // Metric cells in the same order as sliderConfigs
+      // Metric cells in the same order as sliderConfigs (normalized 0–100)
       sliderConfigs.forEach(function (config) {
-        html += "<td>" + formatValue(config.key, raw) + "</td>";
+        html += "<td>" + formatValue(config.key, school) + "</td>";
       });
 
       html += "</tr>";
@@ -837,9 +1104,54 @@ window.prioritizationUI = {
 
     container.innerHTML = html;
 
+    // Wire up metric display toggle (values vs scores)
+    const btnValues = document.getElementById("psMetricModeValues");
+    const btnScores = document.getElementById("psMetricModeScores");
+    const applyMode = (mode) => {
+      self.metricDisplayMode = mode === "scores" ? "scores" : "values";
+      // Re-render only the table; no scoring logic changes.
+      self.renderPrioritizedSchools(groupNames);
+      // Map styling doesn’t depend on display mode, but keep it refreshed in case UI depends on ranked list.
+      self.updateMapVisualization(groupNames);
+    };
+    if (btnValues) btnValues.addEventListener("click", () => applyMode("values"));
+    if (btnScores) btnScores.addEventListener("click", () => applyMode("scores"));
+
     this.setupColumnResizing(tableId);
+    this.syncPrioritizedTableHeaderToBody(tableId);
 
     // Equity overview intentionally suppressed per latest requirements.
+  },
+
+  // Keep the fixed header table perfectly aligned with the scrolling body table.
+  // This fixes misalignment caused by the vertical scrollbar consuming width in the body scroller.
+  syncPrioritizedTableHeaderToBody: function (tableId) {
+    const headerTable = document.getElementById(tableId + "-header");
+    const bodyTable = document.getElementById(tableId + "-body");
+    const scroller = bodyTable ? bodyTable.closest(".ps-prioritized-table-body-scroll") : null;
+    if (!headerTable || !bodyTable || !scroller) return;
+
+    const syncOnce = () => {
+      // clientWidth excludes scrollbar; offsetWidth includes it (in classic scrollbar layouts)
+      const scrollbarWidth = scroller.offsetWidth - scroller.clientWidth;
+      // Match the body table’s visible width so colgroups align exactly.
+      // Use clientWidth (content box) so header doesn’t include the scrollbar gutter.
+      headerTable.style.width = scroller.clientWidth + "px";
+      // Also keep the header visually aligned within the wrapper when scrollbar exists.
+      headerTable.style.marginRight = scrollbarWidth > 0 ? scrollbarWidth + "px" : "";
+    };
+
+    // Run after layout settles (fonts, scrollbars, etc.)
+    requestAnimationFrame(syncOnce);
+    setTimeout(syncOnce, 0);
+
+    // Re-sync on resize (only keep one handler alive)
+    if (this._prioritizedTableSyncHandler) {
+      window.removeEventListener("resize", this._prioritizedTableSyncHandler);
+      this._prioritizedTableSyncHandler = null;
+    }
+    this._prioritizedTableSyncHandler = () => syncOnce();
+    window.addEventListener("resize", this._prioritizedTableSyncHandler);
   },
 
   // Setup column resizing functionality
@@ -953,9 +1265,7 @@ window.prioritizationUI = {
     const groupNames = Array.isArray(strategyGroupNames)
       ? strategyGroupNames
       : [strategyGroupNames].filter(Boolean);
-    const outcomeFilters = Array.isArray(this.currentOutcomeFilters)
-      ? this.currentOutcomeFilters
-      : null;
+    const outcomeFiltersByGroup = this.outcomeFiltersByGroup || {};
 
     const resolveGroups = function (names) {
       if (names.includes("__ALL_EXP_MAINT__")) {
@@ -970,10 +1280,20 @@ window.prioritizationUI = {
         ? window.prioritizationLogic.rankSchoolsAcrossStrategies(groupsToUse, null)
         : window.prioritizationLogic.rankSchools(groupsToUse[0], null);
 
-    if (outcomeFilters && outcomeFilters.length > 0) {
+    // Apply per-group outcome filters to map visualization too
+    if (rankedSchools && rankedSchools.length) {
       rankedSchools = rankedSchools.filter((s) => {
         const outcomeName = s.decision || s.outcome || s.strategyOutcome;
-        return outcomeFilters.includes(outcomeName);
+        const sg = s.strategyGroup || groupsToUse[0];
+        const combinedSelected = Array.isArray(outcomeFiltersByGroup["__ALL_EXP_MAINT__"])
+          ? outcomeFiltersByGroup["__ALL_EXP_MAINT__"]
+          : null;
+        const specificSelected = Array.isArray(outcomeFiltersByGroup[sg])
+          ? outcomeFiltersByGroup[sg]
+          : null;
+        const selected = specificSelected || (combinedSelected && (sg === "Expansion" || sg === "Maintenance/Investment") ? combinedSelected : null);
+        if (!selected || !selected.length) return true;
+        return selected.includes(outcomeName);
       });
     }
 
