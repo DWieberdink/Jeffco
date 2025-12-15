@@ -17,6 +17,98 @@ const MAP_STYLES = {
   standard: 'mapbox://styles/mapbox/standard',
   satellite: 'mapbox://styles/mapbox/standard-satellite'
 };
+
+// Base-map label/POI visibility (applied to Mapbox style layers)
+const MAP_LABEL_PREFS_KEY = 'mapLabelPrefs';
+const DEFAULT_MAP_LABEL_PREFS = {
+  roadLabels: true,
+  placeLabels: true,
+  poiLabels: true
+};
+function getSavedMapLabelPrefs() {
+  try {
+    const raw = localStorage.getItem(MAP_LABEL_PREFS_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed !== 'object') return { ...DEFAULT_MAP_LABEL_PREFS };
+    return {
+      roadLabels: parsed.roadLabels !== false,
+      placeLabels: parsed.placeLabels !== false,
+      poiLabels: parsed.poiLabels !== false
+    };
+  } catch {
+    return { ...DEFAULT_MAP_LABEL_PREFS };
+  }
+}
+function saveMapLabelPrefs(prefs) {
+  try {
+    localStorage.setItem(MAP_LABEL_PREFS_KEY, JSON.stringify({
+      roadLabels: prefs.roadLabels !== false,
+      placeLabels: prefs.placeLabels !== false,
+      poiLabels: prefs.poiLabels !== false
+    }));
+  } catch {}
+}
+function applyMapLabelPrefs() {
+  const m = window.map;
+  if (!m || typeof m.getStyle !== 'function' || typeof m.setLayoutProperty !== 'function') return;
+
+  const prefs = getSavedMapLabelPrefs();
+  const style = m.getStyle();
+  const layers = (style && Array.isArray(style.layers)) ? style.layers : [];
+
+  const isComposite = (layer) => (layer && (layer.source === 'composite' || layer.source === 'mapbox'));
+
+  const classify = (layer) => {
+    if (!layer || layer.type !== 'symbol') return null;
+    if (!isComposite(layer)) return null; // avoid hiding our dashboard layers (schools, etc.)
+    const id = (layer.id || '').toString().toLowerCase();
+    const sourceLayer = (layer['source-layer'] || '').toString().toLowerCase();
+
+    // POIs (restaurants, parks, points of interest, landmarks)
+    if (
+      id.includes('poi') ||
+      id.includes('landmark') ||
+      id.includes('park') ||
+      sourceLayer.includes('poi') ||
+      sourceLayer.includes('landmark')
+    ) return 'poiLabels';
+
+    // Road labels (street names, shields)
+    if (
+      id.includes('road') ||
+      id.includes('street') ||
+      id.includes('highway') ||
+      id.includes('motorway') ||
+      id.includes('shield') ||
+      sourceLayer.includes('road')
+    ) return 'roadLabels';
+
+    // Place labels (cities, neighborhoods, admin boundaries)
+    if (
+      id.includes('place') ||
+      id.includes('settlement') ||
+      id.includes('country') ||
+      id.includes('state') ||
+      id.includes('admin') ||
+      sourceLayer.includes('place') ||
+      sourceLayer.includes('settlement') ||
+      sourceLayer.includes('country') ||
+      sourceLayer.includes('admin')
+    ) return 'placeLabels';
+
+    return null;
+  };
+
+  layers.forEach(layer => {
+    const key = classify(layer);
+    if (!key) return;
+    const visibility = prefs[key] ? 'visible' : 'none';
+    try {
+      m.setLayoutProperty(layer.id, 'visibility', visibility);
+    } catch {}
+  });
+}
+
 function getSavedMapStyle() {
   const saved = localStorage.getItem('mapStyleChoice');
   return saved || MAP_STYLES.light;
@@ -40,6 +132,8 @@ function applyMapStyle(styleId) {
     } catch {}
     try {
       ensureBaseSourcesLayers();
+      // Apply base-map label toggles after the style has rebuilt.
+      try { applyMapLabelPrefs(); } catch {}
       // ensureBaseSourcesLayers may call updateLayer internally, but call once more
       // to ensure we restore visibility/filters after layers exist.
       try { updateLayer(); } catch {}
@@ -337,6 +431,26 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
     // Initialize radio selection from saved style
+
+    // Map label toggles (Road / Place / POI)
+    const roadCb = document.getElementById('toggleRoadLabels');
+    const placeCb = document.getElementById('togglePlaceLabels');
+    const poiCb = document.getElementById('togglePoiLabels');
+    const prefs = getSavedMapLabelPrefs();
+    if (roadCb) roadCb.checked = !!prefs.roadLabels;
+    if (placeCb) placeCb.checked = !!prefs.placeLabels;
+    if (poiCb) poiCb.checked = !!prefs.poiLabels;
+    const onLabelChange = () => {
+      saveMapLabelPrefs({
+        roadLabels: roadCb ? roadCb.checked : true,
+        placeLabels: placeCb ? placeCb.checked : true,
+        poiLabels: poiCb ? poiCb.checked : true
+      });
+      try { applyMapLabelPrefs(); } catch {}
+    };
+    if (roadCb) roadCb.addEventListener('change', onLabelChange);
+    if (placeCb) placeCb.addEventListener('change', onLabelChange);
+    if (poiCb) poiCb.addEventListener('change', onLabelChange);
     const savedStyle = getSavedMapStyle();
     styleRadios.forEach(r => { r.checked = r.value === savedStyle; });
 
@@ -1837,6 +1951,9 @@ function setupAssignmentPopup() {
 
 map.on('load', () => {
   console.log("Map loaded. Fetching initial data...");
+
+  // Apply saved base-map label settings (roads/places/POIs) once the initial style is ready.
+  try { applyMapLabelPrefs(); } catch {}
 
   const geojsonPromise = fetch('Schools.geojson').then(res => res.json());
   const decisionDataPromise = window.decisionLogic.initialize();
