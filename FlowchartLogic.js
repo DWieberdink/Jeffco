@@ -1,6 +1,7 @@
 // ✅ FlowchartLogic.js
 let g;
 let svg; // ✅ Make svg globally accessible
+let flowchartZoomBehavior = null; // active d3.zoom() behavior for the currently-initialized zoomable flowchart (main or iframe)
 let nodes = []; 
 window.FlowUtils = {};
 let links = []; 
@@ -386,6 +387,8 @@ window.initializeFlowchartFromScript = function(svgElement) {
       // Don't auto-save zoom - only save when user clicks "Save Layout"
     });
 
+  flowchartZoomBehavior = zoomBehavior;
+  window.flowchartZoomBehavior = zoomBehavior;
   svg.call(zoomBehavior);
 
   // Apply the initial transform using d3's zoom API (not just the transform attribute)
@@ -2367,6 +2370,8 @@ document.addEventListener("DOMContentLoaded", () => {
         // Don't auto-save zoom - only save when user clicks "Save Layout"
       });
 
+    flowchartZoomBehavior = zoomBehavior;
+    window.flowchartZoomBehavior = zoomBehavior;
     svg.call(zoomBehavior);
 
     // Apply the initial transform using d3's zoom API (not just the transform attribute)
@@ -2868,6 +2873,25 @@ window.zoomFlowchartToFit = function() {
     console.log('[zoomFlowchartToFit] svg or g not initialized', {svg, g});
     return;
   }
+  // Prefer the user's saved default zoom (from "Save Layout") if it exists.
+  // This matches the "blue button" expectation: return to the preferred view.
+  try {
+    const saved = localStorage.getItem('flowchartZoom');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && isFinite(parsed.x) && isFinite(parsed.y) && isFinite(parsed.k)) {
+        const zb0 = flowchartZoomBehavior || window.flowchartZoomBehavior;
+        if (zb0) {
+          console.log('[zoomFlowchartToFit] Using saved default zoom:', parsed);
+          svg.transition().duration(350)
+            .call(zb0.transform, d3.zoomIdentity.translate(parsed.x, parsed.y).scale(parsed.k));
+          return;
+        }
+      }
+    }
+  } catch (e) {
+    console.log('[zoomFlowchartToFit] Could not apply saved default zoom, falling back to fit', e);
+  }
   // Ensure SVG is 100% width/height
   const svgNode = svg.node();
   if (svgNode) {
@@ -2902,11 +2926,17 @@ window.zoomFlowchartToFit = function() {
   // Center the content
   const tx = (width - bbox.width * scale) / 2 - bbox.x * scale + pad * scale;
   const ty = (height - bbox.height * scale) / 2 - bbox.y * scale + pad * scale;
+  // Use the ACTIVE zoom behavior bound to the svg (not a new d3.zoom()).
+  const zb = flowchartZoomBehavior || window.flowchartZoomBehavior;
+  if (!zb) {
+    console.log('[zoomFlowchartToFit] zoom behavior not initialized');
+    return;
+  }
   // Use d3.zoom to set transform after a longer delay
   setTimeout(() => {
     console.log('[zoomFlowchartToFit] Applying transform', {tx, ty, scale});
     svg.transition().duration(400)
-      .call(d3.zoom().transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+      .call(zb.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
   }, 250);
 };
 
@@ -2936,8 +2966,10 @@ window.centerFlowchartOnNode = function(nodeId) {
     const tx = (width / 2) - (node.fx * k);
     const ty = (height / 2) - (node.fy * k);
 
+    const zb = flowchartZoomBehavior || window.flowchartZoomBehavior;
+    if (!zb) return;
     svg.transition().duration(250)
-      .call(d3.zoom().transform, d3.zoomIdentity.translate(tx, ty).scale(k));
+      .call(zb.transform, d3.zoomIdentity.translate(tx, ty).scale(k));
   } catch (e) {
     console.warn("⚠️ centerFlowchartOnNode failed:", e);
   }
