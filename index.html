@@ -1419,6 +1419,43 @@
       width: auto;
       object-fit: contain;
     }
+
+    /* Prevent logo/title overlap on smaller screens */
+    @media (max-width: 720px) {
+      :root {
+        --brand-bar-height: 84px;
+      }
+      #top-brand-bar .brand-inner {
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 8px 12px;
+      }
+      #top-brand-bar .brand-label {
+        display: none;
+      }
+      #top-brand-bar img {
+        height: 22px;
+      }
+      #top-brand-bar .brand-title {
+        position: static;
+        transform: none;
+        width: auto;
+        padding: 0;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: unset;
+        flex: 1 1 100%;
+        order: 10;
+        font-size: 16px;
+        line-height: 1.2;
+      }
+
+      /* Keep the hamburger button in the top row so it doesn't overlap wrapped title */
+      #sidebarToggle {
+        top: 10px !important;
+        transform: none !important;
+      }
+    }
     /* View toggle styling inside hamburger menu (segmented control) */
     #sidebarMenu .menu-view-toggle {
       display: flex;

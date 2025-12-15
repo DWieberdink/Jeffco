@@ -129,6 +129,38 @@
         /* Page layout below fixed top bar */
         body { padding-top: var(--brand-bar-height); }
 
+        /* Prevent logo/title overlap on smaller screens */
+        @media (max-width: 720px) {
+            :root { --brand-bar-height: 84px; }
+            #top-brand-bar .brand-inner {
+                flex-wrap: wrap;
+                gap: 8px;
+                padding: 8px 12px;
+            }
+            #top-brand-bar .brand-label { display: none; }
+            #top-brand-bar img { height: 22px; }
+            #top-brand-bar .brand-title {
+                position: static;
+                transform: none;
+                width: auto;
+                padding: 0;
+                white-space: normal;
+                overflow: visible;
+                text-overflow: unset;
+                flex: 1 1 100%;
+                order: 10;
+                font-size: 14px;
+                line-height: 1.2;
+            }
+            /* Keep back button in the top row so it doesn't overlap wrapped title */
+            .top-back-button {
+                top: 10px;
+                transform: none;
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+        }
+
         /* Legacy header styles removed (now using #top-brand-bar) */
 
         /* Tab Styles */
