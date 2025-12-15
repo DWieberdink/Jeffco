@@ -7,6 +7,16 @@ let links = [];
 let schoolData = [];
 let mapExportData = null;
 
+// Coerce a value that may be stored as a ratio (0–1) or percent (0–100)
+// into a percent on the 0–100 scale.
+function coercePercent0to100(raw) {
+  const n = parseFloat((raw ?? "").toString().trim());
+  if (!isFinite(n)) return 0;
+  // AttendanceAreaEnrollment in the CSV is currently stored as a ratio (e.g. 0.46 = 46%).
+  // Guard against future exports that may already be in percent.
+  return n <= 1.5 ? n * 100 : n;
+}
+
 // --- Flowchart link hover menu (Cursor-like flyout) ---
 let flowLinkMenuEl = null;
 let flowLinkMenuHideTimer = null;
@@ -1476,8 +1486,8 @@ function evaluatePath(row, t) {
     
     // Flow 2 - Building Addition
     attendance: (() => {
-      const attendanceAreaEnrollment = parseFloat(row.AttendanceAreaEnrollment || 0);
-      return attendanceAreaEnrollment >= t.attendanceAreaEnrollment ? "Yes" : "No";
+      const attendanceAreaEnrollmentPct = coercePercent0to100(row.AttendanceAreaEnrollment);
+      return attendanceAreaEnrollmentPct >= t.attendanceAreaEnrollment ? "Yes" : "No";
     })(),
     edu2: (+row.EducationalAdequacy * 100) >= t.adequateProgramsMin ? "Yes" : "No",
     fac2: +row.BuildingScore <= t.buildingThreshold ? "Yes" : "No",
@@ -2476,7 +2486,8 @@ function updateFlowchartSchoolInfo(name) {
   // Get Attendance Area Enrollment
   let attendanceAreaEnrollment = getVal(row, ["AttendanceAreaEnrollment", "Attendance Area Enrollment"]);
   if (attendanceAreaEnrollment !== undefined && attendanceAreaEnrollment !== null && attendanceAreaEnrollment !== "") {
-    attendanceAreaEnrollment = parseFloat(attendanceAreaEnrollment).toFixed(1) + "%";
+    const pct = coercePercent0to100(attendanceAreaEnrollment);
+    attendanceAreaEnrollment = (isFinite(pct) ? pct.toFixed(1) : 0) + "%";
   } else {
     attendanceAreaEnrollment = "N/A";
   }

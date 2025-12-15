@@ -296,7 +296,12 @@ window.prioritizationLogic = {
         return (isFinite(raw) ? raw : 0) * 100; // convert to %
       }
       case "neighborhoodCapture":
-        return parseFloat(school.AttendanceAreaEnrollment || 0, 10);
+        {
+          const raw = parseFloat(school.AttendanceAreaEnrollment || 0, 10);
+          if (!isFinite(raw)) return 0;
+          // Stored as ratio (0–1) in Decision Data Export.csv; convert to percent (0–100) for display/scoring consistency.
+          return raw <= 1.5 ? raw * 100 : raw;
+        }
       case "welcomedStudents":
         return parseInt(school["Welcomed Students"] || school["Students Welcomed"] || 0, 10);
       case "distanceFromOtherSchools":
