@@ -2432,31 +2432,38 @@
     <details id="filter-panel">
         <summary><strong>Map Filters</strong></summary>
         <div id="filter-panel-content">
-            <div class="filter-row map-style-row">
-              <span class="filter-label">Map Style</span>
-              <div class="map-style-toggle">
-                <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/light-v11" id="mapStyleLight"><span>Light</span></label>
-                <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/standard" id="mapStyleStandard"><span>Standard</span></label>
-                <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/standard-satellite" id="mapStyleSatellite"><span>Standard Satellite</span></label>
+            <details id="mapBaseLayersDetails" open style="margin: 0 0 10px 0;">
+              <summary style="font-weight:700; font-size:13px; cursor:pointer; padding:4px 2px; display:flex; align-items:center; gap:8px;">
+                <span>Map Base Layers</span>
+              </summary>
+              <div style="padding: 8px 0 2px 0;">
+                <div class="filter-row map-style-row">
+                  <span class="filter-label">Map Style</span>
+                  <div class="map-style-toggle">
+                    <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/light-v11" id="mapStyleLight"><span>Light</span></label>
+                    <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/standard" id="mapStyleStandard"><span>Standard</span></label>
+                    <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/standard-satellite" id="mapStyleSatellite"><span>Standard Satellite</span></label>
+                  </div>
+                </div>
+                <div class="filter-row" style="align-items:flex-start; margin-top: 8px;">
+                  <span class="filter-label">Map Labels</span>
+                  <div style="display:flex; flex-direction:column; gap:6px; width:100%; font-size:12px;">
+                    <label style="display:flex; align-items:center; gap:6px;">
+                      <input type="checkbox" id="toggleRoadLabels" checked style="width:14px; height:14px;">
+                      <span>Road labels</span>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px;">
+                      <input type="checkbox" id="togglePlaceLabels" checked style="width:14px; height:14px;">
+                      <span>Place labels</span>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px;">
+                      <input type="checkbox" id="togglePoiLabels" checked style="width:14px; height:14px;">
+                      <span>POIs (restaurants, parks)</span>
+                    </label>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div class="filter-row" style="align-items:flex-start;">
-              <span class="filter-label">Map Labels</span>
-              <div style="display:flex; flex-direction:column; gap:6px; width:100%; font-size:12px;">
-                <label style="display:flex; align-items:center; gap:6px;">
-                  <input type="checkbox" id="toggleRoadLabels" checked style="width:14px; height:14px;">
-                  <span>Road labels</span>
-                </label>
-                <label style="display:flex; align-items:center; gap:6px;">
-                  <input type="checkbox" id="togglePlaceLabels" checked style="width:14px; height:14px;">
-                  <span>Place labels</span>
-                </label>
-                <label style="display:flex; align-items:center; gap:6px;">
-                  <input type="checkbox" id="togglePoiLabels" checked style="width:14px; height:14px;">
-                  <span>POIs (restaurants, parks)</span>
-                </label>
-              </div>
-            </div>
+            </details>
             <div class="school-select-filter">
               <div class="school-select-header" style="margin-bottom:6px;">
                 <h3 style="margin:0;">School Selection</h3>
