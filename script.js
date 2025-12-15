@@ -48,23 +48,28 @@ function saveMapLabelPrefs(prefs) {
     }));
   } catch {}
 }
-function applyMapLabelPrefs() {
-  const m = window.map;
-  if (!m || typeof m.getStyle !== 'function' || typeof m.setLayoutProperty !== 'function') return;
-  try {
-    if (typeof m.isStyleLoaded === 'function' && !m.isStyleLoaded()) return;
-  } catch {}
 
-  const prefs = getSavedMapLabelPrefs();
-  const style = m.getStyle();
-  const layers = (style && Array.isArray(style.layers)) ? style.layers : [];
+function rebuildMapLabelLayerIndex() {
+  const m = window.map;
+  if (!m || typeof m.getStyle !== 'function') {
+    window.__mapLabelLayerIndex = null;
+    return;
+  }
+  let layers = [];
+  try {
+    const style = m.getStyle();
+    layers = (style && Array.isArray(style.layers)) ? style.layers : [];
+  } catch {
+    layers = [];
+  }
+
+  const idx = { roadLabels: [], placeLabels: [], poiLabels: [] };
 
   const classify = (layer) => {
     if (!layer || layer.type !== 'symbol') return null;
     // Avoid hiding our dashboard layers (schools, selections, etc.)
     const src = (layer.source || '').toString().toLowerCase();
-    const layerIdRaw = (layer.id || '').toString();
-    const layerIdLower = layerIdRaw.toLowerCase();
+    const layerIdLower = ((layer.id || '').toString()).toLowerCase();
     if (
       src === 'schools' ||
       src === 'selected-school' ||
@@ -75,37 +80,33 @@ function applyMapLabelPrefs() {
     ) {
       return null;
     }
-    const id = layerIdLower;
     const sourceLayer = (layer['source-layer'] || '').toString().toLowerCase();
 
-    // POIs (restaurants, parks, points of interest, landmarks)
     if (
-      id.includes('poi') ||
-      id.includes('landmark') ||
-      id.includes('park') ||
+      layerIdLower.includes('poi') ||
+      layerIdLower.includes('landmark') ||
+      layerIdLower.includes('park') ||
       sourceLayer.includes('poi') ||
       sourceLayer.includes('landmark') ||
       sourceLayer.includes('park')
     ) return 'poiLabels';
 
-    // Road labels (street names, shields)
     if (
-      id.includes('road') ||
-      id.includes('street') ||
-      id.includes('highway') ||
-      id.includes('motorway') ||
-      id.includes('shield') ||
+      layerIdLower.includes('road') ||
+      layerIdLower.includes('street') ||
+      layerIdLower.includes('highway') ||
+      layerIdLower.includes('motorway') ||
+      layerIdLower.includes('shield') ||
       sourceLayer.includes('road') ||
       sourceLayer.includes('transportation')
     ) return 'roadLabels';
 
-    // Place labels (cities, neighborhoods, admin boundaries)
     if (
-      id.includes('place') ||
-      id.includes('settlement') ||
-      id.includes('country') ||
-      id.includes('state') ||
-      id.includes('admin') ||
+      layerIdLower.includes('place') ||
+      layerIdLower.includes('settlement') ||
+      layerIdLower.includes('country') ||
+      layerIdLower.includes('state') ||
+      layerIdLower.includes('admin') ||
       sourceLayer.includes('place') ||
       sourceLayer.includes('settlement') ||
       sourceLayer.includes('country') ||
@@ -118,11 +119,43 @@ function applyMapLabelPrefs() {
   layers.forEach(layer => {
     const key = classify(layer);
     if (!key) return;
-    const visibility = prefs[key] ? 'visible' : 'none';
-    try {
-      m.setLayoutProperty(layer.id, 'visibility', visibility);
-    } catch {}
+    idx[key].push(layer.id);
   });
+
+  window.__mapLabelLayerIndex = idx;
+  window.__mapLabelLayerIndexBuiltAt = Date.now();
+  console.warn(
+    '🗺️ Map Labels index rebuilt:',
+    'roads=', idx.roadLabels.length,
+    'places=', idx.placeLabels.length,
+    'pois=', idx.poiLabels.length
+  );
+}
+
+function applyMapLabelPrefs() {
+  const m = window.map;
+  if (!m || typeof m.getStyle !== 'function' || typeof m.setLayoutProperty !== 'function') return;
+  try {
+    if (typeof m.isStyleLoaded === 'function' && !m.isStyleLoaded()) return;
+  } catch {}
+
+  const prefs = getSavedMapLabelPrefs();
+
+  if (!window.__mapLabelLayerIndex) {
+    rebuildMapLabelLayerIndex();
+  }
+  const idx = window.__mapLabelLayerIndex || { roadLabels: [], placeLabels: [], poiLabels: [] };
+
+  const setGroup = (key) => {
+    const visibility = prefs[key] ? 'visible' : 'none';
+    (idx[key] || []).forEach(layerId => {
+      try { m.setLayoutProperty(layerId, 'visibility', visibility); } catch {}
+    });
+  };
+  setGroup('roadLabels');
+  setGroup('placeLabels');
+  setGroup('poiLabels');
+  console.warn('🗺️ Map Labels applied:', prefs);
 }
 
 function getSavedMapStyle() {
@@ -174,6 +207,9 @@ function applyMapStyle(styleId) {
     // Avoid piling up listeners from rapid clicks
     mapRef.off('style.load', onStyleLoadOnce);
     mapRef.on('style.load', onStyleLoadOnce);
+    // Rebuild label-layer index for the incoming style.
+    try { mapRef.off('style.load', rebuildMapLabelLayerIndex); } catch {}
+    try { mapRef.on('style.load', rebuildMapLabelLayerIndex); } catch {}
     mapRef.setStyle(styleId);
     localStorage.setItem('mapStyleChoice', styleId);
   } catch (e) {
@@ -458,6 +494,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (poiCb) poiCb.checked = !!prefs.poiLabels;
     const onLabelChange = () => {
       saveMapLabelPrefs({
+        roadLabels: roadCb ? roadCb.checked : true,
+        placeLabels: placeCb ? placeCb.checked : true,
+        poiLabels: poiCb ? poiCb.checked : true
+      });
+      console.warn('🗺️ Map Labels changed:', {
         roadLabels: roadCb ? roadCb.checked : true,
         placeLabels: placeCb ? placeCb.checked : true,
         poiLabels: poiCb ? poiCb.checked : true
@@ -1969,6 +2010,7 @@ map.on('load', () => {
   console.log("Map loaded. Fetching initial data...");
 
   // Apply saved base-map label settings (roads/places/POIs) once the initial style is ready.
+  try { rebuildMapLabelLayerIndex(); } catch {}
   try { applyMapLabelPrefs(); } catch {}
 
   const geojsonPromise = fetch('Schools.geojson').then(res => res.json());
