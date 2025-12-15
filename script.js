@@ -63,19 +63,19 @@ function applyMapLabelPrefs() {
     if (!layer || layer.type !== 'symbol') return null;
     // Avoid hiding our dashboard layers (schools, selections, etc.)
     const src = (layer.source || '').toString().toLowerCase();
-    const idRaw = (layer.id || '').toString();
-    const id = idRaw.toLowerCase();
+    const layerIdRaw = (layer.id || '').toString();
+    const layerIdLower = layerIdRaw.toLowerCase();
     if (
       src === 'schools' ||
       src === 'selected-school' ||
-      id.startsWith('schools-') ||
-      id.startsWith('selected-school-') ||
-      id.includes('sending-school') ||
-      id.includes('receiving-school')
+      layerIdLower.startsWith('schools-') ||
+      layerIdLower.startsWith('selected-school-') ||
+      layerIdLower.includes('sending-school') ||
+      layerIdLower.includes('receiving-school')
     ) {
       return null;
     }
-    const id = (layer.id || '').toString().toLowerCase();
+    const id = layerIdLower;
     const sourceLayer = (layer['source-layer'] || '').toString().toLowerCase();
 
     // POIs (restaurants, parks, points of interest, landmarks)
