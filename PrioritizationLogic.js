@@ -299,7 +299,8 @@ window.prioritizationLogic = {
         {
           const raw = parseFloat(school.AttendanceAreaEnrollment || 0, 10);
           if (!isFinite(raw)) return 0;
-          // Stored as ratio (0–1) in Decision Data Export.csv; convert to percent (0–100) for display/scoring consistency.
+          // AttendanceAreaEnrollment may appear as a ratio (0–1) or percent (0–100).
+          // Convert to a consistent percent (0–100) scale for display/scoring.
           return raw <= 1.5 ? raw * 100 : raw;
         }
       case "welcomedStudents":

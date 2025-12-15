@@ -12,8 +12,8 @@ let mapExportData = null;
 function coercePercent0to100(raw) {
   const n = parseFloat((raw ?? "").toString().trim());
   if (!isFinite(n)) return 0;
-  // AttendanceAreaEnrollment in the CSV is currently stored as a ratio (e.g. 0.46 = 46%).
-  // Guard against future exports that may already be in percent.
+  // AttendanceAreaEnrollment may appear as a ratio (0–1, e.g. 0.46 = 46%)
+  // or as a percent (0–100, e.g. 46.6). Handle both.
   return n <= 1.5 ? n * 100 : n;
 }
 
