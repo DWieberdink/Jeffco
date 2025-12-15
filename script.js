@@ -132,13 +132,59 @@ function rebuildMapLabelLayerIndex() {
   );
 }
 
+function applyMapLabelPrefsViaConfig() {
+  const m = window.map;
+  if (!m || typeof m.setConfigProperty !== 'function') return false;
+  const prefs = getSavedMapLabelPrefs();
+
+  // Mapbox "Standard" styles often expose label control via style config (not plain layers).
+  // Try a small set of likely config keys; ignore failures and fall back to layer toggles.
+  const attempts = [];
+  const trySet = (group, key, val) => {
+    try {
+      m.setConfigProperty(group, key, val);
+      attempts.push(`${group}.${key}=${val}`);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const wantRoad = !!prefs.roadLabels;
+  const wantPlace = !!prefs.placeLabels;
+  const wantPoi = !!prefs.poiLabels;
+
+  // Common naming patterns seen in Standard-style configs
+  const ok =
+    trySet('basemap', 'showRoadLabels', wantRoad) |
+    trySet('basemap', 'showRoadLabel', wantRoad) |
+    trySet('basemap', 'showRoadsAndTransitLabels', wantRoad) |
+    trySet('basemap', 'showPlaceLabels', wantPlace) |
+    trySet('basemap', 'showPlaceLabel', wantPlace) |
+    trySet('basemap', 'showPointOfInterestLabels', wantPoi) |
+    trySet('basemap', 'showPoiLabels', wantPoi) |
+    trySet('basemap', 'showPOILabels', wantPoi);
+
+  if (attempts.length) {
+    console.warn('🗺️ Map Labels applied via config:', attempts.join(', '));
+  }
+  return !!ok;
+}
+
 function applyMapLabelPrefs() {
   const m = window.map;
-  if (!m || typeof m.getStyle !== 'function' || typeof m.setLayoutProperty !== 'function') return;
+  if (!m || typeof m.getStyle !== 'function') return;
   try {
     if (typeof m.isStyleLoaded === 'function' && !m.isStyleLoaded()) return;
   } catch {}
 
+  // First try Standard-style config toggles (works for Standard / Standard Satellite).
+  try {
+    if (applyMapLabelPrefsViaConfig()) return;
+  } catch {}
+
+  // Fallback: hide symbol layers (works for classic styles like Light).
+  if (typeof m.setLayoutProperty !== 'function') return;
   const prefs = getSavedMapLabelPrefs();
 
   if (!window.__mapLabelLayerIndex) {
@@ -182,6 +228,7 @@ function applyMapStyle(styleId) {
     try {
       ensureBaseSourcesLayers();
       // Apply base-map label toggles after the style has rebuilt.
+      try { rebuildMapLabelLayerIndex(); } catch {}
       try { applyMapLabelPrefs(); } catch {}
       // ensureBaseSourcesLayers may call updateLayer internally, but call once more
       // to ensure we restore visibility/filters after layers exist.
@@ -210,6 +257,8 @@ function applyMapStyle(styleId) {
     // Rebuild label-layer index for the incoming style.
     try { mapRef.off('style.load', rebuildMapLabelLayerIndex); } catch {}
     try { mapRef.on('style.load', rebuildMapLabelLayerIndex); } catch {}
+    // Some styles (Standard) populate layers after style.load; rebuild again at idle.
+    try { mapRef.once('idle', rebuildMapLabelLayerIndex); } catch {}
     mapRef.setStyle(styleId);
     localStorage.setItem('mapStyleChoice', styleId);
   } catch (e) {
