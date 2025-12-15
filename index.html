@@ -1379,14 +1379,29 @@
       align-items: center;
     }
     #top-brand-bar .brand-inner {
-      position: relative;
-      display: flex;
+      /* 3-column layout prevents title/logo overlap on narrow widths */
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-areas: "left title right";
       align-items: center;
       gap: 10px;
       padding: 8px 16px;
       width: 100%;
       box-sizing: border-box;
-      justify-content: flex-start;
+    }
+    #top-brand-bar .brand-left {
+      grid-area: left;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      white-space: nowrap;
+    }
+    #top-brand-bar .brand-right {
+      grid-area: right;
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
     }
     #top-brand-bar .brand-label {
       font-size: 12px;
@@ -1394,16 +1409,18 @@
       color: #111827;
     }
     #top-brand-bar .brand-title {
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
+      grid-area: title;
+      justify-self: center;
+      min-width: 0;
       text-align: center;
       font-size: 26px;
       font-weight: 700;
       color: #111827;
       margin: 0;
-      pointer-events: none;
-      width: 100%;
+      padding: 0 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     #top-brand-bar img {
       height: 26px;
@@ -1426,9 +1443,16 @@
         --brand-bar-height: 84px;
       }
       #top-brand-bar .brand-inner {
-        flex-wrap: wrap;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+          "left right"
+          "title title";
         gap: 8px;
         padding: 8px 12px;
+      }
+      #top-brand-bar .brand-left {
+        flex-wrap: wrap;
+        gap: 8px;
       }
       #top-brand-bar .brand-label {
         display: none;
@@ -1437,27 +1461,27 @@
         height: 22px;
       }
       #top-brand-bar .brand-title {
-        position: static;
-        transform: none;
         width: 100%;
         padding: 0;
         white-space: normal;
         overflow: visible;
         text-overflow: unset;
-        flex: 1 1 100%;
-        order: 10;
         text-align: center;
         margin: 0 auto;
         font-size: 16px;
         line-height: 1.2;
       }
 
-      /* Keep the hamburger button in the top row so it doesn't overlap wrapped title */
+      /* Keep the hamburger button in the top row */
       #sidebarToggle {
-        top: 10px !important;
-        transform: none !important;
+        margin-left: 8px;
       }
     }
+
+    /* Flowchart layout tools chevron rotation (match Map Filters / Legend behavior) */
+    #flowchartLayoutTools > summary::-webkit-details-marker { display: none; }
+    #flowchartLayoutTools[open] summary .chevron { transform: rotate(90deg); }
+    #flowchartLayoutTools:not([open]) summary .chevron { transform: rotate(0deg); }
     /* View toggle styling inside hamburger menu (segmented control) */
     #sidebarMenu .menu-view-toggle {
       display: flex;
@@ -2101,14 +2125,20 @@
 
 <div id="top-brand-bar">
   <div class="brand-inner">
-    <span class="brand-label">Developed for</span>
-    <img src="client-logo.png" alt="Client Logo" class="client-logo">
-    <span class="brand-label">by</span>
-    <img src="PerkinsEastmanLogo.svg" alt="Perkins Eastman Logo" class="pe-logo">
+    <div class="brand-left">
+      <span class="brand-label">Developed for</span>
+      <img src="client-logo.png" alt="Client Logo" class="client-logo">
+      <span class="brand-label">by</span>
+      <img src="PerkinsEastmanLogo.svg" alt="Perkins Eastman Logo" class="pe-logo">
+    </div>
+
     <span class="brand-title">School Facility Planning Webtool</span>
-    <button id="sidebarToggle" aria-label="Toggle menu" style="position: absolute; right: 12px; top: 50%; transform: translateY(-55%); z-index: 2006; width: 36px; height: 36px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.12); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
-      <span style="display:block; width:16px; height:2px; background:#111; box-shadow: 0 5px 0 #111, 0 10px 0 #111;"></span>
-    </button>
+
+    <div class="brand-right">
+      <button id="sidebarToggle" aria-label="Toggle menu" style="z-index: 2006; width: 36px; height: 36px; border: 1px solid #d1d5db; border-radius: 6px; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.12); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;">
+        <span style="display:block; width:16px; height:2px; background:#111; box-shadow: 0 5px 0 #111, 0 10px 0 #111;"></span>
+      </button>
+    </div>
   </div>
 </div>
 <!-- Hamburger dropdown menu -->
@@ -2592,21 +2622,36 @@
         <svg id="main-flowchart-svg" viewBox="-50 -50 1000 1400" preserveAspectRatio="xMidYMid meet"></svg>
       </div>
       
-      <!-- Flowchart Control Buttons at Bottom -->
-      <div class="flowchart-control-buttons" style="position: absolute; bottom: 20px; left: 20px; z-index: 999; display: flex; gap: 4px; background: white; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.3); padding: 2px;">
-        <button onclick="window.saveCurrentLayoutAsDefault()" style="background: #28a745; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">
-          Save Layout
-        </button>
-        <button id="editFlowBoxesBtn" onclick="window.toggleFlowBoxEditMode()" style="background: #007bff; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">
-          Edit Flow Boxes
-        </button>
-        <button onclick="if (typeof window.zoomFlowchartToFit === 'function') window.zoomFlowchartToFit();" style="background: #6c757d; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">
+      <!-- Flowchart Controls (match map control style/location) -->
+      <div id="flowchart-bottom-right-controls" style="position:absolute; bottom:20px; right:20px; z-index:999; display:flex; gap:10px; align-items:flex-end;">
+        <button id="flowchartZoomToFitBtn" type="button"
+                onclick="if (typeof window.zoomFlowchartToFit === 'function') window.zoomFlowchartToFit();"
+                style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:13px; font-weight:700; padding:8px 10px; background:#fff; color:#111; border:none; border-radius:4px; box-shadow:0 1px 4px rgba(0,0,0,0.3); user-select:none;">
           Zoom to Fit
         </button>
+
+        <details id="flowchartLayoutTools" style="background:#fff; border-radius:4px; box-shadow:0 1px 4px rgba(0,0,0,0.3); overflow:hidden;">
+          <summary style="display:flex; align-items:center; justify-content:flex-start; cursor:pointer; font-size:13px; font-weight:700; padding:8px 10px; background:#fff; color:#111; border:none; user-select:none; gap:6px; list-style:none;">
+            <span class="chevron" aria-hidden="true" style="font-size:11px; margin:0 6px 0 0; color:#6b7280; display:inline-block; transition:transform 0.15s ease; transform-origin:center;">▸</span>
+            <span>Layout Tools</span>
+          </summary>
+          <div style="padding:8px 10px; border-top:1px solid #e5e7eb; display:flex; flex-direction:column; gap:6px; min-width:160px;">
+            <button id="flowchartSaveLayoutBtn" type="button"
+                    onclick="window.saveCurrentLayoutAsDefault()"
+                    style="width:100%; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; background:#fff; cursor:pointer; text-align:left; font-size:13px;">
+              Save Layout
+            </button>
+            <button id="editFlowBoxesBtn" type="button"
+                    onclick="window.toggleFlowBoxEditMode()"
+                    style="width:100%; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; background:#fff; cursor:pointer; text-align:left; font-size:13px;">
+              Edit Flow Boxes
+            </button>
+          </div>
+        </details>
       </div>
       
       <!-- Map/Flowchart Toggle for Flowchart View -->
-      <div class="toggle-buttons map-flowchart-toggle" style="position: absolute; bottom: 20px; right: 20px; z-index: 999;">
+      <div class="toggle-buttons map-flowchart-toggle" style="display:none; position: absolute; bottom: 20px; right: 20px; z-index: 999;">
         <button id="toggleMapFlowchartMap2" onclick="if(typeof window.switchToMap === 'function') window.switchToMap();">Show Map</button>
         <button id="toggleMapFlowchartFlowchart2" class="active" onclick="console.log('Flowchart button 2 clicked'); if(typeof window.switchToFlowchart === 'function') { console.log('Calling switchToFlowchart'); window.switchToFlowchart(); } else { console.error('switchToFlowchart not found'); }">Show Flowchart</button>
       </div>
@@ -2670,7 +2715,13 @@
               </div>
               <div style="position: relative; min-height: 40px;">
                 <details id="decision-by-school-details">
-                  <summary class="custom-summary" style="display: flex; align-items: center;"><strong>Decision by School</strong></summary>
+                  <summary class="custom-summary" style="display: flex; align-items: center; padding-right: 140px;">
+                    <strong>Decision by School</strong>
+                    <button id="exportDecisionResultsCsvBtn" type="button" onclick="event.stopPropagation();"
+                            style="position:absolute; top:50%; right:34px; transform:translateY(-50%); padding:4px 10px; border:1px solid #d1d5db; border-radius:6px; background:#fff; cursor:pointer; font-size:12px; font-weight:600; color:#111827; z-index:1001; margin:0;">
+                      Export CSV
+                    </button>
+                  </summary>
                   <div class="details-content-wrapper" style="padding: 0.5rem;">
                     <div id="results" style="padding: 0;"></div>
                   </div>

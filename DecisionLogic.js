@@ -523,34 +523,78 @@ document.addEventListener("DOMContentLoaded", () => {
     const extraDecisions = Object.keys(decisionCounts).filter(k => !listed.has(k)).sort();
 
     const summaryRowsParts = [];
+    const groupKeyForLabel = (label) =>
+      "grp_" + (label || "group").toString().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+
+    // Inject styles once for collapsible summary groups
+    injectSummaryGroupToggleStyles();
+
     decisionGroups.forEach(group => {
+      const groupKey = groupKeyForLabel(group.label);
+      const groupTotal = group.items.reduce((sum, d) => sum + (decisionCounts[d] || 0), 0);
       summaryRowsParts.push(
-        `<tr style="background:#f5f5f5;font-weight:700;"><td class="truncate-cell" data-tooltip="${group.label}" style="width:80%; padding-left:4px;">${group.label}</td><td class="text-center" style="width:20%; min-width:60px; max-width:75px;">${group.items.reduce((sum, d) => sum + (decisionCounts[d] || 0), 0)}</td></tr>`
+        `<tr class="summary-group-row" data-group="${groupKey}">` +
+          `<td style="width:80%; padding-left:4px;">` +
+            `<button type="button" class="summary-group-toggle" data-group="${groupKey}" aria-expanded="false">` +
+              `<span class="chev" aria-hidden="true">▸</span>` +
+              `<span class="label truncate-cell" data-tooltip="${group.label}">${group.label}</span>` +
+            `</button>` +
+          `</td>` +
+          `<td class="text-center" style="width:20%; min-width:60px; max-width:75px;">${groupTotal}</td>` +
+        `</tr>`
       );
       group.items.forEach(decision => {
         summaryRowsParts.push(
-          `<tr><td class="truncate-cell" data-tooltip="${decision}" style="width: 80%; padding-left:18px;">${decision}</td><td class="text-center" style="width: 20%; min-width: 60px; max-width: 75px;">${decisionCounts[decision] || 0}</td></tr>`
+          `<tr class="summary-child-row is-hidden" data-parent="${groupKey}">` +
+            `<td class="truncate-cell" data-tooltip="${decision}" style="width: 80%; padding-left:28px;">${decision}</td>` +
+            `<td class="text-center" style="width: 20%; min-width: 60px; max-width: 75px;">${decisionCounts[decision] || 0}</td>` +
+          `</tr>`
         );
       });
     });
-    extraDecisions.forEach(decision => {
+
+    // Any unexpected decision values (e.g., Unknown) are grouped into a final collapsible section.
+    if (extraDecisions.length > 0) {
+      const otherLabel = "Other / Unknown";
+      const otherKey = groupKeyForLabel(otherLabel);
+      const otherTotal = extraDecisions.reduce((sum, d) => sum + (decisionCounts[d] || 0), 0);
       summaryRowsParts.push(
-        `<tr><td class="truncate-cell" data-tooltip="${decision}" style="width: 80%;">${decision}</td><td class="text-center" style="width: 20%; min-width: 60px; max-width: 75px;">${decisionCounts[decision] || 0}</td></tr>`
+        `<tr class="summary-group-row" data-group="${otherKey}">` +
+          `<td style="width:80%; padding-left:4px;">` +
+            `<button type="button" class="summary-group-toggle" data-group="${otherKey}" aria-expanded="false">` +
+              `<span class="chev" aria-hidden="true">▸</span>` +
+              `<span class="label truncate-cell" data-tooltip="${otherLabel}">${otherLabel}</span>` +
+            `</button>` +
+          `</td>` +
+          `<td class="text-center" style="width:20%; min-width:60px; max-width:75px;">${otherTotal}</td>` +
+        `</tr>`
       );
-    });
+
+      extraDecisions.forEach(decision => {
+        summaryRowsParts.push(
+          `<tr class="summary-child-row is-hidden" data-parent="${otherKey}">` +
+            `<td class="truncate-cell" data-tooltip="${decision}" style="width: 80%; padding-left:28px;">${decision}</td>` +
+            `<td class="text-center" style="width: 20%; min-width: 60px; max-width: 75px;">${decisionCounts[decision] || 0}</td>` +
+          `</tr>`
+        );
+      });
+    }
     const summaryRows = summaryRowsParts.join("");
   
     summaryDiv.innerHTML = `
       <table class="data-table">
         <thead>
           <tr>
-            <th class="sortable-header" data-column="0" data-type="string" style="width: 80%;">Decision</th>
-            <th class="sortable-header text-center" data-column="1" data-type="number" style="width: 20%; min-width: 60px; max-width: 75px;"># Schools</th>
+            <th style="width: 80%;">Decision</th>
+            <th class="text-center" style="width: 20%; min-width: 60px; max-width: 75px;"># Schools</th>
           </tr>
         </thead>
         <tbody>${summaryRows}</tbody>
         <tfoot><tr><th>Total</th><th class="text-center">${totalCount}</th></tr></tfoot>
       </table>`;
+
+    // Activate collapsible behavior for summary groups (default collapsed)
+    setupSummaryGroupToggles(summaryDiv);
   
     resultsDiv.innerHTML = `
       <table class="data-table">
@@ -567,7 +611,125 @@ document.addEventListener("DOMContentLoaded", () => {
         <tbody>${rows}</tbody>
       </table>`;
 
+    // Export current "Decision by School" table to CSV (in current onscreen order)
+    const exportBtn = document.getElementById('exportDecisionResultsCsvBtn');
+    if (exportBtn) {
+      exportBtn.onclick = function () {
+        try {
+          const table = resultsDiv.querySelector('table.data-table');
+          if (!table) return;
+
+          const headerCells = Array.from(table.querySelectorAll('thead th'));
+          const headers = headerCells.map(th => (th.textContent || '').trim());
+
+          const bodyRows = Array.from(table.querySelectorAll('tbody tr'));
+          const rowsOut = bodyRows.map(tr => {
+            const cells = Array.from(tr.querySelectorAll('td')).map(td => (td.textContent || '').trim());
+            return cells;
+          });
+
+          const csvEscape = (v) => {
+            const s = (v ?? '').toString();
+            const needsQuotes = /[",\r\n]/.test(s);
+            const escaped = s.replace(/"/g, '""');
+            return needsQuotes ? `"${escaped}"` : escaped;
+          };
+
+          const lines = [];
+          lines.push(headers.map(csvEscape).join(','));
+          rowsOut.forEach(r => lines.push(r.map(csvEscape).join(',')));
+          const csv = lines.join('\r\n');
+
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          const date = new Date();
+          const yyyy = date.getFullYear();
+          const mm = String(date.getMonth() + 1).padStart(2, '0');
+          const dd = String(date.getDate()).padStart(2, '0');
+          a.href = url;
+          a.download = `Decision_By_School_${yyyy}-${mm}-${dd}.csv`;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            try { document.body.removeChild(a); } catch {}
+            try { URL.revokeObjectURL(url); } catch {}
+          }, 50);
+        } catch (e) {
+          console.warn('⚠️ Unable to export Decision by School CSV:', e);
+        }
+      };
+    }
+
     makeTablesSortable();
+  }
+
+  function injectSummaryGroupToggleStyles() {
+    if (document.getElementById('summary-group-toggle-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'summary-group-toggle-styles';
+    style.textContent = `
+      .summary-group-row {
+        background: #f5f5f5;
+        font-weight: 700;
+      }
+      .summary-group-toggle {
+        appearance: none;
+        -webkit-appearance: none;
+        border: 0;
+        background: transparent;
+        padding: 0;
+        margin: 0;
+        width: 100%;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        font: inherit;
+        color: inherit;
+        text-align: left;
+      }
+      .summary-group-toggle .chev {
+        display: inline-block;
+        width: 14px;
+        transform: rotate(0deg);
+        transition: transform 0.12s ease-in-out;
+        color: #111827;
+      }
+      .summary-group-toggle[aria-expanded="true"] .chev {
+        transform: rotate(90deg);
+      }
+      .summary-child-row.is-hidden {
+        display: none;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function setupSummaryGroupToggles(summaryRoot) {
+    if (!summaryRoot) return;
+
+    // Prevent attaching listeners multiple times across re-renders
+    if (summaryRoot.__hasSummaryGroupToggles) return;
+    summaryRoot.__hasSummaryGroupToggles = true;
+
+    summaryRoot.addEventListener('click', (e) => {
+      const btn = e.target && e.target.closest ? e.target.closest('.summary-group-toggle') : null;
+      if (!btn) return;
+      e.preventDefault();
+
+      const groupKey = btn.getAttribute('data-group');
+      if (!groupKey) return;
+
+      const expanded = btn.getAttribute('aria-expanded') === 'true';
+      const nextExpanded = !expanded;
+      btn.setAttribute('aria-expanded', nextExpanded ? 'true' : 'false');
+
+      const rows = summaryRoot.querySelectorAll(`tr.summary-child-row[data-parent="${groupKey}"]`);
+      rows.forEach(r => {
+        r.classList.toggle('is-hidden', !nextExpanded);
+      });
+    });
   }
 
   function makeTablesSortable() {
