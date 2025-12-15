@@ -18,6 +18,30 @@ const MAP_STYLES = {
   satellite: 'mapbox://styles/mapbox/standard-satellite'
 };
 
+// Decision outcome colors (keep consistent with map circle coloring)
+const DECISION_COLORS = {
+  "Building Addition": "#2E8B57",
+  "Policy Solution for Overcrowding": "#66BB6A",
+  "Building Addition with Capital Investment": "#1B5E20",
+  "Building Replacement": "#4B830D",
+  "Targeted Capital Investment": "#FFA726",
+  "Standard Maintenance": "#FFD54F",
+  "Major Capital Investment": "#FB8C00",
+  "Welcoming School": "#C62828",
+  "Welcoming School with Capital Investment": "#E53935",
+  "Closure (Goes to Welcoming School)": "#B71C1C",
+  "Welcoming School with Building Replacement": "#8B0000",
+  "Other / Unknown": "#2F4F4F",
+  "Unknown": "#7f8c8d"
+};
+function getDecisionColorHex(decisionType) {
+  const key = (decisionType || "").toString().trim();
+  return DECISION_COLORS[key] || "#7f8c8d";
+}
+function getDecisionColorKey(decisionType) {
+  return getDecisionColorHex(decisionType).replace("#", "").toLowerCase();
+}
+
 // Base-map label/POI visibility (applied to Mapbox style layers)
 const MAP_LABEL_PREFS_KEY = 'mapLabelPrefs';
 const DEFAULT_MAP_LABEL_PREFS = {
@@ -1571,7 +1595,9 @@ function updateLayer() {
   if (showUtilizationPie) {
     filteredFeatures.forEach(f => {
       const bucket = f.properties["utilPieBucket"] || "0.0";
-      f.properties["utilPieImage"] = `util-pie-${bucket}`;
+      const decisionType = f.properties["Decision Type"] || f.properties["decision"] || "Unknown";
+      const colorKey = getDecisionColorKey(decisionType);
+      f.properties["utilPieImage"] = `util-pie-${bucket}-${colorKey}`;
     });
   }
 
@@ -1591,7 +1617,9 @@ function updateLayer() {
   if (showUtilizationPie) {
     filteredFeatures.forEach(f => {
       const bucket = f.properties["utilPieBucket"] || "0.0";
-      f.properties["utilPieImage"] = `util-pie-${bucket}`;
+      const decisionType = f.properties["Decision Type"] || f.properties["decision"] || "Unknown";
+      const colorKey = getDecisionColorKey(decisionType);
+      f.properties["utilPieImage"] = `util-pie-${bucket}-${colorKey}`;
     });
   }
 
@@ -3185,7 +3213,10 @@ map.on('load', () => {
     // Styles wipes all custom images. If the flag is set but the images are gone,
     // allow re-registering.
     try {
-      if (utilSpritesAdded && mapRef.hasImage && mapRef.hasImage('util-pie-0.0')) {
+      const baseOk = mapRef.hasImage && mapRef.hasImage('util-pie-0.0');
+      const sentinelKey = `util-pie-0.0-${getDecisionColorKey("Building Addition")}`;
+      const sentinelOk = mapRef.hasImage && mapRef.hasImage(sentinelKey);
+      if (utilSpritesAdded && baseOk && sentinelOk) {
         return;
       }
     } catch {}
@@ -3194,17 +3225,18 @@ map.on('load', () => {
     for (let i = 0; i <= 12; i++) { // 0.0 to 1.2 in 0.1 increments
       buckets.push((i / 10).toFixed(1));
     }
-    buckets.forEach(bucket => {
-      const name = `util-pie-${bucket}`;
-      if (mapRef.hasImage && mapRef.hasImage(name)) return;
+
+    const colorHexes = Array.from(
+      new Set(Object.values(DECISION_COLORS).concat(["#7f8c8d"]))
+    );
+    const colorKeys = colorHexes.map(h => h.replace("#", "").toLowerCase());
+
+    const drawPie = (ctx, utilValue, fillColor) => {
       const size = 40;
-      const canvas = document.createElement('canvas');
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext('2d');
       const cx = size / 2;
       const cy = size / 2;
       const r = size / 2 - 2;
+      ctx.clearRect(0, 0, size, size);
       // Background ring
       ctx.fillStyle = '#e0e0e0';
       ctx.beginPath();
@@ -3212,27 +3244,58 @@ map.on('load', () => {
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.closePath();
       ctx.fill();
-      // Foreground arc proportional to utilization
-      const util = parseFloat(bucket);
+
+      // Foreground arc proportional to utilization (0..1.2 mapped to 0..1 of circle)
+      const util = Number.isFinite(utilValue) ? utilValue : 0;
       const frac = Math.max(0, Math.min(util / 1.2, 1)); // clamp to [0,1]
       const endAngle = -Math.PI / 2 + frac * Math.PI * 2; // start at top
-      ctx.fillStyle = util >= 1 ? '#e74c3c' : util >= 0.85 ? '#2ecc71' : '#f1c40f';
+      ctx.fillStyle = fillColor;
       ctx.beginPath();
       ctx.moveTo(cx, cy);
       ctx.arc(cx, cy, r, -Math.PI / 2, endAngle, false);
       ctx.closePath();
       ctx.fill();
+
       // White border
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.stroke();
+    };
 
-      const imageData = ctx.getImageData(0, 0, size, size);
-      if (mapRef.addImage) {
-        mapRef.addImage(name, imageData, { pixelRatio: 2 });
+    buckets.forEach(bucket => {
+      const util = parseFloat(bucket);
+      // Legacy neutral name (kept for fallback)
+      {
+        const legacyName = `util-pie-${bucket}`;
+        if (!(mapRef.hasImage && mapRef.hasImage(legacyName))) {
+          const canvas = document.createElement('canvas');
+          canvas.width = 40;
+          canvas.height = 40;
+          const ctx = canvas.getContext('2d');
+          drawPie(ctx, util, '#7f8c8d');
+          const imageData = ctx.getImageData(0, 0, 40, 40);
+          if (mapRef.addImage) {
+            mapRef.addImage(legacyName, imageData, { pixelRatio: 2 });
+          }
+        }
       }
+
+      // Colored names by decision outcome (preferred)
+      colorKeys.forEach(colorKey => {
+        const name = `util-pie-${bucket}-${colorKey}`;
+        if (mapRef.hasImage && mapRef.hasImage(name)) return;
+        const canvas = document.createElement('canvas');
+        canvas.width = 40;
+        canvas.height = 40;
+        const ctx = canvas.getContext('2d');
+        drawPie(ctx, util, `#${colorKey}`);
+        const imageData = ctx.getImageData(0, 0, 40, 40);
+        if (mapRef.addImage) {
+          mapRef.addImage(name, imageData, { pixelRatio: 2 });
+        }
+      });
     });
     utilSpritesAdded = true;
   }
