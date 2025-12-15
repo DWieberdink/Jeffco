@@ -51,16 +51,30 @@ function saveMapLabelPrefs(prefs) {
 function applyMapLabelPrefs() {
   const m = window.map;
   if (!m || typeof m.getStyle !== 'function' || typeof m.setLayoutProperty !== 'function') return;
+  try {
+    if (typeof m.isStyleLoaded === 'function' && !m.isStyleLoaded()) return;
+  } catch {}
 
   const prefs = getSavedMapLabelPrefs();
   const style = m.getStyle();
   const layers = (style && Array.isArray(style.layers)) ? style.layers : [];
 
-  const isComposite = (layer) => (layer && (layer.source === 'composite' || layer.source === 'mapbox'));
-
   const classify = (layer) => {
     if (!layer || layer.type !== 'symbol') return null;
-    if (!isComposite(layer)) return null; // avoid hiding our dashboard layers (schools, etc.)
+    // Avoid hiding our dashboard layers (schools, selections, etc.)
+    const src = (layer.source || '').toString().toLowerCase();
+    const idRaw = (layer.id || '').toString();
+    const id = idRaw.toLowerCase();
+    if (
+      src === 'schools' ||
+      src === 'selected-school' ||
+      id.startsWith('schools-') ||
+      id.startsWith('selected-school-') ||
+      id.includes('sending-school') ||
+      id.includes('receiving-school')
+    ) {
+      return null;
+    }
     const id = (layer.id || '').toString().toLowerCase();
     const sourceLayer = (layer['source-layer'] || '').toString().toLowerCase();
 
@@ -70,7 +84,8 @@ function applyMapLabelPrefs() {
       id.includes('landmark') ||
       id.includes('park') ||
       sourceLayer.includes('poi') ||
-      sourceLayer.includes('landmark')
+      sourceLayer.includes('landmark') ||
+      sourceLayer.includes('park')
     ) return 'poiLabels';
 
     // Road labels (street names, shields)
@@ -80,7 +95,8 @@ function applyMapLabelPrefs() {
       id.includes('highway') ||
       id.includes('motorway') ||
       id.includes('shield') ||
-      sourceLayer.includes('road')
+      sourceLayer.includes('road') ||
+      sourceLayer.includes('transportation')
     ) return 'roadLabels';
 
     // Place labels (cities, neighborhoods, admin boundaries)
