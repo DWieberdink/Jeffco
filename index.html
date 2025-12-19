@@ -19,11 +19,11 @@
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js" defer></script>
   <script src="https://d3js.org/d3.v7.min.js" defer></script>
   <!-- Cache-bust local scripts so GitHub Pages / browsers don't serve stale JS -->
-  <script src="DecisionLogic.js?v=20251215_3" defer></script>
-  <script src="PrioritizationLogic.js?v=20251215_3" defer></script>
-  <script src="PrioritizationUI.js?v=20251215_3" defer></script>
-  <script src="FlowchartLogic.js?v=20251215_3" defer></script>
-  <script src="script.js?v=20251215_3" defer></script>
+  <script src="DecisionLogic.js?v=20251219_1" defer></script>
+  <script src="PrioritizationLogic.js?v=20251219_1" defer></script>
+  <script src="PrioritizationUI.js?v=20251219_1" defer></script>
+  <script src="FlowchartLogic.js?v=20251219_1" defer></script>
+  <script src="script.js?v=20251219_1" defer></script>
   
 
 
@@ -1198,26 +1198,22 @@
       font-size: 13px;
       font-weight: bold;
       display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 6px;
+      align-items: center;
       list-style: none; /* helps suppress default marker in Firefox */
     }
-    /* Remove default marker */
+    /* Custom arrow for Map Filters summary (so it matches the legend header) */
     #filter-panel summary::-webkit-details-marker { display: none; }
     #filter-panel summary::marker { content: ""; }
-    /* Chevron rotation */
-    #filter-panel .filter-panel-chevron {
+    #filter-panel summary::before {
+      content: "▸";
       font-size: 11px;
       color: #6b7280;
       display: inline-block;
-      transition: transform 0.15s ease;
-      transform-origin: center;
-      transform: rotate(0deg);
       margin-right: 6px;
-      flex: 0 0 auto;
+      transition: transform 0.15s ease;
+      transform: rotate(0deg); /* collapsed */
     }
-    #filter-panel[open] .filter-panel-chevron { transform: rotate(90deg); }
+    #filter-panel[open] summary::before { transform: rotate(90deg); }
     #filter-panel-content {
       padding: 8px 10px 12px 10px;
       width: auto;
@@ -2454,20 +2450,7 @@
     
    
     <details id="filter-panel">
-        <summary>
-          <div style="display:flex; flex-direction:column; gap:4px;" onclick="event.stopPropagation();">
-            <div style="font-size:12px; font-weight:700; color:#111827;">School Selection</div>
-            <select id="mapOriginSchoolSelect"
-                    onmousedown="event.stopPropagation();" onclick="event.stopPropagation();"
-                    style="width:100%; margin:0; font-size:12px; padding:8px 10px; border-radius:6px; border:1px solid #d1d5db; box-sizing:border-box; background:#fff;">
-              <option value="">-- Select School --</option>
-            </select>
-          </div>
-          <div style="display:flex; align-items:center; font-size:13px; font-weight:700; color:#111827;">
-            <span class="filter-panel-chevron" aria-hidden="true">▸</span>
-            <strong>Map Filters</strong>
-          </div>
-        </summary>
+        <summary><strong>Map Filters</strong></summary>
         <div id="filter-panel-content">
             <details id="mapBaseLayersDetails" style="margin: 0 0 10px 0;">
               <summary style="font-weight:700; font-size:13px; cursor:pointer; padding:4px 2px; display:flex; align-items:center; gap:8px;">
@@ -2502,7 +2485,13 @@
               </div>
             </details>
             <div class="school-select-filter">
-              <details id="nearbySchoolsSection" open style="margin-top:0;">
+              <div class="school-select-header" style="margin-bottom:6px;">
+                <h3 style="margin:0;">School Selection</h3>
+              </div>
+              <select id="mapOriginSchoolSelect">
+                <option value="">-- Select School --</option>
+              </select>
+              <details id="nearbySchoolsSection" open style="margin-top:8px;">
                 <summary style="font-weight:600; font-size:13px; cursor:pointer; padding:4px 2px; display:flex; align-items:center; gap:8px;">
                   <span>School Matches</span>
                   <button id="showNearbySchoolsBtn" style="padding:4px 8px; font-size:11px; border:1px solid #007cbf; background:#fff; color:#007cbf; border-radius:3px; cursor:pointer;">Show Overlapping Grades Schools</button>
