@@ -344,9 +344,13 @@ window.prioritizationUI = {
       menu.appendChild(lbl);
     };
 
-    addOption("__ALL_EXP_MAINT__", "All Expansion + Maintenance");
+    // Display label override for the combined pseudo-group
+    addOption("__ALL_EXP_MAINT__", "Capital Investment");
     availableGroups.forEach((group, index) => {
-      addOption(group.name, `${index + 1}: ${group.name}`);
+      // Pad single-digit numbers so 1, 2, ... align nicely (indent like a two-digit list)
+      const n = index + 1;
+      const nLabel = n < 10 ? `\u00A0${n}` : String(n);
+      addOption(group.name, `${nLabel}: ${group.name}`);
     });
 
     const updateLabel = function (vals) {
@@ -370,7 +374,7 @@ window.prioritizationUI = {
       if (selected.length === 1) {
         const val = selected[0];
         if (val === "__ALL_EXP_MAINT__") {
-          labelSpan.textContent = "All Expansion + Maintenance" + outcomeSuffix;
+          labelSpan.textContent = "Capital Investment" + outcomeSuffix;
         } else {
           labelSpan.textContent = val + outcomeSuffix;
         }
@@ -966,6 +970,12 @@ window.prioritizationUI = {
       " th, #" +
       bodyTableId +
       " td { padding: 4px 6px; text-align: left; border: 1px solid #e5e5e5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }" +
+      // Align rank numbers so single-digits (1, 2, ...) are indented consistently vs 10, 11, ...
+      "#" +
+      headerTableId +
+      " th:first-child, #" +
+      bodyTableId +
+      " td:first-child { text-align: right; font-variant-numeric: tabular-nums; }" +
       "#" +
       headerTableId +
       " th { background: #f5f5f5; font-weight: 600; position: relative; user-select: none; }" +
