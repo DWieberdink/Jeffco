@@ -1074,6 +1074,8 @@ window.prioritizationUI = {
     rankedSchools.forEach(function (school, index) {
       const buildingName = school["Building Name"] || school.name || "Unknown";
       const strategyLabel = school.strategyGroup || "";
+      const schoolProfileHref =
+        "school-profile.html?school=" + encodeURIComponent((buildingName || "").toString());
 
       html += "<tr>";
       html += "<td>" + (index + 1) + "</td>";
@@ -1086,7 +1088,13 @@ window.prioritizationUI = {
         '<td title="' +
         buildingName +
         '">' +
+        '<a href="' +
+        schoolProfileHref +
+        '" target="_blank" rel="noopener noreferrer" ' +
+        'style="color:#007cbf; text-decoration:underline; font-weight:600;" ' +
+        'onclick="event.stopPropagation();">' +
         buildingName +
+        "</a>" +
         "</td>" +
         '<td style="font-weight:600;">' +
         school.priorityScore.toFixed(1) +

@@ -275,6 +275,7 @@
       width: 100vw;
       overflow: hidden; /* Prevent the whole page from scrolling */
       padding-top: var(--brand-bar-height);
+      padding-bottom: var(--brand-bar-height); /* space for bottom Process Steps bar */
       background-color: #ffffff;
       color: #1a1a1a;
       box-sizing: border-box;
@@ -286,7 +287,8 @@
   flex: 1 1 0; /* Allow container to grow and shrink */
   min-width: 0; /* Allow flex item to shrink below content size */
   width: 0; /* Force flex to control width */
-  height: calc(100vh - var(--brand-bar-height));
+  /* Account for top brand bar + bottom Process Steps bar */
+  height: calc(100vh - var(--brand-bar-height) - var(--brand-bar-height));
   position: relative; /* For positioning child elements like buttons */
   overflow: hidden; /* Prevent container from overflowing */
 }
@@ -1139,35 +1141,63 @@
       height: auto;
     }
 
-    /* ✅ Styles for map-overlay filter panel */
-    #filter-panel {
+    /* ✅ Map overlay controls stack (right side) */
+    #map-right-controls {
       position: absolute;
       top: 12px; /* align with hamburger button */
       right: 20px;
       left: auto;
       z-index: 1200;
-      background: white;
+      display: flex;
+      flex-direction: column;
+      gap: 10px; /* School selector above Map Filters */
+      align-items: stretch;
+      width: min(420px, calc(100vw - 40px));
+    }
+
+    /* Shared panel styling (School selector + nested panels) */
+    .map-overlay-panel {
+      background: #fff;
       border-radius: 4px;
       box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      overflow: hidden;
+      width: 100%;
+    }
+
+    /* Ensure School Selection stays clickable and visually above Map Filters */
+    #map-school-select-panel {
+      position: relative;
+      z-index: 2;
+      overflow: visible; /* prevent any clipping of native select UI */
+    }
+
+    /* ✅ Styles for map-overlay filter panel */
+    #filter-panel {
+      position: static; /* stacked inside #map-right-controls */
+      z-index: auto;
+      background: transparent; /* provided by .map-overlay-panel */
+      border-radius: 0;
+      box-shadow: none;
       resize: none; /* use custom handle */
       overflow: auto;
-      min-width: 200px;
-      max-width: 420px;
+      width: 100%;
+      min-width: 0;
+      max-width: none;
       min-height: 0;
       padding-bottom: 16px; /* space for custom resize handle */
     }
     #filter-panel[open] {
       min-height: 240px;
-      min-width: 220px;
+      min-width: 0;
     }
     #filter-panel:not([open]) {
       min-height: 0;
       height: auto;
       resize: none;
       overflow: visible;
-      width: 200px;
+      width: 100%;
       min-width: 0;
-      max-width: 240px;
+      max-width: none;
       padding-bottom: 0; /* keep collapsed height tight */
     }
     /* Custom resize handle (bottom-left) */
@@ -1437,6 +1467,240 @@
       object-fit: contain;
     }
 
+    /* Process Steps stripe (MPS-inspired, but styled to match dashboard) */
+    #process-steps {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 1999;
+      height: var(--brand-bar-height);
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(8px);
+      border-top: 1px solid #e5e7eb;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      box-sizing: border-box;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+    }
+    .process-step {
+      --step-bg: #ffffff;
+      --step-border: #e5e7eb;
+      position: relative;
+      border: none;
+      background: transparent;
+      border-radius: 0;
+      padding: 0 14px 0 10px;
+      height: 36px; /* static button height inside the fixed banner */
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+      min-width: 220px; /* enables horizontal scroll on small screens */
+      flex: 1 1 0;
+      text-align: left;
+      isolation: isolate; /* ensure pseudo layers stay contained */
+    }
+
+    /* Arrow shape with border + fill via clip-path */
+    .process-step::before,
+    .process-step::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%);
+      border-radius: 12px;
+      z-index: -2;
+    }
+    .process-step::before {
+      background: var(--step-border);
+    }
+    .process-step::after {
+      inset: 1px;
+      background: var(--step-bg);
+      z-index: -1;
+    }
+    .process-step:hover {
+      --step-border: #cbd5e1;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.10);
+    }
+    .process-step-num {
+      grid-row: 1 / span 2;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 34px;
+      border-radius: 10px;
+      background: #f3f4f6;
+      color: #111827;
+      font-weight: 900;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .process-step-title {
+      font-weight: 800;
+      color: #111827;
+      font-size: 12px;
+      line-height: 1.1;
+      min-width: 0;
+      flex: 1;
+      text-align: center; /* center title horizontally (incl. Step 1) */
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .process-step.active {
+      --step-border: #007cbf;
+      box-shadow: 0 8px 22px rgba(0,124,191,0.18);
+    }
+    .process-step.active .process-step-num {
+      background: #007cbf;
+      color: #fff;
+    }
+
+    /* --- Step 1 School-level view UI --- */
+    .step1-card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+    .step1-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.6;
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+      color: #111827;
+      white-space: nowrap;
+    }
+    .step1-badge.good { background:#ecfdf3; border-color:#bbf7d0; color:#166534; }
+    .step1-badge.warn { background:#fff7ed; border-color:#fed7aa; color:#9a3412; }
+    .step1-badge.bad  { background:#fef2f2; border-color:#fecaca; color:#991b1b; }
+    .step1-kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 12px;
+    }
+    .step1-kpi {
+      grid-column: span 3;
+      padding: 12px 12px 10px 12px;
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+      background: #fff;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+      min-width: 0;
+    }
+    @media (max-width: 1100px) { .step1-kpi { grid-column: span 4; } }
+    @media (max-width: 780px)  { .step1-kpi { grid-column: span 6; } }
+    @media (max-width: 520px)  { .step1-kpi { grid-column: span 12; } }
+    .step1-kpi-label { font-size: 12px; color:#6b7280; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; }
+    .step1-kpi-value { margin-top: 6px; font-size: 22px; font-weight: 900; color:#111827; line-height: 1.05; }
+    .step1-kpi-sub   { margin-top: 4px; font-size: 12px; color:#6b7280; }
+    .step1-bar {
+      margin-top: 10px;
+      height: 10px;
+      background: #f3f4f6;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+    }
+    .step1-bar > span {
+      display:block;
+      height: 100%;
+      width: var(--w, 0%);
+      background: var(--c, #007cbf);
+    }
+    .step1-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .step1-table thead th {
+      position: sticky;
+      top: 0;
+      background: #f9fafb;
+      z-index: 1;
+    }
+    .step1-table th,
+    .step1-table td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: top;
+    }
+    .step1-table td:first-child { color:#111827; font-weight: 800; width: 38%; }
+    .step1-table td:last-child { color:#111827; word-break: break-word; }
+
+    .step1-compare-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 12px;
+    }
+    .step1-compare-card {
+      grid-column: span 4;
+      padding: 12px 12px 10px 12px;
+    }
+    @media (max-width: 1100px) { .step1-compare-card { grid-column: span 6; } }
+    @media (max-width: 720px)  { .step1-compare-card { grid-column: span 12; } }
+    .step1-compare-title {
+      font-size: 15px;
+      font-weight: 900;
+      color: #111827;
+      line-height: 1.2;
+    }
+    .step1-compare-meta {
+      margin-top: 8px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .step1-metric {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #f1f5f9;
+    }
+    .step1-metric:first-child {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: none;
+    }
+    .step1-metric-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .step1-metric-label {
+      font-size: 12px;
+      font-weight: 900;
+      color: #111827;
+    }
+    .step1-metric-value {
+      font-size: 12px;
+      font-weight: 900;
+      color: #111827;
+      white-space: nowrap;
+    }
+    .step1-metric-sub {
+      margin-top: 2px;
+      font-size: 12px;
+      color: #6b7280;
+    }
+    /* Keep as a single horizontal stripe on all screen sizes (scrolls when needed) */
+
     /* Prevent logo/title overlap on smaller screens */
     @media (max-width: 720px) {
       :root {
@@ -1569,9 +1833,13 @@
     #filter-panel .noUi-handle:after, #filter-panel .noUi-handle:before {
         display: none;
     }
-    /* School selection inline with map filters */
-    #filter-panel .school-select-filter {
-      margin-bottom: 12px;
+    /* School selection (shown ABOVE Map Filters) */
+    #map-school-select-panel {
+      padding: 8px 10px 10px 10px;
+      box-sizing: border-box;
+    }
+    #map-school-select-panel .school-select-filter {
+      margin: 0;
       padding: 0;
       background: transparent;
       border: none;
@@ -1583,12 +1851,12 @@
       width: 100%;
       box-sizing: border-box;
     }
-    #filter-panel .school-select-header {
+    #map-school-select-panel .school-select-header {
       display: flex;
       align-items: center;
       gap: 6px;
     }
-    #filter-panel .school-select-header h3 {
+    #map-school-select-panel .school-select-header h3 {
       margin: 0;
       font-size: 13px;
     }
@@ -1600,7 +1868,48 @@
       border-radius: 6px;
       border: 1px solid #d1d5db;
       box-sizing: border-box;
-      background: white;
+      background: #fff;
+      color: #111827;
+      display: block;
+    }
+
+    /* Keep the school selector row clean (native select should render above the map) */
+    #mapOriginSchoolSelect {
+      background-color: #fff;
+    }
+
+    /* Integrated collapsible sections inside School Selection panel
+       (override the global details/summary styling used elsewhere on the page) */
+    #map-school-select-panel > details {
+      margin-top: 10px;
+      border: none;
+      border-radius: 0;
+      padding: 0;
+    }
+    #map-school-select-panel > details > summary {
+      margin: 0 !important; /* neutralize global summary { margin: -0.5rem } */
+      padding: 8px 0;
+      border-top: 1px solid #e5e7eb;
+      background: transparent;
+      border-radius: 0;
+    }
+    #map-school-select-panel > details:first-of-type > summary {
+      border-top: none;
+    }
+    /* Override legacy Map Filters styling so it's truly "nested" */
+    #map-school-select-panel #filter-panel {
+      margin-top: 10px;
+      position: relative; /* contain the resize handle */
+      padding-bottom: 0; /* resize handle lives inside */
+      overflow: visible;
+    }
+    #map-school-select-panel #filter-panel summary {
+      padding: 8px 0;
+      background: transparent;
+    }
+    #map-school-select-panel #filter-panel-content {
+      padding: 8px 0 12px 0;
+      min-width: 0;
     }
     #filter-panel .toggle-buttons,
     #filter-panel .compact-toggle-group {
@@ -2141,6 +2450,26 @@
     </div>
   </div>
 </div>
+
+<!-- Process Steps -->
+<nav id="process-steps" aria-label="Process steps">
+  <button class="process-step" type="button" data-step="1">
+    <span class="process-step-num">Step 1</span>
+    <span class="process-step-title">Understand the School-level data</span>
+  </button>
+  <button class="process-step" type="button" data-step="2">
+    <span class="process-step-num">Step 2</span>
+    <span class="process-step-title">Explore the Interactive Map</span>
+  </button>
+  <button class="process-step" type="button" data-step="3">
+    <span class="process-step-num">Step 3</span>
+    <span class="process-step-title">Strategic Sorting</span>
+  </button>
+  <button class="process-step" type="button" data-step="4">
+    <span class="process-step-num">Step 4</span>
+    <span class="process-step-title">Prioritize within Strategy Groups</span>
+  </button>
+</nav>
 <!-- Hamburger dropdown menu -->
 <div id="sidebarMenu" style="display:none; position:absolute; top:52px; right:12px; left:auto; z-index:2002; background:#fff; border:1px solid #e5e7eb; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.12); padding:8px 10px; width:220px; font-size:13px;">
   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
@@ -2237,7 +2566,7 @@
   <details id="decision-input-panel">
       <summary class="custom-summary">
   <span class="summary-text">
-        <strong>Step 1: Strategic Sorting</strong>
+        <strong>Strategic Sorting</strong>
         </span>
           <span class = "help-container">
           <span id = "decision-help-icon" class = "help-icon">
@@ -2382,7 +2711,7 @@
   <details id="scenario-input-panel">
       <summary class="custom-summary">
   <span class="summary-text">
-        <strong>Step 2: Prioritization within Strategy Sorting</strong>
+        <strong>Prioritization within Strategy Sorting</strong>
         </span>
         <span class= "help-container">
           <span id="scenario-help-icon" class= "help-icon">
@@ -2437,6 +2766,98 @@
 
 <div id="container" class="start-collapsed">
   
+    <!-- Step 1: School-level Data View (no map / no sidebars) -->
+    <div id="step1-school-view" style="display:none; height:100%; overflow:auto; background:#f8fafc;">
+      <div style="max-width: 1100px; margin: 0 auto; padding: 20px 18px 28px 18px;">
+        <div class="step1-card" style="padding: 14px 16px; display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+          <div>
+            <h2 style="margin: 0; font-size: 20px; font-weight: 900; color:#111827;">School-level Data</h2>
+            <div style="margin-top:4px; font-size: 13px; color:#4b5563;">
+              Select a school to view key indicators and (optionally) compare to other schools (source: Decision Data Export).
+            </div>
+          </div>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#111827;">
+              <span style="font-weight:800;">School</span>
+              <select id="step1SchoolSelect" style="min-width: 320px; max-width: 520px; padding: 9px 10px; border:1px solid #d1d5db; border-radius:10px; background:#fff;">
+                <option value="">-- Select School --</option>
+              </select>
+            </label>
+            <button id="step1OpenSchoolProfileBtn" type="button"
+                    style="padding:9px 12px; border:1px solid #d1d5db; border-radius:10px; background:#fff; cursor:pointer; font-size:13px; font-weight:900; color:#111827;">
+              Open School Profile
+            </button>
+          </div>
+        </div>
+
+        <div style="margin-top: 14px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#111827;">
+            <span style="font-weight:800;">Filter metrics</span>
+            <input id="step1FieldFilter" type="text" placeholder="Type to filter (e.g., enrollment, capacity)…"
+                   style="width: 360px; max-width: 70vw; padding: 9px 10px; border:1px solid #d1d5db; border-radius:10px; background:#fff;">
+          </label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#111827;">
+            <input id="step1ShowEmptyFields" type="checkbox" />
+            <span>Show empty metrics</span>
+          </label>
+        </div>
+
+        <div id="step1SchoolDataEmptyState" class="step1-card"
+             style="margin-top: 14px; padding: 18px; color:#4b5563; font-size:13px;">
+          Select a school to view its school-level data.
+        </div>
+
+        <div id="step1SchoolDataCard" class="step1-card" style="display:none; margin-top: 14px; overflow:hidden;">
+          <div style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+            <div style="min-width: 280px;">
+              <div style="font-size: 20px; font-weight: 900; color:#111827; line-height: 1.1;">
+                <span id="step1SchoolNameHeading">Selected school</span>
+              </div>
+              <div id="step1SchoolBadges" style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+                <!-- badges injected -->
+              </div>
+            </div>
+            <div style="font-size: 12px; color:#6b7280; text-align:right;">
+              Key metrics (Decision Data Export).
+            </div>
+          </div>
+
+          <div id="step1CompareControls" style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+            <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#111827; font-weight:800;">
+              <input id="step1CompareMode" type="checkbox" />
+              <span>Compare schools</span>
+            </label>
+            <div id="step1CompareSelects" style="display:none; gap:10px; align-items:center; flex-wrap:wrap;">
+              <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#111827;">
+                <span style="font-weight:800;">Compare to</span>
+                <select id="step1CompareSchoolSelect1" style="min-width: 260px; max-width: 440px; padding: 9px 10px; border:1px solid #d1d5db; border-radius:10px; background:#fff;">
+                  <option value="">-- Select School --</option>
+                </select>
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#111827;">
+                <span style="font-weight:800;">And</span>
+                <select id="step1CompareSchoolSelect2" style="min-width: 260px; max-width: 440px; padding: 9px 10px; border:1px solid #d1d5db; border-radius:10px; background:#fff;">
+                  <option value="">-- Select School --</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div id="step1SingleSection" style="padding: 14px 16px;">
+            <div id="step1KpiGrid" class="step1-kpi-grid">
+              <!-- KPI tiles injected -->
+            </div>
+          </div>
+
+          <div id="step1CompareSection" style="display:none; padding: 14px 16px;">
+            <div id="step1CompareGrid" class="step1-compare-grid">
+              <!-- compare cards injected -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="map-container">
     <div id="map"></div>
 
@@ -2449,9 +2870,30 @@
     </div>
     
    
-    <details id="filter-panel">
-        <summary><strong>Map Filters</strong></summary>
-        <div id="filter-panel-content">
+    <div id="map-right-controls">
+      <div id="map-school-select-panel" class="map-overlay-panel">
+        <div class="school-select-filter">
+          <div class="school-select-header">
+            <h3>School Selection</h3>
+          </div>
+          <select id="mapOriginSchoolSelect">
+            <option value="">-- Select School --</option>
+          </select>
+        </div>
+
+        <details id="nearbySchoolsSection" style="display:none;">
+          <summary style="font-weight:600; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:8px;">
+            <span>School Matches</span>
+            <button id="showNearbySchoolsBtn" style="padding:4px 8px; font-size:11px; border:1px solid #007cbf; background:#fff; color:#007cbf; border-radius:3px; cursor:pointer;">Show Overlapping Grades Schools</button>
+          </summary>
+          <div id="nearbySchoolsContainer" style="padding:6px 0; border:1px solid #e5e7eb; border-radius:6px; background:transparent; max-height:220px; overflow:auto;">
+            <div id="nearbySchoolsList" style="font-size:12px; color:#444;">Click “Show Overlapping Grades Schools” after selecting a school.</div>
+          </div>
+        </details>
+
+        <details id="filter-panel">
+          <summary><strong>Map Filters</strong></summary>
+          <div id="filter-panel-content">
             <details id="mapBaseLayersDetails" style="margin: 0 0 10px 0;">
               <summary style="font-weight:700; font-size:13px; cursor:pointer; padding:4px 2px; display:flex; align-items:center; gap:8px;">
                 <span>Map Base Layers</span>
@@ -2484,23 +2926,6 @@
                 </div>
               </div>
             </details>
-            <div class="school-select-filter">
-              <div class="school-select-header" style="margin-bottom:6px;">
-                <h3 style="margin:0;">School Selection</h3>
-              </div>
-              <select id="mapOriginSchoolSelect">
-                <option value="">-- Select School --</option>
-              </select>
-              <details id="nearbySchoolsSection" open style="margin-top:8px;">
-                <summary style="font-weight:600; font-size:13px; cursor:pointer; padding:4px 2px; display:flex; align-items:center; gap:8px;">
-                  <span>School Matches</span>
-                  <button id="showNearbySchoolsBtn" style="padding:4px 8px; font-size:11px; border:1px solid #007cbf; background:#fff; color:#007cbf; border-radius:3px; cursor:pointer;">Show Overlapping Grades Schools</button>
-                </summary>
-                <div id="nearbySchoolsContainer" style="padding:6px 0; border:1px solid #e5e7eb; border-radius:6px; background:transparent; max-height:220px; overflow:auto;">
-                  <div id="nearbySchoolsList" style="font-size:12px; color:#444;">Click “Show Overlapping Grades Schools” after selecting a school.</div>
-                </div>
-              </details>
-            </div>
             <div class="filter-row" style="align-items:flex-start;">
               <span class="filter-label">School Type</span>
               <div style="display:flex; gap:6px; align-items:center; width:100%; justify-content:flex-start;">
@@ -2565,9 +2990,11 @@
                 <span>Include closed schools</span>
               </label>
             </div>
-        </div>
-        <div id="filter-resize-handle" aria-label="Resize map filters"></div>
-    </details>
+          </div>
+          <div id="filter-resize-handle" aria-label="Resize map filters"></div>
+        </details>
+      </div>
+    </div>
 
     
     <!-- Map Controls -->
@@ -2695,7 +3122,7 @@
 
         <summary class="custom-summary">
         <span class="summary-text">
-           <strong>Step 1: Strategic Sorting: Results</strong>
+           <strong>Strategic Sorting: Results</strong>
          </span>
          <span class="help-container">
          <span id="decision-results-help-icon" class="help-icon">
@@ -2724,7 +3151,7 @@
                 </span>
                 <span id="summary-table-help-tooltip" style="display:none;position:absolute;z-index:1000;background:#fff;color:#222;border:1px solid #007cbf;border-radius:6px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:13px;width:240px;right:10px;top:30px;" onclick="event.stopPropagation();">
                   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-                  This table shows the count of schools in each strategy group (decision type) based on the Step 1: Strategic Sorting thresholds. Strategy groups are dynamically generated from the decision outcomes.
+                  This table shows the count of schools in each strategy group (decision type) based on the Strategic Sorting thresholds. Strategy groups are dynamically generated from the decision outcomes.
                 </span>
               </div>
               <div style="position: relative; min-height: 40px;">
@@ -2748,7 +3175,7 @@
                 </span>
                 <span id="decision-by-school-help-tooltip" style="display:none;position:absolute;z-index:1000;background:#fff;color:#222;border:1px solid #007cbf;border-radius:6px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,0.15);font-size:13px;width:240px;right:10px;top:30px;" onclick="event.stopPropagation();">
                   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-                  This table lists each school with its assigned decision type (strategy group) based on the Step 1: Strategic Sorting thresholds. Schools are grouped by their decision outcome.
+                  This table lists each school with its assigned decision type (strategy group) based on the Strategic Sorting thresholds. Schools are grouped by their decision outcome.
                 </span>
               </div>
             </div>
@@ -2757,7 +3184,7 @@
                    <summary class="custom-summary">
   <span class="summary-text">
               <span style="display: flex; align-items: center; gap: 8px; width: 100%; justify-content: space-between;">
-                <strong>Step 2: Model Output: Impact Analysis</strong>
+                <strong>Model Output: Impact Analysis</strong>
                 <span style="position: relative; display: flex; align-items: center;">
                   <span id="model-output-help-icon" style="display:inline-block;vertical-align:middle;cursor:pointer;">
                     <svg width="18" height="18" viewBox="0 0 20 20" style="border-radius:50%;background:#007cbf;" xmlns="http://www.w3.org/2000/svg">
@@ -3051,7 +3478,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <!-- === GLOBAL HELP TOOLTIPS (moved out of details/summary for independence) === -->
 <span id="decision-help-tooltip" class="tooltip" style="display:none;">
   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-  <strong>Step 1: Strategic Sorting</strong> uses decision thresholds to categorize schools into strategy groups. Adjust the sliders below to change how schools are evaluated, which is reflected in <strong>Step 1: Strategic Sorting: Results</strong> on the right sidebar.<br>
+  <strong>Strategic Sorting</strong> uses decision thresholds to categorize schools into strategy groups. Adjust the sliders below to change how schools are evaluated, which is reflected in <strong>Strategic Sorting: Results</strong> on the right sidebar.<br>
   The flowchart allows you to visualize the decision logic dynamically by school.<br><br>
   <strong>Flow 1: Decision Routing</strong><br>
             <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
@@ -3090,7 +3517,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </span>
 <span id="scenario-help-tooltip" class="tooltip" style="display:none;">
   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-  <strong>Step 2: Prioritization within Strategy Sorting</strong> lets you prioritize schools <em>within</em> a strategy group using weighted criteria.<br><br>
+  <strong>Prioritization within Strategy Sorting</strong> lets you prioritize schools <em>within</em> a strategy group using weighted criteria.<br><br>
   <strong>Controls panel (Left):</strong><br>
   Use the weight sliders (0–10, 0.5 increments). You can also disable a metric using its checkbox. Higher weights increase that metric’s influence on the priority score.<br><br>
   <strong>Results panel (Right):</strong><br>
@@ -3101,18 +3528,18 @@ document.addEventListener('DOMContentLoaded', function() {
 </span>
 <span id="decision-results-help-tooltip" class="tooltip" style="display:none;">
   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-  <strong>Step 1: Strategic Sorting: Results</strong> displays the decision outcomes for all schools based on the threshold sliders in Step 1: Strategic Sorting.<br><br>
+  <strong>Strategic Sorting: Results</strong> displays the decision outcomes for all schools based on the threshold sliders in Strategic Sorting.<br><br>
   <strong>Summary Table:</strong> Shows count of schools by decision type (strategy group).<br>
   <strong>Decision by School:</strong> Lists each school with its assigned decision type based on the evaluation criteria.
 </span>
 <span id="model-output-help-tooltip" class="tooltip" style="display:none;">
   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-  This section shows the <strong>Step 2 results</strong>: strategy candidate groups and the prioritized list driven by the Step 2 weights.<br><br>
+  This section shows the <strong>results</strong>: strategy candidate groups and the prioritized list driven by the weights.<br><br>
   Use the <strong>▸</strong> arrow on a group to filter to specific outcomes, and use the table toggle to switch between <strong>values</strong> and <strong>scores</strong> for each metric column.
 </span>
 <span id="flowchart-help-tooltip" class="tooltip" style="display:none;">
   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
-  Select a school to view its decision flowchart. The flowchart shows how the Step 1 thresholds lead to the recommended strategy group for that school. Active decision nodes and threshold values are highlighted.
+  Select a school to view its decision flowchart. The flowchart shows how the thresholds lead to the recommended strategy group for that school. Active decision nodes and threshold values are highlighted.
 </span>
 </body>
 </html>

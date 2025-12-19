@@ -951,6 +951,28 @@ function setMapOriginSelect(originId, schoolName) {
   Array.from(mapOriginSelect.options || []).forEach(opt => {
     opt.selected = opt === match;
   });
+
+  // Keep "School Matches" hidden until a school is selected (even for programmatic changes)
+  setNearbySchoolsSectionVisibility(mapOriginSelect.value);
+}
+
+function setNearbySchoolsSectionVisibility(selectedId) {
+  const section = document.getElementById('nearbySchoolsSection');
+  if (!section) return;
+
+  const hasSelection = !!(selectedId && selectedId.toString().trim());
+  section.style.display = hasSelection ? '' : 'none';
+  if (!hasSelection) {
+    section.open = false;
+    const list = document.getElementById('nearbySchoolsList');
+    if (list) list.textContent = 'Select a school to see matches.';
+    const btn = document.getElementById('showNearbySchoolsBtn');
+    if (btn) {
+      btn.dataset.lastRequested = 'false';
+      btn.dataset.mode = 'all';
+      btn.textContent = 'Show Overlapping Grades Schools';
+    }
+  }
 }
 
 function getOriginIdForName(schoolName) {
@@ -2280,12 +2302,16 @@ map.on('load', () => {
             mapOriginSelect.appendChild(opt);
           });
 
+          // Hide School Matches until a school is selected
+          setNearbySchoolsSectionVisibility(mapOriginSelect.value);
+
           // Keep map dropdown selection in sync with the flowchart dropdown.
           // When the user changes the map dropdown, look up the corresponding
           // school by UniqueID, then drive the flowchart + map from the name.
           mapOriginSelect.addEventListener('change', () => {
             if (mapSelectSyncing) return;
             const selectedId = mapOriginSelect.value;
+            setNearbySchoolsSectionVisibility(selectedId);
             if (!selectedId) {
               updateNearbySchoolsPanel('', '');
               window.currentSelectedSchoolName = '';
@@ -3511,6 +3537,18 @@ map.on('load', () => {
   const filterPanel = document.getElementById('filter-panel');
   const filterResizeHandle = document.getElementById('filter-resize-handle');
   if (filterPanel) {
+    // If the Map Filters panel is embedded inside the School Selection panel,
+    // it should behave like a normal in-flow <details> section (no absolute positioning/resize).
+    const isFilterPanelEmbedded = !!filterPanel.closest('#map-school-select-panel');
+    if (isFilterPanelEmbedded) {
+      // Clear any previously applied inline positioning from older UI versions.
+      filterPanel.style.position = '';
+      filterPanel.style.top = '';
+      filterPanel.style.right = '';
+      filterPanel.style.left = '';
+      filterPanel.style.width = '';
+      filterPanel.style.height = '';
+    } else {
     const enableFilterPanelDrag = false;
     if (enableFilterPanelDrag) {
       const summary = filterPanel.querySelector('summary');
@@ -3593,6 +3631,7 @@ map.on('load', () => {
         window.addEventListener('mousemove', onMouseMove);
         window.addEventListener('mouseup', endResize);
       });
+    }
     }
   }
 
@@ -5525,36 +5564,36 @@ function startOnboardingWalkthrough() {
     {
       target: '#toggleLeftSidebar',
       title: 'Show the Left Panel (Inputs)',
-      text: 'Use this toggle to show/hide the left panel. The left panel contains Step 1 inputs (threshold sliders) and Step 2 scenario controls.',
+      text: 'Use this toggle to show/hide the left panel. The left panel contains Strategic Sorting inputs (threshold sliders) and Prioritization scenario controls.',
       openMenu: true
     },
     {
       target: '#toggleRightSidebar',
       title: 'Show the Right Panel (Results)',
-      text: 'Use this toggle to show/hide the right panel. The right panel contains Step 1 results (summary + by-school) and Step 2 scenario outputs.',
+      text: 'Use this toggle to show/hide the right panel. The right panel contains Strategic Sorting results (summary + by-school) and model/scenario outputs.',
       openMenu: true
     },
     {
       target: '#sidebar',
       title: 'Left Panel: Inputs',
-      text: 'This is where you control the assumptions. Expand each section (Step 1 / Step 2) to see sliders, options, and help tips.',
+      text: 'This is where you control the assumptions. Expand each section to see sliders, options, and help tips.',
       ensureLeftSidebar: true
     },
     {
       target: '#decision-input-panel',
-      title: 'Step 1: Strategic Sorting (Inputs)',
+      title: 'Strategic Sorting (Inputs)',
       text: 'Adjust the threshold sliders to change how schools are categorized into strategy groups. As you change sliders, the results update immediately on the right.',
       ensureLeftSidebar: true
     },
     {
       target: '#map-sidebar',
       title: 'Right Panel: Results',
-      text: 'This panel shows the outcomes of your inputs. Step 1 results update live; Step 2 outputs appear after you run a scenario.',
+      text: 'This panel shows the outcomes of your inputs. Strategic Sorting results update live; model/scenario outputs appear after you run a scenario.',
       ensureRightSidebar: true
     },
     {
       target: '#decision-output-panel',
-      title: 'Step 1: Strategic Sorting (Results)',
+      title: 'Strategic Sorting (Results)',
       text: 'Open “Summary Table” to see counts by strategy group, and “Decision by School” to see each school’s assigned outcome. Use the help icons (?) for definitions.',
       ensureRightSidebar: true
     },
@@ -5573,20 +5612,20 @@ function startOnboardingWalkthrough() {
     },
     {
       target: '#scenario-input-panel',
-      title: 'Step 2: Scenario Modeling (Inputs)',
+      title: 'Scenario Modeling (Inputs)',
       text: 'Use scenario modeling to test different decision types and see how student enrollment, utilization, and travel distance could change.',
       ensureLeftSidebar: true
     },
     {
       target: '#scenario-output-panel',
-      title: 'Step 2: Scenario Modeling (Outputs)',
+      title: 'Scenario Modeling (Outputs)',
       text: 'After running a scenario, review the output here to understand impacts (enrollment shifts, utilization changes, and travel distance changes).',
       ensureRightSidebar: true
     },
     {
       target: '#toggleMapFlowchartFlowchart2',
       title: 'Flowchart View',
-      text: 'Switch to the Flowchart view to understand the Step 1 decision logic for a specific school.',
+      text: 'Switch to the Flowchart view to understand the decision logic for a specific school.',
       ensureFlowchartView: true
     },
     {
@@ -7071,3 +7110,543 @@ if (typeof window.switchToMap !== 'function') {
     }
   };
 }
+
+// --- Process Steps stripe (Step 1–4) ---
+// Declarative mapping between process steps and UI panels.
+(function initProcessStepsStripe() {
+  function setActiveStep(stepNum) {
+    const nav = document.getElementById('process-steps');
+    if (!nav) return;
+    nav.querySelectorAll('.process-step').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.step === String(stepNum));
+    });
+  }
+
+  function setMainView(mode) {
+    const step1View = document.getElementById('step1-school-view');
+    const mapContainer = document.getElementById('map-container');
+    const flowchartContainer = document.getElementById('main-flowchart-container');
+
+    if (step1View) step1View.style.display = (mode === 'step1') ? 'block' : 'none';
+    if (mapContainer) mapContainer.style.display = (mode === 'map') ? 'block' : 'none';
+    if (flowchartContainer) flowchartContainer.style.display = (mode === 'flowchart') ? 'flex' : 'none';
+
+    if (mode === 'map' && window.map && typeof window.map.resize === 'function') {
+      setTimeout(() => {
+        try { window.map.resize(); } catch {}
+      }, 100);
+    }
+  }
+
+  function setStepPanelsVisibility(stepNum) {
+    const decisionInput = document.getElementById('decision-input-panel');
+    const decisionOutput = document.getElementById('decision-output-panel');
+    const scenarioInput = document.getElementById('scenario-input-panel');
+    const scenarioOutput = document.getElementById('scenario-output-panel');
+
+    const hideScenario = Number(stepNum) === 3; // Step 3 = Strategic Sorting (hide prioritization + model outputs)
+    const hideDecision = Number(stepNum) === 4; // Step 4 = Prioritize (hide strategic sorting inputs + results)
+
+    function applyHidden(el, hidden) {
+      if (!el) return;
+      el.hidden = !!hidden;
+      if (hidden) {
+        try { el.open = false; } catch {}
+      }
+    }
+
+    applyHidden(scenarioInput, hideScenario);
+    applyHidden(scenarioOutput, hideScenario);
+    applyHidden(decisionInput, hideDecision);
+    applyHidden(decisionOutput, hideDecision);
+  }
+
+  function ensurePanelsVisible({ left, right } = {}) {
+    const body = document.body;
+    const leftToggle = document.getElementById('toggleLeftSidebar');
+    const rightToggle = document.getElementById('toggleRightSidebar');
+    if (typeof left === 'boolean') {
+      if (left) body.classList.remove('sidebar-collapsed');
+      else body.classList.add('sidebar-collapsed');
+      if (leftToggle) leftToggle.checked = left;
+    }
+    if (typeof right === 'boolean') {
+      if (right) body.classList.remove('right-sidebar-collapsed');
+      else body.classList.add('right-sidebar-collapsed');
+      if (rightToggle) rightToggle.checked = right;
+    }
+  }
+
+  function openDetails(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.hidden) return;
+    try { el.open = true; } catch {}
+    try {
+      // Only account for the top brand bar; process steps live at the bottom now.
+      const offset = (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--brand-bar-height') || '52', 10) || 52);
+      const y = el.getBoundingClientRect().top + window.scrollY - offset - 12;
+      window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+    } catch {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  function goToStep(stepNum) {
+    setStepPanelsVisibility(stepNum);
+    switch (Number(stepNum)) {
+      case 1:
+        // Step 1 is a dedicated school-level view: no map, no side panels.
+        ensurePanelsVisible({ left: false, right: false });
+        setMainView('step1');
+        break;
+      case 2:
+        // Step 2 is map exploration: hide both side panels.
+        ensurePanelsVisible({ left: false, right: false });
+        setMainView('map');
+        break;
+      case 3:
+        ensurePanelsVisible({ left: true, right: true });
+        setMainView('map');
+        openDetails('decision-output-panel');
+        break;
+      case 4:
+        ensurePanelsVisible({ left: true, right: true });
+        setMainView('map');
+        openDetails('scenario-output-panel');
+        break;
+      default:
+        break;
+    }
+    setActiveStep(stepNum);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const nav = document.getElementById('process-steps');
+    if (!nav) return;
+
+    // Click handlers
+    nav.querySelectorAll('.process-step').forEach((btn) => {
+      btn.addEventListener('click', () => goToStep(btn.dataset.step));
+    });
+
+    // Auto-highlight based on panel toggles (user navigation)
+    const stepMap = [
+      { id: 'decision-input-panel', step: 1 },
+      { id: 'decision-output-panel', step: 3 },
+      { id: 'scenario-output-panel', step: 4 },
+    ];
+    stepMap.forEach(({ id, step }) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('toggle', () => {
+        if (el.open && !el.hidden) setActiveStep(step);
+      });
+    });
+
+    // Default to Step 2 (map) on landing
+    setActiveStep(2);
+    setStepPanelsVisibility(2);
+    // Step 2 should be map-only by default.
+    ensurePanelsVisible({ left: false, right: false });
+    setMainView('map');
+  });
+})();
+
+// --- Step 1: School-level data view (no map) ---
+(function initStep1SchoolView() {
+  function norm(s) {
+    return String(s || '').trim().toLowerCase();
+  }
+
+  function parseNumber(v) {
+    if (v === null || typeof v === 'undefined') return null;
+    if (typeof v === 'number' && Number.isFinite(v)) return v;
+    const s = String(v).trim();
+    if (!s) return null;
+    // Remove commas and percent signs (we'll infer percent by column name elsewhere)
+    const cleaned = s.replace(/,/g, '').replace(/%/g, '');
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function clamp(n, a, b) {
+    if (!Number.isFinite(n)) return a;
+    return Math.min(b, Math.max(a, n));
+  }
+
+  function fmtInt(n) {
+    if (!Number.isFinite(n)) return '';
+    return Math.round(n).toLocaleString();
+  }
+
+  function fmtPctFromUnit(n) {
+    if (!Number.isFinite(n)) return '';
+    return `${(n * 100).toFixed(1)}%`;
+  }
+
+  function fmtPct(n) {
+    if (!Number.isFinite(n)) return '';
+    return `${n.toFixed(1)}%`;
+  }
+
+  function htmlEscape(str) {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function getSchoolName(row) {
+    return row && (row['Building Name'] || row['SchoolName'] || row['School Name'] || row['School'] || row['Name']);
+  }
+
+  function getDecisionSchoolRows() {
+    const rows = window.decisionLogic && Array.isArray(window.decisionLogic.schoolData) ? window.decisionLogic.schoolData : [];
+    return rows;
+  }
+
+  function renderSchoolRow(row, filterText, showEmpty) {
+    const heading = document.getElementById('step1SchoolNameHeading');
+    const badgesWrap = document.getElementById('step1SchoolBadges');
+    const kpiGrid = document.getElementById('step1KpiGrid');
+    const compareMode = document.getElementById('step1CompareMode');
+    const compareSelects = document.getElementById('step1CompareSelects');
+    const compare1 = document.getElementById('step1CompareSchoolSelect1');
+    const compare2 = document.getElementById('step1CompareSchoolSelect2');
+    const compareSection = document.getElementById('step1CompareSection');
+    const compareGrid = document.getElementById('step1CompareGrid');
+    const singleSection = document.getElementById('step1SingleSection');
+    if (!row) return;
+
+    const q = norm(filterText);
+    const showEmptyMetrics = !!showEmpty;
+
+    const name = getSchoolName(row) || 'Selected school';
+    if (heading) heading.textContent = String(name);
+
+    function buildBadges(r, includeDecision) {
+      const status = r['Status'] || r['status'] || '';
+      const level = r['School Level'] || r['School level'] || r['SchoolLevel'] || '';
+      const includeFlow = r['Include_Flow_Chart'] || r['Include Flow Chart'] || '';
+      const decision = r['decision'] || r['Decision'] || '';
+      const flow = r['flow'] || r['Flow'] || '';
+
+      const statusNorm = norm(status);
+      const statusClass = statusNorm === 'active' ? 'good' : (statusNorm === 'closed' ? 'bad' : '');
+      const includeNorm = norm(includeFlow);
+
+      const badges = [];
+      if (status) badges.push(`<span class="step1-badge ${statusClass}">${htmlEscape(status)}</span>`);
+      if (level) badges.push(`<span class="step1-badge">${htmlEscape(level)}</span>`);
+      if (includeFlow) badges.push(`<span class="step1-badge">${includeNorm === 'yes' ? 'Included in flowchart' : 'Not in flowchart'}</span>`);
+      if (includeDecision && decision) badges.push(`<span class="step1-badge">${htmlEscape(decision)}</span>`);
+      if (includeDecision && flow !== '' && flow !== null && typeof flow !== 'undefined') badges.push(`<span class="step1-badge">Flow ${htmlEscape(flow)}</span>`);
+      return badges.join('');
+    }
+
+    // KPI tiles (only render if values exist)
+    function buildKpiTiles(r) {
+      const enrollment = parseNumber(r['Enrollment']);
+      const capacity = parseNumber(r['Capacity']);
+      const seats = parseNumber(r['Available Seats']);
+      const util = parseNumber(r['Utilization']); // 0..1
+      const buildingScore = parseNumber(r['BuildingScore']); // 1..10
+      const eduAdeq = parseNumber(r['EducationalAdequacy']); // 0..1
+      const attArea = parseNumber(r['AttendanceAreaEnrollment']); // 0..100
+      const growth = parseNumber(r['Future_EnrollmentGrowth']); // unit or percent
+      const distance = parseNumber(r['DistanceUnderutilizedschools']); // miles
+      const sqft = parseNumber(r[' SquareFt '] || r['SquareFt'] || r['SquareFt ']);
+
+      function kpiCard({ label, value, sub, barW, barC }) {
+        if (!showEmptyMetrics && (!value || String(value).trim() === '')) return '';
+        if (q && !norm(label).includes(q) && !norm(value).includes(q) && !norm(sub || '').includes(q)) return '';
+
+        const v = htmlEscape(value);
+        const s = sub ? `<div class="step1-kpi-sub">${htmlEscape(sub)}</div>` : `<div class="step1-kpi-sub">&nbsp;</div>`;
+        const bar = (typeof barW === 'number')
+          ? `<div class="step1-bar" style="--w:${clamp(barW, 0, 100)}%; --c:${barC || '#007cbf'}"><span></span></div>`
+          : `<div class="step1-bar" style="--w:0%; --c:#e5e7eb"><span></span></div>`;
+        return `<div class="step1-kpi">
+          <div class="step1-kpi-label">${htmlEscape(label)}</div>
+          <div class="step1-kpi-value">${v || '&nbsp;'}</div>
+          ${s}
+          ${bar}
+        </div>`;
+      }
+
+      const cards = [];
+      if (Number.isFinite(util)) {
+        const pct = util * 100;
+        const color = pct >= 95 ? '#dc2626' : (pct >= 85 ? '#f59e0b' : '#16a34a');
+        cards.push(kpiCard({ label: 'Utilization', value: fmtPct(pct), sub: (Number.isFinite(enrollment) && Number.isFinite(capacity) && capacity > 0) ? `${fmtInt(enrollment)} / ${fmtInt(capacity)} students` : '', barW: pct, barC: color }));
+      } else {
+        cards.push(kpiCard({ label: 'Utilization', value: '', sub: '', barW: null, barC: null }));
+      }
+      cards.push(kpiCard({ label: 'Enrollment', value: Number.isFinite(enrollment) ? fmtInt(enrollment) : '', sub: 'Students', barW: null }));
+      cards.push(kpiCard({ label: 'Capacity', value: Number.isFinite(capacity) ? fmtInt(capacity) : '', sub: 'Seats', barW: null }));
+      if (Number.isFinite(seats)) {
+        const color = seats < 0 ? '#dc2626' : (seats < 25 ? '#f59e0b' : '#16a34a');
+        cards.push(kpiCard({ label: 'Available Seats', value: fmtInt(seats), sub: seats < 0 ? 'Over capacity' : 'Available', barW: null, barC: color }));
+      } else {
+        cards.push(kpiCard({ label: 'Available Seats', value: '', sub: '', barW: null }));
+      }
+      if (Number.isFinite(buildingScore)) {
+        const pct = clamp((buildingScore / 10) * 100, 0, 100);
+        const color = pct >= 70 ? '#16a34a' : (pct >= 45 ? '#f59e0b' : '#dc2626');
+        cards.push(kpiCard({ label: 'Building Score', value: `${buildingScore.toFixed(1)}/10`, sub: '', barW: pct, barC: color }));
+      } else {
+        cards.push(kpiCard({ label: 'Building Score', value: '', sub: '', barW: null }));
+      }
+      if (Number.isFinite(eduAdeq)) {
+        const pct = clamp(eduAdeq * 100, 0, 100);
+        const color = pct >= 70 ? '#16a34a' : (pct >= 45 ? '#f59e0b' : '#dc2626');
+        cards.push(kpiCard({ label: 'Educational Adequacy', value: fmtPct(pct), sub: '', barW: pct, barC: color }));
+      } else {
+        cards.push(kpiCard({ label: 'Educational Adequacy', value: '', sub: '', barW: null }));
+      }
+      if (Number.isFinite(attArea)) {
+        const pct = clamp(attArea, 0, 100);
+        const color = pct >= 90 ? '#dc2626' : (pct >= 80 ? '#f59e0b' : '#16a34a');
+        cards.push(kpiCard({ label: 'Attendance Area Enroll.', value: fmtPct(pct), sub: '', barW: pct, barC: color }));
+      } else {
+        cards.push(kpiCard({ label: 'Attendance Area Enroll.', value: '', sub: '', barW: null }));
+      }
+      if (Number.isFinite(growth)) {
+        const pct = (growth >= -1 && growth <= 1) ? growth * 100 : growth;
+        const color = pct >= 5 ? '#16a34a' : (pct <= -5 ? '#dc2626' : '#64748b');
+        cards.push(kpiCard({ label: 'Future Enrollment Growth', value: fmtPct(pct), sub: '', barW: clamp(Math.abs(pct), 0, 100), barC: color }));
+      } else {
+        cards.push(kpiCard({ label: 'Future Enrollment Growth', value: '', sub: '', barW: null }));
+      }
+      cards.push(kpiCard({ label: 'Distance to Underutilized', value: Number.isFinite(distance) ? `${distance.toFixed(1)} mi` : '', sub: '', barW: null }));
+      cards.push(kpiCard({ label: 'Square Feet', value: Number.isFinite(sqft) ? fmtInt(sqft) : '', sub: 'Sq ft', barW: null }));
+
+      return cards.filter(Boolean).join('');
+    }
+
+    function metricRow({ label, value, sub, barW, barC }) {
+      if (!showEmptyMetrics && (!value || String(value).trim() === '')) return '';
+      if (q && !norm(label).includes(q) && !norm(value).includes(q) && !norm(sub || '').includes(q)) return '';
+      const bar = (typeof barW === 'number')
+        ? `<div class="step1-bar" style="--w:${clamp(barW, 0, 100)}%; --c:${barC || '#007cbf'}"><span></span></div>`
+        : ``;
+      const subHtml = sub ? `<div class="step1-metric-sub">${htmlEscape(sub)}</div>` : ``;
+      return `<div class="step1-metric">
+        <div class="step1-metric-row">
+          <div class="step1-metric-label">${htmlEscape(label)}</div>
+          <div class="step1-metric-value">${htmlEscape(value)}</div>
+        </div>
+        ${subHtml}
+        ${bar}
+      </div>`;
+    }
+
+    function buildCompareCard(r) {
+      const schoolName = getSchoolName(r) || 'School';
+      const decision = r['decision'] || r['Decision'] || '';
+      const flow = r['flow'] || r['Flow'] || '';
+      const uid = r['UniqueID'] || r['Unique Id'] || '';
+      const siteCap = r['SiteCapacity'] || '';
+      const below50 = r['Below50PCTL_EA_Cat'] || '';
+
+      const enrollment = parseNumber(r['Enrollment']);
+      const capacity = parseNumber(r['Capacity']);
+      const seats = parseNumber(r['Available Seats']);
+      const util = parseNumber(r['Utilization']);
+      const buildingScore = parseNumber(r['BuildingScore']);
+      const eduAdeq = parseNumber(r['EducationalAdequacy']);
+      const attArea = parseNumber(r['AttendanceAreaEnrollment']);
+      const growth = parseNumber(r['Future_EnrollmentGrowth']);
+      const distance = parseNumber(r['DistanceUnderutilizedschools']);
+
+      const metrics = [];
+      if (Number.isFinite(util)) {
+        const pct = util * 100;
+        const color = pct >= 95 ? '#dc2626' : (pct >= 85 ? '#f59e0b' : '#16a34a');
+        metrics.push(metricRow({ label: 'Utilization', value: fmtPct(pct), sub: (Number.isFinite(enrollment) && Number.isFinite(capacity) && capacity > 0) ? `${fmtInt(enrollment)} / ${fmtInt(capacity)} students` : '', barW: pct, barC: color }));
+      } else {
+        metrics.push(metricRow({ label: 'Utilization', value: '', sub: '', barW: null, barC: null }));
+      }
+      metrics.push(metricRow({ label: 'Enrollment', value: Number.isFinite(enrollment) ? fmtInt(enrollment) : '', sub: 'Students', barW: null }));
+      metrics.push(metricRow({ label: 'Capacity', value: Number.isFinite(capacity) ? fmtInt(capacity) : '', sub: 'Seats', barW: null }));
+      metrics.push(metricRow({ label: 'Available Seats', value: Number.isFinite(seats) ? fmtInt(seats) : '', sub: '', barW: null }));
+      if (Number.isFinite(buildingScore)) {
+        const pct = clamp((buildingScore / 10) * 100, 0, 100);
+        const color = pct >= 70 ? '#16a34a' : (pct >= 45 ? '#f59e0b' : '#dc2626');
+        metrics.push(metricRow({ label: 'Building Score', value: `${buildingScore.toFixed(1)}/10`, sub: '', barW: pct, barC: color }));
+      } else {
+        metrics.push(metricRow({ label: 'Building Score', value: '', sub: '', barW: null }));
+      }
+      if (Number.isFinite(eduAdeq)) {
+        const pct = clamp(eduAdeq * 100, 0, 100);
+        const color = pct >= 70 ? '#16a34a' : (pct >= 45 ? '#f59e0b' : '#dc2626');
+        metrics.push(metricRow({ label: 'Educational Adequacy', value: fmtPct(pct), sub: '', barW: pct, barC: color }));
+      } else {
+        metrics.push(metricRow({ label: 'Educational Adequacy', value: '', sub: '', barW: null }));
+      }
+      if (Number.isFinite(attArea)) {
+        const pct = clamp(attArea, 0, 100);
+        const color = pct >= 90 ? '#dc2626' : (pct >= 80 ? '#f59e0b' : '#16a34a');
+        metrics.push(metricRow({ label: 'Attendance Area Enroll.', value: fmtPct(pct), sub: '', barW: pct, barC: color }));
+      } else {
+        metrics.push(metricRow({ label: 'Attendance Area Enroll.', value: '', sub: '', barW: null }));
+      }
+      if (Number.isFinite(growth)) {
+        const pct = (growth >= -1 && growth <= 1) ? growth * 100 : growth;
+        const color = pct >= 5 ? '#16a34a' : (pct <= -5 ? '#dc2626' : '#64748b');
+        metrics.push(metricRow({ label: 'Future Enrollment Growth', value: fmtPct(pct), sub: '', barW: clamp(Math.abs(pct), 0, 100), barC: color }));
+      } else {
+        metrics.push(metricRow({ label: 'Future Enrollment Growth', value: '', sub: '', barW: null }));
+      }
+      metrics.push(metricRow({ label: 'Distance to Underutilized', value: Number.isFinite(distance) ? `${distance.toFixed(1)} mi` : '', sub: '', barW: null }));
+
+      const keyMeta = [];
+      if (decision) keyMeta.push(`<span class="step1-badge">${htmlEscape(decision)}</span>`);
+      if (flow !== '' && flow !== null && typeof flow !== 'undefined') keyMeta.push(`<span class="step1-badge">Flow ${htmlEscape(flow)}</span>`);
+      if (uid) keyMeta.push(`<span class="step1-badge">${htmlEscape(uid)}</span>`);
+      if (siteCap) keyMeta.push(`<span class="step1-badge">${htmlEscape(`Site capacity: ${siteCap}`)}</span>`);
+      if (below50) keyMeta.push(`<span class="step1-badge">${htmlEscape(`Below 50th pct EA: ${below50}`)}</span>`);
+
+      return `<div class="step1-card step1-compare-card">
+        <div class="step1-compare-title">${htmlEscape(schoolName)}</div>
+        <div class="step1-compare-meta">${buildBadges(r, false)}</div>
+        ${keyMeta.length ? `<div class="step1-compare-meta">${keyMeta.join('')}</div>` : ``}
+        <div style="margin-top:10px;">${metrics.filter(Boolean).join('')}</div>
+      </div>`;
+    }
+
+    // Compare toggle visibility
+    const isCompare = !!(compareMode && compareMode.checked);
+    if (compareSelects) compareSelects.style.display = isCompare ? 'flex' : 'none';
+    if (singleSection) singleSection.style.display = isCompare ? 'none' : 'block';
+    if (compareSection) compareSection.style.display = isCompare ? 'block' : 'none';
+
+    // Badges for single view header
+    if (badgesWrap) {
+      badgesWrap.innerHTML = isCompare ? '' : buildBadges(row, true);
+    }
+
+    if (!isCompare) {
+      if (kpiGrid) {
+        const tiles = buildKpiTiles(row);
+        kpiGrid.innerHTML = tiles || `<div style="grid-column: span 12; color:#6b7280; font-size:13px; padding: 8px 0;">No matching metrics.</div>`;
+      }
+      if (heading) heading.textContent = String(name);
+      return;
+    }
+
+    // Compare mode: render cards side-by-side (primary + up to 2 comparisons)
+    if (heading) heading.textContent = 'Compare schools';
+    if (compareGrid) {
+      const rows = getDecisionSchoolRows();
+      const primaryName = getSchoolName(row) || '';
+      const selectedNames = [primaryName];
+      const n1 = compare1 && compare1.value ? compare1.value : '';
+      const n2 = compare2 && compare2.value ? compare2.value : '';
+      if (n1) selectedNames.push(n1);
+      if (n2) selectedNames.push(n2);
+      const deduped = Array.from(new Set(selectedNames.map(s => String(s))));
+      const selectedRows = deduped
+        .map(nm => rows.find(r => norm(getSchoolName(r)) === norm(nm)))
+        .filter(Boolean);
+      compareGrid.innerHTML = selectedRows.map(buildCompareCard).join('') || `<div style="color:#6b7280; font-size:13px;">Select one or two additional schools to compare.</div>`;
+    }
+  }
+
+  function setVisibleState(hasSelection) {
+    const emptyState = document.getElementById('step1SchoolDataEmptyState');
+    const card = document.getElementById('step1SchoolDataCard');
+    if (emptyState) emptyState.style.display = hasSelection ? 'none' : 'block';
+    if (card) card.style.display = hasSelection ? 'block' : 'none';
+  }
+
+  function initOnceReady() {
+    const select = document.getElementById('step1SchoolSelect');
+    const openBtn = document.getElementById('step1OpenSchoolProfileBtn');
+    const filterInput = document.getElementById('step1FieldFilter');
+    const showEmptyCb = document.getElementById('step1ShowEmptyFields');
+    const compareMode = document.getElementById('step1CompareMode');
+    const compare1 = document.getElementById('step1CompareSchoolSelect1');
+    const compare2 = document.getElementById('step1CompareSchoolSelect2');
+
+    if (!select || !filterInput || !showEmptyCb) return false;
+
+    const rows = getDecisionSchoolRows();
+    if (!rows || rows.length === 0) return false;
+
+    // Populate select once
+    if (select.options.length <= 1) {
+      const names = Array.from(new Set(rows.map(getSchoolName).filter(Boolean).map(String))).sort((a, b) => a.localeCompare(b));
+      names.forEach((name) => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        select.appendChild(opt);
+      });
+
+      // Populate compare selects with same list
+      [compare1, compare2].forEach((cmp) => {
+        if (!cmp) return;
+        while (cmp.options.length > 1) cmp.remove(1);
+        names.forEach((name) => {
+          const opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          cmp.appendChild(opt);
+        });
+      });
+    }
+
+    function getSelectedRow() {
+      const name = select.value;
+      if (!name) return null;
+      const n = norm(name);
+      return rows.find(r => norm(getSchoolName(r)) === n) || null;
+    }
+
+    function rerender() {
+      const row = getSelectedRow();
+      setVisibleState(!!row);
+      if (!row) return;
+      renderSchoolRow(row, filterInput.value, !!showEmptyCb.checked);
+    }
+
+    select.addEventListener('change', () => {
+      // Clear filter each time user switches schools (keeps it simple)
+      filterInput.value = '';
+      rerender();
+    });
+    filterInput.addEventListener('input', rerender);
+    showEmptyCb.addEventListener('change', rerender);
+    if (compareMode) compareMode.addEventListener('change', rerender);
+    if (compare1) compare1.addEventListener('change', rerender);
+    if (compare2) compare2.addEventListener('change', rerender);
+
+    if (openBtn) {
+      openBtn.addEventListener('click', () => {
+        const name = select.value;
+        if (!name) return;
+        const url = `school-profile.html?school=${encodeURIComponent(name)}`;
+        window.open(url, '_blank', 'noopener');
+      });
+    }
+
+    // Initial state
+    setVisibleState(false);
+    return true;
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    // decisionLogic loads async; poll briefly until data is ready.
+    let tries = 0;
+    const timer = setInterval(() => {
+      tries += 1;
+      if (initOnceReady() || tries > 200) { // ~20s max
+        clearInterval(timer);
+      }
+    }, 100);
+  });
+})();
