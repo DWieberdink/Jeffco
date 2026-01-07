@@ -8,6 +8,29 @@ let links = [];
 let schoolData = [];
 let mapExportData = null;
 
+// --- Flowchart persistence/versioning ---
+// The flowchart supports per-user layout editing (saved to localStorage).
+// When we change the published default layout, older saved layouts can appear misaligned.
+// Bump this version to force clients to drop old saved positions/zoom and use new defaults.
+const FLOWCHART_LAYOUT_VERSION = "20260107_1";
+function ensureFlowchartLayoutVersion() {
+  try {
+    const key = "flowchartLayoutVersion";
+    const prev = localStorage.getItem(key);
+    if (prev !== FLOWCHART_LAYOUT_VERSION) {
+      localStorage.removeItem("flowchartNodePositions");
+      localStorage.removeItem("flowBoxPositions");
+      localStorage.removeItem("flowchartZoom");
+      localStorage.setItem(key, FLOWCHART_LAYOUT_VERSION);
+      console.log("🔁 Reset saved flowchart layout due to version change:", { prev, next: FLOWCHART_LAYOUT_VERSION });
+    }
+  } catch (e) {
+    // ignore storage errors (private mode, blocked storage, etc.)
+  }
+}
+// Run once at load so all subsequent reads use the correct version.
+ensureFlowchartLayoutVersion();
+
 // Coerce a value that may be stored as a ratio (0–1) or percent (0–100)
 // into a percent on the 0–100 scale.
 function coercePercent0to100(raw) {
@@ -529,6 +552,7 @@ function mapSliderKeyToThresholdKey(sliderId) {
 function initializeFlowchartData() {
   // Use updated standard layout with Flow 2 and Flow 3 restructure
   console.log("🔄 Using updated standard flowchart layout with Flow 2 and Flow 3 updates");
+  ensureFlowchartLayoutVersion();
   
   // Load saved positions from localStorage to use as defaults
   let savedPositions = {};
@@ -1018,7 +1042,7 @@ function loadSchoolData() {
   }
 
   // Fallback: load directly from CSV (iframe/standalone contexts)
-  Papa.parse("./Decision Data Export.csv", {
+  Papa.parse("./Decision Data Export.csv?v=20260107_1", {
     download: true,
     header: true,
     skipEmptyLines: true,

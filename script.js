@@ -2114,7 +2114,7 @@ map.on('load', () => {
 
   const geojsonPromise = fetch('Schools.geojson').then(res => res.json());
   const decisionDataPromise = window.decisionLogic.initialize();
-  const decisionAllPromise = fetch('Decision Data Export.csv')
+  const decisionAllPromise = fetch('Decision Data Export.csv?v=20260107_1')
     .then(res => res.text())
     .then(text => new Promise(resolve => {
       Papa.parse(text, {

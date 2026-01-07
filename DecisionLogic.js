@@ -783,7 +783,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   self.initialize = function() {
     return new Promise((resolve, reject) => {
-      Papa.parse("./Decision Data Export.csv", {
+      Papa.parse("./Decision Data Export.csv?v=20260107_1", {
         download: true,
         header: true,
         skipEmptyLines: true,
