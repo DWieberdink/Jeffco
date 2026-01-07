@@ -1053,7 +1053,7 @@ window.prioritizationUI = {
         case "studentEconomicStatus":
           return raw.studentEconomicStatus != null ? Number(raw.studentEconomicStatus).toFixed(1) + "%" : "N/A";
         case "buildingCondition":
-          return raw.buildingCondition != null ? Number(raw.buildingCondition).toFixed(1) : "N/A";
+          return raw.buildingCondition != null ? Number(raw.buildingCondition).toFixed(2) : "N/A";
         case "academicPerformance":
           return raw.academicPerformance != null ? Number(raw.academicPerformance).toFixed(1) + "%" : "N/A";
         case "enrollment":

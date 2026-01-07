@@ -2200,6 +2200,15 @@ map.on('load', () => {
 
       // Build lookups from the FULL decision export (includes excluded/non-eval + closed)
       decisionAllRows = Array.isArray(decisionAll) ? decisionAll : [];
+      // Normalize BuildingScore for any downstream display/logic that uses the full export.
+      // Accept either 0–1 or 0–10 inputs; keep as a 2-decimal string for consistent display.
+      decisionAllRows.forEach((r) => {
+        const raw = r && (r.BuildingScore ?? r["BuildingScore"]);
+        const n = Number(String(raw ?? "").trim().replace(/,/g, ''));
+        if (!Number.isFinite(n)) return;
+        const scaled = n <= 1.5 ? n * 10 : n;
+        r.BuildingScore = scaled.toFixed(2);
+      });
       decisionAllByName = new Map(
         decisionAllRows
           .map(r => [normalizeName(r["Building Name"]), r])
@@ -7270,6 +7279,14 @@ if (typeof window.switchToMap !== 'function') {
     return Number.isFinite(n) ? n : null;
   }
 
+  // BuildingScore may be stored either on a 0–1 scale (e.g. 0.62)
+  // or a 0–10 scale (e.g. 6.20). Normalize to 0–10 for dashboard logic.
+  function coerceBuildingScore0to10(raw) {
+    const n = parseNumber(raw);
+    if (!Number.isFinite(n)) return null;
+    return n <= 1.5 ? n * 10 : n;
+  }
+
   function clamp(n, a, b) {
     if (!Number.isFinite(n)) return a;
     return Math.min(b, Math.max(a, n));
@@ -7353,7 +7370,7 @@ if (typeof window.switchToMap !== 'function') {
       const capacity = parseNumber(r['Capacity']);
       const seats = parseNumber(r['Available Seats']);
       const util = parseNumber(r['Utilization']); // 0..1
-      const buildingScore = parseNumber(r['BuildingScore']); // 1..10
+      const buildingScore = coerceBuildingScore0to10(r['BuildingScore']); // 0..10
       const eduAdeq = parseNumber(r['EducationalAdequacy']); // 0..1
       const attArea = parseNumber(r['AttendanceAreaEnrollment']); // 0..100
       const growth = parseNumber(r['Future_EnrollmentGrowth']); // unit or percent
@@ -7396,7 +7413,7 @@ if (typeof window.switchToMap !== 'function') {
       if (Number.isFinite(buildingScore)) {
         const pct = clamp((buildingScore / 10) * 100, 0, 100);
         const color = pct >= 70 ? '#16a34a' : (pct >= 45 ? '#f59e0b' : '#dc2626');
-        cards.push(kpiCard({ label: 'Building Score', value: `${buildingScore.toFixed(1)}/10`, sub: '', barW: pct, barC: color }));
+        cards.push(kpiCard({ label: 'Building Score', value: `${buildingScore.toFixed(2)}/10`, sub: '', barW: pct, barC: color }));
       } else {
         cards.push(kpiCard({ label: 'Building Score', value: '', sub: '', barW: null }));
       }
@@ -7444,6 +7461,19 @@ if (typeof window.switchToMap !== 'function') {
       </div>`;
     }
 
+    // Ensure compare cards line up even when the "high level" badge rows wrap differently.
+    function equalizeCompareCardHeaderHeights(compareGridEl) {
+      if (!compareGridEl) return;
+      const headers = Array.from(compareGridEl.querySelectorAll('.step1-compare-top'));
+      if (headers.length < 2) return;
+
+      // Reset first so shrink/grow recalculates correctly (esp. on resize or different selections)
+      headers.forEach(h => { h.style.minHeight = ''; });
+      const maxH = headers.reduce((m, h) => Math.max(m, h.getBoundingClientRect().height || 0), 0);
+      if (!maxH) return;
+      headers.forEach(h => { h.style.minHeight = `${Math.ceil(maxH)}px`; });
+    }
+
     function buildCompareCard(r) {
       const schoolName = getSchoolName(r) || 'School';
       const decision = r['decision'] || r['Decision'] || '';
@@ -7456,7 +7486,7 @@ if (typeof window.switchToMap !== 'function') {
       const capacity = parseNumber(r['Capacity']);
       const seats = parseNumber(r['Available Seats']);
       const util = parseNumber(r['Utilization']);
-      const buildingScore = parseNumber(r['BuildingScore']);
+      const buildingScore = coerceBuildingScore0to10(r['BuildingScore']);
       const eduAdeq = parseNumber(r['EducationalAdequacy']);
       const attArea = parseNumber(r['AttendanceAreaEnrollment']);
       const growth = parseNumber(r['Future_EnrollmentGrowth']);
@@ -7476,7 +7506,7 @@ if (typeof window.switchToMap !== 'function') {
       if (Number.isFinite(buildingScore)) {
         const pct = clamp((buildingScore / 10) * 100, 0, 100);
         const color = pct >= 70 ? '#16a34a' : (pct >= 45 ? '#f59e0b' : '#dc2626');
-        metrics.push(metricRow({ label: 'Building Score', value: `${buildingScore.toFixed(1)}/10`, sub: '', barW: pct, barC: color }));
+        metrics.push(metricRow({ label: 'Building Score', value: `${buildingScore.toFixed(2)}/10`, sub: '', barW: pct, barC: color }));
       } else {
         metrics.push(metricRow({ label: 'Building Score', value: '', sub: '', barW: null }));
       }
@@ -7511,10 +7541,12 @@ if (typeof window.switchToMap !== 'function') {
       if (below50) keyMeta.push(`<span class="step1-badge">${htmlEscape(`Below 50th pct EA: ${below50}`)}</span>`);
 
       return `<div class="step1-card step1-compare-card">
-        <div class="step1-compare-title">${htmlEscape(schoolName)}</div>
-        <div class="step1-compare-meta">${buildBadges(r, false)}</div>
-        ${keyMeta.length ? `<div class="step1-compare-meta">${keyMeta.join('')}</div>` : ``}
-        <div style="margin-top:10px;">${metrics.filter(Boolean).join('')}</div>
+        <div class="step1-compare-top">
+          <div class="step1-compare-title">${htmlEscape(schoolName)}</div>
+          <div class="step1-compare-meta">${buildBadges(r, false)}</div>
+          ${keyMeta.length ? `<div class="step1-compare-meta">${keyMeta.join('')}</div>` : ``}
+        </div>
+        <div class="step1-compare-body" style="margin-top:10px;">${metrics.filter(Boolean).join('')}</div>
       </div>`;
     }
 
@@ -7553,6 +7585,8 @@ if (typeof window.switchToMap !== 'function') {
         .map(nm => rows.find(r => norm(getSchoolName(r)) === norm(nm)))
         .filter(Boolean);
       compareGrid.innerHTML = selectedRows.map(buildCompareCard).join('') || `<div style="color:#6b7280; font-size:13px;">Select one or two additional schools to compare.</div>`;
+      // Align the metric sections across cards by equalizing the top/header height.
+      requestAnimationFrame(() => equalizeCompareCardHeaderHeights(compareGrid));
     }
   }
 
@@ -7636,6 +7670,19 @@ if (typeof window.switchToMap !== 'function') {
 
     // Initial state
     setVisibleState(false);
+
+    // Keep compare cards aligned when the viewport changes size.
+    if (!window.__step1CompareResizeBound) {
+      window.__step1CompareResizeBound = true;
+      let t = null;
+      window.addEventListener('resize', () => {
+        if (t) clearTimeout(t);
+        t = setTimeout(() => {
+          const grid = document.getElementById('step1CompareGrid');
+          if (grid) equalizeCompareCardHeaderHeights(grid);
+        }, 120);
+      });
+    }
     return true;
   }
 

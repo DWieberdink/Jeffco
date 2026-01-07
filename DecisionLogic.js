@@ -53,6 +53,14 @@ document.addEventListener("DOMContentLoaded", () => {
     return n <= 1.5 ? n * 100 : n;
   }
 
+  // BuildingScore may be stored either on a 0–1 scale (e.g. 0.62)
+  // or a 0–10 scale (e.g. 6.20). Normalize to 0–10 for dashboard logic.
+  function coerceBuildingScore0to10(raw) {
+    const n = parseFloat((raw ?? "").toString().trim().replace(/,/g, ''));
+    if (!isFinite(n)) return NaN;
+    return n <= 1.5 ? n * 10 : n;
+  }
+
   // Load distance to welcoming schools from SchooltoSchoolDistances.csv,
   // keyed by Origin CDE Prefix (e.g., "CO-1420-8276").
   function loadDistanceToWelcomingMap() {
@@ -256,11 +264,13 @@ document.addEventListener("DOMContentLoaded", () => {
         return attendanceAreaEnrollmentPct >= t.attendanceAreaEnrollment ? "Yes" : "No";
       })(),
       edu2: (+row.EducationalAdequacy * 100) >= t.adequateProgramsMin ? "Yes" : "No",
-      fac2: +row.BuildingScore <= t.buildingThreshold ? "Yes" : "No",
+      // Node label: "Composite Building Score above?"
+      fac2: coerceBuildingScore0to10(row.BuildingScore) >= t.buildingThreshold ? "Yes" : "No",
       expand: (row.SiteCapacity === "Yes" || row.SiteCapacity === "yes" || row.SiteCapacity === "YES") ? "Yes" : "No",
       
       // Flow 3 - Maintenance/Investment
-      fac3_below: +row.BuildingScore <= t.buildingThresholdBelow ? "Yes" : "No",
+      // Node label: "Composite Building Score below?"
+      fac3_below: coerceBuildingScore0to10(row.BuildingScore) <= t.buildingThresholdBelow ? "Yes" : "No",
       edu3: (+row.EducationalAdequacy * 100) >= t.adequateProgramsMin ? "Yes" : "No",
       edu3_2: (() => {
         // OR function: Below 50% percentile EA category OR safety/security issues
@@ -270,12 +280,14 @@ document.addEventListener("DOMContentLoaded", () => {
                                (row.DepartmentalDeficiency && row.DepartmentalDeficiency.toLowerCase().includes('security'));
         return (isBelow50Percentile || hasSafetyIssues) ? "Yes" : "No";
       })(),
-      fac3_above: +row.BuildingScore <= t.buildingThresholdAbove ? "Yes" : "No",
+      // Node label: "Composite Building Score above?"
+      fac3_above: coerceBuildingScore0to10(row.BuildingScore) >= t.buildingThresholdAbove ? "Yes" : "No",
       
       // Flow 4 - Consolidation/Closure
       invest: "No",
       edu4: (+row.EducationalAdequacy * 100) >= t.adequateProgramsMin ? "Yes" : "No",
-      fac4: +row.BuildingScore <= t.buildingThresholdFlow4 ? "Yes" : "No",
+      // Node label: "Composite Building Score above?"
+      fac4: coerceBuildingScore0to10(row.BuildingScore) >= t.buildingThresholdFlow4 ? "Yes" : "No",
       dist4: (() => {
         const schoolLevel = (row["School Level"] || '').toLowerCase();
         let distanceThreshold;
@@ -793,6 +805,13 @@ document.addEventListener("DOMContentLoaded", () => {
           });
           
           console.log(`📊 Filtered school data: ${results.data.length} total schools → ${self.schoolData.length} included schools`);
+
+          // Normalize BuildingScore for logic + keep a consistent 2-decimal string for display.
+          self.schoolData.forEach((row) => {
+            const bs = coerceBuildingScore0to10(row.BuildingScore ?? row["BuildingScore"]);
+            if (!isFinite(bs)) return;
+            row.BuildingScore = bs.toFixed(2);
+          });
 
           // Join in distance-to-welcoming values from SchooltoSchoolDistances.csv
           loadDistanceToWelcomingMap().then((distanceMap) => {
