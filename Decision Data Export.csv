@@ -1,168 +1,168 @@
-UniqueID,Building Name,Status,Include_Flow_Chart,School Level,Capacity,Enrollment,Available Seats,Utilization,Future_EnrollmentGrowth,DistanceUnderutilizedschools,BuildingTreshhold,EducationalAdequacy,Below50PCTL_EA_Cat,DepartmentalDeficiency,SiteCapacity,Scorecard, SquareFt ,BuildingScore,RecentInvestments,AttendanceAreaEnrollment
-CO-1420-5623,Long View High School,Active,Yes,Alternative,167,20,147,0.119760479,0,3.5,2.066666667,,Yes,,No,3,"6,808",1,No,80
-CO-1420-5972,Molholm Elementary,Closed,No,Elementary,454,0,454,0,,3.5,2.066666667,0.411922906,Yes,,No,3,"46,524",1,No,80
-CO-1420-1730,Jefferson Academy at Coal Creek Canyon,Active,No,Charter,0,68,-68,0,,3.5,2.066666667,,,,No,3,"25,361",1,No,80
-CO-1420-9154,New Classical Academy at Vivian,Closed,No,Elementary,302,0,302,0,,3.5,2.066666667,,,,No,3,"33,138",4,No,80
-CO-1420-8276,Stober Elementary,Active,Yes,Elementary,454,348,106,0.766519824,-0.067173502,3.5,2.066666667,0.700500284,Yes,,No,3,"32,633",3,Yes,46.6
-CO-1420-7282,Red Rocks Elementary,Active,Yes,Elementary,324,292,32,0.901234568,0.062271062,3.5,2.066666667,0.63038586,Yes,,No,3,"29,176",4,No,76.13
-CO-1420-1244,Campbell Early Learning Center,Active,No,Option,312,198,114,0.634615385,0.076923077,3.5,2.066666667,0.60932988,Yes,,No,3,"43,487",4,Yes,80
-CO-1420-3088,Foster Dual Language PK-8,Active,Yes,Option,454,454,0,1,0.033970276,3.5,2.066666667,0.719928025,Yes,,No,3,"42,486",3,Yes,80
-CO-1420-7962,Slater Elementary,Active,Yes,Elementary,310,280,30,0.903225806,-0.008387186,3.5,2.066666667,0.58944212,Yes,,No,3,"46,085",1,Yes,38.87
-CO-1420-4802,Kullerstrand Elementary,Closed,No,Elementary,302,0,302,0,,0.16,1.25,0.587465359,Yes,,No,4,"35,533",2,No,80
-CO-1420-6806,Parr Elementary,Closed,No,Elementary,302,0,302,0,,0.73,1.654761905,0.495508931,Yes,,No,2,"33,602",3,No,80
-CO-1420-9052,Van Arsdale Elementary,Active,Yes,Elementary,583,492,91,0.843910806,-0.159270318,0.53,1.800595238,0.595640046,Yes,,No,3,"50,511",1,No,69.13
-CO-1420-1790,Colorow Elementary,Closed,No,Elementary,475,0,475,0,,0.47,1.5,0.51803196,Yes,,No,2,"44,227",2,Yes,80
-CO-1420-7190,Prospect Valley Elementary,Active,Yes,Elementary,562,583,-21,1.037366548,0.078201124,1.28,1.782738095,0.82813198,No,,Yes,3,"46,229",9,Yes,54.44
-CO-1420-3622,Green Gables Elementary,Active,Yes,Elementary,346,315,31,0.910404624,-0.058776752,0.51,1.758928571,0.520478478,Yes,,No,3,"36,920",1,No,43.86
-CO-1420-5580,Marshdale Elementary,Active,Yes,Elementary,396,375,21,0.946969697,0.038834951,0.78,1.895833333,0.873463059,No,,Yes,3,"44,120",9,Yes,69.29
-CO-1420-7468,Rose Stein International Elementary,Active,Yes,Elementary,468,336,132,0.717948718,0.043648757,0.28,1.776785714,0.615164226,Yes,,Yes,3,"47,094",1,No,45
-CO-1420-6848,Peak Expeditionary at Pennington,Active,Yes,Elementary,331,316,15,0.954682779,-0.105493929,2.42,1.892857143,0.629762251,Yes,,Yes,2,"36,877",3,Yes,58.33
-CO-1420-0499,Jeffco Transition Services,Active,Yes,Alternative,95,116,-21,1.221052632,0,0.54,1.392857143,,,,No,3, -   ,1,Yes,80
-CO-1420-5222,Little Elementary,Active,Yes,Elementary,410,310,100,0.756097561,-0.053730715,0.47,1.75,0.554105843,Yes,,No,3,"40,712",1,No,41.46
-CO-1420-6828,Peck Elementary,Closed,No,Elementary,432,0,432,0,,1.03,2.270833333,0.559392621,Yes,,No,3,"42,834",4,No,80
-CO-1420-9058,Vanderhoof Elementary,Active,Yes,Elementary,490,403,87,0.82244898,0.066799575,0.54,1.55952381,0.681449355,Yes,,Yes,3,"44,082",1,No,40.3
-CO-1420-2866,Fairmount Elementary,Active,Yes,Elementary,605,601,4,0.99338843,-0.000382824,0.16,1.791666667,0.59155451,Yes,,Yes,3,"65,146",1,Yes,75.19
-CO-1420-4478,Sheridan Green Elementary,Closed,No,Elementary,0,0,0,0,,0.58,1.744047619,,,,No,4,"46,466",9,Yes,80
-CO-1420-9342,Welchester Elementary,Active,Yes,Elementary,410,293,117,0.714634146,0.031141869,0.86,1.541666667,0.725733051,Yes,,Yes,3,"42,093",5,Yes,44.88
-CO-1420-8432,Swanson Elementary,Active,Yes,Elementary,518,283,235,0.546332046,0.121794345,0.7,1.5625,0.699384645,Yes,,No,3,"54,462",1,No,25.82
-CO-1420-3216,Fremont Elementary,Active,Yes,Elementary,360,268,92,0.744444444,0.011315012,1.23,1.678571429,0.545435414,Yes,,Yes,3,"45,920",2,Yes,25.85
-CO-1420-6808,Patterson Elementary,Active,Yes,Elementary,410,346,64,0.843902439,-0.044776119,1.39,1.556547619,0.52860084,Yes,,Yes,3,"48,895",2,Yes,37.41
-CO-1420-0965,Brady Exploration School,Active,Yes,Alternative,405,294,111,0.725925926,0.082969432,0.28,0.089285714,0.550080222,Yes,,No,3,"68,612",1,Yes,80
-CO-1420-8090,Deane Elementary,Active,Yes,Elementary,482,341,141,0.70746888,0.046704223,0.71,2.306547619,0.622374225,Yes,,No,3,"46,118",1,Yes,38.27
-CO-1420-2946,Fitzmorris Elementary,Closed,No,Elementary,454,0,454,0,,No Data,2.044642857,0.627177262,Yes,,No,3,"51,259",5,No,80
-CO-1420-3624,Green Mountain Elementary,Closed,No,Elementary,324,0,324,0,,1.06,1.964285714,0.562241262,Yes,,Yes,3,"40,301",3,,80
-CO-1420-4830,Kyffin Elementary,Active,Yes,Elementary,540,503,37,0.931481481,-0.077266424,0.79,1.916666667,0.678388113,Yes,,Yes,3,"49,472",4,,76.02
-CO-1420-9678,Witt Elementary,Closed,No,Elementary,475,0,475,0,,1.4,1.523809524,0.578721411,Yes,,Yes,3,"44,341",2,,80
-CO-1420-1861,Columbine Hills Elementary,Active,Yes,Elementary,432,315,117,0.729166667,-0.035598706,0.79,2.43452381,0.647849308,Yes,,No,3,"47,268",3,,60.57
-CO-1420-2322,Dutch Creek Elementary,Active,Yes,Elementary,562,286,276,0.508896797,0.043478261,0.65,1.75297619,0.60633799,Yes,,Yes,5,"49,780",1,,62.15
-CO-1420-4190,Hutchinson Elementary,Active,Yes,Elementary,475,328,147,0.690526316,0.289454169,0.99,2.157738095,0.642897718,Yes,,Yes,5,"44,976",2,,40.8
-CO-1420-4549,Kendallvue Elementary,Active,Yes,Elementary,497,370,127,0.744466801,-0.002512563,0.12,1.87202381,0.709782983,Yes,,Yes,5,"45,418",3,,34.2
-CO-1420-8300,Stott Elementary,Active,Yes,Elementary,432,288,144,0.666666667,0.051515152,0.35,1.94047619,0.678220039,Yes,,Yes,4,"45,525",3,,45.58
-CO-1420-5892,Fletcher Miller Special Education School,Active,No,Alternative,109,97,12,0.889908257,#N/A,0.04,1.226190476,,No,,No,#N/A,"51,184",6,,80
-CO-1420-9232,Warder Elementary,Active,Yes,Elementary,475,432,43,0.909473684,-0.046607702,,,0.683508811,Yes,,Yes,,"41,934",2,,54.15
-CO-1420-9429,West Woods Elementary,Active,Yes,Elementary,648,542,106,0.836419753,-0.034220532,,,0.595120327,Yes,,Yes,,"53,379",2,,83.19
-CO-1420-9638,Wilmore-Davis Elementary,Closed,No,Elementary,367,0,367,0,,,,0.563525952,Yes,,No,,"38,596",2,,80
-CO-1420-3536,Governor's Ranch Elementary,Active,Yes,Elementary,497,458,39,0.921529175,-0.038409409,,,0.629077985,Yes,,Yes,,"46,907",3,,74.81
-CO-1420-7833,Shelton Elementary,Active,Yes,Elementary,540,394,146,0.72962963,0.00729927,,,0.589731373,Yes,,Yes,,"53,530",4,,57.17
-CO-1420-9008,Ute Meadows Elementary,Active,Yes,Elementary,540,374,166,0.692592593,-0.039865202,,,0.638046767,Yes,,No,,"46,266",3,,77.74
-CO-1420-9510,Wheat Ridge High School,Active,Yes,High,1820,932,888,0.512087912,-0.024746907,,,,Yes,,Yes,,"211,311",1,,56.64
-CO-1420-0030,Adams Elementary,Active,Yes,Elementary,497,310,187,0.623742455,0.060070339,,,0.657853597,Yes,,Yes,,"47,737",2,,40.12
-CO-1420-5036,Leawood Elementary,Active,Yes,Elementary,518,321,197,0.61969112,-0.003211998,,,0.617077586,Yes,,No,,"48,383",4,,53.35
-CO-1420-5524,Maple Grove Elementary,Active,Yes,Elementary,353,390,-37,1.104815864,0.049101935,,,0.641748621,Yes,,Yes,,"42,408",3,,80.12
-CO-1420-9432,Dennison Elementary,Active,Yes,Option,648,575,73,0.887345679,0.018456376,,,0.615144017,Yes,,Yes,,"43,420",5,,80
-CO-1420-9328,Weber Elementary,Active,Yes,Elementary,518,312,206,0.602316602,0.003701208,,,0.648314238,Yes,,No,,"51,052",3,,29.01
-CO-1420-9412,Westgate Elementary,Active,Yes,Elementary,626,305,321,0.487220447,0.04375,,,0.598060243,Yes,,Yes,,"51,207",2,,29.59
-CO-1420-0776,Bergen Meadow Primary School,Closed,No,Elementary,518,0,518,,,,,0.476186879,Yes,,Yes,,"50,555",2,,80
-CO-1420-6286,Normandy Elementary,Active,Yes,Elementary,540,262,278,0.485185185,0.071428571,,,0.582433712,Yes,,No,,"55,702",2,,55.79
-CO-1420-6470,Oberon Middle School,Active,Yes,Middle,756,704,52,0.931216931,-0.087087087,,,0.638420432,Yes,,Yes,,"90,839",4,,60.25
-CO-1420-9245,Warren Tech North,Active,No,Option,524,0,524,0,,,,0.584691024,Yes,,Yes,,"34,593",2,,80
-CO-1420-8280,Stony Creek Elementary,Active,Yes,Elementary,497,349,148,0.70221328,0.088643498,,,0.685341581,Yes,,No,,"45,230",4,,49.01
-CO-1420-0109,Arvada K-8,Closed,No,Multi-Level,763,0,763,0,,,,,,,Yes,,"114,795",4,,80
-CO-1420-0724,Belmar School of Integrated Arts,Active,Yes,Elementary,396,293,103,0.73989899,-0.017523754,,,0.608208039,Yes,,Yes,,"40,873",7,,23.8
-CO-1420-3450,Glennon Heights Elementary,Closed,No,Elementary,302,0,302,0,,,,,,,No,,"34,702",9,,80
-CO-1420-7708,Secrest Elementary,Active,Yes,Elementary,418,334,84,0.799043062,-0.017022135,,,0.639420452,Yes,,Yes,,"46,373",3,,26.06
-CO-1420-8102,South Lakewood Elementary,Active,Yes,Elementary,497,393,104,0.790744467,-0.026853605,,,0.68211249,Yes,,Yes,,"51,794",4,,45.69
-CO-1420-8209,Standley Lake High School,Active,Yes,High,1867,1123,744,0.601499732,-0.161260426,,,0.622955444,Yes,,No,,"193,706",3,,62.6
-CO-1420-1876,Coronado Elementary,Active,Yes,Elementary,475,384,91,0.808421053,0.059895833,,,0.718956617,Yes,,Yes,,"46,544",5,,66.04
-CO-1420-2550,Eiber Elementary,Active,Yes,Elementary,396,255,141,0.643939394,-0.067931585,,,0.625034132,Yes,,Yes,,"52,018",4,,38
-CO-1420-3726,Hackberry Hill Elementary,Active,Yes,Elementary,432,430,2,0.99537037,0.042469686,,,0.660870017,Yes,,No,,"52,414",3,,61.15
-CO-1420-7128,Powderhorn Elementary,Active,Yes,Elementary,569,522,47,0.917398946,0.073755378,,,0.636722179,Yes,,Yes,,"52,135",6,,50.06
-CO-1420-5472,Manning School of Academics and Arts,Active,Yes,Option,655,685,-30,1.045801527,-0.002915452,,,0.690862242,Yes,,Yes,,"72,678",4,,80
-CO-1420-0952,Bradford K8 North,Active,Yes,Multi-Level,410,350,60,0.853658537,-0.175373134,,,0.650458639,Yes,,No,,"46,070",6,,76.4
-CO-1420-3025,Foothills Elementary,Active,Yes,Elementary,418,363,55,0.868421053,-0.112379771,,,0.612227715,Yes,,Yes,,"40,063",6,,37.8
-CO-1420-5004,Lasley Elementary,Active,Yes,Elementary,691,576,115,0.83357453,-0.085702843,,,0.662898677,Yes,,Yes,,"66,927",8,,41.46
-CO-1420-7753,Semper Elementary,Active,Yes,Elementary,518,314,204,0.606177606,0.037877748,,,0.647086921,Yes,,No,,"53,756",2,,38.76
-CO-1420-9428,West Jefferson Middle School,Active,Yes,Middle,655,499,156,0.761832061,-0.005964215,,,0.648287913,Yes,,Yes,,"104,165",5,,74.33
-CO-1420-9490,Westridge Elementary,Active,Yes,Elementary,497,400,97,0.804828974,-0.092149686,,,0.569948493,Yes,,Yes,,"47,105",6,,58.56
-CO-1420-0148,Allendale Elementary,Closed,No,Elementary,324,0,324,0,,,,,,,No,,"40,646",5,,80
-CO-1420-2496,Edgewater Elementary,Active,Yes,Elementary,497,335,162,0.674044266,-0.16537924,,,0.58102153,Yes,,Yes,,"45,204",4,,53.18
-CO-1420-2616,Elk Creek Elementary,Active,Yes,Elementary,475,324,151,0.682105263,-0.031073446,,,0.712982289,Yes,,Yes,,"51,181",5,,58.23
-CO-1420-2820,Everitt Middle School,Active,Yes,Middle,738,456,282,0.617886179,0.140659341,,,0.651839389,Yes,,No,,"103,698",6,,35.65
-CO-1420-4548,Ken Caryl Middle School,Active,Yes,Middle,907,725,182,0.799338479,0.032904149,,,0.622761823,Yes,,Yes,,"101,389",5,,69.93
-CO-1420-5024,Lawrence Elementary,Active,Yes,Elementary,367,412,-45,1.122615804,-0.015237432,,,0.730533091,Yes,,Yes,,"47,139",5,,33.93
-CO-1420-6844,Peiffer Elementary,Closed,No,Elementary,475,0,475,0,,,,0.472687803,Yes,,No,,"44,016",3,,80
-CO-1420-0951,Blue Heron Elementary,Active,Yes,Elementary,518,325,193,0.627413127,-0.023375139,,,0.610388308,Yes,,Yes,,"55,083",7,,45.36
-CO-1420-6133,Mortensen Elementary,Active,Yes,Elementary,540,260,280,0.481481481,0.041190634,,,0.669288658,Yes,,Yes,,"52,158",5,,52.36
-CO-1420-6135,Mount Carbon Elementary,Active,Yes,Elementary,540,367,173,0.67962963,-0.008336668,,,0.626584718,Yes,,No,,"51,928",5,,59.63
-CO-1420-7114,Pomona Junior/Senior High School,Active,Yes,Multi-Level,2105,1252,853,0.594774347,-0.236347359,,,0.663560262,Yes,,Yes,,"203,945",4,,44.7
-CO-1420-8036,Sobesky Academy,Active,Yes,Alternative,449,101,348,0.224944321,,,,0.647227416,Yes,,Yes,,"53,724",5,,80
-CO-1420-2194,Devinny Elementary,Active,Yes,Elementary,518,505,13,0.974903475,0.019212198,,,0.723843731,Yes,,No,,"52,618",6,,74.72
-CO-1420-8248,Emory Elementary,Closed,No,Elementary,713,0,713,0,,,,,,,Yes,,"107,786",6,,80
-CO-1420-5944,Mitchell Elementary,Active,Yes,Elementary,518,478,40,0.922779923,-0.05907173,,,0.618212122,Yes,,Yes,,"53,034",3,,74.18
-CO-1420-9234,Warren Tech,Active,No,Option,762,32,730,0.041994751,-0.034482759,,,0.517342163,Yes,,No,,"166,995",7,,80
-CO-1420-6804,Parmalee Elementary,Active,Yes,Elementary,346,278,68,0.803468208,0.046766744,,,0.626809369,Yes,,Yes,,"37,239",5,,76.36
-CO-1420-7483,Rooney Ranch Elementary,Active,Yes,Elementary,583,492,91,0.843910806,-0.019005612,,,0.683176117,Yes,,Yes,,"53,635",6,,73.65
-CO-1420-0694,Bell Middle School,Active,Yes,Middle,1008,774,234,0.767857143,0.057909605,,,0.718066574,Yes,,No,,"125,740",6,,62.42
-CO-1420-0950,Bradford K8 South,Active,Yes,Multi-Level,497,371,126,0.746478873,0,,,0.675675902,Yes,,Yes,,"48,682",7,,84.49
-CO-1420-1318,Carmody Middle School,Active,Yes,Middle,839,550,289,0.655542312,0.045296167,,,0.691963952,Yes,,Yes,,"99,694",6,,31.41
-CO-1420-1864,Columbine High School,Active,Yes,High,2207,1710,497,0.774807431,-0.084615385,,,0.731455657,Yes,,No,,"238,149",6,,80.39
-CO-1420-5354,Lumberg Elementary,Active,Yes,Elementary,540,526,14,0.974074074,-0.028171828,,,0.625469163,Yes,,Yes,,"64,020",6,,48.37
-CO-1420-6090,Moore Middle School,Closed,No,Middle,662,0,662,0,,,,0.588567375,Yes,,Yes,,"83,756",5,,80
-CO-1420-3201,Free Horizon Montessori PK-8,Active,Yes,Option,425,382,43,0.898823529,0.034653465,,,0.468805156,Yes,,No,,"49,079",5,,80
-CO-1420-6330,North Arvada Middle School,Active,Yes,Middle,756,464,292,0.613756614,-0.016336567,,,0.744781076,No,,Yes,,"113,554",6,,36.36
-CO-1420-0370,Arvada High School,Active,Yes,High,1748,754,994,0.431350114,0.054905388,,,0.67855173,Yes,,Yes,,"236,196",4,,38.84
-CO-1420-1886,Conifer High School,Active,Yes,High,1398,821,577,0.587267525,-0.010430248,,,0.761969982,Yes,,No,,"166,224",7,,80.74
-CO-1420-3628,Green Mountain High School,Active,Yes,High,1939,1071,868,0.55234657,0.008737864,,,0.572656598,Yes,,Yes,,"199,223",6,,63.24
-CO-1420-7529,Ryan Elementary,Active,Yes,Elementary,590,511,79,0.866101695,0.032103037,,,0.69667894,Yes,,Yes,,"50,545",8,,64.56
-CO-1420-7780,Shaffer Elementary,Active,Yes,Elementary,518,497,21,0.959459459,-0.049235326,,,0.82213322,Yes,,No,,"53,368",7,,68.35
-CO-1420-9424,West Jefferson Elementary,Active,Yes,Elementary,410,252,158,0.614634146,-0.144032922,,,0.751000809,Yes,,Yes,,"48,100",8,,43.58
-CO-1420-1976,Creighton Middle,Active,Yes,Middle,914,741,173,0.810722101,0.02170767,,,0.582443904,Yes,,Yes,,"133,082",7,,57.71
-CO-1420-2130,Deer Creek Middle School,Active,Yes,Middle,1058,541,517,0.511342155,0.045283019,,,0.684582924,Yes,,No,,"120,366",7,,70.89
-CO-1420-2288,Drake Middle School,Active,Yes,Middle,990,1003,-13,1.013131313,-0.11328976,,,0.712857847,Yes,,Yes,,"123,953",8,,70.66
-CO-1420-4942,Lakewood High School,Active,Yes,High,2041,1735,306,0.850073493,-0.057266343,,,0.715949328,Yes,,Yes,,"248,135",7,,60.29
-CO-1420-8381,Summit Ridge Middle School,Active,Yes,Middle,1008,851,157,0.844246032,0.009433962,,,0.726872694,No,,No,,"133,587",7,,71.35
-CO-1420-9648,Wilmot Elementary,Active,Yes,Elementary,454,327,127,0.720264317,0.091245472,,,0.740901789,No,,Yes,,"56,727",8,,62.26
-CO-1420-0779,Bergen Elementary School,Active,Yes,Elementary,454,456,-2,1.004405286,0,,,0.714100008,Yes,,Yes,,"42,281",8,,56.35
-CO-1420-4798,Connections Learning Center,Active,Yes,Alternative,282,22,260,0.078014184,-0.266666667,,,0.607557174,Yes,,No,,"20,500",7,,80
-CO-1420-3502,Golden High School,Active,Yes,High,1534,1469,65,0.957627119,-0.070344828,,,0.673622645,Yes,,Yes,,"187,259",7,,69.66
-CO-1420-4422,Jefferson Junior/Senior High School,Active,Yes,Multi-Level,1135,601,534,0.529515419,-0.182815356,,,0.745508306,Yes,,Yes,,"123,773",2,,58.14
-CO-1420-5350,Lukas Elementary,Active,Yes,Elementary,446,402,44,0.901345291,0.06875758,,,0.702636943,Yes,,No,,"47,742",6,,43.3
-CO-1420-5454,Mandalay Middle School,Active,Yes,Middle,630,443,187,0.703174603,0.054054054,,,0.644489538,Yes,,Yes,,"88,977",7,,57.12
-CO-1420-6539,Jefferson County Open Elementary School,Active,Yes,Option,904,551,353,0.609513274,-0.0041841,,,0.707808799,Yes,,Yes,,"51,314",8,,80
-CO-1420-6541,Jefferson County Open Secondary,Active,No,#N/A,#N/A,#N/A,#N/A,#N/A,0.016129032,,,,,,No,,#N/A,9,,80
-CO-1420-8223,Stevens Elementary,Active,Yes,Elementary,569,469,100,0.824253076,,,,0.577312482,Yes,,Yes,,"111,703",7,,37.52
-CO-1420-8834,Thomson Elementary,Closed,No,Elementary,518,0,518,0,,,,,,,Yes,,"48,832",9,,80
-CO-1420-0378,Arvada West High School,Active,Yes,High,1946,1923,23,0.988180884,0.02016546,,,0.733526543,Yes,,No,,"237,052",5,,70.1
-CO-1420-2093,Dakota Ridge High School,Active,Yes,High,2041,1277,764,0.625673689,-0.10685155,,,0.719992747,No,,Yes,,"236,407",7,,64.13
-CO-1420-2836,Evergreen High School,Active,Yes,High,1589,909,680,0.572057898,-0.091676719,,,0.766882308,Yes,,Yes,,"209,129",8,,85.1
-CO-1420-2832,Evergreen Middle School,Active,Yes,Middle,706,478,228,0.677053824,-0.013916501,,,0.666674509,Yes,,No,,"111,715",8,,71.62
-CO-1420-4307,Irwin Preschool,Closed,No,Option,0,0,0,0,,,,,,,Yes,,"10,705",9,,80
-CO-1420-4127,Jeffco Remote Learning Program,Active,No,Option,0,399,-399,0,-0.398305085,,,,,,Yes,, -   ,9,,80
-CO-1420-4408,Jeffco Virtual Academy,Active,No,Option,0,441,-441,0,0.085526316,,,,,,No,, -   ,9,,80
-CO-1420-5758,Meiklejohn Elementary,Active,Yes,Elementary,691,521,170,0.75397974,0.011450382,,,0.642266513,Yes,,Yes,,"69,795",6,,71.69
-CO-1420-7238,Ralston Elementary,Active,Yes,Elementary,410,289,121,0.704878049,-0.027210884,,,0.64377572,Yes,,Yes,,"51,304",8,,84.67
-CO-1420-7239,Ralston Valley High School,Active,Yes,High,2303,1875,428,0.814155449,0.01171459,,,0.682247745,Yes,,No,,"239,199",7,,78.28
-CO-1420-0108,Alameda International Junior/Senior High School,Active,Yes,Multi-Level,1493,1002,491,0.671131949,-0.131905299,,,0.828202131,No,,Yes,,"262,863",8,,42.52
-CO-1420-0664,Bear Creek High School,Active,Yes,High,2303,1344,959,0.583586626,-0.055682685,,,0.745493184,Yes,,Yes,,"255,986",8,,44.08
-CO-1420-1522,Chatfield Senior High School,Active,Yes,High,2415,1808,607,0.748654244,-0.064125832,,,0.731500772,Yes,,No,,"275,727",8,,75.5
-CO-1420-2963,Falcon Bluffs Middle School,Active,Yes,Middle,857,567,290,0.661610268,-0.14334471,,,0.738501254,Yes,,Yes,,"113,571",8,,71.26
-CO-1420-2120,D'Evelyn Junior/Senior High School,Active,Yes,Option,1320,1212,108,0.918181818,0.007419621,,,0.669425657,Yes,,Yes,,"154,002",8,,80
-CO-1420-0033,McLain Community High School,Active,Yes,Alternative,738,349,389,0.472899729,,,,0.471006437,Yes,,No,,"79,113",5,,80
-CO-1420-0660,Bear Creek K-8,Active,Yes,Multi-Level,1138,863,275,0.758347979,-0.079633996,,,0.675799289,Yes,,Yes,,"122,367",8,,42.5
-CO-1420-2300,Dunstan Middle School,Active,Yes,Middle,1008,798,210,0.791666667,0.232472325,,,0.899999945,No,,Yes,,"135,745",9,,68.72
-CO-1420-7870,Sierra Elementary,Active,Yes,Elementary,655,493,162,0.752671756,0.013085523,,,0.855543183,Yes,,No,,"69,882",9,,58.71
-CO-1420-9299,Wayne Carle Middle School,Active,Yes,Middle,706,438,268,0.620396601,-0.075471698,,,0.779640607,No,,Yes,,"105,483",8,,50.42
-CO-1420-1451,Addenbrooke Classical Academy,Active,No,Charter,0,191,-191,0,#N/A,,,,,,Yes,, -   ,9,,80
-CO-1420-0491,Addenbrooke Classical Academy (PK - 8th),Active,No,Charter,0,774,-774,0,0.015136226,,,,,,No,, -   ,9,,80
-CO-1420-7701,Collegiate Academy,Active,No,Charter,0,304,-304,0,-0.184750733,,,,,,Yes,, -   ,9,,80
-CO-1420-1880,Compass Montessori,Active,No,Charter,0,425,-425,0,0.017073171,,,,,,Yes,, -   ,9,,80
-CO-1420-1869,Compass Montessori Wheat Ridge,Active,No,Charter,0,288,-288,0,-0.006825939,,,,,,No,, -   ,9,,80
-CO-1420-2189,Doral Academy of Colorado,Active,No,Charter,0,168,-168,0,-0.110465116,,,,,,Yes,, -   ,9,,80
-CO-1420-2799,Excel Academy,Active,No,Charter,0,446,-446,0,0.018390805,,,,,,Yes,, -   ,9,,80
-CO-1420-3691,Great Work Montessori,Closed,No,Charter,0,0,0,0,,,,,,,No,, -   ,9,,80
-CO-1420-9980,Jeffco Central Services,Active,No,Option,0,0,0,0,#N/A,,,,,,Yes,, -   ,9,,80
-CO-1420-4404,Jefferson Academy,Active,No,Charter,0,1198,-1198,0,0.046783626,,,,,,Yes,, -   ,9,,80
-CO-1420-4402,Jefferson Academy Elementary,Active,No,Charter,0,737,-737,0,#N/A,,,,,,No,, -   ,9,,80
-CO-1420-4410,Jefferson Academy Secondary,Active,No,Charter,0,696,-696,0,,,,,,,Yes,, -   ,9,,80
-CO-1420-5145,Lincoln Academy,Active,No,Charter,0,824,-824,0,-0.01076555,,,,,,Yes,, -   ,9,,80
-CO-1420-5994,Montessori Peaks Academy,Active,No,Charter,0,479,-479,0,-0.031779661,,,,,,No,, -   ,9,,80
-CO-1420-6139,Mountain Phoenix Community School,Active,No,Charter,0,650,-650,0,0.046686747,,,,,,Yes,, -   ,9,,80
-CO-1420-6237,New America School,Active,No,Charter,0,74,-74,0,-0.083333333,,,,,,Yes,, -   ,9,,80
-CO-1420-7462,Rocky Mountain Academy of Evergreen,Active,No,Charter,0,350,-350,0,-0.090634441,,,,,,No,, -   ,9,,80
-CO-1420-5415,Rocky Mountain Deaf School,Active,No,Charter,0,82,-82,0,-0.040540541,,,,,,Yes,, -   ,9,,80
-CO-1420-8793,Two Roads Charter School,Active,No,Charter,0,630,-630,0,-0.03164557,,,,,,Yes,, -   ,9,,80
-CO-1420-1001,Warren Tech South,Active,No,Option,143,0,143,0,,,,0.692876653,Yes,,No,, -   ,9,,80
-CO-1420-9427,Woodrow Wilson Academy,Active,No,Charter,0,852,-852,0,-0.00729927,,,,,,Yes,, -   ,9,,80
-CO-1420-4550,Kendrick Lakes Elementary,Active,Yes,Elementary,461,443,18,0.960954447,-0.026162716,,,0.817314574,No,,Yes,,"58,511",9,,52.31
-CO-1420-8856,Three Creeks K-8,Active,Yes,Multi-Level,1001,1050,-49,1.048951049,0.083262532,,,0.702362379,Yes,,No,,"100,856",9,,74.98
-CO-1420-6285,Norma Anderson Early Learning Center,Active,No,Option,96,112,-16,1.166666667,0.25,,,0.668578875,Yes,,Yes,,"13,742",2,,80
+UniqueID,Building Name,Status,Include_Flow_Chart,School Level,Capacity,Enrollment,Available Seats,Utilization,Future_EnrollmentGrowth,DistanceUnderutilizedschools,BuildingTreshhold,EducationalAdequacy,Below50PCTL_EA_Cat,DepartmentalDeficiency,SiteCapacity,Scorecard, SquareFt ,BuildingScore,RecentInvestments,AttendanceAreaEnrollment,PKEnrollment
+CO-1420-5623,Long View High School,Active,Yes,Alternative,167,20,147,0.119760479,0,3.5,2.066666667,,Yes,,No,3,"6,808",0.218783627,No,80,0
+CO-1420-5972,Molholm Elementary,Closed,No,Elementary,454,0,454,0,,3.5,2.066666667,0.411922906,Yes,,No,3,"46,524",0,No,80,0
+CO-1420-1730,Jefferson Academy at Coal Creek Canyon,Active,No,Charter,0,68,-68,0,,3.5,2.066666667,,,,No,3,"25,361",0,No,80,0
+CO-1420-9154,New Classical Academy at Vivian,Closed,No,Elementary,302,0,302,0,,3.5,2.066666667,,,,No,3,"33,138",0,No,80,0
+CO-1420-8276,Stober Elementary,Active,Yes,Elementary,454,348,106,0.766519824,-0.067173502,3.5,2.066666667,0.700500284,Yes,,No,3,"32,633",0.569090661,Yes,46.6,0
+CO-1420-7282,Red Rocks Elementary,Active,Yes,Elementary,324,292,32,0.901234568,0.062271062,3.5,2.066666667,0.63038586,Yes,,No,3,"29,176",0.471340812,No,76.13,0
+CO-1420-1244,Campbell Early Learning Center,Active,No,Option,312,198,114,0.634615385,0.076923077,3.5,2.066666667,0.60932988,Yes,,No,3,"43,487",0.581302217,Yes,80,198
+CO-1420-3088,Foster Dual Language PK-8,Active,Yes,Option,454,454,0,1,0.033970276,3.5,2.066666667,0.719928025,Yes,,No,3,"42,486",0.534254251,Yes,80,31
+CO-1420-7962,Slater Elementary,Active,Yes,Elementary,310,280,30,0.903225806,-0.008387186,3.5,2.066666667,0.58944212,Yes,,No,3,"46,085",0.413312257,Yes,38.87,31
+CO-1420-4802,Kullerstrand Elementary,Closed,No,Elementary,302,0,302,0,,0.16,1.25,0.587465359,Yes,,No,4,"35,533",0,No,80,0
+CO-1420-6806,Parr Elementary,Closed,No,Elementary,302,0,302,0,,0.73,1.654761905,0.495508931,Yes,,No,2,"33,602",0,No,80,0
+CO-1420-9052,Van Arsdale Elementary,Active,Yes,Elementary,583,492,91,0.843910806,-0.159270318,0.53,1.800595238,0.595640046,Yes,,No,3,"50,511",0.594628091,No,69.13,49
+CO-1420-1790,Colorow Elementary,Closed,No,Elementary,475,0,475,0,,0.47,1.5,0.51803196,Yes,,No,2,"44,227",0,Yes,80,0
+CO-1420-7190,Prospect Valley Elementary,Active,Yes,Elementary,562,583,-21,1.037366548,0.078201124,1.28,1.782738095,0.82813198,No,,Yes,3,"46,229",0.6941,Yes,54.44,0
+CO-1420-3622,Green Gables Elementary,Active,Yes,Elementary,346,315,31,0.910404624,-0.058776752,0.51,1.758928571,0.520478478,Yes,,No,3,"36,920",0.519905004,No,43.86,18
+CO-1420-5580,Marshdale Elementary,Active,Yes,Elementary,396,375,21,0.946969697,0.038834951,0.78,1.895833333,0.873463059,No,,Yes,3,"44,120",0.6761,Yes,69.29,19
+CO-1420-7468,Rose Stein International Elementary,Active,Yes,Elementary,468,336,132,0.717948718,0.043648757,0.28,1.776785714,0.615164226,Yes,,Yes,3,"47,094",0.611872618,No,45,45
+CO-1420-6848,Peak Expeditionary at Pennington,Active,Yes,Elementary,331,316,15,0.954682779,-0.105493929,2.42,1.892857143,0.629762251,Yes,,Yes,2,"36,877",0.594830516,Yes,58.33,20
+CO-1420-0499,Jeffco Transition Services,Active,Yes,Alternative,95,116,-21,1.221052632,0,0.54,1.392857143,,,,No,3, -   ,0,Yes,80,0
+CO-1420-5222,Little Elementary,Active,Yes,Elementary,410,310,100,0.756097561,-0.053730715,0.47,1.75,0.554105843,Yes,,No,3,"40,712",0.54082033,No,41.46,0
+CO-1420-6828,Peck Elementary,Closed,No,Elementary,432,0,432,0,,1.03,2.270833333,0.559392621,Yes,,No,3,"42,834",0,No,80,0
+CO-1420-9058,Vanderhoof Elementary,Active,Yes,Elementary,490,403,87,0.82244898,0.066799575,0.54,1.55952381,0.681449355,Yes,,Yes,3,"44,082",0.501053112,No,40.3,0
+CO-1420-2866,Fairmount Elementary,Active,Yes,Elementary,605,601,4,0.99338843,-0.000382824,0.16,1.791666667,0.59155451,Yes,,Yes,3,"65,146",0.543353214,Yes,75.19,0
+CO-1420-4478,Sheridan Green Elementary,Closed,No,Elementary,0,0,0,0,,0.58,1.744047619,,,,No,4,"46,466",0,Yes,80,0
+CO-1420-9342,Welchester Elementary,Active,Yes,Elementary,410,293,117,0.714634146,0.031141869,0.86,1.541666667,0.725733051,Yes,,Yes,3,"42,093",0.561636387,Yes,44.88,34
+CO-1420-8432,Swanson Elementary,Active,Yes,Elementary,518,283,235,0.546332046,0.121794345,0.7,1.5625,0.699384645,Yes,,No,3,"54,462",0.569573753,No,25.82,0
+CO-1420-3216,Fremont Elementary,Active,Yes,Elementary,360,268,92,0.744444444,0.011315012,1.23,1.678571429,0.545435414,Yes,,Yes,3,"45,920",0.564931336,Yes,25.85,0
+CO-1420-6808,Patterson Elementary,Active,Yes,Elementary,410,346,64,0.843902439,-0.044776119,1.39,1.556547619,0.52860084,Yes,,Yes,3,"48,895",0.485637671,Yes,37.41,83
+CO-1420-0965,Brady Exploration School,Active,Yes,Alternative,405,294,111,0.725925926,0.082969432,0.28,0.089285714,0.550080222,Yes,,No,3,"68,612",0.548677538,Yes,80,0
+CO-1420-8090,Deane Elementary,Active,Yes,Elementary,482,341,141,0.70746888,0.046704223,0.71,2.306547619,0.622374225,Yes,,No,3,"46,118",0.497947792,Yes,38.27,16
+CO-1420-2946,Fitzmorris Elementary,Closed,No,Elementary,454,0,454,0,,No Data,2.044642857,0.627177262,Yes,,No,3,"51,259",0,No,80,0
+CO-1420-3624,Green Mountain Elementary,Closed,No,Elementary,324,0,324,0,,1.06,1.964285714,0.562241262,Yes,,Yes,3,"40,301",0,,80,0
+CO-1420-4830,Kyffin Elementary,Active,Yes,Elementary,540,503,37,0.931481481,-0.077266424,0.79,1.916666667,0.678388113,Yes,,Yes,3,"49,472",0.573796066,,76.02,38
+CO-1420-9678,Witt Elementary,Closed,No,Elementary,475,0,475,0,,1.4,1.523809524,0.578721411,Yes,,Yes,3,"44,341",0,,80,0
+CO-1420-1861,Columbine Hills Elementary,Active,Yes,Elementary,432,315,117,0.729166667,-0.035598706,0.79,2.43452381,0.647849308,Yes,,No,3,"47,268",0.634327717,,60.57,55
+CO-1420-2322,Dutch Creek Elementary,Active,Yes,Elementary,562,286,276,0.508896797,0.043478261,0.65,1.75297619,0.60633799,Yes,,Yes,5,"49,780",0.505059571,,62.15,21
+CO-1420-4190,Hutchinson Elementary,Active,Yes,Elementary,475,328,147,0.690526316,0.289454169,0.99,2.157738095,0.642897718,Yes,,Yes,5,"44,976",0.574011648,,40.8,39
+CO-1420-4549,Kendallvue Elementary,Active,Yes,Elementary,497,370,127,0.744466801,-0.002512563,0.12,1.87202381,0.709782983,Yes,,Yes,5,"45,418",0.615633335,,34.2,56
+CO-1420-8300,Stott Elementary,Active,Yes,Elementary,432,288,144,0.666666667,0.051515152,0.35,1.94047619,0.678220039,Yes,,Yes,4,"45,525",0.59544949,,45.58,32
+CO-1420-5892,Fletcher Miller Special Education School,Active,No,Alternative,109,97,12,0.889908257,#N/A,0.04,1.226190476,,No,,No,#N/A,"51,184",0.593683086,,80,34
+CO-1420-9232,Warder Elementary,Active,Yes,Elementary,475,432,43,0.909473684,-0.046607702,,,0.683508811,Yes,,Yes,,"41,934",0.524986903,,54.15,43
+CO-1420-9429,West Woods Elementary,Active,Yes,Elementary,648,542,106,0.836419753,-0.034220532,,,0.595120327,Yes,,Yes,,"53,379",0.64280683,,83.19,0
+CO-1420-9638,Wilmore-Davis Elementary,Closed,No,Elementary,367,0,367,0,,,,0.563525952,Yes,,No,,"38,596",0,,80,0
+CO-1420-3536,Governor's Ranch Elementary,Active,Yes,Elementary,497,458,39,0.921529175,-0.038409409,,,0.629077985,Yes,,Yes,,"46,907",0.654494713,,74.81,54
+CO-1420-7833,Shelton Elementary,Active,Yes,Elementary,540,394,146,0.72962963,0.00729927,,,0.589731373,Yes,,Yes,,"53,530",0.675804219,,57.17,29
+CO-1420-9008,Ute Meadows Elementary,Active,Yes,Elementary,540,374,166,0.692592593,-0.039865202,,,0.638046767,Yes,,No,,"46,266",0.677031486,,77.74,18
+CO-1420-9510,Wheat Ridge High School,Active,Yes,High,1820,932,888,0.512087912,-0.024746907,,,,Yes,,Yes,,"211,311",0.55798156,,56.64,0
+CO-1420-0030,Adams Elementary,Active,Yes,Elementary,497,310,187,0.623742455,0.060070339,,,0.657853597,Yes,,Yes,,"47,737",0.593057153,,40.12,61
+CO-1420-5036,Leawood Elementary,Active,Yes,Elementary,518,321,197,0.61969112,-0.003211998,,,0.617077586,Yes,,No,,"48,383",0.664038678,,53.35,50
+CO-1420-5524,Maple Grove Elementary,Active,Yes,Elementary,353,390,-37,1.104815864,0.049101935,,,0.641748621,Yes,,Yes,,"42,408",0.512916624,,80.12,15
+CO-1420-9432,Dennison Elementary,Active,Yes,Option,648,575,73,0.887345679,0.018456376,,,0.615144017,Yes,,Yes,,"43,420",0.501696166,,80,0
+CO-1420-9328,Weber Elementary,Active,Yes,Elementary,518,312,206,0.602316602,0.003701208,,,0.648314238,Yes,,No,,"51,052",0.585802715,,29.01,50
+CO-1420-9412,Westgate Elementary,Active,Yes,Elementary,626,305,321,0.487220447,0.04375,,,0.598060243,Yes,,Yes,,"51,207",0.560177253,,29.59,28
+CO-1420-0776,Bergen Meadow Primary School,Closed,No,Elementary,518,0,518,,,,,0.476186879,Yes,,Yes,,"50,555",0,,80,0
+CO-1420-6286,Normandy Elementary,Active,Yes,Elementary,540,262,278,0.485185185,0.071428571,,,0.582433712,Yes,,No,,"55,702",0.59598962,,55.79,34
+CO-1420-6470,Oberon Middle School,Active,Yes,Middle,756,704,52,0.931216931,-0.087087087,,,0.638420432,Yes,,Yes,,"90,839",0.631874254,,60.25,0
+CO-1420-9245,Warren Tech North,Active,No,Option,524,0,524,0,,,,0.584691024,Yes,,Yes,,"34,593",0.655831436,,80,0
+CO-1420-8280,Stony Creek Elementary,Active,Yes,Elementary,497,349,148,0.70221328,0.088643498,,,0.685341581,Yes,,No,,"45,230",0.634734682,,49.01,58
+CO-1420-0109,Arvada K-8,Closed,No,Multi-Level,763,0,763,0,,,,,,,Yes,,"114,795",0,,80,0
+CO-1420-0724,Belmar School of Integrated Arts,Active,Yes,Elementary,396,293,103,0.73989899,-0.017523754,,,0.608208039,Yes,,Yes,,"40,873",0.513306371,,23.8,0
+CO-1420-3450,Glennon Heights Elementary,Closed,No,Elementary,302,0,302,0,,,,,,,No,,"34,702",0,,80,0
+CO-1420-7708,Secrest Elementary,Active,Yes,Elementary,418,334,84,0.799043062,-0.017022135,,,0.639420452,Yes,,Yes,,"46,373",0.533855664,,26.06,44
+CO-1420-8102,South Lakewood Elementary,Active,Yes,Elementary,497,393,104,0.790744467,-0.026853605,,,0.68211249,Yes,,Yes,,"51,794",0.653838776,,45.69,0
+CO-1420-8209,Standley Lake High School,Active,Yes,High,1867,1123,744,0.601499732,-0.161260426,,,0.622955444,Yes,,No,,"193,706",0.626516518,,62.6,0
+CO-1420-1876,Coronado Elementary,Active,Yes,Elementary,475,384,91,0.808421053,0.059895833,,,0.718956617,Yes,,Yes,,"46,544",0.618553824,,66.04,32
+CO-1420-2550,Eiber Elementary,Active,Yes,Elementary,396,255,141,0.643939394,-0.067931585,,,0.625034132,Yes,,Yes,,"52,018",0.472855934,,38,31
+CO-1420-3726,Hackberry Hill Elementary,Active,Yes,Elementary,432,430,2,0.99537037,0.042469686,,,0.660870017,Yes,,No,,"52,414",0.508856997,,61.15,0
+CO-1420-7128,Powderhorn Elementary,Active,Yes,Elementary,569,522,47,0.917398946,0.073755378,,,0.636722179,Yes,,Yes,,"52,135",0.704644471,,50.06,20
+CO-1420-5472,Manning School of Academics and Arts,Active,Yes,Option,655,685,-30,1.045801527,-0.002915452,,,0.690862242,Yes,,Yes,,"72,678",0.545933426,,80,0
+CO-1420-0952,Bradford K8 North,Active,Yes,Multi-Level,410,350,60,0.853658537,-0.175373134,,,0.650458639,Yes,,No,,"46,070",0.724940298,,76.4,0
+CO-1420-3025,Foothills Elementary,Active,Yes,Elementary,418,363,55,0.868421053,-0.112379771,,,0.612227715,Yes,,Yes,,"40,063",0.585524511,,37.8,49
+CO-1420-5004,Lasley Elementary,Active,Yes,Elementary,691,576,115,0.83357453,-0.085702843,,,0.662898677,Yes,,Yes,,"66,927",0.640135765,,41.46,0
+CO-1420-7753,Semper Elementary,Active,Yes,Elementary,518,314,204,0.606177606,0.037877748,,,0.647086921,Yes,,No,,"53,756",0.725675388,,38.76,58
+CO-1420-9428,West Jefferson Middle School,Active,Yes,Middle,655,499,156,0.761832061,-0.005964215,,,0.648287913,Yes,,Yes,,"104,165",0.694552011,,74.33,0
+CO-1420-9490,Westridge Elementary,Active,Yes,Elementary,497,400,97,0.804828974,-0.092149686,,,0.569948493,Yes,,Yes,,"47,105",0.650328702,,58.56,0
+CO-1420-0148,Allendale Elementary,Closed,No,Elementary,324,0,324,0,,,,,,,No,,"40,646",0,,80,0
+CO-1420-2496,Edgewater Elementary,Active,Yes,Elementary,497,335,162,0.674044266,-0.16537924,,,0.58102153,Yes,,Yes,,"45,204",0.53822073,,53.18,35
+CO-1420-2616,Elk Creek Elementary,Active,Yes,Elementary,475,324,151,0.682105263,-0.031073446,,,0.712982289,Yes,,Yes,,"51,181",0.641591087,,58.23,34
+CO-1420-2820,Everitt Middle School,Active,Yes,Middle,738,456,282,0.617886179,0.140659341,,,0.651839389,Yes,,No,,"103,698",0.609513969,,35.65,0
+CO-1420-4548,Ken Caryl Middle School,Active,Yes,Middle,907,725,182,0.799338479,0.032904149,,,0.622761823,Yes,,Yes,,"101,389",0.64681105,,69.93,0
+CO-1420-5024,Lawrence Elementary,Active,Yes,Elementary,367,412,-45,1.122615804,-0.015237432,,,0.730533091,Yes,,Yes,,"47,139",0.809129365,,33.93,0
+CO-1420-6844,Peiffer Elementary,Closed,No,Elementary,475,0,475,0,,,,0.472687803,Yes,,No,,"44,016",0,,80,0
+CO-1420-0951,Blue Heron Elementary,Active,Yes,Elementary,518,325,193,0.627413127,-0.023375139,,,0.610388308,Yes,,Yes,,"55,083",0.750680002,,45.36,28
+CO-1420-6133,Mortensen Elementary,Active,Yes,Elementary,540,260,280,0.481481481,0.041190634,,,0.669288658,Yes,,Yes,,"52,158",0.696666616,,52.36,15
+CO-1420-6135,Mount Carbon Elementary,Active,Yes,Elementary,540,367,173,0.67962963,-0.008336668,,,0.626584718,Yes,,No,,"51,928",0.63114145,,59.63,74
+CO-1420-7114,Pomona Junior/Senior High School,Active,Yes,Multi-Level,2105,1252,853,0.594774347,-0.236347359,,,0.663560262,Yes,,Yes,,"203,945",0.674882189,,44.7,0
+CO-1420-8036,Sobesky Academy,Active,Yes,Alternative,449,101,348,0.224944321,,,,0.647227416,Yes,,Yes,,"53,724",0.69812995,,80,0
+CO-1420-2194,Devinny Elementary,Active,Yes,Elementary,518,505,13,0.974903475,0.019212198,,,0.723843731,Yes,,No,,"52,618",0.521651621,,74.72,0
+CO-1420-8248,Emory Elementary,Closed,No,Elementary,713,0,713,0,,,,,,,Yes,,"107,786",0,,80,0
+CO-1420-5944,Mitchell Elementary,Active,Yes,Elementary,518,478,40,0.922779923,-0.05907173,,,0.618212122,Yes,,Yes,,"53,034",0.691135858,,74.18,0
+CO-1420-9234,Warren Tech,Active,No,Option,762,32,730,0.041994751,-0.034482759,,,0.517342163,Yes,,No,,"166,995",0.64446198,,80,0
+CO-1420-6804,Parmalee Elementary,Active,Yes,Elementary,346,278,68,0.803468208,0.046766744,,,0.626809369,Yes,,Yes,,"37,239",0.545684847,,76.36,0
+CO-1420-7483,Rooney Ranch Elementary,Active,Yes,Elementary,583,492,91,0.843910806,-0.019005612,,,0.683176117,Yes,,Yes,,"53,635",0.766956021,,73.65,0
+CO-1420-0694,Bell Middle School,Active,Yes,Middle,1008,774,234,0.767857143,0.057909605,,,0.718066574,Yes,,No,,"125,740",0.601646398,,62.42,0
+CO-1420-0950,Bradford K8 South,Active,Yes,Multi-Level,497,371,126,0.746478873,0,,,0.675675902,Yes,,Yes,,"48,682",0.718849083,,84.49,0
+CO-1420-1318,Carmody Middle School,Active,Yes,Middle,839,550,289,0.655542312,0.045296167,,,0.691963952,Yes,,Yes,,"99,694",0.591314068,,31.41,0
+CO-1420-1864,Columbine High School,Active,Yes,High,2207,1710,497,0.774807431,-0.084615385,,,0.731455657,Yes,,No,,"238,149",0.620073595,,80.39,0
+CO-1420-5354,Lumberg Elementary,Active,Yes,Elementary,540,526,14,0.974074074,-0.028171828,,,0.625469163,Yes,,Yes,,"64,020",0.568480715,,48.37,31
+CO-1420-6090,Moore Middle School,Closed,No,Middle,662,0,662,0,,,,0.588567375,Yes,,Yes,,"83,756",0,,80,0
+CO-1420-3201,Free Horizon Montessori PK-8,Active,Yes,Option,425,382,43,0.898823529,0.034653465,,,0.468805156,Yes,,No,,"49,079",0.630795382,,80,67
+CO-1420-6330,North Arvada Middle School,Active,Yes,Middle,756,464,292,0.613756614,-0.016336567,,,0.744781076,No,,Yes,,"113,554",0.601484507,,36.36,0
+CO-1420-0370,Arvada High School,Active,Yes,High,1748,754,994,0.431350114,0.054905388,,,0.67855173,Yes,,Yes,,"236,196",0.660612246,,38.84,0
+CO-1420-1886,Conifer High School,Active,Yes,High,1398,821,577,0.587267525,-0.010430248,,,0.761969982,Yes,,No,,"166,224",0.6366,,80.74,0
+CO-1420-3628,Green Mountain High School,Active,Yes,High,1939,1071,868,0.55234657,0.008737864,,,0.572656598,Yes,,Yes,,"199,223",0.558693818,,63.24,0
+CO-1420-7529,Ryan Elementary,Active,Yes,Elementary,590,511,79,0.866101695,0.032103037,,,0.69667894,Yes,,Yes,,"50,545",0.637739265,,64.56,18
+CO-1420-7780,Shaffer Elementary,Active,Yes,Elementary,518,497,21,0.959459459,-0.049235326,,,0.82213322,Yes,,No,,"53,368",0.698886386,,68.35,19
+CO-1420-9424,West Jefferson Elementary,Active,Yes,Elementary,410,252,158,0.614634146,-0.144032922,,,0.751000809,Yes,,Yes,,"48,100",0.701008886,,43.58,62
+CO-1420-1976,Creighton Middle,Active,Yes,Middle,914,741,173,0.810722101,0.02170767,,,0.582443904,Yes,,Yes,,"133,082",0.683486522,,57.71,0
+CO-1420-2130,Deer Creek Middle School,Active,Yes,Middle,1058,541,517,0.511342155,0.045283019,,,0.684582924,Yes,,No,,"120,366",0.728761011,,70.89,0
+CO-1420-2288,Drake Middle School,Active,Yes,Middle,990,1003,-13,1.013131313,-0.11328976,,,0.712857847,Yes,,Yes,,"123,953",0.64121047,,70.66,0
+CO-1420-4942,Lakewood High School,Active,Yes,High,2041,1735,306,0.850073493,-0.057266343,,,0.715949328,Yes,,Yes,,"248,135",0.578512924,,60.29,0
+CO-1420-8381,Summit Ridge Middle School,Active,Yes,Middle,1008,851,157,0.844246032,0.009433962,,,0.726872694,No,,No,,"133,587",0.723181102,,71.35,0
+CO-1420-9648,Wilmot Elementary,Active,Yes,Elementary,454,327,127,0.720264317,0.091245472,,,0.740901789,No,,Yes,,"56,727",0.591937097,,62.26,40
+CO-1420-0779,Bergen Elementary School,Active,Yes,Elementary,454,456,-2,1.004405286,0,,,0.714100008,Yes,,Yes,,"42,281",0.714282376,,56.35,60
+CO-1420-4798,Connections Learning Center,Active,Yes,Alternative,282,22,260,0.078014184,-0.266666667,,,0.607557174,Yes,,No,,"20,500",0.683546929,,80,0
+CO-1420-3502,Golden High School,Active,Yes,High,1534,1469,65,0.957627119,-0.070344828,,,0.673622645,Yes,,Yes,,"187,259",0.703922484,,69.66,0
+CO-1420-4422,Jefferson Junior/Senior High School,Active,Yes,Multi-Level,1135,601,534,0.529515419,-0.182815356,,,0.745508306,Yes,,Yes,,"123,773",0.528227362,,58.14,0
+CO-1420-5350,Lukas Elementary,Active,Yes,Elementary,446,402,44,0.901345291,0.06875758,,,0.702636943,Yes,,No,,"47,742",0.709085555,,43.3,0
+CO-1420-5454,Mandalay Middle School,Active,Yes,Middle,630,443,187,0.703174603,0.054054054,,,0.644489538,Yes,,Yes,,"88,977",0.735695896,,57.12,0
+CO-1420-6539,Jefferson County Open Elementary School,Active,Yes,Option,904,551,353,0.609513274,-0.0041841,,,0.707808799,Yes,,Yes,,"51,314",0.6543408,,80,19
+CO-1420-6541,Jefferson County Open Secondary,Active,No,#N/A,#N/A,#N/A,#N/A,#N/A,0.016129032,,,,,,No,,#N/A,#N/A,,80,0
+CO-1420-8223,Stevens Elementary,Active,Yes,Elementary,569,469,100,0.824253076,,,,0.577312482,Yes,,Yes,,"111,703",0.686952596,,37.52,48
+CO-1420-8834,Thomson Elementary,Closed,No,Elementary,518,0,518,0,,,,,,,Yes,,"48,832",0,,80,0
+CO-1420-0378,Arvada West High School,Active,Yes,High,1946,1923,23,0.988180884,0.02016546,,,0.733526543,Yes,,No,,"237,052",0.720275184,,70.1,0
+CO-1420-2093,Dakota Ridge High School,Active,Yes,High,2041,1277,764,0.625673689,-0.10685155,,,0.719992747,No,,Yes,,"236,407",0.658525376,,64.13,0
+CO-1420-2836,Evergreen High School,Active,Yes,High,1589,909,680,0.572057898,-0.091676719,,,0.766882308,Yes,,Yes,,"209,129",0.533294378,,85.1,0
+CO-1420-2832,Evergreen Middle School,Active,Yes,Middle,706,478,228,0.677053824,-0.013916501,,,0.666674509,Yes,,No,,"111,715",0.617103948,,71.62,0
+CO-1420-4307,Irwin Preschool,Closed,No,Option,0,0,0,0,,,,,,,Yes,,"10,705",0,,80,0
+CO-1420-4127,Jeffco Remote Learning Program,Active,No,Option,0,399,-399,0,-0.398305085,,,,,,Yes,, -   ,0,,80,0
+CO-1420-4408,Jeffco Virtual Academy,Active,No,Option,0,441,-441,0,0.085526316,,,,,,No,, -   ,0,,80,0
+CO-1420-5758,Meiklejohn Elementary,Active,Yes,Elementary,691,521,170,0.75397974,0.011450382,,,0.642266513,Yes,,Yes,,"69,795",0.75436446,,71.69,32
+CO-1420-7238,Ralston Elementary,Active,Yes,Elementary,410,289,121,0.704878049,-0.027210884,,,0.64377572,Yes,,Yes,,"51,304",0.521637222,,84.67,0
+CO-1420-7239,Ralston Valley High School,Active,Yes,High,2303,1875,428,0.814155449,0.01171459,,,0.682247745,Yes,,No,,"239,199",0.746883292,,78.28,0
+CO-1420-0108,Alameda International Junior/Senior High School,Active,Yes,Multi-Level,1493,1002,491,0.671131949,-0.131905299,,,0.828202131,No,,Yes,,"262,863",0.710309945,,42.52,0
+CO-1420-0664,Bear Creek High School,Active,Yes,High,2303,1344,959,0.583586626,-0.055682685,,,0.745493184,Yes,,Yes,,"255,986",0.770711488,,44.08,0
+CO-1420-1522,Chatfield Senior High School,Active,Yes,High,2415,1808,607,0.748654244,-0.064125832,,,0.731500772,Yes,,No,,"275,727",0.762079418,,75.5,0
+CO-1420-2963,Falcon Bluffs Middle School,Active,Yes,Middle,857,567,290,0.661610268,-0.14334471,,,0.738501254,Yes,,Yes,,"113,571",0.749493866,,71.26,0
+CO-1420-2120,D'Evelyn Junior/Senior High School,Active,Yes,Option,1320,1212,108,0.918181818,0.007419621,,,0.669425657,Yes,,Yes,,"154,002",0.744092229,,80,0
+CO-1420-0033,McLain Community High School,Active,Yes,Alternative,738,349,389,0.472899729,,,,0.471006437,Yes,,No,,"79,113",0.728454974,,80,0
+CO-1420-0660,Bear Creek K-8,Active,Yes,Multi-Level,1138,863,275,0.758347979,-0.079633996,,,0.675799289,Yes,,Yes,,"122,367",0.75973588,,42.5,0
+CO-1420-2300,Dunstan Middle School,Active,Yes,Middle,1008,798,210,0.791666667,0.232472325,,,0.899999945,No,,Yes,,"135,745",0.755920958,,68.72,0
+CO-1420-7870,Sierra Elementary,Active,Yes,Elementary,655,493,162,0.752671756,0.013085523,,,0.855543183,Yes,,No,,"69,882",0.814238009,,58.71,50
+CO-1420-9299,Wayne Carle Middle School,Active,Yes,Middle,706,438,268,0.620396601,-0.075471698,,,0.779640607,No,,Yes,,"105,483",0.7473917,,50.42,0
+CO-1420-1451,Addenbrooke Classical Academy,Active,No,Charter,0,191,-191,0,#N/A,,,,,,Yes,, -   ,0,,80,0
+CO-1420-0491,Addenbrooke Classical Academy (PK - 8th),Active,No,Charter,0,774,-774,0,0.015136226,,,,,,No,, -   ,0,,80,53
+CO-1420-7701,Collegiate Academy,Active,No,Charter,0,304,-304,0,-0.184750733,,,,,,Yes,, -   ,0,,80,13
+CO-1420-1880,Compass Montessori,Active,No,Charter,0,425,-425,0,0.017073171,,,,,,Yes,, -   ,0,,80,38
+CO-1420-1869,Compass Montessori Wheat Ridge,Active,No,Charter,0,288,-288,0,-0.006825939,,,,,,No,, -   ,0,,80,62
+CO-1420-2189,Doral Academy of Colorado,Active,No,Charter,0,168,-168,0,-0.110465116,,,,,,Yes,, -   ,0,,80,0
+CO-1420-2799,Excel Academy,Active,No,Charter,0,446,-446,0,0.018390805,,,,,,Yes,, -   ,0,,80,0
+CO-1420-3691,Great Work Montessori,Closed,No,Charter,0,0,0,0,,,,,,,No,, -   ,0,,80,0
+CO-1420-9980,Jeffco Central Services,Active,No,Option,0,0,0,0,#N/A,,,,,,Yes,, -   ,0,,80,0
+CO-1420-4404,Jefferson Academy,Active,No,Charter,0,1198,-1198,0,0.046783626,,,,,,Yes,, -   ,0,,80,0
+CO-1420-4402,Jefferson Academy Elementary,Active,No,Charter,0,737,-737,0,#N/A,,,,,,No,, -   ,0,,80,0
+CO-1420-4410,Jefferson Academy Secondary,Active,No,Charter,0,696,-696,0,,,,,,,Yes,, -   ,0,,80,0
+CO-1420-5145,Lincoln Academy,Active,No,Charter,0,824,-824,0,-0.01076555,,,,,,Yes,, -   ,0,,80,64
+CO-1420-5994,Montessori Peaks Academy,Active,No,Charter,0,479,-479,0,-0.031779661,,,,,,No,, -   ,0,,80,59
+CO-1420-6139,Mountain Phoenix Community School,Active,No,Charter,0,650,-650,0,0.046686747,,,,,,Yes,, -   ,0,,80,56
+CO-1420-6237,New America School,Active,No,Charter,0,74,-74,0,-0.083333333,,,,,,Yes,, -   ,0,,80,0
+CO-1420-7462,Rocky Mountain Academy of Evergreen,Active,No,Charter,0,350,-350,0,-0.090634441,,,,,,No,, -   ,0,,80,0
+CO-1420-5415,Rocky Mountain Deaf School,Active,No,Charter,0,82,-82,0,-0.040540541,,,,,,Yes,, -   ,0,,80,9
+CO-1420-8793,Two Roads Charter School,Active,No,Charter,0,630,-630,0,-0.03164557,,,,,,Yes,, -   ,0,,80,13
+CO-1420-1001,Warren Tech South,Active,No,Option,143,0,143,0,,,,0.692876653,Yes,,No,, -   ,0.787555556,,80,0
+CO-1420-9427,Woodrow Wilson Academy,Active,No,Charter,0,852,-852,0,-0.00729927,,,,,,Yes,, -   ,0,,80,26
+CO-1420-4550,Kendrick Lakes Elementary,Active,Yes,Elementary,461,443,18,0.960954447,-0.026162716,,,0.817314574,No,,Yes,,"58,511",0.774841193,,52.31,37
+CO-1420-8856,Three Creeks K-8,Active,Yes,Multi-Level,1001,1050,-49,1.048951049,0.083262532,,,0.702362379,Yes,,No,,"100,856",0.7317,,74.98,0
+CO-1420-6285,Norma Anderson Early Learning Center,Active,No,Option,96,112,-16,1.166666667,0.25,,,0.668578875,Yes,,Yes,,"13,742",0.60719842,,80,112

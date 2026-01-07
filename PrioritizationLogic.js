@@ -290,7 +290,12 @@ window.prioritizationLogic = {
       case "highNeedStudents":
         return parseFloat(school["% FRL"] || school["Free Reduced Lunch"] || 0, 10);
       case "buildingCondition":
-        return parseFloat(school.BuildingScore || 0, 10);
+        {
+          const raw = parseFloat(school.BuildingScore || 0, 10);
+          if (!isFinite(raw)) return 0;
+          // BuildingScore may be 0–1 or 0–10; normalize to 0–10 for scoring.
+          return raw <= 1.5 ? raw * 10 : raw;
+        }
       case "educationalAdequacy": {
         const raw = parseFloat(school.EducationalAdequacy || 0, 10);
         return (isFinite(raw) ? raw : 0) * 100; // convert to %
