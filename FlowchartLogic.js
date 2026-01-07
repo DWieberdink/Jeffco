@@ -12,7 +12,15 @@ let mapExportData = null;
 // The flowchart supports per-user layout editing (saved to localStorage).
 // When we change the published default layout, older saved layouts can appear misaligned.
 // Bump this version to force clients to drop old saved positions/zoom and use new defaults.
-const FLOWCHART_LAYOUT_VERSION = "20260107_1";
+const FLOWCHART_LAYOUT_VERSION = "20260107_2";
+
+// Published default zoom (used when the user has no saved zoom yet).
+// This is the "looks right" view you set via Layout Tools + Save Layout.
+const DEFAULT_FLOWCHART_ZOOM = {
+  x: 302.4518148164017,
+  y: 439.3820637034537,
+  k: 1.187836327069643
+};
 function ensureFlowchartLayoutVersion() {
   try {
     const key = "flowchartLayoutVersion";
@@ -392,7 +400,7 @@ window.initializeFlowchartFromScript = function(svgElement) {
     .attr("fill", "#6c757d")
     .attr("stroke", "#6c757d");
 
-  // Get current zoom level from localStorage; if none, we'll auto-fit after render.
+  // Get current zoom level from localStorage; if none, use published default zoom.
   let currentTransform = null;
   const savedTransform = localStorage.getItem('flowchartZoom');
   if (savedTransform) {
@@ -402,10 +410,16 @@ window.initializeFlowchartFromScript = function(svgElement) {
       console.log('Restoring saved flowchart transform:', parsed);
     } catch (e) {
       currentTransform = null;
-      console.log('Could not parse saved zoom level; will fit to content');
+      console.log('Could not parse saved zoom level; using published default zoom');
     }
   } else {
-    console.log('No saved flowchart transform found; will fit to content');
+    console.log('No saved flowchart transform found; using published default zoom');
+  }
+
+  if (!currentTransform && DEFAULT_FLOWCHART_ZOOM) {
+    currentTransform = d3.zoomIdentity
+      .translate(DEFAULT_FLOWCHART_ZOOM.x, DEFAULT_FLOWCHART_ZOOM.y)
+      .scale(DEFAULT_FLOWCHART_ZOOM.k);
   }
 
   const zoomBehavior = d3.zoom()
@@ -436,10 +450,6 @@ window.initializeFlowchartFromScript = function(svgElement) {
   // Initialize the flowchart
   initializeFlowchartData();
   renderFlowchart();
-  // Auto-fit to viewport when no saved zoom exists (keeps boxes centered on all screens)
-  if (!currentTransform && typeof window.zoomFlowchartToFit === "function") {
-    setTimeout(() => window.zoomFlowchartToFit(), 250);
-  }
   
   // Load school data
   loadSchoolData();
@@ -455,8 +465,8 @@ function drawFlowBoxes() {
     {
       id: "flow1",
       label: "FLOW 1 - INITIAL SORTING",
-      x: -271.03200912475586,
-      y: -333.68441009521484,
+      x: -160.50002145767212,
+      y: -297.3451156616211,
       width: 237.47534942626953,
       height: 626.8837738037109,
       color: "#e3f2fd"
@@ -464,8 +474,8 @@ function drawFlowBoxes() {
     {
       id: "flow2", 
       label: "FLOW 2 - CAPACITY\n INCREASE",
-      x: -29.000279426574707,
-      y: -456.79920959472656,
+      x: 92.13064098358154,
+      y: -459.8274841308594,
       width: 699.0092468261719,
       height: 370.4703483581543,
       color: "#fff3e0"
@@ -473,8 +483,8 @@ function drawFlowBoxes() {
     {
       id: "flow3",
       label: "FLOW 3 - BUILDING\n IMPROVEMENT",
-      x: -26.81069564819336,
-      y: -81.96510314941406,
+      x: 97.34848403930664,
+      y: -78.93682861328125,
       width: 693.5711059570312,
       height: 298.2346954345703,
       color: "#e8f5e8"
@@ -482,8 +492,8 @@ function drawFlowBoxes() {
     {
       id: "flow4",
       label: "FLOW 4 - SCHOOL\n CONSOLIDATION",
-      x: -26.216888427734375,
-      y: 220.00949096679688,
+      x: 97.94232177734375,
+      y: 229.09432983398438,
       width: 688.54345703125,
       height: 398.50335693359375,
       color: "#fce4ec"
@@ -2402,7 +2412,7 @@ document.addEventListener("DOMContentLoaded", () => {
     g.append("g").attr("class", "nodes");
     g.append("g").attr("class", "link-labels");
 
-    // Get current zoom level from localStorage; if none, we'll auto-fit after render.
+    // Get current zoom level from localStorage; if none, use published default zoom.
     let currentTransform = null;
     const savedTransform = localStorage.getItem('flowchartZoom');
     if (savedTransform) {
@@ -2412,10 +2422,16 @@ document.addEventListener("DOMContentLoaded", () => {
         console.log('Restoring saved flowchart transform (second init):', parsed);
       } catch (e) {
         currentTransform = null;
-        console.log('Could not parse saved zoom level (second init); will fit to content');
+        console.log('Could not parse saved zoom level (second init); using published default zoom');
       }
     } else {
-      console.log('No saved flowchart transform found (second init); will fit to content');
+      console.log('No saved flowchart transform found (second init); using published default zoom');
+    }
+
+    if (!currentTransform && DEFAULT_FLOWCHART_ZOOM) {
+      currentTransform = d3.zoomIdentity
+        .translate(DEFAULT_FLOWCHART_ZOOM.x, DEFAULT_FLOWCHART_ZOOM.y)
+        .scale(DEFAULT_FLOWCHART_ZOOM.k);
     }
 
     const zoomBehavior = d3.zoom()
@@ -2445,10 +2461,6 @@ document.addEventListener("DOMContentLoaded", () => {
     initializeFlowchartData();
     renderFlowchart();
     loadSchoolData();
-    // Auto-fit to viewport when no saved zoom exists (keeps boxes centered on all screens)
-    if (!currentTransform && typeof window.zoomFlowchartToFit === "function") {
-      setTimeout(() => window.zoomFlowchartToFit(), 250);
-    }
     
     // Removed aggressive transform re-application that was causing zoom jumps
 
