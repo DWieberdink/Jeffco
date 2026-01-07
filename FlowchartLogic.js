@@ -392,8 +392,8 @@ window.initializeFlowchartFromScript = function(svgElement) {
     .attr("fill", "#6c757d")
     .attr("stroke", "#6c757d");
 
-  // Get current zoom level from localStorage or use default (updated with saved layout)
-  let currentTransform = d3.zoomIdentity.translate(349.82689171669284, 477.94759411049654).scale(0.9944701686732141);
+  // Get current zoom level from localStorage; if none, we'll auto-fit after render.
+  let currentTransform = null;
   const savedTransform = localStorage.getItem('flowchartZoom');
   if (savedTransform) {
     try {
@@ -401,10 +401,11 @@ window.initializeFlowchartFromScript = function(svgElement) {
       currentTransform = d3.zoomIdentity.translate(parsed.x, parsed.y).scale(parsed.k);
       console.log('Restoring saved flowchart transform:', parsed);
     } catch (e) {
-      console.log('Could not parse saved zoom level, using default');
+      currentTransform = null;
+      console.log('Could not parse saved zoom level; will fit to content');
     }
   } else {
-    console.log('No saved flowchart transform found, using default');
+    console.log('No saved flowchart transform found; will fit to content');
   }
 
   const zoomBehavior = d3.zoom()
@@ -422,17 +423,23 @@ window.initializeFlowchartFromScript = function(svgElement) {
   window.flowchartZoomBehavior = zoomBehavior;
   svg.call(zoomBehavior);
 
-  // Apply the initial transform using d3's zoom API (not just the transform attribute)
-  setTimeout(() => {
-    svg.call(zoomBehavior.transform, currentTransform);
-    console.log('Applied saved transform using zoom API:', currentTransform.toString());
-  }, 100);
+  // Apply the saved transform if present; otherwise fit-to-content after render.
+  if (currentTransform) {
+    setTimeout(() => {
+      svg.call(zoomBehavior.transform, currentTransform);
+      console.log('Applied saved transform using zoom API:', currentTransform.toString());
+    }, 100);
+  }
 
  
 
   // Initialize the flowchart
   initializeFlowchartData();
   renderFlowchart();
+  // Auto-fit to viewport when no saved zoom exists (keeps boxes centered on all screens)
+  if (!currentTransform && typeof window.zoomFlowchartToFit === "function") {
+    setTimeout(() => window.zoomFlowchartToFit(), 250);
+  }
   
   // Load school data
   loadSchoolData();
@@ -2395,8 +2402,8 @@ document.addEventListener("DOMContentLoaded", () => {
     g.append("g").attr("class", "nodes");
     g.append("g").attr("class", "link-labels");
 
-    // Get current zoom level from localStorage or use default (updated with saved layout)
-    let currentTransform = d3.zoomIdentity.translate(349.82689171669284, 477.94759411049654).scale(0.9944701686732141);
+    // Get current zoom level from localStorage; if none, we'll auto-fit after render.
+    let currentTransform = null;
     const savedTransform = localStorage.getItem('flowchartZoom');
     if (savedTransform) {
       try {
@@ -2404,10 +2411,11 @@ document.addEventListener("DOMContentLoaded", () => {
         currentTransform = d3.zoomIdentity.translate(parsed.x, parsed.y).scale(parsed.k);
         console.log('Restoring saved flowchart transform (second init):', parsed);
       } catch (e) {
-        console.log('Could not parse saved zoom level, using default');
+        currentTransform = null;
+        console.log('Could not parse saved zoom level (second init); will fit to content');
       }
     } else {
-      console.log('No saved flowchart transform found (second init), using default');
+      console.log('No saved flowchart transform found (second init); will fit to content');
     }
 
     const zoomBehavior = d3.zoom()
@@ -2425,16 +2433,22 @@ document.addEventListener("DOMContentLoaded", () => {
     window.flowchartZoomBehavior = zoomBehavior;
     svg.call(zoomBehavior);
 
-    // Apply the initial transform using d3's zoom API (not just the transform attribute)
-    setTimeout(() => {
-      svg.call(zoomBehavior.transform, currentTransform);
-      console.log('Applied saved transform using zoom API (second init):', currentTransform.toString());
-    }, 100);
+    // Apply the saved transform if present; otherwise fit-to-content after render.
+    if (currentTransform) {
+      setTimeout(() => {
+        svg.call(zoomBehavior.transform, currentTransform);
+        console.log('Applied saved transform using zoom API (second init):', currentTransform.toString());
+      }, 100);
+    }
 
 
     initializeFlowchartData();
     renderFlowchart();
     loadSchoolData();
+    // Auto-fit to viewport when no saved zoom exists (keeps boxes centered on all screens)
+    if (!currentTransform && typeof window.zoomFlowchartToFit === "function") {
+      setTimeout(() => window.zoomFlowchartToFit(), 250);
+    }
     
     // Removed aggressive transform re-application that was causing zoom jumps
 
