@@ -917,6 +917,13 @@ function renderFlowchart() {
       let dynamicNumber = "";
       
       if (d.thresholdKey && window.thresholds && d.thresholdKey !== "siteCapacitySlider") {
+        // Special-case dynamic distance node: it doesn't map to a single slider/threshold key.
+        // It derives its displayed value from the selected school's level.
+        if (d.thresholdKey === "F1_DIST_dynamic") {
+          const selectedSchool = getSelectedSchoolData();
+          const formatted = formatSliderValue("F1_DIST_dynamic", 0, selectedSchool);
+          dynamicNumber = `<span class="dynamic-number">${formatted}</span>`;
+        } else {
         const key = mapSliderKeyToThresholdKey(d.thresholdKey);
         console.log("🔍 Initial render for node", d.id, "thresholdKey:", d.thresholdKey, "mapped to:", key, "window.thresholds:", window.thresholds);
         if (key && window.thresholds[key] !== undefined) {
@@ -941,6 +948,7 @@ function renderFlowchart() {
         } else {
           console.warn("⚠️ Initial render - Threshold value undefined for", d.id, "key:", key);
           dynamicNumber = `<span class="dynamic-number">undefined</span>`;
+        }
         }
       }
       
@@ -1348,29 +1356,36 @@ FlowUtils.updateNodeLabels = function (selectedSchoolData = null) {
     }
     
     if (d.thresholdKey && window.thresholds && d.thresholdKey !== "siteCapacitySlider") {
-      const thresholdKey = mapSliderKeyToThresholdKey(d.thresholdKey);
-      const rawVal = window.thresholds[thresholdKey];
-      console.log("🔍 Updating node", d.id, "thresholdKey:", d.thresholdKey, "mapped to:", thresholdKey, "rawVal:", rawVal, "window.thresholds:", window.thresholds);
-      if (rawVal !== undefined) {
-        let formatted;
-        if (d.id === "F4_DIST") {
-          // Special handling for F4_DIST node - show dynamic distance based on school level
-          formatted = formatSliderValue("F4_DIST_dynamic", rawVal, selectedSchoolData);
-        } else if (d.id === "F1_DIST") {
-          // Special handling for F1_DIST node - show dynamic distance based on school level
-          formatted = formatSliderValue("F1_DIST_dynamic", rawVal, selectedSchoolData);
-        } else if (d.id === "F1_UTIL1") {
-          // Special handling for F1_UTIL1 - MUST pass school data to show enrollment threshold
-          console.log("🎯 F1_UTIL1: Formatting with schoolData:", selectedSchoolData);
-          formatted = formatSliderValue(d.thresholdKey, rawVal, selectedSchoolData);
-        } else {
-          formatted = formatSliderValue(d.thresholdKey, rawVal, selectedSchoolData);
-        }
+      // Special-case dynamic distance node: it doesn't map to a single slider/threshold key.
+      // It derives its displayed value from the selected school's level.
+      if (d.thresholdKey === "F1_DIST_dynamic") {
+        const formatted = formatSliderValue("F1_DIST_dynamic", 0, selectedSchoolData);
         dynamicNumber = `<span class=\"dynamic-number\">${formatted}</span>`;
-        console.log("🔍 Final text for", d.id, ":", mainText, "Dynamic number:", dynamicNumber);
       } else {
-        console.warn("⚠️ Threshold value undefined for", d.id, "thresholdKey:", thresholdKey);
-        dynamicNumber = `<span class=\"dynamic-number\">undefined</span>`;
+        const thresholdKey = mapSliderKeyToThresholdKey(d.thresholdKey);
+        const rawVal = window.thresholds[thresholdKey];
+        console.log("🔍 Updating node", d.id, "thresholdKey:", d.thresholdKey, "mapped to:", thresholdKey, "rawVal:", rawVal, "window.thresholds:", window.thresholds);
+        if (rawVal !== undefined) {
+          let formatted;
+          if (d.id === "F4_DIST") {
+            // Special handling for F4_DIST node - show dynamic distance based on school level
+            formatted = formatSliderValue("F4_DIST_dynamic", rawVal, selectedSchoolData);
+          } else if (d.id === "F1_DIST") {
+            // Special handling for F1_DIST node - show dynamic distance based on school level
+            formatted = formatSliderValue("F1_DIST_dynamic", rawVal, selectedSchoolData);
+          } else if (d.id === "F1_UTIL1") {
+            // Special handling for F1_UTIL1 - MUST pass school data to show enrollment threshold
+            console.log("🎯 F1_UTIL1: Formatting with schoolData:", selectedSchoolData);
+            formatted = formatSliderValue(d.thresholdKey, rawVal, selectedSchoolData);
+          } else {
+            formatted = formatSliderValue(d.thresholdKey, rawVal, selectedSchoolData);
+          }
+          dynamicNumber = `<span class=\"dynamic-number\">${formatted}</span>`;
+          console.log("🔍 Final text for", d.id, ":", mainText, "Dynamic number:", dynamicNumber);
+        } else {
+          console.warn("⚠️ Threshold value undefined for", d.id, "thresholdKey:", thresholdKey);
+          dynamicNumber = `<span class=\"dynamic-number\">undefined</span>`;
+        }
       }
     }
     
