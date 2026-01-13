@@ -428,7 +428,8 @@
     /* --- Slim, sleek sliders for Step 1 & 2 --- */
     .flow-section { --flow-color: #1e90ff; }
     .flow-section.flow1 { --flow-color: #007cbf; }
-    .flow-section.flow2 { --flow-color: #28a745; }
+    /* Flow 2 (Expansion) should read as the Expansion blue palette, not green */
+    .flow-section.flow2 { --flow-color: #1D4ED8; }
     .flow-section.flow3 { --flow-color: #f59e0b; }
     .flow-section.flow4 { --flow-color: #dc2626; }
 
@@ -480,7 +481,7 @@
 
     /* Step 2 (weights) compact sliders, match Flow 2 look */
     #scenario-input-panel {
-      --flow-color: #28a745;
+      --flow-color: #1D4ED8;
     }
     #scenario-input-panel input[type="range"] {
       -webkit-appearance: none;
@@ -502,7 +503,7 @@
       height: 14px;
       border-radius: 50%;
       background: #fff !important;
-      border: 2px solid var(--flow-color, #28a745) !important;
+      border: 2px solid var(--flow-color, #1D4ED8) !important;
       margin-top: -4px;
       box-shadow: none;
     }
@@ -517,7 +518,7 @@
       height: 14px;
       border-radius: 50%;
       background: #fff !important;
-      border: 2px solid var(--flow-color, #28a745) !important;
+      border: 2px solid var(--flow-color, #1D4ED8) !important;
       box-shadow: none;
     }
     #scenario-input-panel label {
@@ -2808,7 +2809,7 @@
       
       <!-- FLOW 2: Expansion -->
       <details class="flow-section" open>
-        <summary class="flow-summary" style="color: #28a745; margin-top: 20px; margin-bottom: 10px; border-bottom: 2px solid #28a745; padding-bottom: 5px; cursor: pointer; font-weight: bold; list-style: none;">
+        <summary class="flow-summary" style="color: #1D4ED8; margin-top: 20px; margin-bottom: 10px; border-bottom: 2px solid #1D4ED8; padding-bottom: 5px; cursor: pointer; font-weight: bold; list-style: none;">
           <span style="display: inline-block; margin-right: 8px;">▶</span>Flow 2: Expansion
         </summary>
         <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
@@ -3024,9 +3025,7 @@
                   <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;">
                     <div>
                       <div class="step1-section-title">ENROLLMENT</div>
-                      <div class="step1-section-subtitle" id="step1EnrollmentSubtitle">
-                        Does not include preschool or secondary enrollment.
-                      </div>
+                      <div class="step1-section-subtitle" id="step1EnrollmentSubtitle"></div>
                     </div>
                   </div>
                   <div style="margin-top: 10px;">

@@ -25,10 +25,11 @@ const DECISION_COLORS = {
   "Policy Solution for Overcrowding": "#3B82F6",
   "Building Addition with Capital Investment": "#1E3A8A",
   "Building Replacement": "#5B21B6",
-  "Targeted Capital Investment": "#FFA726",
+  // Make "Targeted" vs "Major" clearly distinct (gold vs deep orange)
+  "Targeted Capital Investment": "#FBBF24", // Gold
   // Standard Maintenance should read as "baseline / good" (green), not "investment" (amber).
   "Standard Maintenance": "#1B9E77",
-  "Major Capital Investment": "#FB8C00",
+  "Major Capital Investment": "#F97316", // Deep orange
   "Welcoming School": "#C62828",
   "Welcoming School with Capital Investment": "#E53935",
   "Closure (Goes to Welcoming School)": "#B71C1C",
@@ -1323,9 +1324,9 @@ function ensureBaseSourcesLayers() {
           "Policy Solution for Overcrowding", '#3B82F6',
           "Building Addition with Capital Investment", '#1E3A8A',
           "Building Replacement", '#5B21B6',
-          "Targeted Capital Investment", '#FFA726',
+          "Targeted Capital Investment", '#FBBF24',
           "Standard Maintenance", '#1B9E77',
-          "Major Capital Investment", '#FB8C00',
+          "Major Capital Investment", '#F97316',
           "Welcoming School", '#C62828',
           "Welcoming School with Capital Investment", '#E53935',
           "Closure (Goes to Welcoming School)", '#B71C1C',
@@ -1354,9 +1355,9 @@ function ensureBaseSourcesLayers() {
           "Policy Solution for Overcrowding", '#3B82F6',
           "Building Addition with Capital Investment", '#1E3A8A',
           "Building Replacement", '#5B21B6',
-          "Targeted Capital Investment", '#FFA726',
+          "Targeted Capital Investment", '#FBBF24',
           "Standard Maintenance", '#1B9E77',
-          "Major Capital Investment", '#FB8C00',
+          "Major Capital Investment", '#F97316',
           "Welcoming School", '#C62828',
           "Welcoming School with Capital Investment", '#E53935',
           "Closure (Goes to Welcoming School)", '#B71C1C',
@@ -1615,7 +1616,7 @@ function updateLayer() {
     return matchesEnrollment && matchesSeats && matchesType && matchesFlow && matchesNearby;
   });
   
-  console.log(`🟩 Flow 2 (Expansion): ${flow2Filtered} of ${flow2Count} schools passed all filters`);
+  console.log(`🟦 Flow 2 (Expansion): ${flow2Filtered} of ${flow2Count} schools passed all filters`);
   
   // Count how many schools per flow
   const flowCounts = {};
@@ -1940,9 +1941,9 @@ function updateLegend() {
       "Building Replacement": '#5B21B6'                  // Blue-purple
     },
     "Maintenance/Investment": {
-      "Targeted Capital Investment": '#FFA726',   // Amber
+      "Targeted Capital Investment": '#FBBF24',   // Gold
       "Standard Maintenance": '#1B9E77',        // Green (baseline maintenance)
-      "Major Capital Investment": '#FB8C00'     // Burnt Orange
+      "Major Capital Investment": '#F97316'     // Deep orange
     },
     "Closure/Consolidation": {
       "Welcoming School": '#C62828',   // Crimson
@@ -1980,10 +1981,26 @@ function updateLegend() {
     }
   } else {
     for (const [groupName, items] of Object.entries(decisionLegendGroups)) {
+      const groupColorMap = {
+        'Expansion': '#1D4ED8',                // Blue (matches Expansion palette)
+        'Maintenance/Investment': '#F97316',   // Deep orange
+        'Closure/Consolidation': '#DC2626',    // Red
+        'Other': '#6B7280'                     // Gray
+      };
+      const groupBgMap = {
+        'Expansion': '#EFF6FF',               // Light blue
+        'Maintenance/Investment': '#FFFBEB',  // Light amber
+        'Closure/Consolidation': '#FEF2F2',   // Light red
+        'Other': '#F3F4F6'                    // Light gray
+      };
+
       // Add group header with checkbox
       const groupHeader = document.createElement('div');
       groupHeader.className = 'legend-group-header';
       groupHeader.style.cssText = 'font-weight: bold; margin-top: 6px; margin-bottom: 2px; color: #333; border-bottom: 2px solid #ddd; padding-bottom: 2px; display: flex; align-items: center; background: #f8f9fa; padding: 2px 4px; border-radius: 4px;';
+      // Tint group header to match the strategy color
+      if (groupColorMap[groupName]) groupHeader.style.borderBottomColor = groupColorMap[groupName];
+      if (groupBgMap[groupName]) groupHeader.style.background = groupBgMap[groupName];
       
       // Create checkbox
       const checkbox = document.createElement('input');
@@ -2020,13 +2037,29 @@ function updateLegend() {
       // Create label with emoji and text
       const label = document.createElement('span');
       const emojiMap = {
-        'Expansion': '🟩',
+        // Expansion gets a custom SVG icon below (avoid the green emoji square)
+        'Expansion': '',
         'Maintenance/Investment': '🛠️',
         'Closure/Consolidation': '🚫',
         'Other': '⚪'
       };
-      label.textContent = `${emojiMap[groupName] || '⚪'} ${groupName}`;
-      label.style.cssText = 'font-size: 14px; letter-spacing: 0.5px;';
+      if (groupName === 'Expansion') {
+        const iconColor = groupColorMap[groupName] || '#1D4ED8';
+        label.style.cssText = 'font-size: 14px; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;';
+        label.innerHTML =
+          `<span style="display:inline-flex; width:16px; height:16px; color:${iconColor};" aria-hidden="true">` +
+            `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">` +
+              `<polyline points="15 3 21 3 21 9"></polyline>` +
+              `<polyline points="9 21 3 21 3 15"></polyline>` +
+              `<line x1="21" y1="3" x2="14" y2="10"></line>` +
+              `<line x1="3" y1="21" x2="10" y2="14"></line>` +
+            `</svg>` +
+          `</span>` +
+          `<span>${groupName}</span>`;
+      } else {
+        label.textContent = `${emojiMap[groupName] || '⚪'} ${groupName}`;
+        label.style.cssText = 'font-size: 14px; letter-spacing: 0.5px;';
+      }
       
       groupHeader.appendChild(checkbox);
       groupHeader.appendChild(label);
@@ -2615,9 +2648,9 @@ map.on('load', () => {
             "Policy Solution for Overcrowding", '#3B82F6',
             "Building Addition with Capital Investment", '#1E3A8A',
             "Building Replacement", '#5B21B6',
-            "Targeted Capital Investment", '#FFA726',
+            "Targeted Capital Investment", '#FBBF24',
             "Standard Maintenance", '#1B9E77',
-            "Major Capital Investment", '#FB8C00',
+            "Major Capital Investment", '#F97316',
             "Welcoming School", '#C62828',
             "Welcoming School with Capital Investment", '#E53935',
             "Closure (Goes to Welcoming School)", '#B71C1C',
@@ -2644,9 +2677,9 @@ map.on('load', () => {
             "Policy Solution for Overcrowding", '#3B82F6',
             "Building Addition with Capital Investment", '#1E3A8A',
             "Building Replacement", '#5B21B6',
-            "Targeted Capital Investment", '#FFA726',
+            "Targeted Capital Investment", '#FBBF24',
             "Standard Maintenance", '#1B9E77',
-            "Major Capital Investment", '#FB8C00',
+            "Major Capital Investment", '#F97316',
             "Welcoming School", '#C62828',
             "Welcoming School with Capital Investment", '#E53935',
             "Closure (Goes to Welcoming School)", '#B71C1C',
@@ -3733,9 +3766,9 @@ map.on('load', () => {
         "Policy Solution for Overcrowding", '#3B82F6',
         "Building Addition with Capital Investment", '#1E3A8A',
         "Building Replacement", '#5B21B6',
-        "Targeted Capital Investment", '#FFA726',
+        "Targeted Capital Investment", '#FBBF24',
         "Standard Maintenance", '#1B9E77',
-        "Major Capital Investment", '#FB8C00',
+        "Major Capital Investment", '#F97316',
         "Welcoming School", '#C62828',
         "Welcoming School with Capital Investment", '#E53935',
         "Closure (Goes to Welcoming School)", '#B71C1C',
