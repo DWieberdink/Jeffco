@@ -25,7 +25,8 @@ const DECISION_COLORS = {
   "Building Addition with Capital Investment": "#1B5E20",
   "Building Replacement": "#4B830D",
   "Targeted Capital Investment": "#FFA726",
-  "Standard Maintenance": "#FFD54F",
+  // Standard Maintenance should read as "baseline / good" (green), not "investment" (amber).
+  "Standard Maintenance": "#1B9E77",
   "Major Capital Investment": "#FB8C00",
   "Welcoming School": "#C62828",
   "Welcoming School with Capital Investment": "#E53935",
@@ -1322,7 +1323,7 @@ function ensureBaseSourcesLayers() {
           "Building Addition with Capital Investment", '#1B5E20',
           "Building Replacement", '#4B830D',
           "Targeted Capital Investment", '#FFA726',
-          "Standard Maintenance", '#FFD54F',
+          "Standard Maintenance", '#1B9E77',
           "Major Capital Investment", '#FB8C00',
           "Welcoming School", '#C62828',
           "Welcoming School with Capital Investment", '#E53935',
@@ -1353,7 +1354,7 @@ function ensureBaseSourcesLayers() {
           "Building Addition with Capital Investment", '#1B5E20',
           "Building Replacement", '#4B830D',
           "Targeted Capital Investment", '#FFA726',
-          "Standard Maintenance", '#FFD54F',
+          "Standard Maintenance", '#1B9E77',
           "Major Capital Investment", '#FB8C00',
           "Welcoming School", '#C62828',
           "Welcoming School with Capital Investment", '#E53935',
@@ -1939,7 +1940,7 @@ function updateLegend() {
     },
     "Maintenance/Investment": {
       "Targeted Capital Investment": '#FFA726',   // Amber
-      "Standard Maintenance": '#FFD54F',        // Goldenrod
+      "Standard Maintenance": '#1B9E77',        // Green (baseline maintenance)
       "Major Capital Investment": '#FB8C00'     // Burnt Orange
     },
     "Closure/Consolidation": {
@@ -2614,7 +2615,7 @@ map.on('load', () => {
             "Building Addition with Capital Investment", '#1B5E20',
             "Building Replacement", '#4B830D',
             "Targeted Capital Investment", '#FFA726',
-            "Standard Maintenance", '#FFD54F',
+            "Standard Maintenance", '#1B9E77',
             "Major Capital Investment", '#FB8C00',
             "Welcoming School", '#C62828',
             "Welcoming School with Capital Investment", '#E53935',
@@ -2643,7 +2644,7 @@ map.on('load', () => {
             "Building Addition with Capital Investment", '#1B5E20',
             "Building Replacement", '#4B830D',
             "Targeted Capital Investment", '#FFA726',
-            "Standard Maintenance", '#FFD54F',
+            "Standard Maintenance", '#1B9E77',
             "Major Capital Investment", '#FB8C00',
             "Welcoming School", '#C62828',
             "Welcoming School with Capital Investment", '#E53935',
@@ -3732,7 +3733,7 @@ map.on('load', () => {
         "Building Addition with Capital Investment", '#1B5E20',
         "Building Replacement", '#4B830D',
         "Targeted Capital Investment", '#FFA726',
-        "Standard Maintenance", '#FFD54F',
+        "Standard Maintenance", '#1B9E77',
         "Major Capital Investment", '#FB8C00',
         "Welcoming School", '#C62828',
         "Welcoming School with Capital Investment", '#E53935',
