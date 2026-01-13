@@ -20,10 +20,11 @@ const MAP_STYLES = {
 
 // Decision outcome colors (keep consistent with map circle coloring)
 const DECISION_COLORS = {
-  "Building Addition": "#2E8B57",
-  "Policy Solution for Overcrowding": "#66BB6A",
-  "Building Addition with Capital Investment": "#1B5E20",
-  "Building Replacement": "#4B830D",
+  // Expansion: use a blue family (keep green reserved for Standard Maintenance)
+  "Building Addition": "#1D4ED8",
+  "Policy Solution for Overcrowding": "#3B82F6",
+  "Building Addition with Capital Investment": "#1E3A8A",
+  "Building Replacement": "#5B21B6",
   "Targeted Capital Investment": "#FFA726",
   // Standard Maintenance should read as "baseline / good" (green), not "investment" (amber).
   "Standard Maintenance": "#1B9E77",
@@ -1318,10 +1319,10 @@ function ensureBaseSourcesLayers() {
         'circle-color': [
           'match',
           ['get', 'Decision Type'],
-          "Building Addition", '#2E8B57',
-          "Policy Solution for Overcrowding", '#66BB6A',
-          "Building Addition with Capital Investment", '#1B5E20',
-          "Building Replacement", '#4B830D',
+          "Building Addition", '#1D4ED8',
+          "Policy Solution for Overcrowding", '#3B82F6',
+          "Building Addition with Capital Investment", '#1E3A8A',
+          "Building Replacement", '#5B21B6',
           "Targeted Capital Investment", '#FFA726',
           "Standard Maintenance", '#1B9E77',
           "Major Capital Investment", '#FB8C00',
@@ -1349,10 +1350,10 @@ function ensureBaseSourcesLayers() {
         'circle-color': [
           'match',
           ['get', 'Decision Type'],
-          "Building Addition", '#2E8B57',
-          "Policy Solution for Overcrowding", '#66BB6A',
-          "Building Addition with Capital Investment", '#1B5E20',
-          "Building Replacement", '#4B830D',
+          "Building Addition", '#1D4ED8',
+          "Policy Solution for Overcrowding", '#3B82F6',
+          "Building Addition with Capital Investment", '#1E3A8A',
+          "Building Replacement", '#5B21B6',
           "Targeted Capital Investment", '#FFA726',
           "Standard Maintenance", '#1B9E77',
           "Major Capital Investment", '#FB8C00',
@@ -1933,10 +1934,10 @@ function updateLegend() {
 
   const decisionLegendGroups = {
     "Expansion": {
-      "Building Addition": '#2E8B57',           // Emerald
-      "Policy Solution for Overcrowding": '#66BB6A',     // Lime
-      "Building Addition with Capital Investment": '#1B5E20', // Forest
-      "Building Replacement": '#4B830D'                  // Olive
+      "Building Addition": '#1D4ED8',           // Blue
+      "Policy Solution for Overcrowding": '#3B82F6',     // Light blue
+      "Building Addition with Capital Investment": '#1E3A8A', // Navy
+      "Building Replacement": '#5B21B6'                  // Blue-purple
     },
     "Maintenance/Investment": {
       "Targeted Capital Investment": '#FFA726',   // Amber
@@ -2610,10 +2611,10 @@ map.on('load', () => {
           'circle-color': [
             'match',
             ['get', 'Decision Type'],
-            "Building Addition", '#2E8B57',
-            "Policy Solution for Overcrowding", '#66BB6A',
-            "Building Addition with Capital Investment", '#1B5E20',
-            "Building Replacement", '#4B830D',
+            "Building Addition", '#1D4ED8',
+            "Policy Solution for Overcrowding", '#3B82F6',
+            "Building Addition with Capital Investment", '#1E3A8A',
+            "Building Replacement", '#5B21B6',
             "Targeted Capital Investment", '#FFA726',
             "Standard Maintenance", '#1B9E77',
             "Major Capital Investment", '#FB8C00',
@@ -2639,10 +2640,10 @@ map.on('load', () => {
           'circle-color': [
             'match',
             ['get', 'Decision Type'],
-            "Building Addition", '#2E8B57',
-            "Policy Solution for Overcrowding", '#66BB6A',
-            "Building Addition with Capital Investment", '#1B5E20',
-            "Building Replacement", '#4B830D',
+            "Building Addition", '#1D4ED8',
+            "Policy Solution for Overcrowding", '#3B82F6',
+            "Building Addition with Capital Investment", '#1E3A8A',
+            "Building Replacement", '#5B21B6',
             "Targeted Capital Investment", '#FFA726',
             "Standard Maintenance", '#1B9E77',
             "Major Capital Investment", '#FB8C00',
@@ -3728,10 +3729,10 @@ map.on('load', () => {
       'schools-layer',
       'circle-color',
       ['match', ['get', 'Decision Type'],
-        "Building Addition", '#2E8B57',
-        "Policy Solution for Overcrowding", '#66BB6A',
-        "Building Addition with Capital Investment", '#1B5E20',
-        "Building Replacement", '#4B830D',
+        "Building Addition", '#1D4ED8',
+        "Policy Solution for Overcrowding", '#3B82F6',
+        "Building Addition with Capital Investment", '#1E3A8A',
+        "Building Replacement", '#5B21B6',
         "Targeted Capital Investment", '#FFA726',
         "Standard Maintenance", '#1B9E77',
         "Major Capital Investment", '#FB8C00',
