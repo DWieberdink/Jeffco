@@ -19,11 +19,11 @@
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js" defer></script>
   <script src="https://d3js.org/d3.v7.min.js" defer></script>
   <!-- Cache-bust local scripts so GitHub Pages / browsers don't serve stale JS -->
-  <script src="DecisionLogic.js?v=20260107_4" defer></script>
-  <script src="PrioritizationLogic.js?v=20260107_4" defer></script>
-  <script src="PrioritizationUI.js?v=20260107_4" defer></script>
-  <script src="FlowchartLogic.js?v=20260107_4" defer></script>
-  <script src="script.js?v=20260107_4" defer></script>
+  <script src="DecisionLogic.js?v=20251219_1" defer></script>
+  <script src="PrioritizationLogic.js?v=20251219_1" defer></script>
+  <script src="PrioritizationUI.js?v=20251219_1" defer></script>
+  <script src="FlowchartLogic.js?v=20260113_1" defer></script>
+  <script src="script.js?v=20260113_4" defer></script>
   
 
 
@@ -1350,6 +1350,33 @@
       font-size: 13px;
       color: #111;
     }
+    #sidebarMenu .menu-section-title {
+      font-size: 12px;
+      font-weight: 900;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+    }
+    #sidebarMenu .menu-divider {
+      height: 1px;
+      background: #e5e7eb;
+      margin: 10px 0;
+    }
+    #sidebarMenu .menu-action-btn {
+      width: 100%;
+      text-align: left;
+      padding: 9px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 10px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 900;
+      color: #111827;
+    }
+    #sidebarMenu .menu-action-btn:hover {
+      background: #f5f7fa;
+    }
     #sidebarMenu label,
     #sidebarMenu button {
       font-size: 13px;
@@ -1570,6 +1597,94 @@
       border: 1px solid #e5e7eb;
       border-radius: 12px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+    .step1-section-title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 1000;
+      letter-spacing: .02em;
+      color: #111827;
+      text-transform: uppercase;
+    }
+    .step1-section-subtitle {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #6b7280;
+      font-style: italic;
+      line-height: 1.3;
+    }
+    .step1-section-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    .step1-section-row {
+      display: grid;
+      grid-template-columns: 1.2fr 2fr;
+      gap: 12px;
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .step1-section-row { grid-template-columns: 1fr; }
+    }
+    .step1-kpi-tile {
+      border-radius: 10px;
+      color: #fff;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.14);
+      padding: 10px 12px 12px 12px;
+      min-height: 72px;
+      height: 92px; /* keep tile size consistent even when we add a small sub-line (e.g., PK enrollment) */
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+    .step1-kpi-tile .label {
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .02em;
+      opacity: 0.98;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+    .step1-kpi-tile .value {
+      margin-top: 8px;
+      font-size: 32px;
+      font-weight: 1000;
+      line-height: 1;
+    }
+    .step1-kpi-tile .sub {
+      margin-top: 6px;
+      font-size: 12px;
+      font-weight: 900;
+      line-height: 1;
+      opacity: 0.95;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+    .step1-kpi-tile.purple { background: #6b3a8a; }
+    .step1-kpi-tile.green  { background: #1f8a6b; }
+    .step1-tile-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    @media (max-width: 780px) {
+      .step1-tile-grid { grid-template-columns: 1fr; }
+      .step1-kpi-tile { min-height: 70px; height: 92px; }
+    }
+    .step1-footnote {
+      font-size: 12px;
+      color: #6b7280;
+      font-style: italic;
+      text-align: right;
+      margin-top: 8px;
+      line-height: 1.3;
     }
     .step1-badge {
       display: inline-flex;
@@ -2473,27 +2588,55 @@
   </button>
 </nav>
 <!-- Hamburger dropdown menu -->
-<div id="sidebarMenu" style="display:none; position:absolute; top:52px; right:12px; left:auto; z-index:2002; background:#fff; border:1px solid #e5e7eb; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.12); padding:8px 10px; width:220px; font-size:13px;">
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-    <span style="font-weight:600; color:#111;">Menu</span>
-    <button id="sidebarMenuClose" aria-label="Close menu" style="border:none; background:transparent; cursor:pointer; font-size:16px; line-height:1;">×</button>
+<div id="sidebarMenu" style="display:none; position:absolute; top:52px; right:12px; left:auto; z-index:2002; background:#fff; border:1px solid #e5e7eb; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,0.14); padding:10px 12px; width:280px; font-size:13px;">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+    <span style="font-weight:900; color:#111;">Menu</span>
+    <button id="sidebarMenuClose" aria-label="Close menu" style="border:none; background:transparent; cursor:pointer; font-size:18px; line-height:1; padding:4px 6px;">×</button>
   </div>
-  <label style="display:flex; align-items:center; gap:8px; padding:6px 4px; cursor:pointer;">
-    <input type="checkbox" id="toggleLeftSidebar" />
-    <span>Show controls panel</span>
-  </label>
-  <label style="display:flex; align-items:center; gap:8px; padding:6px 4px; cursor:pointer;">
-    <input type="checkbox" id="toggleRightSidebar" />
-    <span>Show results panel</span>
-  </label>
-  <button id="menuStartTour" style="margin:6px 0; width:100%; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; background:#fff; cursor:pointer; text-align:left;">Start Tour (How To)</button>
-  <div style="height:8px;"></div>
-  <div class="menu-view-toggle">
-    <button id="menuShowMap" class="active" aria-label="Show map view">Map</button>
-    <button id="menuShowFlowchart" aria-label="Show flowchart view">Flowchart</button>
+
+  <div class="menu-section">
+    <div class="menu-section-title">View</div>
+    <div class="menu-view-toggle" style="margin-top:6px;">
+      <button id="menuShowMap" class="active" aria-label="Show map view">Map</button>
+      <button id="menuShowFlowchart" aria-label="Show flowchart view">Flowchart</button>
+      <button id="menuShowStep1" aria-label="Show school-level view">School-level</button>
+    </div>
   </div>
-  <div style="height:10px;"></div>
-  <button id="menuDataLogic" style="margin:0; width:100%; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; background:#fff; cursor:pointer; text-align:left;">Dashboard Data &amp; Logic</button>
+
+  <div class="menu-divider"></div>
+
+  <div class="menu-section">
+    <div class="menu-section-title">Panels</div>
+    <div style="margin-top:6px; display:grid; gap:6px;">
+      <label style="display:flex; align-items:center; gap:10px; padding:8px 8px; border:1px solid #e5e7eb; border-radius:10px; cursor:pointer; background:#fff;">
+        <input type="checkbox" id="toggleLeftSidebar" />
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <span style="font-weight:900;">Controls</span>
+          <span style="font-size:12px; color:#6b7280;">Thresholds and settings</span>
+        </div>
+      </label>
+      <label style="display:flex; align-items:center; gap:10px; padding:8px 8px; border:1px solid #e5e7eb; border-radius:10px; cursor:pointer; background:#fff;">
+        <input type="checkbox" id="toggleRightSidebar" />
+        <div style="display:flex; flex-direction:column; gap:2px;">
+          <span style="font-weight:900;">Results</span>
+          <span style="font-size:12px; color:#6b7280;">Tables and outputs</span>
+        </div>
+      </label>
+    </div>
+    <div id="menuPanelsHint" style="display:none; margin-top:8px; font-size:12px; color:#6b7280;">
+      Panels are hidden in School-level view (Step 1).
+    </div>
+  </div>
+
+  <div class="menu-divider"></div>
+
+  <div class="menu-section">
+    <div class="menu-section-title">Help &amp; Data</div>
+    <div style="margin-top:6px; display:grid; gap:8px;">
+      <button id="menuStartTour" class="menu-action-btn" type="button">Start tour</button>
+      <button id="menuDataLogic" class="menu-action-btn" type="button">Data &amp; logic (sources)</button>
+    </div>
+  </div>
 </div>
 
 <!-- Password Protection Overlay -->
@@ -2555,7 +2698,27 @@
   <details>
     <summary class="how-to-use-summary"><strong>How to use the JeffCo Planning Tool</strong></summary>
     <h3>JeffCo Facility Planning Dashboard</h3>
-    <p>This tool is intended to support JeffCo facility planning initiatives. Users can explore conditions data and model school choice scenarios to better understand the potential impact of facility decisions.</p>
+    <p>
+      This dashboard helps Jeffco explore <strong>facility planning options</strong> by combining school-level indicators, a map view, and decision logic into a single workflow.
+      In a few minutes you can (1) review key metrics for a school, (2) explore patterns on the map, (3) adjust the Strategic Sorting thresholds that drive recommended outcomes, and (4) prioritize within strategy groups to focus follow-up planning.
+    </p>
+    <p style="margin-top:10px;">
+      Use the <strong>Process Steps (Step 1–4)</strong> buttons to move through the workflow at any time.
+    </p>
+    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+      <span style="font-weight:700; font-size:13px;">Start a tour for:</span>
+      <select id="howToTourModuleSelect" style="padding:6px 8px; border:1px solid #d1d5db; border-radius:8px; font-size:13px; background:#fff;">
+        <option value="full">Full tour</option>
+        <option value="step1">Step 1 — School-level data</option>
+        <option value="step2">Step 2 — Map</option>
+        <option value="step3">Step 3 — Strategic Sorting</option>
+        <option value="step4">Step 4 — Prioritization</option>
+        <option value="flowchart">Flowchart</option>
+      </select>
+      <button type="button" id="howToStartTourBtn" style="padding:6px 10px; border:1px solid #007cbf; background:#fff; color:#007cbf; border-radius:8px; cursor:pointer; font-size:13px; font-weight:800;">
+        Start Tour
+      </button>
+    </div>
   </details>
 
   
@@ -2792,18 +2955,6 @@
           </div>
         </div>
 
-        <div style="margin-top: 14px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-          <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#111827;">
-            <span style="font-weight:800;">Filter metrics</span>
-            <input id="step1FieldFilter" type="text" placeholder="Type to filter (e.g., enrollment, capacity)…"
-                   style="width: 360px; max-width: 70vw; padding: 9px 10px; border:1px solid #d1d5db; border-radius:10px; background:#fff;">
-          </label>
-          <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#111827;">
-            <input id="step1ShowEmptyFields" type="checkbox" />
-            <span>Show empty metrics</span>
-          </label>
-        </div>
-
         <div id="step1SchoolDataEmptyState" class="step1-card"
              style="margin-top: 14px; padding: 18px; color:#4b5563; font-size:13px;">
           Select a school to view its school-level data.
@@ -2846,8 +2997,47 @@
           </div>
 
           <div id="step1SingleSection" style="padding: 14px 16px;">
-            <div id="step1KpiGrid" class="step1-kpi-grid">
-              <!-- KPI tiles injected -->
+            <div class="step1-section-grid">
+              <div class="step1-card" style="padding: 14px 16px;">
+                <div class="step1-section-title">BUILDING INFORMATION</div>
+                <div class="step1-section-row" style="margin-top: 10px;">
+                  <div>
+                    <table class="step1-table" aria-label="Building information details">
+                      <tbody id="step1BuildingInfoDetails">
+                        <!-- details rows injected -->
+                      </tbody>
+                    </table>
+                  </div>
+                  <div>
+                    <div id="step1BuildingInfoTiles" class="step1-tile-grid" aria-label="Building information KPIs">
+                      <!-- purple tiles injected -->
+                    </div>
+                    <div class="step1-footnote" id="step1BuildingInfoFootnote">
+                      *Utilization includes PK when applicable. Does not include temporary buildings.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="step1-card" style="padding: 14px 16px;">
+                <div class="step1-section-row" style="grid-template-columns: 1fr;">
+                  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                    <div>
+                      <div class="step1-section-title">ENROLLMENT</div>
+                      <div class="step1-section-subtitle" id="step1EnrollmentSubtitle">
+                        Does not include preschool or secondary enrollment.
+                      </div>
+                    </div>
+                  </div>
+                  <div style="margin-top: 10px;">
+                    <div id="step1EnrollmentTiles" class="step1-tile-grid" aria-label="Enrollment KPIs">
+                      <!-- green tiles injected -->
+                    </div>
+                    <div class="step1-footnote" id="step1EnrollmentFootnote" style="display:none;"></div>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
 

@@ -354,6 +354,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const rightSidebar = document.getElementById('map-sidebar');
     const showMapBtn = document.getElementById('menuShowMap');
     const showFlowchartBtn = document.getElementById('menuShowFlowchart');
+    const showStep1Btn = document.getElementById('menuShowStep1');
 
     // --- Mobile/iPad drawer helpers (allow both sidebars open at once) ---
     const isSmallScreen = () => {
@@ -455,6 +456,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const setMenuViewActive = (mode) => {
       if (showMapBtn) showMapBtn.classList.toggle('active', mode === 'map');
       if (showFlowchartBtn) showFlowchartBtn.classList.toggle('active', mode === 'flowchart');
+      if (showStep1Btn) showStep1Btn.classList.toggle('active', mode === 'step1');
+    };
+
+    const updatePanelsHintForMode = (mode) => {
+      const hint = document.getElementById('menuPanelsHint');
+      if (!hint) return;
+      hint.style.display = (mode === 'step1') ? 'block' : 'none';
     };
 
     const syncMenuState = () => {
@@ -537,6 +545,7 @@ document.addEventListener('DOMContentLoaded', function() {
           window.switchToMap();
         }
         setMenuViewActive('map');
+        updatePanelsHintForMode('map');
       });
     }
     if (showFlowchartBtn) {
@@ -546,6 +555,19 @@ document.addEventListener('DOMContentLoaded', function() {
           window.switchToFlowchart();
         }
         setMenuViewActive('flowchart');
+        updatePanelsHintForMode('flowchart');
+      });
+    }
+    if (showStep1Btn) {
+      showStep1Btn.addEventListener('click', () => {
+        hideMenu();
+        // Step 1 is a dedicated school-level view: no map, no side panels.
+        try {
+          const btn = document.querySelector('.process-step[data-step="1"]');
+          if (btn) btn.click();
+        } catch (e) {}
+        setMenuViewActive('step1');
+        updatePanelsHintForMode('step1');
       });
     }
     // Map style radio buttons
@@ -597,6 +619,7 @@ document.addEventListener('DOMContentLoaded', function() {
     body.classList.add('right-sidebar-collapsed');
     syncMenuState();
     setMenuViewActive('map');
+    updatePanelsHintForMode('map');
     updateMobileBackdrop();
 
     // Mobile drawer headers + close buttons
@@ -2114,7 +2137,7 @@ map.on('load', () => {
 
   const geojsonPromise = fetch('Schools.geojson').then(res => res.json());
   const decisionDataPromise = window.decisionLogic.initialize();
-  const decisionAllPromise = fetch('Decision Data Export.csv?v=20260107_1')
+  const decisionAllPromise = fetch('Decision Data Export.csv')
     .then(res => res.text())
     .then(text => new Promise(resolve => {
       Papa.parse(text, {
@@ -5536,7 +5559,8 @@ document.addEventListener("DOMContentLoaded", function() {
 // --- ONBOARDING WALKTHROUGH LOGIC ---
 let isSettingUpPath = false; // Flag to track if we're setting up a specific path
 
-function startOnboardingWalkthrough() {
+function startOnboardingWalkthrough(options = {}) {
+  const requestedStartAt = (options && options.startAt) ? String(options.startAt) : '';
   // If a tour is already running, end it first (prevents duplicate listeners/overlays)
   if (window.__onboardingTourCleanup && typeof window.__onboardingTourCleanup === 'function') {
     try { window.__onboardingTourCleanup(); } catch (e) {}
@@ -5561,8 +5585,30 @@ function startOnboardingWalkthrough() {
     {
       target: 'body',
       title: 'Welcome to the JeffCo Facility Planning Dashboard',
-      text: 'This quick tour explains how the dashboard is organized and where to click to access the panels and tools. You can exit at any time using the “×” button or pressing Esc.',
+      text:
+        'This dashboard helps Jeffco explore facility planning options by combining school-level indicators, a map view, and decision logic into a single workflow.' +
+        '<ul style="margin:8px 0 8px 18px; padding:0;">' +
+          '<li><strong>Step 1 – School-level data</strong>: Review key metrics for a school.</li>' +
+          '<li><strong>Step 2 – Map</strong>: Explore patterns on the map.</li>' +
+          '<li><strong>Step 3 – Strategic Sorting</strong>: Adjust thresholds and see outcomes update.</li>' +
+          '<li><strong>Step 4 – Prioritization</strong>: Prioritize within strategy groups for follow-up planning.</li>' +
+        '</ul>' +
+        'You can jump to a specific module at any time using the dropdown, or run the full tour.',
       isIntro: true
+    },
+    {
+      target: '#process-steps',
+      title: 'Process Steps (Step 1–4)',
+      text: 'These buttons are the main workflow navigation. Click Step 1–4 at any time to jump to that part of the dashboard.',
+      ensureMenuClosed: true
+    },
+    {
+      target: '#step1SchoolSelect',
+      tourKey: 'step1',
+      title: 'Step 1: School-level data',
+      text: 'Pick a school to see Building Information + Enrollment indicators. Use “Compare schools” if you want to line up multiple schools side-by-side.',
+      ensureProcessStep: 1,
+      ensureMenuClosed: true
     },
     {
       target: '#sidebarToggle',
@@ -5590,8 +5636,10 @@ function startOnboardingWalkthrough() {
     },
     {
       target: '#decision-input-panel',
+      tourKey: 'step3',
       title: 'Strategic Sorting (Inputs)',
       text: 'Adjust the threshold sliders to change how schools are categorized into strategy groups. As you change sliders, the results update immediately on the right.',
+      ensureProcessStep: 3,
       ensureLeftSidebar: true
     },
     {
@@ -5604,12 +5652,15 @@ function startOnboardingWalkthrough() {
       target: '#decision-output-panel',
       title: 'Strategic Sorting (Results)',
       text: 'Open “Summary Table” to see counts by strategy group, and “Decision by School” to see each school’s assigned outcome. Use the help icons (?) for definitions.',
+      ensureProcessStep: 3,
       ensureRightSidebar: true
     },
     {
       target: '#map-container',
+      tourKey: 'step2',
       title: 'Map View: Explore Schools',
       text: 'Use the map to pan/zoom and explore schools spatially. Clicking a school will surface its data and help you connect results to geography.',
+      ensureProcessStep: 2,
       ensureMapView: true,
       ensureMenuClosed: true
     },
@@ -5621,18 +5672,22 @@ function startOnboardingWalkthrough() {
     },
     {
       target: '#scenario-input-panel',
+      tourKey: 'step4',
       title: 'Scenario Modeling (Inputs)',
       text: 'Use scenario modeling to test different decision types and see how student enrollment, utilization, and travel distance could change.',
+      ensureProcessStep: 4,
       ensureLeftSidebar: true
     },
     {
       target: '#scenario-output-panel',
       title: 'Scenario Modeling (Outputs)',
       text: 'After running a scenario, review the output here to understand impacts (enrollment shifts, utilization changes, and travel distance changes).',
+      ensureProcessStep: 4,
       ensureRightSidebar: true
     },
     {
       target: '#toggleMapFlowchartFlowchart2',
+      tourKey: 'flowchart',
       title: 'Flowchart View',
       text: 'Switch to the Flowchart view to understand the decision logic for a specific school.',
       ensureFlowchartView: true
@@ -5690,11 +5745,43 @@ function startOnboardingWalkthrough() {
     if (menu) menu.style.display = 'none';
   }
 
+  function ensureProcessStep(stepNum) {
+    try {
+      const btn = document.querySelector(`.process-step[data-step="${stepNum}"]`);
+      if (btn) btn.click();
+    } catch (e) {}
+  }
+
   function ensureMapView() {
     if (typeof window.switchToMap === 'function') window.switchToMap();
   }
   function ensureFlowchartView() {
     if (typeof window.switchToFlowchart === 'function') window.switchToFlowchart();
+  }
+
+  // Build a stable index so "jump to module" doesn't depend on hard-coded step numbers.
+  const stepIndexByKey = {};
+  steps.forEach((s, idx) => {
+    if (s && s.tourKey) stepIndexByKey[String(s.tourKey)] = idx;
+  });
+
+  function getCurrentModuleKey(stepIdx) {
+    const hit = Object.entries(stepIndexByKey).find(([, idx]) => idx === stepIdx);
+    return hit ? hit[0] : 'full';
+  }
+
+  function jumpToModule(key) {
+    const k = String(key || 'full');
+    if (k === 'full') {
+      currentStep = 0;
+      showStep(currentStep);
+      return;
+    }
+    const idx = stepIndexByKey[k];
+    if (typeof idx === 'number') {
+      currentStep = idx;
+      showStep(currentStep);
+    }
   }
 
   function showStep(stepIdx) {
@@ -5709,6 +5796,7 @@ function startOnboardingWalkthrough() {
     if (step.ensureMenuClosed) closeMenu();
     if (step.ensureLeftSidebar) setSidebarVisibility({ left: true });
     if (step.ensureRightSidebar) setSidebarVisibility({ right: true });
+    if (typeof step.ensureProcessStep === 'number') ensureProcessStep(step.ensureProcessStep);
     if (step.ensureMapView) ensureMapView();
     if (step.ensureFlowchartView) ensureFlowchartView();
     
@@ -6231,12 +6319,15 @@ function startOnboardingWalkthrough() {
     popup.style.border = '2px solid #007cbf';
     popup.style.borderRadius = '8px';
     popup.style.boxShadow = '0 4px 24px rgba(0,0,0,0.2)';
-    popup.style.padding = '24px 32px';
+    // Add right padding so the close "×" never overlaps the title/text
+    popup.style.padding = '16px 56px 14px 20px';
     popup.style.zIndex = '20002';
-    popup.style.maxWidth = '340px';
-    popup.style.fontSize = '16px';
+    popup.style.maxWidth = '460px';
+    popup.style.fontSize = '15px';
     popup.style.fontFamily = "'Franklin Gothic Book', 'Franklin Gothic', 'Arial Narrow', Arial, sans-serif";
-    popup.innerHTML = `<h3 style='margin-top:0;color:#007cbf;'>${step.title}</h3><p>${step.text}</p>`;
+    popup.innerHTML =
+      `<h3 style='margin:0 0 8px 0;color:#007cbf; padding-right: 6px;'>${step.title}</h3>` +
+      `<div style="margin:0 0 8px 0; line-height:1.28;">${step.text}</div>`;
 
     // Prevent overlay click from closing when interacting with popup
     popup.addEventListener('click', (e) => e.stopPropagation());
@@ -6246,8 +6337,8 @@ function startOnboardingWalkthrough() {
     closeBtn.setAttribute('aria-label', 'Close tour');
     closeBtn.textContent = '×';
     closeBtn.style.position = 'absolute';
-    closeBtn.style.top = '8px';
-    closeBtn.style.right = '10px';
+    closeBtn.style.top = '10px';
+    closeBtn.style.right = '12px';
     closeBtn.style.border = 'none';
     closeBtn.style.background = 'transparent';
     closeBtn.style.cursor = 'pointer';
@@ -6256,6 +6347,55 @@ function startOnboardingWalkthrough() {
     closeBtn.style.color = '#007cbf';
     closeBtn.onclick = endWalkthrough;
     popup.appendChild(closeBtn);
+
+    // Always-available jump-to-module (so users can switch topics mid-tour)
+    const moduleWrap = document.createElement('div');
+    moduleWrap.style.marginTop = '6px';
+    moduleWrap.style.marginBottom = '10px';
+
+    const moduleRow = document.createElement('div');
+    moduleRow.style.display = 'flex';
+    moduleRow.style.gap = '8px';
+    moduleRow.style.alignItems = 'center';
+    moduleRow.style.flexWrap = 'wrap';
+
+    const moduleLabel = document.createElement('div');
+    moduleLabel.textContent = 'Jump to:';
+    moduleLabel.style.fontWeight = '800';
+    moduleLabel.style.fontSize = '13px';
+    moduleLabel.style.color = '#111827';
+
+    const moduleSelect = document.createElement('select');
+    moduleSelect.id = 'tourModuleSelect';
+    moduleSelect.style.flex = '1';
+    moduleSelect.style.minWidth = '190px';
+    moduleSelect.style.padding = '8px 10px';
+    moduleSelect.style.border = '1px solid #d1d5db';
+    moduleSelect.style.borderRadius = '8px';
+    moduleSelect.style.fontSize = '13px';
+    moduleSelect.style.fontFamily = "'Franklin Gothic Book', 'Franklin Gothic', 'Arial Narrow', Arial, sans-serif";
+    moduleSelect.style.background = '#fff';
+
+    [
+      { v: 'full', t: 'Full tour (restart)' },
+      { v: 'step1', t: 'Step 1 — School-level data' },
+      { v: 'step2', t: 'Step 2 — Map' },
+      { v: 'step3', t: 'Step 3 — Strategic Sorting' },
+      { v: 'step4', t: 'Step 4 — Prioritization' },
+      { v: 'flowchart', t: 'Flowchart' }
+    ].forEach(o => {
+      const opt = document.createElement('option');
+      opt.value = o.v;
+      opt.textContent = o.t;
+      moduleSelect.appendChild(opt);
+    });
+    moduleSelect.value = getCurrentModuleKey(stepIdx);
+    moduleSelect.addEventListener('change', () => jumpToModule(moduleSelect.value));
+
+    moduleRow.appendChild(moduleLabel);
+    moduleRow.appendChild(moduleSelect);
+    moduleWrap.appendChild(moduleRow);
+    popup.appendChild(moduleWrap);
 
     // Next/Close/Skip button(s)
     if (step.isIntro) {
@@ -6286,7 +6426,13 @@ function startOnboardingWalkthrough() {
       startBtn.style.fontSize = '16px';
       startBtn.style.fontFamily = "'Franklin Gothic Book', 'Franklin Gothic', 'Arial Narrow', Arial, sans-serif";
       startBtn.style.cursor = 'pointer';
-      startBtn.onclick = nextStep;
+      startBtn.onclick = () => {
+        // Start the tour from whatever module is selected in the jump dropdown.
+        const sel = document.getElementById('tourModuleSelect');
+        const key = sel ? String(sel.value || 'full') : 'full';
+        if (key && key !== 'full') return jumpToModule(key);
+        nextStep();
+      };
       popup.appendChild(startBtn);
     } else {
       // Back button (except for first step)
@@ -6461,6 +6607,11 @@ function startOnboardingWalkthrough() {
 
   // Expose cleanup so a new tour run can safely terminate the previous one
   window.__onboardingTourCleanup = endWalkthrough;
+
+  // Optional: start at a specific module (skips intro)
+  if (requestedStartAt && stepIndexByKey[requestedStartAt] !== undefined) {
+    currentStep = stepIndexByKey[requestedStartAt];
+  }
 
   showStep(currentStep);
 }
@@ -6643,6 +6794,21 @@ document.addEventListener('DOMContentLoaded', function() {
       startOnboardingWalkthrough();
     });
   }
+});
+
+// "How to use" section: start tour for a specific module
+document.addEventListener('DOMContentLoaded', function() {
+  const btn = document.getElementById('howToStartTourBtn');
+  const sel = document.getElementById('howToTourModuleSelect');
+  if (!btn || !sel) return;
+  btn.addEventListener('click', function() {
+    const key = String(sel.value || 'full');
+    if (key && key !== 'full') {
+      startOnboardingWalkthrough({ startAt: key });
+    } else {
+      startOnboardingWalkthrough();
+    }
+  });
 });
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -7268,6 +7434,17 @@ if (typeof window.switchToMap !== 'function') {
     return String(s || '').trim().toLowerCase();
   }
 
+  function pickFirstNonEmpty(row, keys) {
+    if (!row || !keys || !keys.length) return '';
+    for (const k of keys) {
+      if (!k) continue;
+      const v = row[k];
+      const s = (v ?? '').toString().trim();
+      if (s) return s;
+    }
+    return '';
+  }
+
   function parseNumber(v) {
     if (v === null || typeof v === 'undefined') return null;
     if (typeof v === 'number' && Number.isFinite(v)) return v;
@@ -7307,6 +7484,13 @@ if (typeof window.switchToMap !== 'function') {
     return `${n.toFixed(1)}%`;
   }
 
+  function fmtGrowthPctSmart(raw) {
+    const n = parseNumber(raw);
+    if (!Number.isFinite(n)) return '';
+    const pct = (n >= -1.5 && n <= 1.5) ? (n * 100) : n;
+    return `${pct.toFixed(1)}%`;
+  }
+
   function htmlEscape(str) {
     return String(str ?? '')
       .replace(/&/g, '&amp;')
@@ -7323,6 +7507,147 @@ if (typeof window.switchToMap !== 'function') {
   function getDecisionSchoolRows() {
     const rows = window.decisionLogic && Array.isArray(window.decisionLogic.schoolData) ? window.decisionLogic.schoolData : [];
     return rows;
+  }
+
+  function formatPctSmart(raw, { assumeUnitIfSmall = true, decimals = 0 } = {}) {
+    const n = parseNumber(raw);
+    if (!Number.isFinite(n)) return '';
+    // If stored as 0..1, treat as unit and convert to %.
+    const pct = (assumeUnitIfSmall && n <= 1.5) ? (n * 100) : n;
+    const d = Math.max(0, Math.min(2, Number(decimals) || 0));
+    return `${pct.toFixed(d)}%`;
+  }
+
+  function kpiTileHtml({ theme, label, value, sub }) {
+    const safeTheme = theme === 'green' ? 'green' : 'purple';
+    const v = (value ?? '').toString().trim();
+    const show = v ? htmlEscape(v) : '—';
+    const subLine = (sub ?? '').toString().trim();
+    const subHtml = subLine ? `<div class="sub">${htmlEscape(subLine)}</div>` : '';
+    return `<div class="step1-kpi-tile ${safeTheme}">
+      <div class="label">${htmlEscape(label)}</div>
+      <div class="value">${show}</div>
+      ${subHtml}
+    </div>`;
+  }
+
+  function renderStep1Summary(row) {
+    const detailsTbody = document.getElementById('step1BuildingInfoDetails');
+    const buildingTiles = document.getElementById('step1BuildingInfoTiles');
+    const enrollmentTiles = document.getElementById('step1EnrollmentTiles');
+
+    // Building detail fields (fixed order, show "—" when missing to match the screenshot layout)
+    const grades =
+      pickFirstNonEmpty(row, ['Grades', 'Grade Levels', 'GradeLevels', 'School Level', 'School level', 'SchoolLevel']) || '';
+    const yearBuilt = pickFirstNonEmpty(row, ['Year Built', 'YearBuilt', 'Year_Built', 'Build Year', 'Built Year']) || '';
+    const sqftRaw = pickFirstNonEmpty(row, [' SquareFt ', 'SquareFt', 'SquareFt ', 'Square Footage', 'SquareFootage']) || '';
+    const buildingLife = pickFirstNonEmpty(row, ['Building Life Expectancy (years)', 'Building Life Expectancy', 'BuildingLifeExpectancy']) || '';
+    const desirability = pickFirstNonEmpty(row, ['Desirability of Property', 'Property Desirability', 'Desirability']) || '';
+    const terminal = pickFirstNonEmpty(row, ['Transportation Terminal', 'TransportationTerminal', 'Terminal', 'Transportation']) || '';
+
+    // FCI (prefer explicit columns; fall back to BuildingScore if it looks like a 0..1 index)
+    const fciRaw =
+      pickFirstNonEmpty(row, ['Facility Condition Index', 'Facility Condition Index %', 'FacilityConditionIndex', 'FCI', 'FCI %']) ||
+      pickFirstNonEmpty(row, ['BuildingScore', 'Building Score']);
+
+    const capRaw = pickFirstNonEmpty(row, ['K-5 Capacity', 'K5 Capacity', 'Capacity']) || '';
+    const utilRaw = pickFirstNonEmpty(row, ['24-25 Utilization', '24-25 Utilization %', 'Utilization']) || '';
+    const enrollmentRaw = pickFirstNonEmpty(row, ['Enrollment']) || '';
+    const seatsRaw = pickFirstNonEmpty(row, ['Available Seats', 'AvailableSeats']) || '';
+    const buildingScoreRaw = pickFirstNonEmpty(row, ['BuildingScore', 'Building Score']) || '';
+    const eduAdeqRaw = pickFirstNonEmpty(row, ['EducationalAdequacy', 'Educational Adequacy']) || '';
+    const distanceRaw = pickFirstNonEmpty(row, ['DistanceUnderutilizedschools', 'Distance Underutilized Schools', 'Distance to Underutilized']) || '';
+    const pkRaw = pickFirstNonEmpty(row, ['PKEnrollment', 'PK Enrollment', 'PK Enrollment ']) || '';
+    const statusRaw = pickFirstNonEmpty(row, ['Status', 'status']) || '';
+    const siteCapRaw = pickFirstNonEmpty(row, ['SiteCapacity', 'Site Capacity']) || '';
+
+    const cap = parseNumber(capRaw);
+    const util = parseNumber(utilRaw);
+    const enrollment = parseNumber(enrollmentRaw);
+    const seats = parseNumber(seatsRaw);
+    const buildingScore0to10 = coerceBuildingScore0to10(buildingScoreRaw);
+    const eduAdeq = parseNumber(eduAdeqRaw);
+    const distance = parseNumber(distanceRaw);
+    const pk = parseNumber(pkRaw);
+
+    // Enrollment tiles
+    // Attendance Area Enrollment + Growth live in the Enrollment section per request
+    const attAreaRaw = pickFirstNonEmpty(row, ['AttendanceAreaEnrollment', 'Attendance Area Enrollment', 'Attendance Area Enroll.']) || '';
+    const growthRaw = pickFirstNonEmpty(row, ['Future_EnrollmentGrowth', 'Future Enrollment Growth', 'Enrollment Growth']) || '';
+    const frlRaw = pickFirstNonEmpty(row, ['Free & Reduced Lunch %', 'Free Reduced Lunch', '% FRL', 'FRL', 'FRL %']) || '';
+    const growth = parseNumber(growthRaw);
+    const attArea = parseNumber(attAreaRaw);
+
+    // Render details table
+    if (detailsTbody) {
+      const rows = [];
+      const addRow = (k, v) => rows.push({ k, v: (v ?? '').toString().trim() || '—' });
+      const addRowIf = (k, v) => {
+        const s = (v ?? '').toString().trim();
+        if (!s) return;
+        rows.push({ k, v: s });
+      };
+
+      // Always show these
+      addRow('Status', statusRaw);
+      addRow('Grades', grades);
+      addRow('Site Capacity', siteCapRaw);
+      addRow('Square Footage', (Number.isFinite(parseNumber(sqftRaw)) ? fmtInt(parseNumber(sqftRaw)) : sqftRaw));
+
+      // Only show these when present in the data
+      addRowIf('Year Built', yearBuilt);
+      addRowIf('Building Life Expectancy (years)', buildingLife);
+      addRowIf('Desirability of Property', desirability);
+      addRowIf('Transportation Terminal', terminal);
+
+      detailsTbody.innerHTML = rows
+        .map(r => `<tr><td>${htmlEscape(r.k)}</td><td><strong>${htmlEscape(r.v)}</strong></td></tr>`)
+        .join('');
+    }
+
+    // Determine capacity label based on grades string (best-effort)
+    let capacityLabel = 'Capacity';
+    const gNorm = norm(grades);
+    if (gNorm.includes('pk') && (gNorm.includes('5') || gNorm.includes('k-5') || gNorm.includes('pk-5'))) capacityLabel = 'K-5 Capacity';
+    else if (gNorm.includes('k-8') || gNorm.includes('pk-8') || gNorm.includes('k8')) capacityLabel = 'K-8 Capacity';
+    else if (gNorm.includes('6-8') || gNorm.includes('ms') || gNorm.includes('middle')) capacityLabel = '6-8 Capacity';
+    else if (gNorm.includes('9-12') || gNorm.includes('hs') || gNorm.includes('high')) capacityLabel = '9-12 Capacity';
+    else if (gNorm.includes('k-12') || gNorm.includes('6-12') || gNorm.includes('k12')) capacityLabel = 'K-12 Capacity';
+
+    // Render building tiles
+    if (buildingTiles) {
+      const capStr = Number.isFinite(cap) ? fmtInt(cap) : (capRaw ? capRaw.toString().trim() : '—');
+      const utilStr = Number.isFinite(util) ? formatPctSmart(util, { assumeUnitIfSmall: true, decimals: 0 }) : '—';
+      const seatsStr = Number.isFinite(seats) ? fmtInt(seats) : (seatsRaw ? seatsRaw.toString().trim() : '—');
+      const bldgScoreStr = Number.isFinite(buildingScore0to10) ? `${buildingScore0to10.toFixed(2)}/10` : (buildingScoreRaw ? buildingScoreRaw.toString().trim() : '—');
+      const eduAdeqStr = Number.isFinite(eduAdeq) ? formatPctSmart(eduAdeq, { assumeUnitIfSmall: true, decimals: 0 }) : (eduAdeqRaw ? eduAdeqRaw.toString().trim() : '—');
+      const distStr = Number.isFinite(distance) ? `${distance.toFixed(1)} mi` : (distanceRaw ? distanceRaw.toString().trim() : '—');
+      const sqftNum = parseNumber(sqftRaw);
+      const sqftStr = Number.isFinite(sqftNum) ? fmtInt(sqftNum) : (sqftRaw ? sqftRaw.toString().trim() : '—');
+
+      buildingTiles.innerHTML = [
+        kpiTileHtml({ theme: 'purple', label: capacityLabel, value: capStr }),
+        kpiTileHtml({ theme: 'purple', label: '24-25 Utilization %', value: utilStr }),
+        kpiTileHtml({ theme: 'purple', label: 'Available Seats', value: seatsStr }),
+        kpiTileHtml({ theme: 'purple', label: 'Building Score', value: bldgScoreStr }),
+        kpiTileHtml({ theme: 'purple', label: 'Educational Adequacy', value: eduAdeqStr }),
+        kpiTileHtml({ theme: 'purple', label: 'Distance to Underutilized School', value: distStr })
+      ].join('');
+    }
+
+    // Render enrollment tiles
+    if (enrollmentTiles) {
+      const enrStr = Number.isFinite(enrollment) ? fmtInt(enrollment) : (enrollmentRaw ? enrollmentRaw.toString().trim() : '—');
+      const pkStr = Number.isFinite(pk) ? `Includes PK: ${fmtInt(pk)}` : (pkRaw ? `Includes PK: ${pkRaw.toString().trim()}` : '');
+      const attAreaStr = Number.isFinite(attArea) ? formatPctSmart(attArea, { assumeUnitIfSmall: true, decimals: 0 }) : (attAreaRaw ? attAreaRaw.toString().trim() : '—');
+      const growthStr = (Number.isFinite(growth) ? fmtGrowthPctSmart(growth) : (growthRaw ? growthRaw.toString().trim() : '—')) || '—';
+
+      enrollmentTiles.innerHTML = [
+        kpiTileHtml({ theme: 'green', label: 'Enrollment', value: enrStr, sub: pkStr }),
+        kpiTileHtml({ theme: 'green', label: 'Attendance Area Enrollment', value: attAreaStr }),
+        kpiTileHtml({ theme: 'green', label: 'Future Enrollment Growth', value: growthStr })
+      ].join('');
+    }
   }
 
   function renderSchoolRow(row, filterText, showEmpty) {
@@ -7366,16 +7691,12 @@ if (typeof window.switchToMap !== 'function') {
 
     // KPI tiles (only render if values exist)
     function buildKpiTiles(r) {
-      const enrollment = parseNumber(r['Enrollment']);
-      const capacity = parseNumber(r['Capacity']);
-      const seats = parseNumber(r['Available Seats']);
-      const util = parseNumber(r['Utilization']); // 0..1
-      const buildingScore = coerceBuildingScore0to10(r['BuildingScore']); // 0..10
-      const eduAdeq = parseNumber(r['EducationalAdequacy']); // 0..1
-      const attArea = parseNumber(r['AttendanceAreaEnrollment']); // 0..100
-      const growth = parseNumber(r['Future_EnrollmentGrowth']); // unit or percent
-      const distance = parseNumber(r['DistanceUnderutilizedschools']); // miles
-      const sqft = parseNumber(r[' SquareFt '] || r['SquareFt'] || r['SquareFt ']);
+      // "All metrics" should exclude metrics that are now promoted into the
+      // Building Information / Enrollment sections (avoid duplicates).
+      // Keep this as an "additional metrics" area.
+      const pk = parseNumber(r['PKEnrollment'] || r['PK Enrollment'] || r['PK Enrollment ']);
+      const recentInv = pickFirstNonEmpty(r, ['RecentInvestments', 'Recent Investments']);
+      const level = pickFirstNonEmpty(r, ['School Level', 'SchoolLevel']);
 
       function kpiCard({ label, value, sub, barW, barC }) {
         if (!showEmptyMetrics && (!value || String(value).trim() === '')) return '';
@@ -7395,51 +7716,9 @@ if (typeof window.switchToMap !== 'function') {
       }
 
       const cards = [];
-      if (Number.isFinite(util)) {
-        const pct = util * 100;
-        const color = pct >= 95 ? '#dc2626' : (pct >= 85 ? '#f59e0b' : '#16a34a');
-        cards.push(kpiCard({ label: 'Utilization', value: fmtPct(pct), sub: (Number.isFinite(enrollment) && Number.isFinite(capacity) && capacity > 0) ? `${fmtInt(enrollment)} / ${fmtInt(capacity)} students` : '', barW: pct, barC: color }));
-      } else {
-        cards.push(kpiCard({ label: 'Utilization', value: '', sub: '', barW: null, barC: null }));
-      }
-      cards.push(kpiCard({ label: 'Enrollment', value: Number.isFinite(enrollment) ? fmtInt(enrollment) : '', sub: 'Students', barW: null }));
-      cards.push(kpiCard({ label: 'Capacity', value: Number.isFinite(capacity) ? fmtInt(capacity) : '', sub: 'Seats', barW: null }));
-      if (Number.isFinite(seats)) {
-        const color = seats < 0 ? '#dc2626' : (seats < 25 ? '#f59e0b' : '#16a34a');
-        cards.push(kpiCard({ label: 'Available Seats', value: fmtInt(seats), sub: seats < 0 ? 'Over capacity' : 'Available', barW: null, barC: color }));
-      } else {
-        cards.push(kpiCard({ label: 'Available Seats', value: '', sub: '', barW: null }));
-      }
-      if (Number.isFinite(buildingScore)) {
-        const pct = clamp((buildingScore / 10) * 100, 0, 100);
-        const color = pct >= 70 ? '#16a34a' : (pct >= 45 ? '#f59e0b' : '#dc2626');
-        cards.push(kpiCard({ label: 'Building Score', value: `${buildingScore.toFixed(2)}/10`, sub: '', barW: pct, barC: color }));
-      } else {
-        cards.push(kpiCard({ label: 'Building Score', value: '', sub: '', barW: null }));
-      }
-      if (Number.isFinite(eduAdeq)) {
-        const pct = clamp(eduAdeq * 100, 0, 100);
-        const color = pct >= 70 ? '#16a34a' : (pct >= 45 ? '#f59e0b' : '#dc2626');
-        cards.push(kpiCard({ label: 'Educational Adequacy', value: fmtPct(pct), sub: '', barW: pct, barC: color }));
-      } else {
-        cards.push(kpiCard({ label: 'Educational Adequacy', value: '', sub: '', barW: null }));
-      }
-      if (Number.isFinite(attArea)) {
-        const pct = clamp(attArea, 0, 100);
-        const color = pct >= 90 ? '#dc2626' : (pct >= 80 ? '#f59e0b' : '#16a34a');
-        cards.push(kpiCard({ label: 'Attendance Area Enroll.', value: fmtPct(pct), sub: '', barW: pct, barC: color }));
-      } else {
-        cards.push(kpiCard({ label: 'Attendance Area Enroll.', value: '', sub: '', barW: null }));
-      }
-      if (Number.isFinite(growth)) {
-        const pct = (growth >= -1 && growth <= 1) ? growth * 100 : growth;
-        const color = pct >= 5 ? '#16a34a' : (pct <= -5 ? '#dc2626' : '#64748b');
-        cards.push(kpiCard({ label: 'Future Enrollment Growth', value: fmtPct(pct), sub: '', barW: clamp(Math.abs(pct), 0, 100), barC: color }));
-      } else {
-        cards.push(kpiCard({ label: 'Future Enrollment Growth', value: '', sub: '', barW: null }));
-      }
-      cards.push(kpiCard({ label: 'Distance to Underutilized', value: Number.isFinite(distance) ? `${distance.toFixed(1)} mi` : '', sub: '', barW: null }));
-      cards.push(kpiCard({ label: 'Square Feet', value: Number.isFinite(sqft) ? fmtInt(sqft) : '', sub: 'Sq ft', barW: null }));
+      cards.push(kpiCard({ label: 'PK Enrollment', value: Number.isFinite(pk) ? fmtInt(pk) : '', sub: 'Students', barW: null }));
+      cards.push(kpiCard({ label: 'Recent Investments', value: recentInv ? String(recentInv) : '', sub: '', barW: null }));
+      cards.push(kpiCard({ label: 'School Level', value: level ? String(level) : '', sub: '', barW: null }));
 
       return cards.filter(Boolean).join('');
     }
@@ -7562,9 +7841,11 @@ if (typeof window.switchToMap !== 'function') {
     }
 
     if (!isCompare) {
+      // Summary sections (Building Information + Enrollment)
+      try { renderStep1Summary(row); } catch (e) {}
       if (kpiGrid) {
         const tiles = buildKpiTiles(row);
-        kpiGrid.innerHTML = tiles || `<div style="grid-column: span 12; color:#6b7280; font-size:13px; padding: 8px 0;">No matching metrics.</div>`;
+        kpiGrid.innerHTML = tiles || `<div style="grid-column: span 12; color:#6b7280; font-size:13px; padding: 8px 0;">No additional metrics (all key metrics are shown above).</div>`;
       }
       if (heading) heading.textContent = String(name);
       return;
@@ -7600,13 +7881,13 @@ if (typeof window.switchToMap !== 'function') {
   function initOnceReady() {
     const select = document.getElementById('step1SchoolSelect');
     const openBtn = document.getElementById('step1OpenSchoolProfileBtn');
-    const filterInput = document.getElementById('step1FieldFilter');
-    const showEmptyCb = document.getElementById('step1ShowEmptyFields');
+    const filterInput = document.getElementById('step1FieldFilter'); // optional (removed from UI)
+    const showEmptyCb = document.getElementById('step1ShowEmptyFields'); // optional (removed from UI)
     const compareMode = document.getElementById('step1CompareMode');
     const compare1 = document.getElementById('step1CompareSchoolSelect1');
     const compare2 = document.getElementById('step1CompareSchoolSelect2');
 
-    if (!select || !filterInput || !showEmptyCb) return false;
+    if (!select) return false;
 
     const rows = getDecisionSchoolRows();
     if (!rows || rows.length === 0) return false;
@@ -7645,16 +7926,18 @@ if (typeof window.switchToMap !== 'function') {
       const row = getSelectedRow();
       setVisibleState(!!row);
       if (!row) return;
-      renderSchoolRow(row, filterInput.value, !!showEmptyCb.checked);
+      const filterText = filterInput ? filterInput.value : '';
+      const showEmpty = showEmptyCb ? !!showEmptyCb.checked : false;
+      renderSchoolRow(row, filterText, showEmpty);
     }
 
     select.addEventListener('change', () => {
       // Clear filter each time user switches schools (keeps it simple)
-      filterInput.value = '';
+      if (filterInput) filterInput.value = '';
       rerender();
     });
-    filterInput.addEventListener('input', rerender);
-    showEmptyCb.addEventListener('change', rerender);
+    if (filterInput) filterInput.addEventListener('input', rerender);
+    if (showEmptyCb) showEmptyCb.addEventListener('change', rerender);
     if (compareMode) compareMode.addEventListener('change', rerender);
     if (compare1) compare1.addEventListener('change', rerender);
     if (compare2) compare2.addEventListener('change', rerender);

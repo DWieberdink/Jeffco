@@ -8,37 +8,6 @@ let links = [];
 let schoolData = [];
 let mapExportData = null;
 
-// --- Flowchart persistence/versioning ---
-// The flowchart supports per-user layout editing (saved to localStorage).
-// When we change the published default layout, older saved layouts can appear misaligned.
-// Bump this version to force clients to drop old saved positions/zoom and use new defaults.
-const FLOWCHART_LAYOUT_VERSION = "20260107_2";
-
-// Published default zoom (used when the user has no saved zoom yet).
-// This is the "looks right" view you set via Layout Tools + Save Layout.
-const DEFAULT_FLOWCHART_ZOOM = {
-  x: 302.4518148164017,
-  y: 439.3820637034537,
-  k: 1.187836327069643
-};
-function ensureFlowchartLayoutVersion() {
-  try {
-    const key = "flowchartLayoutVersion";
-    const prev = localStorage.getItem(key);
-    if (prev !== FLOWCHART_LAYOUT_VERSION) {
-      localStorage.removeItem("flowchartNodePositions");
-      localStorage.removeItem("flowBoxPositions");
-      localStorage.removeItem("flowchartZoom");
-      localStorage.setItem(key, FLOWCHART_LAYOUT_VERSION);
-      console.log("🔁 Reset saved flowchart layout due to version change:", { prev, next: FLOWCHART_LAYOUT_VERSION });
-    }
-  } catch (e) {
-    // ignore storage errors (private mode, blocked storage, etc.)
-  }
-}
-// Run once at load so all subsequent reads use the correct version.
-ensureFlowchartLayoutVersion();
-
 // Coerce a value that may be stored as a ratio (0–1) or percent (0–100)
 // into a percent on the 0–100 scale.
 function coercePercent0to100(raw) {
@@ -400,8 +369,8 @@ window.initializeFlowchartFromScript = function(svgElement) {
     .attr("fill", "#6c757d")
     .attr("stroke", "#6c757d");
 
-  // Get current zoom level from localStorage; if none, use published default zoom.
-  let currentTransform = null;
+  // Get current zoom level from localStorage or use default (updated with saved layout)
+  let currentTransform = d3.zoomIdentity.translate(349.82689171669284, 477.94759411049654).scale(0.9944701686732141);
   const savedTransform = localStorage.getItem('flowchartZoom');
   if (savedTransform) {
     try {
@@ -409,17 +378,10 @@ window.initializeFlowchartFromScript = function(svgElement) {
       currentTransform = d3.zoomIdentity.translate(parsed.x, parsed.y).scale(parsed.k);
       console.log('Restoring saved flowchart transform:', parsed);
     } catch (e) {
-      currentTransform = null;
-      console.log('Could not parse saved zoom level; using published default zoom');
+      console.log('Could not parse saved zoom level, using default');
     }
   } else {
-    console.log('No saved flowchart transform found; using published default zoom');
-  }
-
-  if (!currentTransform && DEFAULT_FLOWCHART_ZOOM) {
-    currentTransform = d3.zoomIdentity
-      .translate(DEFAULT_FLOWCHART_ZOOM.x, DEFAULT_FLOWCHART_ZOOM.y)
-      .scale(DEFAULT_FLOWCHART_ZOOM.k);
+    console.log('No saved flowchart transform found, using default');
   }
 
   const zoomBehavior = d3.zoom()
@@ -437,13 +399,11 @@ window.initializeFlowchartFromScript = function(svgElement) {
   window.flowchartZoomBehavior = zoomBehavior;
   svg.call(zoomBehavior);
 
-  // Apply the saved transform if present; otherwise fit-to-content after render.
-  if (currentTransform) {
-    setTimeout(() => {
-      svg.call(zoomBehavior.transform, currentTransform);
-      console.log('Applied saved transform using zoom API:', currentTransform.toString());
-    }, 100);
-  }
+  // Apply the initial transform using d3's zoom API (not just the transform attribute)
+  setTimeout(() => {
+    svg.call(zoomBehavior.transform, currentTransform);
+    console.log('Applied saved transform using zoom API:', currentTransform.toString());
+  }, 100);
 
  
 
@@ -459,14 +419,69 @@ window.initializeFlowchartFromScript = function(svgElement) {
 // ✅ Draw flow boxes to visually group each flow
 function drawFlowBoxes() {
   console.log("📦 Drawing flow boxes");
+
+  // Auto-fit flow boxes to current node layout (prevents misalignment when node positions change).
+  // Only use saved/manual positions when edit mode is active.
+  function getNodeVisualBounds(d) {
+    // These match the rect dimensions used in renderFlowchart()
+    let width = 180;
+    let height = 80;
+    let x = -90;
+    let y = -40;
+    if (d.type === "start") {
+      width = 150; height = 65; x = -75; y = -32.5;
+    } else if (d.type === "routing") {
+      width = 140; height = 90; x = -70; y = -45;
+    } else if (d.type === "flowStart") {
+      width = 120; height = 60; x = -60; y = -30;
+    } else if (d.type === "outcome") {
+      width = 150; height = 65; x = -75; y = -32.5;
+    }
+    const fx = Number.isFinite(d.fx) ? d.fx : 0;
+    const fy = Number.isFinite(d.fy) ? d.fy : 0;
+    const left = fx + x;
+    const top = fy + y;
+    return { left, top, right: left + width, bottom: top + height };
+  }
+
+  function autoFitFlowBox(flowNum) {
+    const flowNodes = nodes.filter(n => n && (n.flow === flowNum));
+    // Flow 1 also needs to include the START node (it doesn't have flow:1)
+    if (flowNum === 1) {
+      const startNode = nodes.find(n => n && n.id === "START");
+      if (startNode) flowNodes.push(startNode);
+    }
+    if (!flowNodes.length) return null;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    flowNodes.forEach(n => {
+      const b = getNodeVisualBounds(n);
+      minX = Math.min(minX, b.left);
+      minY = Math.min(minY, b.top);
+      maxX = Math.max(maxX, b.right);
+      maxY = Math.max(maxY, b.bottom);
+    });
+
+    // Padding: keep the title at the top and give breathing room around nodes.
+    const padLeft = 30;
+    const padRight = 30;
+    const padBottom = 30;
+    const padTop = 44; // room for the flow label (y + 20)
+
+    const x = minX - padLeft;
+    const y = minY - padTop;
+    const width = (maxX - minX) + padLeft + padRight;
+    const height = (maxY - minY) + padTop + padBottom;
+    return { x, y, width, height };
+  }
   
   // Define flow box data (store globally) - Updated with saved layout positions
   flowBoxes = [
     {
       id: "flow1",
       label: "FLOW 1 - INITIAL SORTING",
-      x: -160.50002145767212,
-      y: -297.3451156616211,
+      x: -271.03200912475586,
+      y: -333.68441009521484,
       width: 237.47534942626953,
       height: 626.8837738037109,
       color: "#e3f2fd"
@@ -474,8 +489,8 @@ function drawFlowBoxes() {
     {
       id: "flow2", 
       label: "FLOW 2 - CAPACITY\n INCREASE",
-      x: 92.13064098358154,
-      y: -459.8274841308594,
+      x: -29.000279426574707,
+      y: -456.79920959472656,
       width: 699.0092468261719,
       height: 370.4703483581543,
       color: "#fff3e0"
@@ -483,8 +498,8 @@ function drawFlowBoxes() {
     {
       id: "flow3",
       label: "FLOW 3 - BUILDING\n IMPROVEMENT",
-      x: 97.34848403930664,
-      y: -78.93682861328125,
+      x: -26.81069564819336,
+      y: -81.96510314941406,
       width: 693.5711059570312,
       height: 298.2346954345703,
       color: "#e8f5e8"
@@ -492,16 +507,37 @@ function drawFlowBoxes() {
     {
       id: "flow4",
       label: "FLOW 4 - SCHOOL\n CONSOLIDATION",
-      x: 97.94232177734375,
-      y: 229.09432983398438,
+      x: -26.216888427734375,
+      y: 220.00949096679688,
       width: 688.54345703125,
       height: 398.50335693359375,
       color: "#fce4ec"
     }
   ];
   
-  // Load saved positions if they exist
-  loadFlowBoxPositions();
+  // Default behavior: auto-fit boxes to nodes so they stay aligned.
+  // If user is editing boxes, use saved positions (manual layout).
+  if (flowBoxEditMode) {
+    loadFlowBoxPositions();
+  } else {
+    const f1 = autoFitFlowBox(1);
+    const f2 = autoFitFlowBox(2);
+    const f3 = autoFitFlowBox(3);
+    const f4 = autoFitFlowBox(4);
+    flowBoxes.forEach(b => {
+      const fit =
+        b.id === "flow1" ? f1 :
+        b.id === "flow2" ? f2 :
+        b.id === "flow3" ? f3 :
+        b.id === "flow4" ? f4 :
+        null;
+      if (!fit) return;
+      b.x = fit.x;
+      b.y = fit.y;
+      b.width = fit.width;
+      b.height = fit.height;
+    });
+  }
   
   // Draw the flow boxes
   g.select(".flow-boxes")
@@ -569,7 +605,6 @@ function mapSliderKeyToThresholdKey(sliderId) {
 function initializeFlowchartData() {
   // Use updated standard layout with Flow 2 and Flow 3 restructure
   console.log("🔄 Using updated standard flowchart layout with Flow 2 and Flow 3 updates");
-  ensureFlowchartLayoutVersion();
   
   // Load saved positions from localStorage to use as defaults
   let savedPositions = {};
@@ -934,13 +969,6 @@ function renderFlowchart() {
       let dynamicNumber = "";
       
       if (d.thresholdKey && window.thresholds && d.thresholdKey !== "siteCapacitySlider") {
-        // Special-case dynamic distance node: it doesn't map to a single slider/threshold key.
-        // It derives its displayed value from the selected school's level.
-        if (d.thresholdKey === "F1_DIST_dynamic") {
-          const selectedSchool = getSelectedSchoolData();
-          const formatted = formatSliderValue("F1_DIST_dynamic", 0, selectedSchool);
-          dynamicNumber = `<span class="dynamic-number">${formatted}</span>`;
-        } else {
         const key = mapSliderKeyToThresholdKey(d.thresholdKey);
         console.log("🔍 Initial render for node", d.id, "thresholdKey:", d.thresholdKey, "mapped to:", key, "window.thresholds:", window.thresholds);
         if (key && window.thresholds[key] !== undefined) {
@@ -965,7 +993,6 @@ function renderFlowchart() {
         } else {
           console.warn("⚠️ Initial render - Threshold value undefined for", d.id, "key:", key);
           dynamicNumber = `<span class="dynamic-number">undefined</span>`;
-        }
         }
       }
       
@@ -1067,7 +1094,7 @@ function loadSchoolData() {
   }
 
   // Fallback: load directly from CSV (iframe/standalone contexts)
-  Papa.parse("./Decision Data Export.csv?v=20260107_1", {
+  Papa.parse("./Decision Data Export.csv", {
     download: true,
     header: true,
     skipEmptyLines: true,
@@ -1373,36 +1400,29 @@ FlowUtils.updateNodeLabels = function (selectedSchoolData = null) {
     }
     
     if (d.thresholdKey && window.thresholds && d.thresholdKey !== "siteCapacitySlider") {
-      // Special-case dynamic distance node: it doesn't map to a single slider/threshold key.
-      // It derives its displayed value from the selected school's level.
-      if (d.thresholdKey === "F1_DIST_dynamic") {
-        const formatted = formatSliderValue("F1_DIST_dynamic", 0, selectedSchoolData);
-        dynamicNumber = `<span class=\"dynamic-number\">${formatted}</span>`;
-      } else {
-        const thresholdKey = mapSliderKeyToThresholdKey(d.thresholdKey);
-        const rawVal = window.thresholds[thresholdKey];
-        console.log("🔍 Updating node", d.id, "thresholdKey:", d.thresholdKey, "mapped to:", thresholdKey, "rawVal:", rawVal, "window.thresholds:", window.thresholds);
-        if (rawVal !== undefined) {
-          let formatted;
-          if (d.id === "F4_DIST") {
-            // Special handling for F4_DIST node - show dynamic distance based on school level
-            formatted = formatSliderValue("F4_DIST_dynamic", rawVal, selectedSchoolData);
-          } else if (d.id === "F1_DIST") {
-            // Special handling for F1_DIST node - show dynamic distance based on school level
-            formatted = formatSliderValue("F1_DIST_dynamic", rawVal, selectedSchoolData);
-          } else if (d.id === "F1_UTIL1") {
-            // Special handling for F1_UTIL1 - MUST pass school data to show enrollment threshold
-            console.log("🎯 F1_UTIL1: Formatting with schoolData:", selectedSchoolData);
-            formatted = formatSliderValue(d.thresholdKey, rawVal, selectedSchoolData);
-          } else {
-            formatted = formatSliderValue(d.thresholdKey, rawVal, selectedSchoolData);
-          }
-          dynamicNumber = `<span class=\"dynamic-number\">${formatted}</span>`;
-          console.log("🔍 Final text for", d.id, ":", mainText, "Dynamic number:", dynamicNumber);
+      const thresholdKey = mapSliderKeyToThresholdKey(d.thresholdKey);
+      const rawVal = window.thresholds[thresholdKey];
+      console.log("🔍 Updating node", d.id, "thresholdKey:", d.thresholdKey, "mapped to:", thresholdKey, "rawVal:", rawVal, "window.thresholds:", window.thresholds);
+      if (rawVal !== undefined) {
+        let formatted;
+        if (d.id === "F4_DIST") {
+          // Special handling for F4_DIST node - show dynamic distance based on school level
+          formatted = formatSliderValue("F4_DIST_dynamic", rawVal, selectedSchoolData);
+        } else if (d.id === "F1_DIST") {
+          // Special handling for F1_DIST node - show dynamic distance based on school level
+          formatted = formatSliderValue("F1_DIST_dynamic", rawVal, selectedSchoolData);
+        } else if (d.id === "F1_UTIL1") {
+          // Special handling for F1_UTIL1 - MUST pass school data to show enrollment threshold
+          console.log("🎯 F1_UTIL1: Formatting with schoolData:", selectedSchoolData);
+          formatted = formatSliderValue(d.thresholdKey, rawVal, selectedSchoolData);
         } else {
-          console.warn("⚠️ Threshold value undefined for", d.id, "thresholdKey:", thresholdKey);
-          dynamicNumber = `<span class=\"dynamic-number\">undefined</span>`;
+          formatted = formatSliderValue(d.thresholdKey, rawVal, selectedSchoolData);
         }
+        dynamicNumber = `<span class=\"dynamic-number\">${formatted}</span>`;
+        console.log("🔍 Final text for", d.id, ":", mainText, "Dynamic number:", dynamicNumber);
+      } else {
+        console.warn("⚠️ Threshold value undefined for", d.id, "thresholdKey:", thresholdKey);
+        dynamicNumber = `<span class=\"dynamic-number\">undefined</span>`;
       }
     }
     
@@ -2412,8 +2432,8 @@ document.addEventListener("DOMContentLoaded", () => {
     g.append("g").attr("class", "nodes");
     g.append("g").attr("class", "link-labels");
 
-    // Get current zoom level from localStorage; if none, use published default zoom.
-    let currentTransform = null;
+    // Get current zoom level from localStorage or use default (updated with saved layout)
+    let currentTransform = d3.zoomIdentity.translate(349.82689171669284, 477.94759411049654).scale(0.9944701686732141);
     const savedTransform = localStorage.getItem('flowchartZoom');
     if (savedTransform) {
       try {
@@ -2421,17 +2441,10 @@ document.addEventListener("DOMContentLoaded", () => {
         currentTransform = d3.zoomIdentity.translate(parsed.x, parsed.y).scale(parsed.k);
         console.log('Restoring saved flowchart transform (second init):', parsed);
       } catch (e) {
-        currentTransform = null;
-        console.log('Could not parse saved zoom level (second init); using published default zoom');
+        console.log('Could not parse saved zoom level, using default');
       }
     } else {
-      console.log('No saved flowchart transform found (second init); using published default zoom');
-    }
-
-    if (!currentTransform && DEFAULT_FLOWCHART_ZOOM) {
-      currentTransform = d3.zoomIdentity
-        .translate(DEFAULT_FLOWCHART_ZOOM.x, DEFAULT_FLOWCHART_ZOOM.y)
-        .scale(DEFAULT_FLOWCHART_ZOOM.k);
+      console.log('No saved flowchart transform found (second init), using default');
     }
 
     const zoomBehavior = d3.zoom()
@@ -2449,13 +2462,11 @@ document.addEventListener("DOMContentLoaded", () => {
     window.flowchartZoomBehavior = zoomBehavior;
     svg.call(zoomBehavior);
 
-    // Apply the saved transform if present; otherwise fit-to-content after render.
-    if (currentTransform) {
-      setTimeout(() => {
-        svg.call(zoomBehavior.transform, currentTransform);
-        console.log('Applied saved transform using zoom API (second init):', currentTransform.toString());
-      }, 100);
-    }
+    // Apply the initial transform using d3's zoom API (not just the transform attribute)
+    setTimeout(() => {
+      svg.call(zoomBehavior.transform, currentTransform);
+      console.log('Applied saved transform using zoom API (second init):', currentTransform.toString());
+    }, 100);
 
 
     initializeFlowchartData();
