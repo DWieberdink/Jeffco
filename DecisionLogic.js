@@ -6,7 +6,7 @@ window.decisionLogic = {
   thresholds: {
     enrollmentThreshold: 200,
     utilization: 0.60,
-    utilizationHigh: 1.00,
+    utilizationHigh: 0.90,
     enrollmentGrowth: 0,
     distanceUnderutilized: 3.5,
     siteCapacity: "Yes",
@@ -435,11 +435,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (decision.includes("Welcoming") || decision.includes("Closure")) {
       return "Closure/Consolidation";
     }
-    // Treat Building Replacement as an Expansion strategy in the dashboard grouping
-    // (it increases/renews capacity similar to other Expansion outcomes).
-    if (decision.includes("Building Replacement")) {
-      return "Expansion";
-    }
     if (
       decision.includes("Building Addition") ||
       decision.includes("Overcrowding")
@@ -472,9 +467,10 @@ document.addEventListener("DOMContentLoaded", () => {
         label: "Expansion / Overcrowding",
         items: [
           "Building Addition",
-          "Building Replacement",
           "Building Addition with Capital Investment",
-          "Policy Solution for Overcrowding"
+          "Policy Solution for Overcrowding",
+          // Also show Building Replacement under this strategy header (requested to appear in both).
+          "Building Replacement"
         ]
       },
       {
@@ -491,7 +487,8 @@ document.addEventListener("DOMContentLoaded", () => {
         items: [
           "Targeted Capital Investment",
           "Standard Maintenance",
-          "Major Capital Investment"
+          "Major Capital Investment",
+          "Building Replacement"
         ]
       }
     ];
@@ -609,30 +606,56 @@ document.addEventListener("DOMContentLoaded", () => {
     setupSummaryGroupToggles(summaryDiv);
   
     resultsDiv.innerHTML = `
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th class="sortable-header text-center" data-column="0" data-type="number" style="width: 8%;">Rank</th>
-            <th class="sortable-header" data-column="1" data-type="string" style="width: 26%;">School Name</th>
-            <th class="sortable-header" data-column="2" data-type="string" style="width: 16%;">School Type</th>
-            <th class="sortable-header" data-column="3" data-type="string" style="width: 18%;">Articulation Area</th>
-            <th class="sortable-header" data-column="4" data-type="string" style="width: 16%;">Strategy Group</th>
-            <th class="sortable-header" data-column="5" data-type="string" style="width: 16%;">Project Type</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+      <div class="decision-by-school-wrap">
+        <table class="data-table decision-by-school-head">
+          <colgroup>
+            <col style="width:8%">
+            <col style="width:26%">
+            <col style="width:16%">
+            <col style="width:18%">
+            <col style="width:16%">
+            <col style="width:16%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="sortable-header text-center" data-column="0" data-type="number">Rank</th>
+              <th class="sortable-header" data-column="1" data-type="string">School Name</th>
+              <th class="sortable-header" data-column="2" data-type="string">School Type</th>
+              <th class="sortable-header" data-column="3" data-type="string">Articulation Area</th>
+              <th class="sortable-header" data-column="4" data-type="string">Strategy Group</th>
+              <th class="sortable-header" data-column="5" data-type="string">Project Type</th>
+            </tr>
+          </thead>
+        </table>
+        <div class="decision-by-school-scroll">
+          <table class="data-table decision-by-school-body">
+            <colgroup>
+              <col style="width:8%">
+              <col style="width:26%">
+              <col style="width:16%">
+              <col style="width:18%">
+              <col style="width:16%">
+              <col style="width:16%">
+            </colgroup>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+
+    // Fixed header styling + header/body width sync
+    injectDecisionBySchoolStickyStyles();
+    syncDecisionBySchoolHeaderWidth(resultsDiv);
 
     // Export current "Decision by School" table to CSV (in current onscreen order)
     const exportBtn = document.getElementById('exportDecisionResultsCsvBtn');
     if (exportBtn) {
       exportBtn.onclick = function () {
         try {
-          const table = resultsDiv.querySelector('table.data-table');
+          const table = resultsDiv.querySelector('table.decision-by-school-body');
           if (!table) return;
 
-          const headerCells = Array.from(table.querySelectorAll('thead th'));
-          const headers = headerCells.map(th => (th.textContent || '').trim());
+          const headerCells = Array.from(resultsDiv.querySelectorAll('table.decision-by-school-head thead th'));
+          const headers = headerCells.length ? headerCells.map(th => (th.textContent || '').trim()) : [];
 
           const bodyRows = Array.from(table.querySelectorAll('tbody tr'));
           const rowsOut = bodyRows.map(tr => {
@@ -648,7 +671,7 @@ document.addEventListener("DOMContentLoaded", () => {
           };
 
           const lines = [];
-          lines.push(headers.map(csvEscape).join(','));
+          if (headers.length) lines.push(headers.map(csvEscape).join(','));
           rowsOut.forEach(r => lines.push(r.map(csvEscape).join(',')));
           const csv = lines.join('\r\n');
 
@@ -718,6 +741,60 @@ document.addEventListener("DOMContentLoaded", () => {
     document.head.appendChild(style);
   }
 
+  function injectDecisionBySchoolStickyStyles() {
+    if (document.getElementById('decision-by-school-sticky-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'decision-by-school-sticky-styles';
+    style.textContent = `
+      .decision-by-school-wrap {
+        --sbw: 0px;
+      }
+      .decision-by-school-head {
+        width: calc(100% - var(--sbw));
+        border: 1px solid #e5e5e5;
+        border-bottom: 0;
+        border-radius: 6px 6px 0 0;
+        background: #f5f5f5;
+        table-layout: fixed;
+      }
+      .decision-by-school-head th {
+        background: #f5f5f5;
+      }
+      .decision-by-school-scroll {
+        max-height: 420px;
+        overflow: auto;
+        border: 1px solid #e5e5e5;
+        border-top: 0;
+        border-radius: 0 0 6px 6px;
+        background: #fff;
+      }
+      .decision-by-school-body {
+        width: 100%;
+        table-layout: fixed;
+      }
+      /* Prevent the body table from re-introducing a header */
+      .decision-by-school-body thead { display: none; }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function syncDecisionBySchoolHeaderWidth(resultsRoot) {
+    try {
+      const wrap = resultsRoot && resultsRoot.querySelector('.decision-by-school-wrap');
+      const scroller = resultsRoot && resultsRoot.querySelector('.decision-by-school-scroll');
+      if (!wrap || !scroller) return;
+      const syncOnce = () => {
+        const sbw = scroller.offsetWidth - scroller.clientWidth;
+        wrap.style.setProperty('--sbw', (sbw > 0 ? sbw : 0) + 'px');
+      };
+      requestAnimationFrame(syncOnce);
+      setTimeout(syncOnce, 0);
+      window.addEventListener('resize', syncOnce, { passive: true });
+    } catch (e) {
+      // ignore
+    }
+  }
+
   function setupSummaryGroupToggles(summaryRoot) {
     if (!summaryRoot) return;
 
@@ -748,15 +825,21 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll('.sortable-header').forEach(header => {
         header.addEventListener('click', () => {
             const table = header.closest('table');
-            const tbody = table.querySelector('tbody');
+            // Support the split Decision-by-School table (fixed header + scrolling body)
+            const tbody = table && table.classList.contains('decision-by-school-head')
+              ? (table.parentElement && table.parentElement.querySelector('.decision-by-school-body tbody'))
+              : table.querySelector('tbody');
             const columnIndex = parseInt(header.dataset.column, 10);
             const dataType = header.dataset.type;
             const isAsc = header.classList.contains('sort-asc');
             const newDir = isAsc ? 'desc' : 'asc';
 
-            table.querySelectorAll('.sortable-header').forEach(h => {
-                h.classList.remove('sort-asc', 'sort-desc');
-            });
+            // Clear sort markers on both header + body header tables if present
+            if (table && table.classList.contains('decision-by-school-head')) {
+              table.parentElement.querySelectorAll('.sortable-header').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+            } else {
+              table.querySelectorAll('.sortable-header').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+            }
 
             header.classList.add(newDir === 'asc' ? 'sort-asc' : 'sort-desc');
 

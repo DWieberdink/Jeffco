@@ -1047,9 +1047,9 @@ function loadSchoolData() {
     window.thresholds = window.thresholds || {
       enrollmentThreshold: 200,
       utilization: 0.60,
-      utilizationHigh: 1.00,
+      utilizationHigh: 0.90,
       enrollmentGrowth: 0,
-      projectedUtilization: 1.00,
+      projectedUtilization: 0.90,
       distanceUnderutilized: 3.5,
       buildingThreshold: 1.5,
       adequateProgramsMin: 50,
@@ -1124,9 +1124,9 @@ function loadSchoolData() {
       window.thresholds = window.thresholds || {
         enrollmentThreshold: 200,
         utilization: 0.60,
-        utilizationHigh: 1.00,
+        utilizationHigh: 0.90,
         enrollmentGrowth: 0,
-        projectedUtilization: 1.00,
+        projectedUtilization: 0.90,
         distanceUnderutilized: 3.5,
         buildingThreshold: 1.5,
         adequateProgramsMin: 50, // Changed to percentage (0-100)

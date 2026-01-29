@@ -18,6 +18,171 @@ const MAP_STYLES = {
   satellite: 'mapbox://styles/mapbox/standard-satellite'
 };
 
+// Articulation areas overlay (polygons)
+const ARTICULATION_AREAS_GEOJSON_PATH = 'ArticulationArea.geojson';
+const ARTICULATION_AREA_COLORS = {
+  'Alameda': '#7c3aed',
+  'Arvada': '#6d28d9',
+  'Arvada West': '#0f766e',
+  'Bear Creek': '#0f766e',
+  'Chatfield': '#c2410c',
+  'Columbine': '#4d7c0f',
+  'Conifer': '#6d28d9',
+  'Dakota Ridge': '#6d28d9',
+  'Evergreen': '#0f766e',
+  'Golden': '#0f766e',
+  'Green Mountain': '#c2410c',
+  'Jefferson': '#4d7c0f',
+  'Lakewood': '#6d28d9',
+  'Pomona': '#6d28d9',
+  'Ralston Valley': '#0f766e',
+  'Standley Lake': '#1d4ed8',
+  'Wheat Ridge': '#c2410c'
+};
+let articulationAreasGeojson4326 = null;
+let articulationAreasLoaded = false;
+
+function normalizeArticulationAreaKey(v) {
+  return (v || '').toString().trim().toLowerCase();
+}
+
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getArticulationColorExpression() {
+  const expr = ['match', ['get', '__aaName']];
+  Object.entries(ARTICULATION_AREA_COLORS).forEach(([name, color]) => {
+    expr.push(name, color);
+  });
+  expr.push('#94a3b8'); // fallback
+  return expr;
+}
+
+async function loadArticulationAreas4326() {
+  if (articulationAreasLoaded) return articulationAreasGeojson4326;
+  const res = await fetch(ARTICULATION_AREAS_GEOJSON_PATH);
+  const gj = await res.json();
+  const crsName = ((gj && gj.crs && gj.crs.properties && gj.crs.properties.name) || '').toString();
+
+  // Reproject from EPSG:2232 (StatePlane ftUS) to EPSG:4326 for Mapbox
+  if (crsName && crsName.toUpperCase().includes('2232')) {
+    if (typeof proj4 !== 'function') {
+      console.warn('proj4 missing; cannot reproject articulation areas');
+    } else {
+      proj4.defs(
+        'EPSG:2232',
+        '+proj=lcc +lat_0=37.8333333333333 +lon_0=-105.5 +lat_1=39.75 +lat_2=38.45 +x_0=914401.828803657 +y_0=304800.609601219 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=us-ft +no_defs +type=crs'
+      );
+      const reprojectCoords = (coords) => {
+        if (!Array.isArray(coords)) return coords;
+        if (coords.length === 2 && typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+          return proj4('EPSG:2232', 'EPSG:4326', coords);
+        }
+        return coords.map(reprojectCoords);
+      };
+      const feats = Array.isArray(gj.features) ? gj.features : [];
+      gj.features = feats.map((f) => {
+        const aaName = (f && f.properties && f.properties['Articulation Area']) ? String(f.properties['Articulation Area']) : '';
+        const geom = f && f.geometry ? f.geometry : null;
+        const coords = geom && geom.coordinates ? reprojectCoords(geom.coordinates) : null;
+        return {
+          ...f,
+          properties: { ...(f.properties || {}), __aaName: aaName },
+          geometry: geom ? { ...geom, coordinates: coords } : geom
+        };
+      });
+      try { delete gj.crs; } catch {}
+    }
+  } else {
+    // Still normalize property name for styling
+    (gj.features || []).forEach((f) => {
+      if (!f || !f.properties) return;
+      if (f.properties.__aaName) return;
+      f.properties.__aaName = (f.properties['Articulation Area'] || f.properties['ArticulationArea'] || f.properties['name'] || '').toString();
+    });
+  }
+
+  articulationAreasGeojson4326 = gj;
+  articulationAreasLoaded = true;
+  return articulationAreasGeojson4326;
+}
+
+function buildArticulationSchoolsIndexFromMapExport(mapExportRows, decisionRows) {
+  // Build: areaKey -> { total, groupKeys: [], groups: { [level]: [names...] } }
+  const levelByName = new Map();
+  (decisionRows || []).forEach((r) => {
+    const name = (r && (r["Building Name"] ?? r["BuildingName"] ?? "")).toString().trim();
+    if (!name) return;
+    const levelRaw = (r && (r["School Level"] ?? r["School level"] ?? r["SchoolLevel"] ?? "")).toString().trim();
+    const level = normalizeSchoolLevel(levelRaw) || (levelRaw || 'Unknown');
+    levelByName.set(normalizeName(name), level || 'Unknown');
+  });
+
+  const perArea = new Map();
+  const ensureArea = (areaKey) => {
+    if (!perArea.has(areaKey)) perArea.set(areaKey, new Map()); // level -> Set(names)
+    return perArea.get(areaKey);
+  };
+
+  (mapExportRows || []).forEach((r) => {
+    const areaRaw = (r && (r["Articulation"] ?? r["Articulation Area"] ?? r["ArticulationArea"] ?? "")).toString().trim();
+    const name = (r && (r["Building Name"] ?? r["BuildingName"] ?? "")).toString().trim();
+    const areaKey = normalizeArticulationAreaKey(areaRaw);
+    if (!areaKey || !name) return;
+    // Map_Export.csv uses this sentinel for schools not in an articulation area
+    if (areaKey === 'noarticulationarea' || areaKey === 'no articulation area' || areaKey === 'n/a') return;
+
+    const level = levelByName.get(normalizeName(name)) || 'Unknown';
+    const levels = ensureArea(areaKey);
+    const key = (level || 'Unknown').toString().trim() || 'Unknown';
+    if (!levels.has(key)) levels.set(key, new Set());
+    levels.get(key).add(name);
+  });
+
+  const preferredOrder = [
+    'Elementary',
+    'Middle',
+    'K-8',
+    'High',
+    'Alternative',
+    'Charter',
+    'Unknown'
+  ];
+  const orderIndex = new Map(preferredOrder.map((k, i) => [k.toLowerCase(), i]));
+  const sortGroupKeys = (keys) => {
+    return keys.slice().sort((a, b) => {
+      const ai = orderIndex.has(a.toLowerCase()) ? orderIndex.get(a.toLowerCase()) : 999;
+      const bi = orderIndex.has(b.toLowerCase()) ? orderIndex.get(b.toLowerCase()) : 999;
+      if (ai !== bi) return ai - bi;
+      return a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
+    });
+  };
+
+  const out = new Map();
+  perArea.forEach((levelsMap, areaKey) => {
+    const groups = {};
+    let total = 0;
+    const rawKeys = Array.from(levelsMap.keys());
+    const groupKeys = sortGroupKeys(rawKeys);
+    groupKeys.forEach((k) => {
+      const arr = Array.from(levelsMap.get(k) || []).sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })
+      );
+      groups[k] = arr;
+      total += arr.length;
+    });
+    out.set(areaKey, { total, groupKeys, groups });
+  });
+
+  return out;
+}
+
 // Decision outcome colors (keep consistent with map circle coloring)
 const DECISION_COLORS = {
   // Expansion: use a blue family (keep green reserved for Standard Maintenance)
@@ -353,6 +518,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const leftToggle = document.getElementById('toggleLeftSidebar');
     const rightToggle = document.getElementById('toggleRightSidebar');
     const startTourBtn = document.getElementById('menuStartTour');
+    const closureScenariosBtn = document.getElementById('menuClosureScenarios');
     const dataLogicBtn = document.getElementById('menuDataLogic');
     const rightSidebar = document.getElementById('map-sidebar');
     const showMapBtn = document.getElementById('menuShowMap');
@@ -535,6 +701,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       });
     }
+    if (closureScenariosBtn) {
+      closureScenariosBtn.addEventListener('click', () => {
+        hideMenu();
+        window.open('closure-scenarios.html', '_blank');
+      });
+    }
     if (dataLogicBtn) {
       dataLogicBtn.addEventListener('click', () => {
         hideMenu();
@@ -586,6 +758,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const roadCb = document.getElementById('toggleRoadLabels');
     const placeCb = document.getElementById('togglePlaceLabels');
     const poiCb = document.getElementById('togglePoiLabels');
+    const aaCb = document.getElementById('toggleArticulationAreas');
     const prefs = getSavedMapLabelPrefs();
     if (roadCb) roadCb.checked = !!prefs.roadLabels;
     if (placeCb) placeCb.checked = !!prefs.placeLabels;
@@ -606,6 +779,17 @@ document.addEventListener('DOMContentLoaded', function() {
     if (roadCb) roadCb.addEventListener('change', onLabelChange);
     if (placeCb) placeCb.addEventListener('change', onLabelChange);
     if (poiCb) poiCb.addEventListener('change', onLabelChange);
+    if (aaCb) {
+      aaCb.addEventListener('change', () => {
+        try {
+          const m = window.map;
+          if (!m) return;
+          const vis = aaCb.checked ? 'visible' : 'none';
+          if (m.getLayer('articulation-areas-fill')) m.setLayoutProperty('articulation-areas-fill', 'visibility', vis);
+          if (m.getLayer('articulation-areas-outline')) m.setLayoutProperty('articulation-areas-outline', 'visibility', vis);
+        } catch (e) {}
+      });
+    }
     const savedStyle = getSavedMapStyle();
     styleRadios.forEach(r => { r.checked = r.value === savedStyle; });
 
@@ -932,6 +1116,7 @@ let mapExportLookupMaps = { byName: new Map(), byCode: new Map() }; // Lookups f
 let decisionAllRows = []; // Full Decision Data Export.csv rows (includes excluded schools)
 let decisionAllByName = new Map(); // normalized name -> row
 let decisionAllById = new Map();   // normalized UniqueID -> row
+let articulationSchoolsByArea = new Map(); // area name -> array of school names
 
 // Normalize school level strings from data to our filter values
 function normalizeSchoolLevel(level) {
@@ -2278,6 +2463,15 @@ map.on('load', () => {
           .filter(([k]) => !!k)
       );
 
+      // Build articulation area -> school list index (for map popups)
+      try {
+        // Use Map_Export.csv because it contains the per-school articulation area assignment.
+        // Use Decision Data Export.csv to group by School Level.
+        articulationSchoolsByArea = buildArticulationSchoolsIndexFromMapExport(mapExportRowsData, decisionAllRows);
+      } catch (e) {
+        articulationSchoolsByArea = new Map();
+      }
+
       // Keep all schools; filtering will be controlled by toggles
       geojsonData = merged.geojson;
       window.geojsonData = geojsonData; // Expose globally for prioritization UI
@@ -2498,6 +2692,111 @@ map.on('load', () => {
         type: 'geojson',
         data: geojsonData
       });
+
+      // Optional overlay: articulation areas (below school dots)
+      try {
+        const aaCb = document.getElementById('toggleArticulationAreas');
+        const aaVis = (aaCb && aaCb.checked) ? 'visible' : 'none';
+        map.addSource('articulation-areas', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] }
+        });
+        map.addLayer({
+          id: 'articulation-areas-fill',
+          type: 'fill',
+          source: 'articulation-areas',
+          layout: { visibility: aaVis },
+          paint: {
+            'fill-color': getArticulationColorExpression(),
+            'fill-opacity': 0.16
+          }
+        });
+        map.addLayer({
+          id: 'articulation-areas-outline',
+          type: 'line',
+          source: 'articulation-areas',
+          layout: { visibility: aaVis },
+          paint: {
+            'line-color': getArticulationColorExpression(),
+            'line-opacity': 0.45,
+            'line-width': 1.5
+          }
+        });
+
+        // Load + reproject on demand
+        loadArticulationAreas4326()
+          .then((gj) => {
+            const src = map.getSource('articulation-areas');
+            if (src) src.setData(gj || { type: 'FeatureCollection', features: [] });
+          })
+          .catch((e) => console.warn('Failed to load articulation areas', e));
+
+        // Click popups for articulation areas (no hover-follow)
+        const popup = new mapboxgl.Popup({ closeButton: true, closeOnClick: false });
+        let pinned = false;
+        popup.on('close', () => { pinned = false; });
+
+        const buildPopupHtml = (areaName) => {
+          const areaKey = normalizeArticulationAreaKey(areaName);
+          const data = articulationSchoolsByArea && articulationSchoolsByArea.get(areaKey) ? articulationSchoolsByArea.get(areaKey) : null;
+          const groups = data && data.groups ? data.groups : {};
+          const groupKeys = data && Array.isArray(data.groupKeys) ? data.groupKeys : Object.keys(groups || {});
+          const total = data && Number.isFinite(data.total) ? data.total : groupKeys.reduce((sum, k) => sum + ((groups[k] || []).length), 0);
+
+          const maxPerGroup = 25;
+          const groupHtml = groupKeys.map((k) => {
+            const list = Array.isArray(groups[k]) ? groups[k] : [];
+            const shown = list.slice(0, maxPerGroup);
+            const more = list.length > maxPerGroup ? (list.length - maxPerGroup) : 0;
+            const items = shown.map((s) => `<li style="margin:0 0 2px 0;">${escapeHtml(s)}</li>`).join('');
+            const moreLine = more ? `<div style="margin:4px 0 0 0; color:#6b7280; font-size:12px;">+${more} more…</div>` : '';
+            return (
+              `<div style="margin-top:10px; font-weight:800;">${escapeHtml(k)} (${list.length})</div>` +
+              `<ul style="padding-left:18px; margin:4px 0 0 0;">${items}</ul>` +
+              `${moreLine}`
+            );
+          }).join('');
+
+          const emptyHtml = `<div style="color:#6b7280; font-size:12px;">No schools found for this area.</div>`;
+          return (
+            `<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; font-weight:900; margin-bottom:6px;">` +
+              `<div>${escapeHtml(areaName)} Area</div>` +
+              `<div style="font-size:12px; color:#6b7280; font-weight:600;">${total} total</div>` +
+            `</div>` +
+            `<div style="max-height:180px; overflow:auto; border-top:1px solid #e5e7eb; padding-top:6px;">` +
+            `${groupKeys.length ? groupHtml : emptyHtml}` +
+            `</div>`
+          );
+        };
+
+        map.on('mouseenter', 'articulation-areas-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
+        map.on('mouseleave', 'articulation-areas-fill', () => { map.getCanvas().style.cursor = ''; });
+
+        map.on('click', 'articulation-areas-fill', (e) => {
+          const f = e.features && e.features[0] ? e.features[0] : null;
+          const areaName = f && f.properties ? (f.properties.__aaName || f.properties['Articulation Area'] || '') : '';
+          if (!areaName) return;
+          pinned = true;
+          popup.setLngLat(e.lngLat).setHTML(buildPopupHtml(areaName)).addTo(map);
+        });
+
+        // Allow click-away to dismiss (X button also works)
+        map.on('click', (e) => {
+          if (!pinned) return;
+          let hits = [];
+          try {
+            hits = map.queryRenderedFeatures(e.point, { layers: ['articulation-areas-fill'] }) || [];
+          } catch {
+            hits = [];
+          }
+          if (!hits.length) {
+            popup.remove();
+            pinned = false;
+          }
+        });
+      } catch (e) {
+        console.warn('Articulation areas setup failed', e);
+      }
 
       // Apply initial filters so non‑eval/closed are hidden until toggled on
       try {
@@ -3291,6 +3590,7 @@ map.on('load', () => {
   const schoolTypeDropdownLabel = document.getElementById('schoolTypeDropdownLabel');
   const unselectAllSchoolsBtn = document.getElementById('unselectAllSchoolsBtn');
   let enrollmentRangeSynced = false;
+  let seatsRangeSynced = false;
   let utilSpritesAdded = false;
   // Disable restoring prior selections to avoid auto-selecting a school on load
   const savedOriginId = '';
@@ -3396,10 +3696,11 @@ map.on('load', () => {
   window.ensureUtilizationPieSprites = ensureUtilizationPieSprites;
 
   noUiSlider.create(enrollmentSlider, {
-    start: [0, 2000], connect: true, step: 10, range: { min: 0, max: 2000 }
+    start: [0, 2500], connect: true, step: 10, range: { min: 0, max: 2500 }
   });
   noUiSlider.create(seatsSlider, {
-    start: [-500, 500], connect: true, step: 1, range: { min: -500, max: 500 }
+    // Start wide so no schools are hidden before we sync to actual data range.
+    start: [-2000, 5000], connect: true, step: 1, range: { min: -2000, max: 5000 }
   });
 
   // Enforce compact slider styling via inline styles (prevents later overrides)
@@ -3480,22 +3781,23 @@ map.on('load', () => {
       return;
     }
 
-    // Pad to nice step-aligned bounds
+    // Pad to nice step-aligned bounds (and keep at least the requested 0–2500 range)
     const paddedMin = Math.max(0, Math.floor(minVal / 10) * 10);
     const paddedMax = Math.ceil(maxVal / 10) * 10;
+    const effectiveMax = Math.max(2500, paddedMax);
 
     if (enrollmentSlider && enrollmentSlider.noUiSlider) {
       enrollmentSlider.noUiSlider.updateOptions({
-        range: { min: paddedMin, max: paddedMax },
-        start: [paddedMin, paddedMax]
+        range: { min: paddedMin, max: effectiveMax },
+        start: [paddedMin, effectiveMax]
       }, false);
       minEnrollment = paddedMin;
-      maxEnrollment = paddedMax;
+      maxEnrollment = effectiveMax;
       if (minEnrollDisplay) minEnrollDisplay.textContent = paddedMin;
-      if (maxEnrollDisplay) maxEnrollDisplay.textContent = paddedMax;
+      if (maxEnrollDisplay) maxEnrollDisplay.textContent = effectiveMax;
       enrollmentRangeSynced = true;
       updateLayer();
-      console.log("📊 Enrollment slider synced to Decision Data Export range:", { minVal, maxVal, paddedMin, paddedMax });
+      console.log("📊 Enrollment slider synced to Decision Data Export range:", { minVal, maxVal, paddedMin, paddedMax, effectiveMax });
     }
   };
   syncEnrollmentRangeFromDecisionData();
@@ -3507,6 +3809,56 @@ map.on('load', () => {
     maxSeatsDisplay.textContent = maxSeats;
     updateLayer();
   });
+
+  // Sync seats slider range to Decision Data Export (decisionLogic.schoolData)
+  const syncSeatsRangeFromDecisionData = (retry = 0) => {
+    if (seatsRangeSynced) return;
+    const data = window.decisionLogic && Array.isArray(window.decisionLogic.schoolData)
+      ? window.decisionLogic.schoolData
+      : null;
+    if (!data || !data.length) {
+      if (retry < 50) {
+        setTimeout(() => syncSeatsRangeFromDecisionData(retry + 1), 200);
+      }
+      return;
+    }
+
+    const seatValues = data
+      .map(r => parseFloat(r["Available Seats"] ?? r["AvailableSeats"] ?? r.AvailableSeats ?? 0))
+      .filter(v => Number.isFinite(v));
+    if (!seatValues.length) {
+      return;
+    }
+
+    let minVal = Math.min(...seatValues);
+    let maxVal = Math.max(...seatValues);
+
+    // If min/max collapse or are invalid, keep defaults.
+    if (!Number.isFinite(minVal) || !Number.isFinite(maxVal)) {
+      console.warn("⚠️ Seats sync skipped due to invalid range", { minVal, maxVal });
+      return;
+    }
+
+    // Pad to nice bounds; keep the slider usable while still inclusive.
+    const paddedMin = Math.floor(minVal / 10) * 10;
+    const paddedMax = Math.ceil(maxVal / 10) * 10;
+    const safeMax = paddedMax > paddedMin ? paddedMax : (paddedMin + 10);
+
+    if (seatsSlider && seatsSlider.noUiSlider) {
+      seatsSlider.noUiSlider.updateOptions({
+        range: { min: paddedMin, max: safeMax },
+        start: [paddedMin, safeMax]
+      }, false);
+      minSeats = paddedMin;
+      maxSeats = safeMax;
+      if (minSeatsDisplay) minSeatsDisplay.textContent = paddedMin;
+      if (maxSeatsDisplay) maxSeatsDisplay.textContent = safeMax;
+      seatsRangeSynced = true;
+      updateLayer();
+      console.log("📊 Seats slider synced to Decision Data Export range:", { minVal, maxVal, paddedMin, paddedMax: safeMax });
+    }
+  };
+  syncSeatsRangeFromDecisionData();
 
   toggleYes.addEventListener('click', () => {
     showVariableRadius = true;
@@ -5393,6 +5745,13 @@ document.addEventListener("DOMContentLoaded", function() {
       
       // Store thresholds globally for flowchart access
       window.thresholds = thresholds;
+
+      // Persist so school-profile can match dashboard decisions
+      try {
+        window.localStorage && window.localStorage.setItem("jeffco_thresholds_v1", JSON.stringify(thresholds));
+      } catch (e) {
+        // ignore
+      }
       
       if (window.decisionLogic) {
         window.decisionLogic.updateThresholds(thresholds);
@@ -7979,9 +8338,13 @@ if (typeof window.switchToMap !== 'function') {
 
     if (openBtn) {
       openBtn.addEventListener('click', () => {
+        const row = getSelectedRow();
         const name = select.value;
-        if (!name) return;
-        const url = `school-profile.html?school=${encodeURIComponent(name)}`;
+        if (!name || !row) return;
+        const uid = (row.UniqueID || row["UniqueID"] || "").toString();
+        const url =
+          `school-profile.html?school=${encodeURIComponent(name)}` +
+          (uid ? `&uid=${encodeURIComponent(uid)}` : "");
         window.open(url, '_blank', 'noopener');
       });
     }

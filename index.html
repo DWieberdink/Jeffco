@@ -18,12 +18,13 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.0/nouislider.min.js" defer></script>
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js" defer></script>
   <script src="https://d3js.org/d3.v7.min.js" defer></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.js" defer></script>
   <!-- Cache-bust local scripts so GitHub Pages / browsers don't serve stale JS -->
   <script src="DecisionLogic.js?v=20251219_1" defer></script>
   <script src="PrioritizationLogic.js?v=20251219_1" defer></script>
   <script src="PrioritizationUI.js?v=20251219_1" defer></script>
   <script src="FlowchartLogic.js?v=20260113_1" defer></script>
-  <script src="script.js?v=20260113_4" defer></script>
+  <script src="script.js?v=20260129_3" defer></script>
   
 
 
@@ -2635,6 +2636,7 @@
     <div class="menu-section-title">Help &amp; Data</div>
     <div style="margin-top:6px; display:grid; gap:8px;">
       <button id="menuStartTour" class="menu-action-btn" type="button">Start tour</button>
+      <button id="menuClosureScenarios" class="menu-action-btn" type="button">Closure Scenarios</button>
       <button id="menuDataLogic" class="menu-action-btn" type="button">Data &amp; logic (sources)</button>
     </div>
   </div>
@@ -2776,8 +2778,8 @@
           <label>Current Utilization Threshold: <span id="utilOut">60</span>%
             <input type="range" id="utilSlider" min="0" max="100" step="1" value="60" oninput="document.getElementById('utilOut').textContent = this.value">
           </label>
-          <label>High Utilization Threshold: <span id="utilHighOut">100</span>%
-            <input type="range" id="utilHighSlider" min="0" max="120" step="1" value="100" oninput="document.getElementById('utilHighOut').textContent = this.value">
+          <label>High Utilization Threshold: <span id="utilHighOut">90</span>%
+            <input type="range" id="utilHighSlider" min="0" max="120" step="1" value="90" oninput="document.getElementById('utilHighOut').textContent = this.value">
           </label>
           <label>Enrollment Growth Threshold: <span id="growthOut">0</span>%
             <input type="range" id="growthSlider" min="-50" max="50" step="1" value="0" oninput="document.getElementById('growthOut').textContent = this.value">
@@ -3113,6 +3115,10 @@
                       <input type="checkbox" id="togglePoiLabels" checked style="width:14px; height:14px;">
                       <span>POIs (restaurants, parks)</span>
                     </label>
+                    <label style="display:flex; align-items:center; gap:6px;">
+                      <input type="checkbox" id="toggleArticulationAreas" style="width:14px; height:14px;">
+                      <span>Articulation areas</span>
+                    </label>
                   </div>
                 </div>
               </div>
@@ -3146,13 +3152,13 @@
 
             <div class="filter-row">
               <span class="filter-label">Enrollment Range</span>
-              <span class="filter-chip"><span id="minEnrollDisplay">0</span> – <span id="maxEnrollDisplay">2000</span></span>
+              <span class="filter-chip"><span id="minEnrollDisplay">0</span> – <span id="maxEnrollDisplay">2500</span></span>
             </div>
             <div id="enrollmentRangeSlider" class="compact-slider"></div>
 
             <div class="filter-row">
               <span class="filter-label">Available Seats</span>
-              <span class="filter-chip"><span id="minSeatsDisplay">-500</span> – <span id="maxSeatsDisplay">500</span></span>
+              <span class="filter-chip"><span id="minSeatsDisplay">-2000</span> – <span id="maxSeatsDisplay">5000</span></span>
             </div>
             <div id="seatsRangeSlider" class="compact-slider"></div>
 
@@ -3678,7 +3684,7 @@ document.addEventListener('DOMContentLoaded', function() {
               <li><strong>Current Utilization Threshold</strong><br>
                 Minimum percentage of capacity used before a school is considered underutilized (0-100%, default: 60%)</li>
               <li><strong>High Utilization Threshold</strong><br>
-                Percentage threshold for identifying highly utilized or overcrowded schools (0-120%, default: 100%)</li>
+                Percentage threshold for identifying highly utilized or overcrowded schools (0-120%, default: 90%)</li>
               <li><strong>Enrollment Growth Threshold</strong><br>
                 Minimum expected change in student enrollment (-50% to +50%, default: 0%)</li>
               <li><strong>Distance to Nearby Schools by School Level</strong><br>

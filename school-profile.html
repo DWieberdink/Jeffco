@@ -123,6 +123,12 @@
       border-radius: 12px;
       box-shadow: 0 6px 16px rgba(0,0,0,0.06);
       padding: 14px;
+      position: relative;
+    }
+    .card.sticky-summary {
+      position: sticky;
+      top: 12px;
+      z-index: 30;
     }
 
     .section-title {
@@ -136,10 +142,189 @@
       font-weight: 900;
       margin: 0;
     }
+    .summary-total {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      font-size: 20px;
+      font-weight: 900;
+      color: var(--text);
+      text-align: right;
+      white-space: nowrap;
+    }
+    .summary-total .label {
+      display: block;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .summary-subtotals {
+      position: absolute;
+      top: 62px;
+      right: 14px;
+      display: grid;
+      grid-template-columns: auto auto;
+      gap: 4px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      text-align: right;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .summary-subtotal {
+      display: contents;
+    }
+    .summary-subtotals .k {
+      color: var(--muted);
+      font-weight: 800;
+    }
+    .addition-info {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #f8fafc;
+    }
+    .addition-info.is-collapsed {
+      padding: 6px 10px;
+    }
+    .addition-info.is-collapsed .addition-body {
+      display: none;
+    }
+    .addition-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 0 0 8px 0;
+    }
+    .addition-info.is-collapsed .addition-header {
+      margin-bottom: 0;
+    }
+    .addition-info .title {
+      font-size: 13px;
+      font-weight: 900;
+      margin: 0;
+      text-align: left;
+    }
+    .addition-collapse {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 6px 10px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .addition-collapse::before {
+      content: "▾";
+      font-size: 12px;
+      line-height: 1;
+      color: var(--muted);
+    }
+    .addition-collapse[aria-expanded="false"]::before {
+      content: "▸";
+    }
+    .addition-kpis {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .addition-kpi {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 10px;
+    }
+    .addition-kpi .k {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .addition-kpi .v {
+      font-size: 16px;
+      font-weight: 900;
+      color: var(--text);
+      line-height: 1.2;
+    }
+    .addition-target-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 0;
+    }
+    .addition-target-table th,
+    .addition-target-table td {
+      border: 1px solid var(--border);
+      padding: 6px 8px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .addition-target-table th {
+      background: #eef2f7;
+      font-weight: 900;
+    }
+    .addition-target-table tr.is-active td {
+      background: #fff7ed;
+      border-color: #fdba74;
+      font-weight: 900;
+    }
+    .addition-story-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 8px 0 10px 0;
+      flex-wrap: wrap;
+    }
+    .story-toggle {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .story-toggle button {
+      border: 0;
+      background: transparent;
+      padding: 6px 10px;
+      font-family: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .story-toggle button + button {
+      border-left: 1px solid var(--border);
+    }
+    .story-toggle button[aria-pressed="true"] {
+      background: #d1d5db;
+      color: #0f172a;
+      font-weight: 900;
+    }
+    .addition-note {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .cost-highlight {
+      background: #fff7ed !important;
+      border-color: #fdba74 !important;
+      font-weight: 900;
+      color: var(--text) !important;
+    }
 
     .controls {
       display: grid;
-      grid-template-columns: 1.5fr 1fr 1fr auto;
+      grid-template-columns: 1.5fr 1fr 1fr 1fr auto;
       gap: 10px;
       align-items: end;
       margin-top: 10px;
@@ -185,7 +370,7 @@
       border: 1px solid var(--border);
       padding: 8px 10px;
       text-align: left;
-      vertical-align: top;
+      vertical-align: middle;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -204,8 +389,98 @@
       font-weight: 900;
       color: #0f172a;
     }
+    .priority-segment {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      background: #fff;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+    .priority-segment-btn {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      /* ~50% narrower, ~25% less tall */
+      /* ~60% height of previous */
+      padding: 4px 10px;
+      font-family: inherit;
+      font-weight: inherit;
+      font-size: inherit;
+      color: #9ca3af;
+      cursor: pointer;
+      min-width: 55px;
+    }
+    .priority-segment-btn + .priority-segment-btn {
+      border-left: 1px solid var(--border);
+    }
+    .priority-segment-btn[aria-pressed="true"] {
+      background: #d1d5db; /* darker selected state */
+      color: #0f172a;
+    }
+    .priority-segment-btn:hover {
+      background: #f9fafb;
+      color: #111827;
+    }
+    .priority-segment-btn[aria-pressed="true"]:hover {
+      background: #cbd5e1;
+      color: #0f172a;
+    }
+    .priority-segment-btn:focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: -2px;
+    }
+
+    /* Keep the row control compact on smaller screens */
+    @media (max-width: 720px) {
+      .priority-segment-btn {
+        padding: 3px 8px;
+        min-width: 48px;
+      }
+    }
     .muted {
       color: var(--muted);
+    }
+    /* Rows excluded from totals (e.g., non-relevant gut-reno levels) */
+    .excluded-row td {
+      color: #cbd5e1; /* noticeably greyer than .muted */
+    }
+    /* Keep Project Type readable even when excluded */
+    .excluded-row td.project-type-cell {
+      color: var(--text);
+    }
+    /* Condition score should never be greyed; color-coded */
+    .excluded-row td.condition-score-cell {
+      color: var(--text);
+      font-weight: 900;
+    }
+    .condition-score-cell.score-good {
+      color: #16a34a; /* green */
+      font-weight: 900;
+    }
+    .condition-score-cell.score-poor {
+      color: #dc2626; /* red */
+      font-weight: 900;
+    }
+    .condition-score-cell.score-na {
+      color: var(--text); /* black */
+      font-weight: 900;
+    }
+    /* Ensure Good/Poor still win even when row is excluded */
+    .excluded-row td.condition-score-cell.score-good {
+      color: #16a34a; /* green */
+    }
+    .excluded-row td.condition-score-cell.score-poor {
+      color: #dc2626; /* red */
+    }
+    .excluded-row td.condition-score-cell.score-na {
+      color: var(--text); /* black */
+    }
+    .excluded-level td:last-child {
+      font-style: italic;
+    }
+    .excluded-row .priority-segment-btn {
+      opacity: 0.45;
     }
     .empty {
       padding: 14px;
@@ -240,8 +515,23 @@
   </div>
 
   <div class="page">
-    <div class="card">
+    <div class="card sticky-summary" id="summaryCard">
       <h2 class="section-title">School summary</h2>
+      <div class="summary-total" aria-label="Total replacement cost">
+        <span class="label">Total Cost</span>
+        <span id="totalReplacementCost">—</span>
+      </div>
+      <div class="summary-subtotals" aria-label="Total cost by priority">
+        <div class="summary-subtotal"><span class="k">Low</span><span id="totalLowCost">—</span></div>
+        <div class="summary-subtotal"><span class="k">Medium</span><span id="totalMediumCost">—</span></div>
+        <div class="summary-subtotal"><span class="k">High</span><span id="totalHighCost">—</span></div>
+      </div>
+      <div class="control" style="max-width: 520px; margin-bottom: 8px;">
+        <label for="schoolSelect">School</label>
+        <select id="schoolSelect">
+          <option value="">— Select a school —</option>
+        </select>
+      </div>
       <p class="summary-name" id="schoolNameHeader">—</p>
       <div class="meta" id="schoolMeta"></div>
     </div>
@@ -257,13 +547,19 @@
           <input id="searchInput" type="text" placeholder="Filter rows by text…" />
         </div>
         <div class="control">
+          <label for="priorityFilter">Priority</label>
+          <select id="priorityFilter">
+            <option value="">All</option>
+          </select>
+        </div>
+        <div class="control">
           <label for="systemCategoryFilter">SystemCategory</label>
           <select id="systemCategoryFilter">
             <option value="">All</option>
           </select>
         </div>
         <div class="control">
-          <label for="assetTypeFilter">AssetType</label>
+          <label for="assetTypeFilter">Project Type</label>
           <select id="assetTypeFilter">
             <option value="">All</option>
           </select>
@@ -277,7 +573,7 @@
     </div>
   </div>
 
-  <script src="school-profile.js?v=20251219_1" defer></script>
+  <script src="school-profile.js?v=20260127_22" defer></script>
 </body>
 </html>
 

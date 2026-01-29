@@ -972,6 +972,9 @@ window.prioritizationUI = {
       "#" +
       bodyTableId +
       " tbody tr:hover { background: #f9f9f9; }" +
+      // NOTE: Do not grey out any rows in this table.
+      ".ps-greyed td { color: inherit; }" +
+      ".ps-greyed a { color: #007cbf !important; text-decoration: underline !important; font-weight: 600; }" +
       ".column-resizer { position: absolute; top: 0; right: 0; width: 4px; height: 100%; cursor: col-resize; background: transparent; z-index: 10; }" +
       ".column-resizer:hover { background: #007cbf; }" +
       ".column-resizer.dragging { background: #007cbf; }" +
@@ -1074,8 +1077,14 @@ window.prioritizationUI = {
     rankedSchools.forEach(function (school, index) {
       const buildingName = school["Building Name"] || school.name || "Unknown";
       const strategyLabel = school.strategyGroup || "";
+      const uid = (school["UniqueID"] || school.UniqueID || "").toString();
+      const decisionOutcomeRaw = (school.decision || school["Decision Type"] || school.outcome || school.strategyOutcome || "").toString();
+      const decisionOutcome = decisionOutcomeRaw.trim();
+      const keepBlack = true; // never grey-out rows in prioritized table
       const schoolProfileHref =
-        "school-profile.html?school=" + encodeURIComponent((buildingName || "").toString());
+        "school-profile.html?school=" +
+        encodeURIComponent((buildingName || "").toString()) +
+        (uid ? "&uid=" + encodeURIComponent(uid) : "");
 
       html += "<tr>";
       html += "<td>" + (index + 1) + "</td>";
@@ -1087,6 +1096,7 @@ window.prioritizationUI = {
       html +=
         '<td title="' +
         buildingName +
+        (decisionOutcome ? " — " + decisionOutcome : "") +
         '">' +
         '<a href="' +
         schoolProfileHref +
