@@ -181,6 +181,7 @@
             overflow-x: auto;
             padding: 0;
             gap: 4px;
+            align-items: center;
         }
 
         .tab-button {
@@ -210,6 +211,43 @@
 
         /* Data Sources should be the right-most tab, but not separated by a huge gap */
         .tab-button.data-sources { margin-left: 0; }
+
+        /* Decision Categories: integrated dropdown + sub-panels */
+        .dc-select {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #fff;
+            margin: 8px 0 16px 0;
+            flex-wrap: wrap;
+        }
+        .dc-select label {
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--muted);
+            margin: 0;
+        }
+        .dc-select select {
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            font-size: 13px;
+            background: #fff;
+            color: var(--text);
+            font-weight: 700;
+            min-width: 280px;
+            max-width: 100%;
+        }
+        .dc-detail {
+            display: none;
+            margin-top: 6px;
+        }
+        .dc-detail.active {
+            display: block;
+        }
 
         .tab-content {
             display: none;
@@ -474,92 +512,208 @@
 
         <div class="tab-container">
             <div class="tab-buttons">
-                <button class="tab-button active" onclick="showTab('overview')">Dashboard Overview</button>
-                <button class="tab-button" onclick="showTab('decision-logic')">Decision Logic</button>
-                <button class="tab-button" onclick="showTab('flowchart-logic')">Flowchart Logic</button>
-                <button class="tab-button" onclick="showTab('formulas')">Formulas</button>
+                <button class="tab-button active" onclick="showTab('overview')">Overview</button>
+                <button class="tab-button" onclick="showTab('decision-categories')">Decision Categories</button>
+                <button class="tab-button" onclick="showTab('school-profile-logic')">School Profile</button>
+                <button class="tab-button" onclick="showTab('closure-scenarios-logic')">Closure Scenarios</button>
                 <button class="tab-button data-sources" onclick="showTab('data-sources')">Data Sources</button>
             </div>
 
             <!-- Dashboard Overview Tab -->
             <div id="overview" class="tab-content active">
                 <h2>📋 Dashboard Overview</h2>
-                <p>The Jeffco Dashboard uses multiple data sources to evaluate schools and provide strategic decision recommendations for Jefferson County School District.</p>
-
-                <h3>🎯 Primary Data Sources</h3>
+                <p>The Jeffco Schools Dashboard is a planning tool that helps compare facilities, capacity, and program needs across schools. It supports two major steps:</p>
                 <ul>
-                    <li><strong>Decision Data Export.csv</strong> - Contains evaluation metrics, growth data, and building scores</li>
-                    <li><strong>Schools.geojson</strong> - Contains geographic data and school locations for mapping</li>
-                    <li><strong>Map_Export.csv</strong> - Contains additional geographic and capacity data</li>
+                    <li><strong>Strategy Sorting (Step 1)</strong> routes each school into a recommended strategy category using thresholds and score-based decision logic.</li>
+                    <li><strong>Prioritization (Step 2)</strong> ranks schools within a selected strategy group using weighted criteria.</li>
                 </ul>
 
-                <h3>📧 Key Features</h3>
+                <h3>✅ Key features</h3>
                 <ul>
-                    <li><strong>School Decision Evaluation</strong> - Evaluates schools based on multiple criteria</li>
-                    <li><strong>Interactive Map</strong> - Visualizes school locations and decision categories</li>
-                    <li><strong>Interactive Flowchart</strong> - Visualizes decision logic for individual schools</li>
-                    <li><strong>Flow-based Filtering</strong> - Filter schools by decision flow categories</li>
-                    <li><strong>Geographic Analysis</strong> - Maps schools and analyzes spatial relationships</li>
+                    <li><strong>Interactive map</strong> to explore schools spatially (filters, popups, overlays).</li>
+                    <li><strong>Flowchart</strong> to explain “why” a school lands in its Step 1 category.</li>
+                    <li><strong>Impact analysis / model simulation</strong> to simulate reassignment outcomes for a selected sending school.</li>
+                    <li><strong>School Profile</strong> to review per-school projects and cost rollups (including priority subtotals).</li>
+                    <li><strong>Closure Scenarios</strong> to reassign students using student home coordinates + seat availability.</li>
                 </ul>
 
-                <h3>📊 Decision Categories</h3>
-                <!-- Expansion Flow (Flow 2) -->
-                <h4 style="color: #2E8B57; margin-top: 20px; margin-bottom: 10px;">🟢 Expansion Flow</h4>
+                <div class="meta-box">
+                    <strong>Tip:</strong> Each key feature has its own tab above with the logic and assumptions.
+                </div>
+            </div>
+
+            <!-- Decision Categories Tab -->
+            <div id="decision-categories" class="tab-content">
+                <h2>🏷️ Decision Categories</h2>
+                <p>Decision Categories are the named outcomes produced by <strong>Strategy Sorting (Step 1)</strong>. They summarize the recommended planning pathway for each school.</p>
+
+                <h3>How to interpret categories</h3>
+                <ul>
+                    <li><strong>Categories are not projects</strong>: they describe the recommended pathway (expand, invest, consolidate), not a final design.</li>
+                    <li><strong>Categories depend on thresholds</strong>: changing sliders can change the category.</li>
+                    <li><strong>Step 2 uses categories</strong>: prioritization ranks within a selected category group.</li>
+                </ul>
+
+                <h3>Categories by flow</h3>
                 <div class="grid">
-                    <div class="decision-category" style="border-left: 4px solid #2E8B57;">
-                        <strong style="color: #2E8B57;">Building Addition</strong><br>
-                        Schools that could expand on their current site
+                    <div class="card" style="border-left: 4px solid #2E8B57;">
+                        <h4 style="color:#2E8B57; margin-top:0;">🟢 Expansion</h4>
+                        <ul>
+                            <li><strong style="color:#2E8B57;">Building Addition</strong> — address capacity via on-site expansion.</li>
+                            <li><strong style="color:#4B830D;">Building Replacement</strong> — replacement recommended to address needs.</li>
+                            <li><strong style="color:#1B5E20;">Building Addition with Capital Investment</strong> — expansion plus significant investment.</li>
+                            <li><strong style="color:#66BB6A;">Policy Solution for Overcrowding</strong> — address through policy/reassignment rather than construction.</li>
+                        </ul>
                     </div>
-                    <div class="decision-category" style="border-left: 4px solid #4B830D;">
-                        <strong style="color: #4B830D;">Building Replacement</strong><br>
-                        Schools needing complete replacement
+                    <div class="card" style="border-left: 4px solid #F59E0B;">
+                        <h4 style="color:#F59E0B; margin-top:0;">🟠 Maintenance / Investment</h4>
+                        <ul>
+                            <li><strong style="color:#FBBF24;">Targeted Capital Investment</strong> — targeted improvements.</li>
+                            <li><strong style="color:#1B9E77;">Standard Maintenance</strong> — routine maintenance needs.</li>
+                            <li><strong style="color:#F97316;">Major Capital Investment</strong> — major improvements.</li>
+                        </ul>
                     </div>
-                    <div class="decision-category" style="border-left: 4px solid #1B5E20;">
-                        <strong style="color: #1B5E20;">Building Addition with Capital Investment</strong><br>
-                        Schools needing both expansion and major capital investment
-                    </div>
-                    <div class="decision-category" style="border-left: 4px solid #66BB6A;">
-                        <strong style="color: #66BB6A;">Policy Solution for Overcrowding</strong><br>
-                        Schools requiring policy adjustments and student reassignment
+                    <div class="card" style="border-left: 4px solid #C62828;">
+                        <h4 style="color:#C62828; margin-top:0;">🔴 Closure / Consolidation</h4>
+                        <ul>
+                            <li><strong style="color:#C62828;">Welcoming School</strong> — candidate receiving school.</li>
+                            <li><strong style="color:#E53935;">Welcoming School with Capital Investment</strong> — receiving school with improvements needed.</li>
+                            <li><strong style="color:#B71C1C;">Closure (Goes to Welcoming School)</strong> — sending school recommended for closure and reassignment.</li>
+                            <li><strong style="color:#8B0000;">Welcoming School with Building Replacement</strong> — receiving school requires replacement.</li>
+                        </ul>
                     </div>
                 </div>
 
-                <!-- Maintenance/Investment Flow (Flow 3) -->
-                <h4 style="color: #F59E0B; margin-top: 20px; margin-bottom: 10px;">🟠 Maintenance/Investment Flow</h4>
-                <div class="grid">
-                    <div class="decision-category" style="border-left: 4px solid #FBBF24;">
-                        <strong style="color: #FBBF24;">Targeted Capital Investment</strong><br>
-                        Schools requiring targeted capital improvements
+                <h3>Decision Categories (details)</h3>
+                <p>Select a section below to review the logic behind the decision category framework and how it appears in the dashboard.</p>
+                <div class="dc-select" role="group" aria-label="Decision categories topics dropdown">
+                    <label for="decisionCategoriesDetailSelect">Section</label>
+                    <select id="decisionCategoriesDetailSelect">
+                        <option value="dc-strategy-sorting">Strategy Sorting (Step 1)</option>
+                        <option value="dc-flowchart">Flowchart (Step 1)</option>
+                        <option value="dc-prioritization">Prioritization (Step 2)</option>
+                        <option value="dc-map">Map &amp; Layers</option>
+                    </select>
+                </div>
+
+                <div id="dc-strategy-sorting" class="dc-detail active">
+                    <h3>🧭 Strategy Sorting (Step 1)</h3>
+                    <p><strong>Goal:</strong> route each school into a Decision Category (Expansion, Maintenance/Investment, or Closure/Consolidation) using thresholds and score-based logic.</p>
+
+                    <h4>How Step 1 is structured</h4>
+                    <div class="flow-step">
+                        <h4>Flow 1: Decision Routing</h4>
+                        <p>Determines which planning pathway the school enters based on utilization, growth, and distance context.</p>
                     </div>
-                    <div class="decision-category" style="border-left: 4px solid #1B9E77;">
-                        <strong style="color: #1B9E77;">Standard Maintenance</strong><br>
-                        Schools needing routine maintenance
+                    <div class="flow-step">
+                        <h4>Flow 2: Expansion</h4>
+                        <p>Evaluates whether capacity needs should be addressed through addition, replacement, investment + addition, or policy solution.</p>
                     </div>
-                    <div class="decision-category" style="border-left: 4px solid #F97316;">
-                        <strong style="color: #F97316;">Major Capital Investment</strong><br>
-                        Schools requiring significant capital improvements
+                    <div class="flow-step">
+                        <h4>Flow 3: Maintenance / Investment</h4>
+                        <p>Classifies needs into Standard Maintenance, Targeted Capital Investment, or Major Capital Investment.</p>
+                    </div>
+                    <div class="flow-step">
+                        <h4>Flow 4: Closure / Consolidation</h4>
+                        <p>Evaluates consolidation/closure pathways and identifies welcoming schools and investment needs.</p>
+                    </div>
+
+                    <h4>Building Composite Score (weighted)</h4>
+                    <p>The Building Composite Score is computed as a weighted combination of:</p>
+                    <ul>
+                        <li><strong>FCI</strong> — 30%</li>
+                        <li><strong>EUI</strong> — 15%</li>
+                        <li><strong>Building age</strong> — 15%</li>
+                        <li><strong>Year of last major renovation</strong> — 10%</li>
+                        <li><strong>Facility condition survey score</strong> — 10%</li>
+                        <li><strong>Work order data</strong> — 20%</li>
+                    </ul>
+                </div>
+
+                <div id="dc-flowchart" class="dc-detail">
+                    <h3>📊 Flowchart (Step 1)</h3>
+                    <p>The interactive flowchart is a <strong>visual explanation</strong> of Strategy Sorting (Step 1). It shows the selected school’s path through decision nodes and reflects the current threshold settings.</p>
+
+                    <h4>What it does</h4>
+                    <ul>
+                        <li><strong>Shows the path</strong> a school takes through Step 1 decision logic.</li>
+                        <li><strong>Displays thresholds</strong> at decision points (as currently set in the UI).</li>
+                        <li><strong>Helps interpret outcomes</strong> (why a school landed in a specific Decision Category).</li>
+                    </ul>
+
+                    <h4>What it does not do</h4>
+                    <ul>
+                        <li><strong>Does not prioritize</strong> schools (that’s Step 2).</li>
+                        <li><strong>Does not estimate costs</strong> (that’s School Profile).</li>
+                    </ul>
+
+                    <h4>Node types (visual language)</h4>
+                    <div class="grid">
+                        <div class="card">
+                            <h4>🗺️ Decision Nodes</h4>
+                            <p>Decision points with Yes/No outcomes (a metric compared to a threshold).</p>
+                        </div>
+                        <div class="card">
+                            <h4>🟠 Routing Nodes</h4>
+                            <p>Routing steps that direct the school into a specific flow.</p>
+                        </div>
+                        <div class="card">
+                            <h4>🟢 Start Nodes</h4>
+                            <p>The start of a decision sub-flow.</p>
+                        </div>
+                        <div class="card">
+                            <h4>🟣 Outcome Nodes</h4>
+                            <p>Final category outcomes for Step 1.</p>
+                        </div>
+                        <div class="card">
+                            <h4>⚫ Threshold Nodes</h4>
+                            <p>Threshold/value display nodes for transparency and interpretation.</p>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Closure/Consolidation Flow (Flow 4) -->
-                <h4 style="color: #C62828; margin-top: 20px; margin-bottom: 10px;">🔴 Closure/Consolidation Flow</h4>
-                <div class="grid">
-                    <div class="decision-category" style="border-left: 4px solid #C62828;">
-                        <strong style="color: #C62828;">Welcoming School</strong><br>
-                        Welcoming schools that receive students from other schools
+                <div id="dc-prioritization" class="dc-detail">
+                    <h3>🏁 Prioritization (Step 2)</h3>
+                    <p><strong>Goal:</strong> rank schools within a selected strategy group to support sequencing and investment conversations.</p>
+
+                    <h4>How scoring works (conceptually)</h4>
+                    <ul>
+                        <li><strong>Within-group ranking</strong>: the ranked set depends on which strategy group is selected.</li>
+                        <li><strong>Normalization</strong>: metrics are scaled to comparable scores (typically 0–100) across the ranked set.</li>
+                        <li><strong>Weighted combination</strong>: normalized scores are combined using the active slider weights.</li>
+                    </ul>
+                    <div class="formula-box">priorityScore = (Σ (normalizedMetricScore × metricWeight)) / (Σ metricWeight)</div>
+
+                    <h4>“Values” vs “Scores” (table display)</h4>
+                    <ul>
+                        <li><strong>Show values</strong>: raw units (miles, %, counts).</li>
+                        <li><strong>Show scores</strong>: normalized values used in the weighting.</li>
+                    </ul>
+
+                    <div class="meta-box">
+                        <strong>How it connects to Step 1:</strong>
+                        Step 1 decides the category; Step 2 decides the order within a chosen category group.
                     </div>
-                    <div class="decision-category" style="border-left: 4px solid #E53935;">
-                        <strong style="color: #E53935;">Welcoming School with Capital Investment</strong><br>
-                        Schools to be consolidated with capital improvements
-                    </div>
-                    <div class="decision-category" style="border-left: 4px solid #B71C1C;">
-                        <strong style="color: #B71C1C;">Closure (Goes to Welcoming School)</strong><br>
-                        Schools to be closed and students moved to welcoming schools
-                    </div>
-                    <div class="decision-category" style="border-left: 4px solid #8B0000;">
-                        <strong style="color: #8B0000;">Welcoming School with Building Replacement</strong><br>
-                        Schools to be closed and replaced
-                    </div>
+                </div>
+
+                <div id="dc-map" class="dc-detail">
+                    <h3>🗺️ Map &amp; Layers</h3>
+                    <p>The map is the primary exploration UI. It combines school point data with decision outputs and optional overlays.</p>
+
+                    <h4>Core map behaviors</h4>
+                    <ul>
+                        <li><strong>School points</strong> are colored by decision category/flow.</li>
+                        <li><strong>Popups</strong> provide key attributes and quick navigation.</li>
+                        <li><strong>Filtering</strong> narrows the displayed set (flow, level, enrollment, seats, etc.).</li>
+                        <li><strong>Layer order</strong>: base map (bottom) → overlays (e.g., articulation areas) → school points (top).</li>
+                    </ul>
+
+                    <h4>Articulation Areas overlay</h4>
+                    <ul>
+                        <li><strong>Toggle</strong> in the map filter dropdown.</li>
+                        <li><strong>Styling</strong> is translucent so you can still see the base map + school points.</li>
+                        <li><strong>Interaction</strong>: hover/click shows the articulation area name and the list of schools in that area.</li>
+                    </ul>
                 </div>
             </div>
 
@@ -3162,175 +3316,58 @@
                 </div>
             </div>
 
-            <!-- Schools.geojson Tab -->
-            <div id="map-data" class="tab-content">
-                <h2>🗺️ Schools.geojson</h2>
-                <p>This file contains geographic data for mapping school locations and spatial analysis.</p>
+            <!-- Map & Layers is documented under Decision Categories (dropdown). -->
+            <!-- Strategy Sorting is documented under Decision Categories (dropdown). -->
+            <!-- Flowchart (Step 1) is documented under Decision Categories (dropdown). -->
+            <!-- Prioritization (Step 2) is documented under Decision Categories (dropdown). -->
+            <!-- School Profile Tab -->
+            <div id="school-profile-logic" class="tab-content">
+                <h2>🏫 School Profile</h2>
+                <p>The School Profile page summarizes project items and costs for a selected school. It uses the unit cost library to categorize projects and the school project list to populate per-school values.</p>
 
-                <h3>🗺️ Geographic Data Structure</h3>
-                <div class="card">
-                    <h4>GeoJSON Feature Properties</h4>
-                    <ul>
-                        <li><strong>Building Name</strong> - School identifier</li>
-                        <li><strong>Latitude/Longitude</strong> - Geographic coordinates</li>
-                        <li><strong>Decision Type</strong> - Assigned decision category</li>
-                        <li><strong>School Level</strong> - Elementary, Middle, High, etc.</li>
-                        <li><strong>Utilization</strong> - School utilization rate</li>
-                        <li><strong>Capacity</strong> - School capacity</li>
-                        <li><strong>Available Seats</strong> - Available capacity</li>
-                        <li><strong>Scorecard</strong> - Overall school scorecard</li>
-                        <li><strong>Building Quality</strong> - Building condition score</li>
-                    </ul>
-                </div>
-
-                <h3>🗺️ Map Features</h3>
+                <h3>What it outputs</h3>
                 <ul>
-                    <li><strong>Interactive School Markers</strong> - Click to view school details</li>
-                    <li><strong>Color-coded by Decision Type</strong> - Visual representation of decisions</li>
-                    <li><strong>Flow-based Filtering</strong> - Filter by Expansion, Maintenance/Investment, Closure/Consolidation</li>
-                    <li><strong>Enrollment & Capacity Filtering</strong> - Filter by enrollment and seat availability</li>
-                    <li><strong>School Level Filtering</strong> - Filter by Elementary, Middle, High, etc.</li>
-                    <li><strong>Automatic Zoom</strong> - Automatically fits to show all Jeffco schools</li>
+                    <li><strong>Project list table</strong> with category, priority, unit cost/measure, and computed costs.</li>
+                    <li><strong>Total cost rollup</strong> plus <strong>Total Low / Total Medium / Total High</strong> priority subtotals.</li>
+                    <li><strong>Condition score status</strong> as <strong>Good</strong>, <strong>Poor</strong>, or <strong>N/A</strong> when not relevant.</li>
+                </ul>
+
+                <h3>Key rules</h3>
+                <ul>
+                    <li><strong>Category + measure + unit cost</strong> come from <span class="code-chip">UnitCostLibrary.csv</span>.</li>
+                    <li><strong>UnitValue + score values</strong> come from <span class="code-chip">JeffCoProjectListAllSchools.csv</span>.</li>
+                    <li><strong>Condition score</strong> compares the school’s numeric score to the library threshold value to determine Good/Poor (with a few category-specific direction rules).</li>
+                    <li><strong>Relevance</strong>: some rows (e.g., Gut Renovation / New Construction) are only relevant for certain Step 1 outcomes.</li>
                 </ul>
             </div>
 
-            <!-- Decision Logic Flow Tab -->
-            <div id="decision-logic" class="tab-content">
-                <h2>🔧 Decision Logic Flow</h2>
-                <p>The dashboard uses a multi-step evaluation process to determine the appropriate action for each school.</p>
+            <!-- Closure Scenarios Tab -->
+            <div id="closure-scenarios-logic" class="tab-content">
+                <h2>🚪 Closure Scenarios</h2>
+                <p>The Closure Scenarios dashboard simulates closure of a sending school and reassigns students to receiving schools using distance and seat availability rules.</p>
 
-                <h3>🗺️ 4-Flow Decision Structure</h3>
-                <div class="flow-step">
-                    <h4>Flow 1: Decision Routing</h4>
-                    <p>Main routing based on utilization and growth patterns</p>
-                    <ul>
-                        <li>Check utilization against thresholds</li>
-                        <li>Evaluate enrollment growth trends</li>
-                        <li>Assess distance to underutilized schools</li>
-                        <li>Route to appropriate sub-flow (2, 3, or 4)</li>
-                    </ul>
-                </div>
-
-                <div class="flow-step">
-                    <h4>Flow 2: Building Addition (Expansion)</h4>
-                    <p>Schools that could expand on their current site</p>
-                    <ul>
-                        <li>Check site capacity for expansion</li>
-                        <li>Evaluate building quality</li>
-                        <li>Assess program adequacy</li>
-                        <li>Determine if expansion is feasible</li>
-                    </ul>
-                </div>
-
-                <div class="flow-step">
-                    <h4>Flow 3: Maintenance/Investment</h4>
-                    <p>Schools needing facility or program improvements</p>
-                    <ul>
-                        <li>Evaluate building condition scores</li>
-                        <li>Check program offerings</li>
-                        <li>Determine investment priority</li>
-                        <li>Classify as maintenance or major investment</li>
-                    </ul>
-                </div>
-
-                <div class="flow-step">
-                    <h4>Flow 4: Consolidation/Closure</h4>
-                    <p>Schools recommended for consolidation or closure</p>
-                    <ul>
-                        <li>Check recent investment status</li>
-                        <li>Evaluate program adequacy</li>
-                        <li>Assess composite building score</li>
-                        <li>Check distance to welcoming schools (varies by school level)</li>
-                        <li>Determine consolidation or closure path</li>
-                    </ul>
-                </div>
-
-                <h3>🎯 Decision Categories Explained</h3>
-                <div class="grid">
-                    <div class="card" style="border-left: 4px solid #2E8B57;">
-                        <h4 style="color: #2E8B57;">🟢 Expansion Flow</h4>
-                        <ul>
-                            <li><strong style="color: #2E8B57;">Building Addition</strong> - Schools that can expand on-site</li>
-                            <li><strong style="color: #4B830D;">Building Replacement</strong> - Schools needing complete replacement</li>
-                            <li><strong style="color: #1B5E20;">Building Addition with Capital Investment</strong> - Expansion with major investment</li>
-                            <li><strong style="color: #66BB6A;">Policy Solution for Overcrowding</strong> - Policy adjustments needed</li>
-                        </ul>
-                    </div>
-                    <div class="card" style="border-left: 4px solid #F59E0B;">
-                        <h4 style="color: #F59E0B;">🟠 Maintenance/Investment Flow</h4>
-                        <ul>
-                            <li><strong style="color: #FBBF24;">Targeted Capital Investment</strong> - Targeted improvements</li>
-                            <li><strong style="color: #1B9E77;">Standard Maintenance</strong> - Routine maintenance needs</li>
-                            <li><strong style="color: #F97316;">Major Capital Investment</strong> - Significant improvements</li>
-                        </ul>
-                    </div>
-                    <div class="card" style="border-left: 4px solid #C62828;">
-                        <h4 style="color: #C62828;">🔴 Closure/Consolidation Flow</h4>
-                        <ul>
-                            <li><strong style="color: #C62828;">Welcoming School</strong> - Welcoming schools that receive students</li>
-                            <li><strong style="color: #E53935;">Welcoming School with Capital Investment</strong> - Merge with improvements</li>
-                            <li><strong style="color: #B71C1C;">Closure (Goes to Welcoming School)</strong> - Close and reassign students to welcoming schools</li>
-                            <li><strong style="color: #8B0000;">Welcoming School with Building Replacement</strong> - Close and replace</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Flowchart Logic Tab -->
-            <div id="flowchart-logic" class="tab-content">
-                <h2>📊 Flowchart Logic</h2>
-                <p>The interactive flowchart visualizes the decision logic for individual schools, allowing users to trace the decision path.</p>
-
-                <h3>🗺️ Flowchart Features</h3>
+                <h3>Inputs</h3>
                 <ul>
-                    <li><strong>Interactive Navigation</strong> - Click through decision nodes</li>
-                    <li><strong>School-specific Evaluation</strong> - Select any school to see its decision path</li>
-                    <li><strong>Real-time Updates</strong> - Reflects current threshold settings</li>
-                    <li><strong>Zoom and Pan</strong> - Navigate large flowchart with mouse controls</li>
-                    <li><strong>Persistent Settings</strong> - Remembers zoom level and position</li>
+                    <li><strong>Student roster</strong>: <span class="code-chip">OD_Students.csv</span> (home coordinates + current school).</li>
+                    <li><strong>School coordinates</strong>: <span class="code-chip">Map_Export.csv</span>.</li>
+                    <li><strong>Seats / enrollment</strong>: <span class="code-chip">Decision Data Export.csv</span>.</li>
+                    <li><strong>Grade spans</strong>: inferred from <span class="code-chip">SchooltoSchoolDistances.csv</span>.</li>
                 </ul>
 
-                <h3>🗺️ Flowchart Node Types</h3>
-                <div class="grid">
-                    <div class="card">
-                        <h4>🗺️ Decision Nodes</h4>
-                        <p>Blue nodes represent decision points with Yes/No outcomes (e.g., "Educational adequacy above threshold?")</p>
-                    </div>
-                    <div class="card">
-                        <h4>🟠 Routing Nodes</h4>
-                        <p>Orange nodes route to different flows (Building Addition, Maintenance, Consolidation)</p>
-                    </div>
-                    <div class="card">
-                        <h4>🟢 Start Nodes</h4>
-                        <p>Green nodes show the starting point of decision flows</p>
-                    </div>
-                    <div class="card">
-                        <h4>🟣 Outcome Nodes</h4>
-                        <p>Purple nodes show final decision categories</p>
-                    </div>
-                    <div class="card">
-                        <h4>⚫ Decision Nodes</h4>
-                        <p>Gray nodes display current threshold values and decision criteria</p>
-                    </div>
-                </div>
-            </div>
+                <h3>Assignment logic (summary)</h3>
+                <ul>
+                    <li><strong>Distance</strong>: crow-fly miles from student home → candidate school.</li>
+                    <li><strong>Capacity</strong>: can respect available seats or allow overfill (if selected).</li>
+                    <li><strong>Grades</strong>: enforce overlapping grades or allow non-overlap and track added grades.</li>
+                    <li><strong>Min/Max miles</strong>: optional filters, with a “soft max” option that allows beyond max when needed.</li>
+                </ul>
 
-            <!-- Formulas & Calculations Tab -->
-            <div id="formulas" class="tab-content">
-                <h2>🧮 Formulas & Calculations</h2>
-                <p>Select a topic to see how the dashboard calculates decisions and scores. Anything not confidently derived from the code/data is flagged in <span class="needs-confirmation">red</span>.</p>
-
-                <div class="control-row">
-                    <label for="calcTopicSelect"><strong>Topic</strong></label>
-                    <select id="calcTopicSelect" class="data-select">
-                        <option value="step1">Step 1: Strategic Sorting (Decision Logic)</option>
-                        <option value="step2">Step 2: Prioritization (Weights + Scoring)</option>
-                        <option value="step2-display">Step 2: Table Display (Values vs Scores)</option>
-                        <option value="flowchart">Flowchart Display Logic</option>
-                    </select>
-                </div>
-
-                <div id="calcTopicContent"></div>
+                <h3>Outputs</h3>
+                <ul>
+                    <li><strong>KPIs</strong> for impacted/assigned/unassigned, baseline miles vs scenario miles, and scenario max miles (home→new).</li>
+                    <li><strong>Destination summary</strong> table and CSV export.</li>
+                    <li><strong>Map visualization</strong> showing the closed school, destination schools, and flow lines.</li>
+                </ul>
             </div>
         </div>
     </div>
@@ -3339,6 +3376,25 @@
         let csvData = null;
         let dataSourcesInitialized = false;
         const dataCache = new Map(); // key -> parsed {type, headers, rows, raw, ...}
+
+        // Decision Categories: internal topic dropdown (within the Decision Categories tab)
+        document.addEventListener('DOMContentLoaded', () => {
+            const sel = document.getElementById('decisionCategoriesDetailSelect');
+            if (!sel) return;
+            const panels = Array.from(document.querySelectorAll('.dc-detail'));
+
+            const setActive = (id) => {
+                panels.forEach(p => p.classList.toggle('active', p.id === id));
+            };
+
+            // Initial state
+            if (sel.value) setActive(sel.value);
+
+            sel.addEventListener('change', () => {
+                const v = (sel.value || '').toString();
+                if (v) setActive(v);
+            });
+        });
 
         function showTab(tabName) {
             // Hide all tab contents - FORCE hide them
@@ -3370,14 +3426,10 @@
                 if (tabName === 'data-sources') {
                     initDataSourcesTab();
                 }
-                // Initialize formulas dropdown content
-                if (tabName === 'formulas') {
-                    initFormulasTab();
-                }
             }
 
             // Add active class to clicked button
-            if (event && event.target) {
+            if (event && event.target && event.target.classList && event.target.classList.contains('tab-button')) {
                 event.target.classList.add('active');
             }
         }
@@ -3476,6 +3528,30 @@
                 notes: []
             },
             {
+                key: 'articulation_areas',
+                label: 'ArticulationArea.geojson',
+                url: 'ArticulationArea.geojson',
+                type: 'geojson',
+                usedBy: 'Map overlay polygons (toggleable) + articulation area popups',
+                notes: []
+            },
+            {
+                key: 'project_list_all_schools',
+                label: 'JeffCoProjectListAllSchools.csv',
+                url: 'JeffCoProjectListAllSchools.csv',
+                type: 'csv',
+                usedBy: 'School Profile project list (scores + UnitValues per school)',
+                notes: []
+            },
+            {
+                key: 'unit_cost_library',
+                label: 'UnitCostLibrary.csv',
+                url: 'UnitCostLibrary.csv',
+                type: 'csv',
+                usedBy: 'Project categorization + unit costs/measures + condition thresholds',
+                notes: []
+            },
+            {
                 key: 'distances',
                 label: 'SchooltoSchoolDistances.csv',
                 url: 'SchooltoSchoolDistances.csv',
@@ -3486,24 +3562,12 @@
                 ]
             },
             {
-                key: 'od_remote',
-                label: 'OD_Draft.csv (used by dashboard – remote)',
-                url: 'https://raw.githubusercontent.com/DWieberdink/JeffCo/main/OD_Draft.csv',
+                key: 'od_students',
+                label: 'OD_Students.csv',
+                url: 'OD_Students.csv',
                 type: 'csv',
-                usedBy: 'Scenario/model simulation (OD matrix)',
-                notes: [
-                    { type: 'confirm', text: 'The dashboard currently downloads OD_Draft.csv from GitHub. Confirm this is the intended source for production.' }
-                ]
-            },
-            {
-                key: 'od_local',
-                label: 'OD_Draft.csv (local file)',
-                url: 'OD_Draft.csv',
-                type: 'csv',
-                usedBy: 'Not used by the dashboard by default',
-                notes: [
-                    { type: 'confirm', text: 'A local OD_Draft.csv exists in this folder but the dashboard uses the remote URL. Confirm whether the local file should be used instead.' }
-                ]
+                usedBy: 'Closure Scenarios (student roster + home coordinates) and Model Simulation (student reassignment)',
+                notes: []
             }
         ];
 
@@ -3758,63 +3822,7 @@
                 .replace(/'/g, '&#039;');
         }
 
-        // -----------------------------
-        // Formulas & Calculations dropdown
-        // -----------------------------
-        function initFormulasTab() {
-            const select = document.getElementById('calcTopicSelect');
-            const out = document.getElementById('calcTopicContent');
-            if (!select || !out) return;
-
-            const render = () => {
-                const v = select.value;
-                out.innerHTML = buildCalcTopicHtml(v);
-            };
-            select.addEventListener('change', render);
-            render();
-        }
-
-        function buildCalcTopicHtml(topic) {
-            if (topic === 'step2') {
-                return `
-                  <h3>Step 2: Prioritization (Weights + Scoring)</h3>
-                  <p>Schools are ranked within a selected strategy group using weighted criteria. Each metric is normalized to a 0–100 index over the currently ranked set, then combined using a weighted average.</p>
-                  <div class="formula-box">priorityScore = (Σ (normalizedMetricScore/100 × metricWeight)) / (Σ metricWeight / 100)</div>
-                  <p><strong>Directions:</strong> Some metrics are “reversed” for Closure/Consolidation (e.g. lower enrollment/utilization → higher priority).</p>
-                  <p class="needs-confirmation"><strong>Needs confirmation:</strong> Which Step 2 output(s) are considered “official” for reporting (table only vs exporting) and whether any metrics are intentionally excluded by default.</p>
-                `;
-            }
-            if (topic === 'step2-display') {
-                return `
-                  <h3>Step 2: Table Display (Values vs Scores)</h3>
-                  <p>The Step 2 table has a display toggle:</p>
-                  <ul>
-                    <li><strong>Show values</strong>: shows raw units (%, miles, counts, etc.).</li>
-                    <li><strong>Show scores</strong>: shows the normalized 0–100 metric score used in the weighting (this does not change ranking).</li>
-                  </ul>
-                `;
-            }
-            if (topic === 'flowchart') {
-                return `
-                  <h3>Flowchart Display Logic</h3>
-                  <p>The flowchart is a visualization of the Step 1 decision routing. It displays the currently selected school’s path and shows current threshold values from the sliders.</p>
-                  <div class="needs-confirmation-box">
-                    <div class="needs-confirmation">Needs confirmation</div>
-                    <p style="margin:8px 0 0 0;">If you want the exact boolean expressions per node (e.g., which field compares to which threshold), we should confirm the authoritative source is <span class="code-chip">DecisionLogic.js</span> and then document node-by-node mapping.</p>
-                  </div>
-                `;
-            }
-
-            // default: step1
-            return `
-              <h3>Step 1: Strategic Sorting (Decision Logic)</h3>
-              <p>Each school is evaluated using the Step 1 thresholds (enrollment, utilization, growth, distance, building score, educational adequacy, etc.). The flowchart and the “Results” panel reflect the resulting decision outcome.</p>
-              <div class="needs-confirmation-box">
-                <div class="needs-confirmation">Needs confirmation</div>
-                <p style="margin:8px 0 0 0;">Some labels in historical documentation differ from the current dashboard (e.g., “welcoming schools” wording). If you want this page to be 100% canonical, I will document each Flow 1–4 node directly from <span class="code-chip">DecisionLogic.js</span> with the exact field/threshold comparisons.</p>
-              </div>
-            `;
-        }
+        // Formulas tab removed (content is now documented per-feature in the tabs above).
     </script>
 </body>
 </html>

@@ -17,7 +17,6 @@
 
   const elSelect = document.getElementById("closeSchoolSelect");
   const elRun = document.getElementById("runBtn");
-  const elExport = document.getElementById("exportCsvBtn");
   const elResultsCard = document.getElementById("resultsCard");
   const elKpis = document.getElementById("kpis");
   const elDestTbody = document.getElementById("destTbody");
@@ -25,13 +24,19 @@
   const elProgWrap = document.getElementById("odProgress");
   const elProg = document.getElementById("odProgressBar");
   const elProgMeta = document.getElementById("odProgressMeta");
-  const elForceAssignAll = document.getElementById("forceAssignAll");
   const elToggleArticulationAreas = document.getElementById("toggleArticulationAreas");
   const elIncludeHomeSchool = document.getElementById("includeHomeSchool");
   const elIncludeChoice = document.getElementById("includeChoice");
   const elMinMiles = document.getElementById("minMiles");
   const elMaxMiles = document.getElementById("maxMiles");
   const elAllowBeyondMax = document.getElementById("allowBeyondMax");
+  const elDrawerToggle = document.getElementById("csDrawerToggle");
+  const elDrawerClose = document.getElementById("csDrawerClose");
+  const elDrawerBackdrop = document.getElementById("csDrawerBackdrop");
+  const elDrawerPin = document.getElementById("csDrawerPin");
+  const elMapFullscreenBtn = document.getElementById("csMapFullscreenBtn");
+
+  const CS_PIN_KEY = "csScenarioPinned";
 
   let decisionReady = false;
   let odStudentsReady = false;
@@ -40,7 +45,7 @@
 
   /** Map<schoolCode, { name, status, seats, enrollment } > */
   const schoolMetaByCode = new Map();
-  /** Map<articulationAreaName, Array<schoolName>> */
+  /** Map<articulationAreaKey, Array<schoolName>> (key is normalized) */
   let articulationSchoolsByArea = new Map();
   /** Map<schoolCode, [lng, lat]> */
   const coordsByCode = new Map();
@@ -55,9 +60,16 @@
   let map = null;
   let mapReady = false;
   let pendingMapResult = null;
+  let pendingSchoolsFc = null;
   let articulationGeojson = null;
   let articulationLoaded = false;
   let dropdownWired = false;
+
+  // Assignment behavior:
+  // - Capacity is always respected (remaining seats never negative)
+  // - Grade rule is respected unless user explicitly allows non-overlap
+  // - "Allow beyond max" only relaxes the distance constraint as a fallback
+  const FORCE_ASSIGN_ALL = false;
 
   function getRosterCountForSchool(code) {
     const arr = studentsBySchoolCode.get(norm(code)) || [];
@@ -71,14 +83,19 @@
       .filter((s) => norm(s.status).toLowerCase() === "active")
       .map((s) => ({ ...s, __n: getRosterCountForSchool(s.code) }))
       .filter((s) => s.__n > 0)
-      .sort((a, b) => (b.__n - a.__n) || (a.name || a.code).localeCompare((b.name || b.code), undefined, { sensitivity: "base" }));
+      .sort((a, b) => (a.name || a.code).localeCompare((b.name || b.code), undefined, { sensitivity: "base", numeric: true }));
 
     const current = norm(elSelect.value);
     elSelect.innerHTML = '<option value="">— Select a school to close —</option>';
     activeWithStudents.forEach((s) => {
+      const enrollment = Number(s.enrollment) || 0;
+      const seats = Number(s.seats) || 0;
+      const cap = enrollment + seats;
+      const utilPct = cap > 0 ? (enrollment / cap) * 100 : null;
+      const utilText = (utilPct === null) ? "— util" : `${utilPct.toFixed(0)}% util`;
       const opt = document.createElement("option");
       opt.value = s.code;
-      opt.textContent = `${s.name || s.code} (${s.code}) — ${s.__n.toLocaleString()} students`;
+      opt.textContent = `${s.name || s.code} (${s.code}) — ${s.__n.toLocaleString()} students — ${utilText}`;
       elSelect.appendChild(opt);
     });
     if (current && activeWithStudents.some((s) => s.code === current)) elSelect.value = current;
@@ -98,8 +115,73 @@
     return (s ?? "").toString().trim();
   }
 
+  function normalizeSchoolCode(codeRaw) {
+    // OD_Students.csv sometimes uses non-zero-padded codes like "CO-1420-30"
+    // while Decision/Map data uses "CO-1420-0030". Normalize to padded form.
+    const s = norm(codeRaw);
+    if (!s) return "";
+    const m = s.match(/^(.*-)(\d+)$/);
+    if (!m) return s;
+    const prefix = m[1];
+    const num = m[2];
+    // Only pad short numeric suffixes; keep 4+ digits as-is.
+    const padded = num.length < 4 ? num.padStart(4, "0") : num;
+    return `${prefix}${padded}`;
+  }
+
   function normNameKey(s) {
     return norm(s).replace(/\u00A0/g, " ").replace(/\s+/g, " ").toLowerCase();
+  }
+
+  function normalizeArticulationAreaKey(v) {
+    // Match dashboard behavior, but also collapse whitespace/NBSP.
+    return norm(v).replace(/\u00A0/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function setTopbarHeightVar() {
+    try {
+      const topbar = document.querySelector(".topbar");
+      if (!topbar) return;
+      const h = Math.max(40, Math.round(topbar.getBoundingClientRect().height || 0));
+      document.documentElement.style.setProperty("--cs-topbar-h", `${h}px`);
+    } catch (e) {}
+  }
+
+  function mapResizeSoon() {
+    if (!map) return;
+    try {
+      setTimeout(() => {
+        try { map.resize(); } catch (e2) {}
+      }, 60);
+    } catch (e) {}
+  }
+
+  function isPinned() {
+    return !!document.body.classList.contains("cs-drawer-pinned");
+  }
+
+  function openDrawer() {
+    document.body.classList.add("cs-drawer-open");
+    mapResizeSoon();
+  }
+  function closeDrawer() {
+    if (isPinned()) return;
+    document.body.classList.remove("cs-drawer-open");
+    mapResizeSoon();
+  }
+  function toggleFullscreen() {
+    const on = !document.body.classList.contains("cs-fullscreen");
+    document.body.classList.toggle("cs-fullscreen", on);
+    mapResizeSoon();
   }
 
   function parseNumberMaybe(v) {
@@ -112,8 +194,9 @@
   function getGradeNum(gRaw) {
     const g = norm(gRaw).toUpperCase();
     if (!g) return null;
-    if (g === "PK" || g === "PREK") return -1;
-    if (g === "K" || g === "KG") return 0;
+    // Normalize common variants coming from OD_Students.csv (e.g., "KGF")
+    if (g === "PK" || g === "PREK" || g.startsWith("PK")) return -1;
+    if (g === "K" || g === "KG" || g.startsWith("KG") || g === "KF") return 0;
     const n = Number(g);
     return Number.isFinite(n) ? n : null;
   }
@@ -121,8 +204,8 @@
   function gradeLabel(gRaw) {
     const g = norm(gRaw).toUpperCase();
     if (!g) return "";
-    if (g === "PREK") return "PK";
-    if (g === "KG") return "K";
+    if (g === "PREK" || g.startsWith("PK")) return "PK";
+    if (g === "KG" || g.startsWith("KG") || g === "KF") return "K";
     return g;
   }
 
@@ -172,10 +255,6 @@
     return el ? el.value : "overlap";
   }
 
-  function shouldForceAssignAll() {
-    return !!(elForceAssignAll && elForceAssignAll.checked);
-  }
-
   function canRun() {
     const code = norm(elSelect?.value);
     if (!decisionReady || !odStudentsReady || !coordsReady || !gradeSpansReady) return false;
@@ -206,7 +285,7 @@
     schoolMetaByCode.clear();
 
     rows.forEach((r) => {
-      const code = norm(r["UniqueID"] ?? r.UniqueID);
+      const code = normalizeSchoolCode(r["UniqueID"] ?? r.UniqueID);
       if (!code) return;
       const name = norm(r["Building Name"] ?? r.BuildingName ?? r["BuildingName"]);
       const status = norm(r.Status);
@@ -217,25 +296,6 @@
       const enrollment = Math.max(0, parseNumberMaybe(enrRaw) ?? 0);
       schoolMetaByCode.set(code, { code, name, status, seats, enrollment, articulationArea });
     });
-
-    // Build articulation area -> school list index for popups
-    try {
-      const tmp = new Map();
-      schoolMetaByCode.forEach((m) => {
-        const area = norm(m?.articulationArea);
-        const n = norm(m?.name);
-        if (!area || !n) return;
-        if (!tmp.has(area)) tmp.set(area, new Set());
-        tmp.get(area).add(n);
-      });
-      articulationSchoolsByArea = new Map();
-      tmp.forEach((set, area) => {
-        const arr = Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }));
-        articulationSchoolsByArea.set(area, arr);
-      });
-    } catch (e) {
-      articulationSchoolsByArea = new Map();
-    }
 
     decisionReady = true;
     setRunEnabled();
@@ -248,7 +308,7 @@
       studentsBySchoolCode.clear();
 
       rows.forEach((r) => {
-        const schoolCode = norm(r["Attend School Code"] ?? r.AttendSchoolCode ?? r.CurrentSchoolCode ?? r["CurrentSchoolCode"]);
+        const schoolCode = normalizeSchoolCode(r["Attend School Code"] ?? r.AttendSchoolCode ?? r.CurrentSchoolCode ?? r["CurrentSchoolCode"]);
         const id = norm(r.OBJECTID ?? r["OBJECTID"] ?? r.StudentID ?? r["StudentID"]);
         const grade = norm(r.Grade ?? r["Grade"] ?? r.GradeLevel ?? r["GradeLevel"]);
         const choice = norm(r.Choice ?? r["Choice"]);
@@ -294,14 +354,83 @@
     const res = await parseCsv(MAP_EXPORT_CSV_PATH, {});
     const rows = (res && res.data) ? res.data : [];
     coordsByCode.clear();
+    // Build articulation area -> schools index from Map_Export.csv (matches dashboard behavior)
+    const tmpByArea = new Map(); // areaKey -> Set(schoolName)
     (rows || []).forEach((r) => {
-      const code = norm(r["Building Code"] ?? r.BuildingCode ?? r["BuildingCode"]);
+      const code = normalizeSchoolCode(r["Building Code"] ?? r.BuildingCode ?? r["BuildingCode"]);
+      const name = norm(r["Building Name"] ?? r.BuildingName ?? r["BuildingName"]);
+      const areaRaw = norm(r["Articulation"] ?? r["Articulation Area"] ?? r["ArticulationArea"] ?? "");
+      const areaKey = normalizeArticulationAreaKey(areaRaw);
       const lat = parseNumberMaybe(r.Latitude ?? r["Latitude"]);
       const lng = parseNumberMaybe(r.Longitude ?? r["Longitude"]);
       if (!code || lat === null || lng === null) return;
       coordsByCode.set(code, [lng, lat]);
+
+      // Map_Export.csv uses a sentinel for schools not in an articulation area
+      if (areaKey && name) {
+        if (areaKey !== "noarticulationarea" && areaKey !== "no articulation area" && areaKey !== "n/a") {
+          if (!tmpByArea.has(areaKey)) tmpByArea.set(areaKey, new Set());
+          tmpByArea.get(areaKey).add(name);
+        }
+      }
     });
     coordsReady = coordsByCode.size > 0;
+
+    // Finalize articulationSchoolsByArea (sorted arrays)
+    try {
+      const out = new Map();
+      tmpByArea.forEach((set, areaKey) => {
+        const arr = Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }));
+        out.set(areaKey, arr);
+      });
+      articulationSchoolsByArea = out;
+    } catch (e) {
+      articulationSchoolsByArea = new Map();
+    }
+
+    // If map is already up, draw all schools dots now (even before a run).
+    updateSchoolsLayer(null, []);
+  }
+
+  function buildSchoolsFeatureCollection(closeCode, destRows) {
+    const close = norm(closeCode);
+    const destCountByCode = new Map();
+    (destRows || []).forEach((r) => {
+      const c = normalizeSchoolCode(r?.code);
+      const n = Number(r?.assigned) || 0;
+      if (c) destCountByCode.set(c, n);
+    });
+
+    const features = [];
+    schoolMetaByCode.forEach((m, code) => {
+      if (norm(m.status).toLowerCase() !== "active") return;
+      const coords = coordsByCode.get(code);
+      if (!coords) return;
+      const receiving = destCountByCode.get(code) || 0;
+      features.push({
+        type: "Feature",
+        properties: {
+          code,
+          name: m.name || code,
+          isClosed: close && code === close,
+          isReceiving: receiving > 0,
+          receiving,
+        },
+        geometry: { type: "Point", coordinates: coords },
+      });
+    });
+    return { type: "FeatureCollection", features };
+  }
+
+  function updateSchoolsLayer(closeCode, destRows) {
+    ensureMap();
+    const fc = buildSchoolsFeatureCollection(closeCode, destRows);
+    if (!mapReady || !map) {
+      pendingSchoolsFc = fc;
+      return;
+    }
+    const src = map.getSource("cs-schools");
+    if (src) src.setData(fc);
   }
 
   async function loadGradeSpans() {
@@ -313,8 +442,8 @@
     const cleanGrades = (v) => norm(v).replace(/'/g, "").trim();
 
     (rows || []).forEach((r) => {
-      const origin = norm(r["Origin CDE Prefix"] ?? r["Origin CDE"] ?? r["Origin CDE Code"]);
-      const dest = norm(r["Destination CDE Prefix"] ?? r["Destination CDE"] ?? r["Destination CDE Code"]);
+      const origin = normalizeSchoolCode(r["Origin CDE Prefix"] ?? r["Origin CDE"] ?? r["Origin CDE Code"]);
+      const dest = normalizeSchoolCode(r["Destination CDE Prefix"] ?? r["Destination CDE"] ?? r["Destination CDE Code"]);
       const originGrades = cleanGrades(r["Origin Grades"] ?? r.OriginGrades);
       const destGrades = cleanGrades(r["Destination Grade"] ?? r["Destination Grades"] ?? r.DestinationGrade);
       if (origin && originGrades && !gradeSpanByCode.has(origin)) gradeSpanByCode.set(origin, originGrades);
@@ -425,36 +554,27 @@
       const popup = new mapboxgl.Popup({ closeButton: true, closeOnClick: false });
       let pinned = false;
       popup.on("close", () => { pinned = false; });
+
       const buildPopupHtml = (areaName) => {
-        const list = articulationSchoolsByArea && articulationSchoolsByArea.get(areaName) ? articulationSchoolsByArea.get(areaName) : [];
+        const areaKey = normalizeArticulationAreaKey(areaName);
+        const list = articulationSchoolsByArea && articulationSchoolsByArea.get(areaKey) ? articulationSchoolsByArea.get(areaKey) : [];
         const maxShow = 30;
         const shown = list.slice(0, maxShow);
         const more = list.length > maxShow ? (list.length - maxShow) : 0;
-        const esc = (s) => String(s).replace(/</g, "&lt;");
-        const items = shown.map((s) => `<li style="margin:0 0 2px 0;">${esc(s)}</li>`).join("");
+        const items = shown.map((s) => `<li style="margin:0 0 2px 0;">${escapeHtml(s)}</li>`).join("");
         const moreLine = more ? `<div style="margin-top:6px; color:#6b7280; font-size:12px;">+${more} more…</div>` : "";
         return (
-          `<div style="font-weight:900; margin-bottom:6px;">${esc(areaName)} Area</div>` +
+          `<div style="font-weight:900; margin-bottom:6px;">${escapeHtml(areaName)} Area</div>` +
           `<div style="max-height:180px; overflow:auto; border-top:1px solid #e5e7eb; padding-top:6px;">` +
           `<div style="font-size:12px; color:#6b7280; margin-bottom:4px;">Schools (${list.length}):</div>` +
-          `<ul style="padding-left:18px; margin:0;">${items}</ul>` +
+          `${list.length ? `<ul style="padding-left:18px; margin:0;">${items}</ul>` : `<div style="color:#6b7280; font-size:12px;">No schools found for this area.</div>`}` +
           `${moreLine}` +
           `</div>`
         );
       };
 
       map.on("mouseenter", "cs-articulation-fill", () => { map.getCanvas().style.cursor = "pointer"; });
-      map.on("mouseleave", "cs-articulation-fill", () => {
-        map.getCanvas().style.cursor = "";
-        if (!pinned) popup.remove();
-      });
-      map.on("mousemove", "cs-articulation-fill", (e) => {
-        if (pinned) return;
-        const f = e.features && e.features[0] ? e.features[0] : null;
-        const areaName = f && f.properties ? (f.properties.__aaName || f.properties["Articulation Area"] || "") : "";
-        if (!areaName) return;
-        popup.setLngLat(e.lngLat).setHTML(buildPopupHtml(areaName)).addTo(map);
-      });
+      map.on("mouseleave", "cs-articulation-fill", () => { map.getCanvas().style.cursor = ""; });
       map.on("click", "cs-articulation-fill", (e) => {
         const f = e.features && e.features[0] ? e.features[0] : null;
         const areaName = f && f.properties ? (f.properties.__aaName || f.properties["Articulation Area"] || "") : "";
@@ -463,17 +583,32 @@
         popup.setLngLat(e.lngLat).setHTML(buildPopupHtml(areaName)).addTo(map);
       });
 
-      map.addSource("cs-assignments", {
-        type: "geojson",
-        data: { type: "FeatureCollection", features: [] },
+      // Click-away to dismiss articulation popup (manual click-out)
+      map.on("click", (e) => {
+        if (!pinned) return;
+        let hits = [];
+        try {
+          hits = map.queryRenderedFeatures(e.point, { layers: ["cs-articulation-fill"] }) || [];
+        } catch (err) {
+          hits = [];
+        }
+        if (!hits.length) {
+          popup.remove();
+          pinned = false;
+        }
       });
-      map.addSource("cs-destinations", {
+
+      map.addSource("cs-assignments", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
       });
       map.addSource("cs-origin", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
+      });
+      map.addSource("cs-schools", {
+        type: "geojson",
+        data: pendingSchoolsFc || { type: "FeatureCollection", features: [] },
       });
 
       // Flow lines
@@ -495,25 +630,65 @@
         },
       });
 
-      // Destination bubbles
+      // All schools dots (orange if not receiving; blue + sized if receiving)
       map.addLayer({
-        id: "cs-destination-circles",
+        id: "cs-school-circles",
         type: "circle",
-        source: "cs-destinations",
+        source: "cs-schools",
         paint: {
-          "circle-color": "#2563eb",
-          "circle-opacity": 0.7,
+          "circle-color": [
+            "case",
+            ["==", ["get", "isClosed"], true], "#111827",
+            ["==", ["get", "isReceiving"], true], "#2563eb",
+            "#f59e0b",
+          ],
+          "circle-opacity": [
+            "case",
+            ["==", ["get", "isClosed"], true], 0.95,
+            0.78,
+          ],
           "circle-stroke-color": "#ffffff",
-          "circle-stroke-width": 1.5,
+          "circle-stroke-width": [
+            "case",
+            ["==", ["get", "isReceiving"], true], 1.5,
+            1,
+          ],
           "circle-radius": [
-            "interpolate",
-            ["linear"],
-            ["get", "count"],
-            1, 6,
-            50, 12,
-            200, 20,
+            "case",
+            ["==", ["get", "isClosed"], true], 10,
+            ["==", ["get", "isReceiving"], true],
+              ["interpolate", ["linear"], ["get", "receiving"], 1, 7, 50, 12, 200, 18],
+            4,
           ],
         },
+      });
+
+      // Hover tooltip for schools
+      const schoolPopup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false });
+      map.on("mouseenter", "cs-school-circles", () => { map.getCanvas().style.cursor = "pointer"; });
+      map.on("mouseleave", "cs-school-circles", () => {
+        map.getCanvas().style.cursor = "";
+        schoolPopup.remove();
+      });
+      map.on("mousemove", "cs-school-circles", (e) => {
+        const f = e.features && e.features[0] ? e.features[0] : null;
+        if (!f || !f.properties) return;
+        const name = f.properties.name || "";
+        const code = f.properties.code || "";
+        const receiving = Number(f.properties.receiving) || 0;
+        const isReceiving = String(f.properties.isReceiving) === "true" || receiving > 0;
+        const isClosed = String(f.properties.isClosed) === "true";
+        const extra = isClosed
+          ? `<div style="font-size:12px; color:#6b7280; margin-top:4px;">Closed school</div>`
+          : (isReceiving ? `<div style="font-size:12px; color:#6b7280; margin-top:4px;">Receiving: <strong>${receiving.toLocaleString()}</strong></div>` : "");
+        schoolPopup
+          .setLngLat(e.lngLat)
+          .setHTML(
+            `<div style="font-weight:900;">${escapeHtml(name)}</div>` +
+            `<div style="font-size:12px; color:#6b7280;">${escapeHtml(code)}</div>` +
+            `${extra}`
+          )
+          .addTo(map);
       });
 
       // Closed school marker
@@ -535,6 +710,13 @@
       pendingMapResult = null;
       if (toDraw) {
         setTimeout(() => updateMapWithResult(toDraw), 0);
+      }
+      // If schools were queued before map load, ensure they show now.
+      if (pendingSchoolsFc && map.getSource("cs-schools")) {
+        try { map.getSource("cs-schools").setData(pendingSchoolsFc); } catch (e) {}
+      } else if (decisionReady && coordsReady && map.getSource("cs-schools")) {
+        // Best-effort initial draw
+        try { map.getSource("cs-schools").setData(buildSchoolsFeatureCollection(null, [])); } catch (e) {}
       }
     });
   }
@@ -558,22 +740,11 @@
     const originCoords = coordsByCode.get(result.closeCode) || null;
     if (!originCoords) return;
 
-    const destFeatures = [];
     const lineFeatures = [];
 
     (result.destRows || []).forEach((r) => {
       const destCoords = coordsByCode.get(r.code) || null;
       if (!destCoords) return;
-
-      destFeatures.push({
-        type: "Feature",
-        properties: {
-          code: r.code,
-          name: r.name,
-          count: r.assigned,
-        },
-        geometry: { type: "Point", coordinates: destCoords },
-      });
 
       lineFeatures.push({
         type: "Feature",
@@ -599,18 +770,17 @@
         },
       ],
     };
-    const destFc = { type: "FeatureCollection", features: destFeatures };
     const linesFc = { type: "FeatureCollection", features: lineFeatures };
 
     const srcLines = map.getSource("cs-assignments");
-    const srcDest = map.getSource("cs-destinations");
     const srcOrigin = map.getSource("cs-origin");
     if (srcLines) srcLines.setData(linesFc);
-    if (srcDest) srcDest.setData(destFc);
     if (srcOrigin) srcOrigin.setData(originFc);
+    // Update all schools layer to show receiving schools + counts
+    updateSchoolsLayer(result.closeCode, result.destRows || []);
 
     // Fit bounds
-    const all = [originCoords, ...destFeatures.map((f) => f.geometry.coordinates)];
+    const all = [originCoords, ...lineFeatures.map((f) => f.geometry.coordinates[1])];
     if (all.length) {
       let minLng = all[0][0], maxLng = all[0][0], minLat = all[0][1], maxLat = all[0][1];
       all.forEach(([lng, lat]) => {
@@ -639,7 +809,6 @@
     };
     elKpis.innerHTML = "";
     elKpis.appendChild(mk("Impacted students", obj.impacted.toLocaleString()));
-    elKpis.appendChild(mk("Assigned", obj.assigned.toLocaleString()));
     elKpis.appendChild(mk("Unassigned", obj.unassigned.toLocaleString()));
     elKpis.appendChild(mk("Current avg miles", obj.currentAvgMiles));
     elKpis.appendChild(mk("Scenario avg miles", obj.scenarioAvgMiles));
@@ -658,10 +827,11 @@
     return R * c;
   }
 
-  function runSimulation(closeCode, allowNonOverlapping, forceAssignAll) {
+  function runSimulation(closeCode, allowNonOverlapping) {
     const rosterFromOdStudents = studentsBySchoolCode.get(closeCode) || [];
     const { includeHome, includeChoice } = getStudentFilterConfig();
     const { min, max, allowBeyondMax } = getDistanceConfig();
+    const forceAssignAll = FORCE_ASSIGN_ALL;
 
     const filteredRoster = rosterFromOdStudents.filter((s) => {
       const b = choiceBucket(s.choice);
@@ -740,16 +910,23 @@
       options.sort((a, b) => a.miles - b.miles);
 
       const optionsWithinMax = (max !== null) ? options.filter((o) => o.miles <= max) : options;
-      const searchList = (optionsWithinMax.length > 0 || !allowBeyondMax || max === null) ? optionsWithinMax : options;
 
-      let chosen = null;
-      for (const opt of searchList) {
-        const seatsLeft = remaining.get(opt.code) ?? 0;
-        if (!forceAssignAll && seatsLeft <= 0) continue;
-        if (!opt.overlaps && !allowNonOverlapping && !forceAssignAll) continue;
-        chosen = opt;
-        remaining.set(opt.code, seatsLeft - 1);
-        break;
+      const pickFrom = (list) => {
+        for (const opt of list) {
+          const seatsLeft = remaining.get(opt.code) ?? 0;
+          if (!forceAssignAll && seatsLeft <= 0) continue;
+          if (!opt.overlaps && !allowNonOverlapping && !forceAssignAll) continue;
+          remaining.set(opt.code, seatsLeft - 1);
+          return opt;
+        }
+        return null;
+      };
+
+      // First pass: honor max distance if provided
+      let chosen = pickFrom(optionsWithinMax);
+      // Second pass: if soft max enabled, allow beyond max when needed
+      if (!chosen && allowBeyondMax && max !== null) {
+        chosen = pickFrom(options);
       }
       if (!chosen) {
         unassigned += 1;
@@ -816,7 +993,6 @@
       destRows,
       remainingSeatsByCode: remaining,
       allowNonOverlapping,
-      forceAssignAll,
       filters: { includeHome, includeChoice, minMiles: min, maxMiles: max, allowBeyondMax },
     };
   }
@@ -870,7 +1046,7 @@
     const f = result.filters || {};
     const filterNote =
       ` Filters: ` +
-      `${f.includeHome ? "Home School" : ""}${(f.includeHome && f.includeChoice) ? " + " : ""}${f.includeChoice ? "Choice" : ""}` +
+      `${f.includeHome ? "Attending Home School" : ""}${(f.includeHome && f.includeChoice) ? " + " : ""}${f.includeChoice ? "Not Attending Home School" : ""}` +
       `, miles ${Number(f.minMiles || 0).toFixed(1)}–${(f.maxMiles === null || f.maxMiles === undefined) ? "∞" : Number(f.maxMiles).toFixed(1)}` +
       `${f.maxMiles !== null && f.allowBeyondMax ? " (soft max)" : ""}.`;
     elResultsNote.textContent =
@@ -880,71 +1056,38 @@
       filterNote;
 
     elResultsCard.classList.remove("hidden");
-    if (elExport) elExport.disabled = !lastResult;
 
     updateMapWithResult(result);
   }
 
-  function csvEscape(v) {
-    const s = (v ?? "").toString();
-    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-    return s;
-  }
-
-  function exportLastResultCsv() {
-    if (!lastResult) return;
-    const rows = [];
-    rows.push([
-      "DestinationSchoolCode",
-      "DestinationSchoolName",
-      "Assigned",
-      "RemainingSeats",
-      "AvgMiles",
-      "MaxMiles",
-      "AddedGrades",
-    ]);
-    lastResult.destRows.forEach((r) => {
-      const avg = r.assigned ? (r.avgMiles || 0) : 0;
-      rows.push([
-        r.code,
-        r.name,
-        r.assigned,
-        r.seatsLeft,
-        Number.isFinite(avg) ? avg.toFixed(3) : "",
-        Number.isFinite(r.milesMax) ? Number(r.milesMax).toFixed(3) : "",
-        r.addedGradesText || "",
-      ]);
-    });
-    if (lastResult.unassigned) {
-      rows.push(["UNASSIGNED", "Unassigned (no seats found)", lastResult.unassigned, "", "", "", ""]);
-    }
-
-    const csv = rows.map((r) => r.map(csvEscape).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    const safeCode = norm(lastResult.closeCode).replace(/[^A-Za-z0-9_-]+/g, "_");
-    a.download = `closure_scenario_${safeCode}_${lastResult.allowNonOverlapping ? "allow" : "overlap"}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
+  // (CSV export removed)
 
   function wireUI() {
+    // Drawer + full screen toggles
+    if (elDrawerToggle) elDrawerToggle.addEventListener("click", () => openDrawer());
+    if (elDrawerClose) elDrawerClose.addEventListener("click", () => closeDrawer());
+    if (elDrawerBackdrop) elDrawerBackdrop.addEventListener("click", () => closeDrawer());
+    if (elMapFullscreenBtn) elMapFullscreenBtn.addEventListener("click", () => toggleFullscreen());
+    if (elDrawerPin) {
+      elDrawerPin.addEventListener("change", () => {
+        const on = !!elDrawerPin.checked;
+        document.body.classList.toggle("cs-drawer-pinned", on);
+        try { localStorage.setItem(CS_PIN_KEY, on ? "true" : "false"); } catch (e) {}
+        if (on) openDrawer();
+      });
+    }
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeDrawer();
+    });
+
     if (elRun) {
       elRun.addEventListener("click", () => {
         if (!canRun()) return;
         const closeCode = norm(elSelect.value);
         const allow = getGradeRuleMode() === "allow";
-        const result = runSimulation(closeCode, allow, shouldForceAssignAll());
+        const result = runSimulation(closeCode, allow);
         renderResult(result);
       });
-    }
-    if (elExport) {
-      elExport.addEventListener("click", exportLastResultCsv);
     }
     document.querySelectorAll('input[name="gradeRule"]').forEach((el) => {
       el.addEventListener("change", () => {
@@ -953,20 +1096,10 @@
         if (!canRun()) return;
         const closeCode = norm(elSelect.value);
         const allow = getGradeRuleMode() === "allow";
-        const result = runSimulation(closeCode, allow, shouldForceAssignAll());
+        const result = runSimulation(closeCode, allow);
         renderResult(result);
       });
     });
-    if (elForceAssignAll) {
-      elForceAssignAll.addEventListener("change", () => {
-        if (!lastResult) return;
-        if (!canRun()) return;
-        const closeCode = norm(elSelect.value);
-        const allow = getGradeRuleMode() === "allow";
-        const result = runSimulation(closeCode, allow, shouldForceAssignAll());
-        renderResult(result);
-      });
-    }
     [elIncludeHomeSchool, elIncludeChoice, elMinMiles, elMaxMiles, elAllowBeyondMax].forEach((el) => {
       if (!el) return;
       el.addEventListener("change", () => {
@@ -974,7 +1107,7 @@
         if (!canRun()) return;
         const closeCode = norm(elSelect.value);
         const allow = getGradeRuleMode() === "allow";
-        const result = runSimulation(closeCode, allow, shouldForceAssignAll());
+        const result = runSimulation(closeCode, allow);
         renderResult(result);
       });
     });
@@ -989,7 +1122,12 @@
 
   async function main() {
     try {
+      setTopbarHeightVar();
+      window.addEventListener("resize", setTopbarHeightVar);
       wireUI();
+      // Build map immediately so the page starts as "map-first"
+      ensureMap();
+
       updateProgress(0, "Loading Decision Data Export (seats)…");
       await loadDecisionData();
       await loadSchoolCoordsFromMapExport();
@@ -997,6 +1135,13 @@
       await loadArticulationAreas();
       await loadOdStudents();
       updateProgress(100, "Student roster loaded (OD_Students).");
+
+      // Restore pinned state (and open drawer by default)
+      let pinned = false;
+      try { pinned = localStorage.getItem(CS_PIN_KEY) === "true"; } catch (e) { pinned = false; }
+      document.body.classList.toggle("cs-drawer-pinned", pinned);
+      if (elDrawerPin) elDrawerPin.checked = pinned;
+      openDrawer();
     } catch (e) {
       console.error("Closure scenarios failed to load", e);
       updateProgress(0, "Error loading data. See console for details.");

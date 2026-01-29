@@ -8,6 +8,109 @@ let links = [];
 let schoolData = [];
 let mapExportData = null;
 
+// --- ELK layout (graph layout engine) ---------------------------------------
+// Used to auto-layout nodes/edges when the user does NOT have a saved manual layout.
+let elkInstance = null;
+let elkEdgeRouteById = new Map(); // link.id -> ELK edge (with routed sections)
+let elkLastLayoutOk = false;
+
+function getNodeDimsForElk(d) {
+  // Must match rect dimensions used in renderFlowchart()
+  let width = 180;
+  let height = 80;
+  if (d && d.type === "start") { width = 150; height = 65; }
+  else if (d && d.type === "routing") { width = 140; height = 90; }
+  else if (d && d.type === "flowStart") { width = 120; height = 60; }
+  else if (d && d.type === "outcome") { width = 150; height = 65; }
+  return { width, height };
+}
+
+function ensureLinkIds() {
+  links = (links || []).map((l, idx) => ({
+    ...l,
+    id: l.id || `${l.source}__${l.target}__${(l.label || '').toString()}__${idx}`
+  }));
+}
+
+async function applyElkLayoutIfAvailable() {
+  // Only apply ELK when the user does NOT have a saved manual layout.
+  let savedPositions = {};
+  try { savedPositions = JSON.parse(localStorage.getItem('flowchartNodePositions') || '{}'); } catch (e) {}
+  const hasSaved = savedPositions && Object.keys(savedPositions).length > 0;
+  if (hasSaved) {
+    elkLastLayoutOk = false;
+    elkEdgeRouteById = new Map();
+    return false;
+  }
+
+  // ELK must be loaded via CDN (GitHub Pages-friendly).
+  if (typeof window.ELK !== 'function') {
+    elkLastLayoutOk = false;
+    elkEdgeRouteById = new Map();
+    console.warn("⚠️ ELK not available; using existing flowchart positions.");
+    return false;
+  }
+
+  try {
+    if (!elkInstance) elkInstance = new window.ELK();
+    ensureLinkIds();
+
+    const elkGraph = {
+      id: 'root',
+      layoutOptions: {
+        'elk.algorithm': 'layered',
+        'elk.direction': 'RIGHT',
+        'elk.edgeRouting': 'ORTHOGONAL',
+        // Give the horizontal layout more breathing room.
+        'elk.spacing.nodeNode': '55',
+        'elk.layered.spacing.nodeNodeBetweenLayers': '95',
+        'elk.layered.spacing.edgeNodeBetweenLayers': '45',
+        'elk.spacing.edgeNode': '22',
+        'elk.spacing.edgeEdge': '16',
+        'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP'
+      },
+      children: (nodes || []).map((n) => {
+        const { width, height } = getNodeDimsForElk(n);
+        return { id: n.id, width, height };
+      }),
+      edges: (links || []).map((l) => ({
+        id: l.id,
+        sources: [l.source],
+        targets: [l.target]
+      }))
+    };
+
+    const layout = await elkInstance.layout(elkGraph);
+    const childById = new Map((layout.children || []).map(c => [c.id, c]));
+
+    // Apply node positions (ELK uses top-left; this flowchart uses center points)
+    (nodes || []).forEach((n) => {
+      const c = childById.get(n.id);
+      if (!c) return;
+      const { width, height } = getNodeDimsForElk(n);
+      const x = Number(c.x) || 0;
+      const y = Number(c.y) || 0;
+      n.fx = x + (width / 2);
+      n.fy = y + (height / 2);
+    });
+
+    // Capture routed edges for orthogonal paths
+    elkEdgeRouteById = new Map();
+    (layout.edges || []).forEach((e) => {
+      elkEdgeRouteById.set(e.id, e);
+    });
+
+    elkLastLayoutOk = true;
+    console.log("✅ ELK layout applied:", { nodes: (nodes || []).length, edges: (links || []).length });
+    return true;
+  } catch (e) {
+    elkLastLayoutOk = false;
+    elkEdgeRouteById = new Map();
+    console.warn("⚠️ ELK layout failed; using existing flowchart positions.", e);
+    return false;
+  }
+}
+
 // Coerce a value that may be stored as a ratio (0–1) or percent (0–100)
 // into a percent on the 0–100 scale.
 function coercePercent0to100(raw) {
@@ -369,9 +472,11 @@ window.initializeFlowchartFromScript = function(svgElement) {
     .attr("fill", "#6c757d")
     .attr("stroke", "#6c757d");
 
-  // Get current zoom level from localStorage or use default (updated with saved layout)
-  let currentTransform = d3.zoomIdentity.translate(349.82689171669284, 477.94759411049654).scale(0.9944701686732141);
+  // Get current zoom level from localStorage or use default.
+  // Default to identity and auto-fit after first render (unless user saved a default zoom).
+  let currentTransform = d3.zoomIdentity;
   const savedTransform = localStorage.getItem('flowchartZoom');
+  const hasSavedTransform = !!savedTransform;
   if (savedTransform) {
     try {
       const parsed = JSON.parse(savedTransform);
@@ -407,12 +512,19 @@ window.initializeFlowchartFromScript = function(svgElement) {
 
  
 
-  // Initialize the flowchart
+  // Initialize the flowchart (ELK layout when no saved manual layout exists)
   initializeFlowchartData();
-  renderFlowchart();
-  
-  // Load school data
-  loadSchoolData();
+  Promise.resolve(applyElkLayoutIfAvailable())
+    .then((elkApplied) => {
+      renderFlowchart();
+      loadSchoolData();
+      // If the user hasn't saved a preferred zoom, auto-fit so the ELK layout is framed nicely.
+      if (!hasSavedTransform) {
+        setTimeout(() => {
+          if (typeof window.zoomFlowchartToFit === 'function') window.zoomFlowchartToFit();
+        }, 250);
+      }
+    });
   
 };
 
@@ -633,7 +745,7 @@ function initializeFlowchartData() {
         // Flow 1 Decision Nodes (Vertical stack)
         { id: "F1_UTIL1", label: "Current enrollment or\nutilization below?", ...getPos("F1_UTIL1", -33.21879196166992, 8.875520706176758), thresholdKey: "utilSlider", flow: 1 },
         { id: "F1_UTIL2", label: "Current\nutilization rate above?", ...getPos("F1_UTIL2", -35.97391891479492, -88.93140411376953), thresholdKey: "utilHighSlider", flow: 1 },
-        { id: "F1_GROWTH2", label: "-N/A-Projected enrollment\ngrowth above?", ...getPos("F1_GROWTH2", -34.59635543823242, -188.1158905029297), thresholdKey: "growthSlider", flow: 1 },
+        { id: "F1_GROWTH2", label: "Projected enrollment growth above?", ...getPos("F1_GROWTH2", -34.59635543823242, -188.1158905029297), thresholdKey: "growthSlider", flow: 1 },
         { id: "F1_DIST", label: "Distance to\nwelcoming schools", ...getPos("F1_DIST", -35.97391891479492, 108.06000518798828), thresholdKey: "F1_DIST_dynamic", flow: 1 },
         { id: "F1_GROWTH", label: "Projected enrollment growth above?", ...getPos("F1_GROWTH", -37.351478576660156, 212.75474548339844), thresholdKey: "growthSlider", flow: 1 },
         
@@ -719,6 +831,8 @@ function initializeFlowchartData() {
   // Set nodes and links from the data
   nodes = flowchartData.nodes;
   links = flowchartData.links;
+  // Stable IDs enable ELK edge routing lookup
+  ensureLinkIds();
 }
 
 // ✅ Populate the main-page flowchart dropdown using loaded schoolData
@@ -734,27 +848,30 @@ function populateMainFlowchartDropdown() {
       return;
     }
 
-    // Try to preserve any selection that may have come from other parts of the app
-    // (e.g., the map dropdown or a previously chosen origin).
+    // Landing behavior: do NOT auto-select a school.
+    // Only keep an existing selection, or apply an explicit external selection
+    // (e.g., user selected a school on the map first).
     let previousValue = select.value;
+    let externalValue = "";
     try {
-      const mapOriginSelect = document.getElementById('mapOriginSchoolSelect');
-      if ((!previousValue || previousValue === "") && mapOriginSelect && mapOriginSelect.value) {
-        // mapOriginSelect now stores UniqueID as its value; convert to name
-        const uid = mapOriginSelect.value.toString().trim();
+      if ((!previousValue || previousValue === "") && window.currentSelectedSchoolName) {
+        externalValue = window.currentSelectedSchoolName;
+      }
+      if ((!previousValue || previousValue === "") && !externalValue && window.currentOriginName) {
+        externalValue = window.currentOriginName;
+      }
+      if ((!previousValue || previousValue === "") && !externalValue && window.currentOriginId) {
+        const uid = window.currentOriginId.toString().trim();
         const rowForUid = schoolData.find(r => {
           const rowUid = (r.UniqueID || r["UniqueID"] || r["Unique Id"] || "").toString().trim();
           return rowUid === uid;
         });
         if (rowForUid && rowForUid["Building Name"]) {
-          previousValue = rowForUid["Building Name"];
+          externalValue = rowForUid["Building Name"];
         }
       }
-      if ((!previousValue || previousValue === "") && window.currentOriginName) {
-        previousValue = window.currentOriginName;
-      }
     } catch (syncErr) {
-      console.warn("⚠️ Unable to read existing selection for flowchart dropdown sync:", syncErr);
+      console.warn("⚠️ Unable to read external selection for flowchart dropdown sync:", syncErr);
     }
 
     // Build sorted list of building names
@@ -772,9 +889,10 @@ function populateMainFlowchartDropdown() {
       select.appendChild(opt);
     });
 
-    // Restore previous selection if still present
-    if (previousValue && names.includes(previousValue)) {
-      select.value = previousValue;
+    // Restore selection only if we already had one, or if an explicit external selection exists.
+    const desired = (previousValue && previousValue.trim()) ? previousValue : (externalValue && externalValue.trim()) ? externalValue : "";
+    if (desired && names.includes(desired)) {
+      select.value = desired;
 
       // If this is the first time we are syncing from an external selection
       // (e.g., user started by choosing a school on the map), trigger the
@@ -802,21 +920,42 @@ function renderFlowchart() {
   // Draw flow boxes to group each flow
   drawFlowBoxes();
   
-  // Clear all existing highlights and dim all nodes and links
+  // Landing behavior: if no school is selected, show the full diagram (no dimming).
+  const hasSelection = (() => {
+    const sel = document.getElementById('mainFlowchartSchoolSelect');
+    return !!(sel && sel.value);
+  })();
+
   svg.selectAll(".node")
     .classed("highlight", false)
     .classed("special-highlight", false)
-    .classed("dimmed", true);
+    .classed("dimmed", hasSelection);
 
   svg.selectAll(".link")
     .classed("active", false)
-    .classed("dimmed", true);
+    .classed("dimmed", hasSelection);
 
-  // Draw Lines (Links) - simple straight lines with arrows
+  // Draw Lines (Links)
   const linkPath = (d) => {
     const source = nodes.find(n => n.id === d.source);
     const target = nodes.find(n => n.id === d.target);
     if (!source || !target) return "";
+
+    // Use ELK orthogonal routing when available and not in manual edit mode.
+    if (!flowBoxEditMode && elkLastLayoutOk && d && d.id && elkEdgeRouteById && elkEdgeRouteById.has(d.id)) {
+      const e = elkEdgeRouteById.get(d.id);
+      const section = e && e.sections && e.sections[0] ? e.sections[0] : null;
+      if (section && section.startPoint && section.endPoint) {
+        const pts = [section.startPoint, ...(section.bendPoints || []), section.endPoint]
+          .filter(p => p && Number.isFinite(Number(p.x)) && Number.isFinite(Number(p.y)))
+          .map(p => ({ x: Number(p.x), y: Number(p.y) }));
+        if (pts.length >= 2) {
+          return `M${pts[0].x},${pts[0].y} ` + pts.slice(1).map(p => `L${p.x},${p.y}`).join(' ');
+        }
+      }
+    }
+
+    // Fallback: straight line between node centers
     return `M${source.fx},${source.fy} L${target.fx},${target.fy}`;
   };
 
@@ -840,39 +979,11 @@ function renderFlowchart() {
     .attr("d", linkPath)
     .style("pointer-events", "none"); // interactions handled by hit paths below
 
-  // Add invisible "hit" paths so hover/tap is easy (especially on touch devices)
-  const hitLinks = g.select(".links")
-    .selectAll("path.link-hit")
-    .data(links)
-    .join("path")
-    .attr("class", "link-hit")
-    .attr("d", linkPath)
-    .style("fill", "none")
-    .style("stroke", "transparent")
-    .style("stroke-width", "18")
-    .style("pointer-events", "stroke")
-    .style("cursor", "pointer");
-
-  // Hover/click behavior: show a popover menu near the cursor (Cursor-like flyout)
-  hitLinks
-    .on("mouseenter", function(event, d) {
-      if (flowLinkMenuHideTimer) clearTimeout(flowLinkMenuHideTimer);
-      if (flowLinkMenuPinned) return;
-      showFlowLinkMenuAt(event.clientX, event.clientY, d);
-    })
-    .on("mousemove", function(event, d) {
-      if (flowLinkMenuPinned) return;
-      showFlowLinkMenuAt(event.clientX, event.clientY, d);
-    })
-    .on("mouseleave", function() {
-      if (!flowLinkMenuPinned) scheduleHideFlowLinkMenu();
-    })
-    .on("click", function(event, d) {
-      // Click toggles pinned open (helps on mobile where hover doesn't exist)
-      event.stopPropagation();
-      flowLinkMenuPinned = true;
-      showFlowLinkMenuAt(event.clientX, event.clientY, d);
-    });
+  // Intentionally disable link hover/click menus.
+  // (Users found link "More options" flyouts hard to read; keep the diagram clean.)
+  g.select(".links").selectAll("path.link-hit").remove();
+  flowLinkMenuPinned = false;
+  if (typeof hideFlowLinkMenu === 'function') hideFlowLinkMenu();
 
   g.select(".nodes")
     .selectAll("g")
@@ -1172,6 +1283,12 @@ function loadSchoolData() {
       console.error("❌ Failed to load school data for flowchart:", err);
     }
   });
+
+  // If there is no selection, ensure everything is visible (all flows/paths).
+  const selNow = document.getElementById('mainFlowchartSchoolSelect');
+  if (!selNow || !selNow.value) {
+    resetFlowchartVisibility();
+  }
 }
 
 // Helper: Normalize school level strings to canonical keys (namespaced to avoid clobbering other globals)
@@ -1658,8 +1775,16 @@ function evaluatePath(row, t) {
     // School does NOT meet both criteria (above at least one threshold)
     path.push("F1_UTIL2");
     if (decisions.util2 === "Yes") {
-      path.push("F2_ATTENDANCE");
-      currentFlow = 2;
+      // Include projected enrollment growth in the "overcrowding" branch:
+      // only route into Flow 2 if growth is above the threshold.
+      path.push("F1_GROWTH2");
+      if (decisions.growth === "Yes") {
+        path.push("F2_ATTENDANCE");
+        currentFlow = 2;
+      } else {
+        path.push("F3_FAC_ABOVE");
+        currentFlow = 3;
+      }
     } else {
       path.push("F3_FAC_ABOVE");
       currentFlow = 3;
@@ -2243,8 +2368,9 @@ function updateLinks() {
       const target = nodes.find(n => n.id === d.target);
       
       if (!source || !target) return "";
-      
-      // Simple straight line between node centers
+
+      // When editing layout manually, keep links simple/fast.
+      // ELK routing is only valid for the last auto-layout.
       return `M${source.fx},${source.fy} L${target.fx},${target.fy}`;
     });
 }
@@ -2432,9 +2558,11 @@ document.addEventListener("DOMContentLoaded", () => {
     g.append("g").attr("class", "nodes");
     g.append("g").attr("class", "link-labels");
 
-    // Get current zoom level from localStorage or use default (updated with saved layout)
-    let currentTransform = d3.zoomIdentity.translate(349.82689171669284, 477.94759411049654).scale(0.9944701686732141);
+    // Get current zoom level from localStorage or use default.
+    // Default to identity and auto-fit after first render (unless user saved a default zoom).
+    let currentTransform = d3.zoomIdentity;
     const savedTransform = localStorage.getItem('flowchartZoom');
+    const hasSavedTransform = !!savedTransform;
     if (savedTransform) {
       try {
         const parsed = JSON.parse(savedTransform);
@@ -2470,8 +2598,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     initializeFlowchartData();
-    renderFlowchart();
-    loadSchoolData();
+    Promise.resolve(applyElkLayoutIfAvailable())
+      .then((elkApplied) => {
+        renderFlowchart();
+        loadSchoolData();
+        // If the user hasn't saved a preferred zoom, auto-fit so the ELK layout is framed nicely.
+        if (!hasSavedTransform) {
+          setTimeout(() => {
+            if (typeof window.zoomFlowchartToFit === 'function') window.zoomFlowchartToFit();
+          }, 250);
+        }
+      });
     
     // Removed aggressive transform re-application that was causing zoom jumps
 

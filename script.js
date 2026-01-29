@@ -514,6 +514,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const toggleBtn = document.getElementById('sidebarToggle');
     const menu = document.getElementById('sidebarMenu');
     const closeBtn = document.getElementById('sidebarMenuClose');
+    const menuBackdrop = document.getElementById('sidebarMenuBackdrop');
     const body = document.body;
     const leftToggle = document.getElementById('toggleLeftSidebar');
     const rightToggle = document.getElementById('toggleRightSidebar');
@@ -640,19 +641,25 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     const showMenu = () => {
-      if (menu) menu.style.display = 'block';
+      if (!menu) return;
+      body.classList.add('menu-open');
       syncMenuState();
       updateMobileBackdrop();
+      try { menu.focus && menu.focus(); } catch (e) {}
     };
     const hideMenu = () => {
-      if (menu) menu.style.display = 'none';
+      body.classList.remove('menu-open');
       updateMobileBackdrop();
     };
+
+    // Expose for onboarding steps (and any other callers)
+    window.openSidebarMenu = showMenu;
+    window.closeSidebarMenu = hideMenu;
 
     if (toggleBtn) {
       toggleBtn.addEventListener('click', () => {
         if (!menu) return;
-        const isOpen = menu.style.display === 'block';
+        const isOpen = body.classList.contains('menu-open');
         if (isOpen) {
           hideMenu();
         } else {
@@ -661,8 +668,20 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }
     if (closeBtn) {
-      closeBtn.addEventListener('click', hideMenu);
+      closeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        hideMenu();
+      });
     }
+    if (menuBackdrop) {
+      menuBackdrop.addEventListener('click', () => hideMenu());
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && body.classList.contains('menu-open')) {
+        hideMenu();
+      }
+    });
     if (leftToggle) {
       leftToggle.addEventListener('change', () => {
         if (leftToggle.checked) {
@@ -1097,7 +1116,9 @@ let geojsonData;
 let originalGeojsonData; // Keep a copy of the original unfiltered data
 // (cleanup) Removed unused state placeholders (initialDecisionData, mapIsReady).
 let selectedEnrollment = 0;
-let odData = [];
+// Student roster used for Model Simulation (OD_Students.csv)
+let odStudentsBySchoolName = new Map(); // normalized Attend School Name -> Array<{ studentId, currentSchoolName, lng, lat }>
+let odStudentsLoadPromise = null;
 let selectedTypes = [];
 let minEnrollment = 0;
 let maxEnrollment = 2000;
@@ -1117,6 +1138,57 @@ let decisionAllRows = []; // Full Decision Data Export.csv rows (includes exclud
 let decisionAllByName = new Map(); // normalized name -> row
 let decisionAllById = new Map();   // normalized UniqueID -> row
 let articulationSchoolsByArea = new Map(); // area name -> array of school names
+
+function ensureOdStudentsLoaded() {
+  if (odStudentsLoadPromise) return odStudentsLoadPromise;
+  odStudentsLoadPromise = new Promise((resolve) => {
+    try {
+      Papa.parse("OD_Students.csv", {
+        download: true,
+        header: true,
+        delimiter: ",",
+        skipEmptyLines: true,
+        complete: function (results) {
+          try {
+            odStudentsBySchoolName = new Map();
+            const rows = (results && results.data) ? results.data : [];
+            rows.forEach((r) => {
+              const schoolName = normalize(r["Attend School Name"] || r.AttendSchoolName || "");
+              const studentId = (r.OBJECTID != null && String(r.OBJECTID).trim() !== "") ? String(r.OBJECTID).trim() : String(r.StudentID || "").trim();
+              const lng = parseFloat((r.Longitude || "").toString().trim());
+              const lat = parseFloat((r.Latitude || "").toString().trim());
+              if (!schoolName || !studentId) return;
+              if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
+              if (!odStudentsBySchoolName.has(schoolName)) odStudentsBySchoolName.set(schoolName, []);
+              odStudentsBySchoolName.get(schoolName).push({
+                studentId,
+                currentSchoolName: r["Attend School Name"] || r.AttendSchoolName || "",
+                lng,
+                lat
+              });
+            });
+            console.log("✅ OD_Students loaded. Schools:", odStudentsBySchoolName.size, "Students:", rows.length);
+          } catch (e) {
+            console.error("❌ Failed to index OD_Students.csv:", e);
+            odStudentsBySchoolName = new Map();
+          } finally {
+            resolve();
+          }
+        },
+        error: function (err) {
+          console.error("❌ Failed to load OD_Students.csv:", err);
+          odStudentsBySchoolName = new Map();
+          resolve();
+        }
+      });
+    } catch (e) {
+      console.error("❌ Failed to start OD_Students load:", e);
+      odStudentsBySchoolName = new Map();
+      resolve();
+    }
+  });
+  return odStudentsLoadPromise;
+}
 
 // Normalize school level strings from data to our filter values
 function normalizeSchoolLevel(level) {
@@ -4319,7 +4391,8 @@ map.on('load', () => {
     }
 
     svg.selectAll("*").remove();
-    svg.attr("viewBox", "-50 -50 1000 1400").attr("preserveAspectRatio", "xMidYMid meet");
+    // Keep the flowchart framed for the default left-to-right ELK layout.
+    svg.attr("viewBox", "-50 -50 1800 1000").attr("preserveAspectRatio", "xMidYMid meet");
 
     if (typeof window.initializeFlowchartFromScript === 'function') {
       window.initializeFlowchartFromScript(svg);
@@ -4388,17 +4461,9 @@ map.on('load', () => {
         }
       };
 
-      // If flowchart has no selection yet, default to first school and sync map
-      if (!flowchartSchoolSelect.value && flowchartSchoolSelect.options.length > 1) {
-        const firstName = flowchartSchoolSelect.options[1].value;
-        flowchartSchoolSelect.value = firstName;
-        Array.from(flowchartSchoolSelect.options || []).forEach(opt => {
-          opt.selected = opt.value === firstName;
-        });
-        window.currentSelectedSchoolName = firstName;
-        syncMapDropdownFromName(firstName);
-      } else if (flowchartSchoolSelect.value) {
-        // If there is an existing value, sync map to it
+      // Do NOT auto-select a school on flowchart landing.
+      // If there is an existing selection (e.g., user picked from map first), sync map to it.
+      if (flowchartSchoolSelect.value) {
         syncMapDropdownFromName(flowchartSchoolSelect.value);
       }
 
@@ -4909,23 +4974,8 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelector("#isoTable tbody").innerHTML = "";
     }
 
-    // OD Matrix logic for Model Simulation
-    odData = [];
-    Papa.parse("https://raw.githubusercontent.com/DWieberdink/JeffCo/main/OD_Draft.csv" , {
-      download: true,
-      header: true,
-      delimiter: ",",
-      skipEmptyLines: true,
-      complete: function(results) {
-        odData = results.data.filter(row =>
-          normalize(row.CurrentSchoolName) === normalize(selectedSchoolName)
-        );
-        console.log("✅ OD Matrix loaded for:", selectedSchoolName, "Rows:", odData.length);
-      },
-      error: function(err) {
-        console.error("❌ Failed to load OD matrix:", err);
-      }
-    });
+    // Model Simulation roster now uses OD_Students.csv (student home coordinates)
+    // The roster is loaded lazily when running the simulation (Assign button).
 
     // --- Blinking Halo Logic ---
     const sendingSource = map.getSource('sending-school');
@@ -5041,12 +5091,11 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
         const selectedSchoolName = select.options[select.selectedIndex].textContent;
         console.log("🏫 Selected school:", selectedSchoolName);
-      
-        const studentsToAssign = odData.filter(d =>
-          d.CurrentSchoolName &&
-          normalize(d.CurrentSchoolName) === normalize(selectedSchoolName)
-        );
-        console.log("👥 Students to assign:", studentsToAssign.length);
+
+        await ensureOdStudentsLoaded();
+
+        const studentsToAssign = odStudentsBySchoolName.get(normalize(selectedSchoolName)) || [];
+        console.log("👥 Students to assign (OD_Students):", studentsToAssign.length);
 
         if (studentsToAssign.length === 0) {
           alert("No students found for the selected school.");
@@ -5057,14 +5106,20 @@ document.addEventListener('DOMContentLoaded', function() {
         const excluded = new Set(Array.from(document.getElementById("excludedSchools").selectedOptions).map(opt => normalize(opt.value)));
         console.log("🚫 Excluded schools:", excluded.size);
 
+        const featureByName = new Map(geojsonData.features.map(f => [normalize(f.properties["Building Name"]), f]));
         const schoolLookup = new Map(geojsonData.features.map(f => [normalize(f.properties["Building Name"]), f.properties]));
-        const odLookup = new Map();
-        odData.forEach(d => {
-            if (!odLookup.has(d.StudentID)) {
-                odLookup.set(d.StudentID, []);
-            }
-            odLookup.get(d.StudentID).push(d);
-        });
+
+        const milesCrow = (lng1, lat1, lng2, lat2) => {
+          const toRad = (d) => (d * Math.PI) / 180;
+          const R = 3958.8; // miles
+          const dLat = toRad(lat2 - lat1);
+          const dLon = toRad(lng2 - lng1);
+          const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          return R * c;
+        };
 
         // ✅ Get slider values directly from DOM elements
         const weightDistance = parseFloat(document.getElementById('distanceWeightSlider').value);
@@ -5080,11 +5135,20 @@ document.addEventListener('DOMContentLoaded', function() {
         let minScorecard = Infinity;
         let maxUtilization = 0;
         
-        // Find max values for normalization
-        for (const d of odData) {
-          if (d.Distance) {
-            const distance = parseFloat((d.Distance || "").replace(/[^\d.-]/g, "")) || 0;
-            maxDistance = Math.max(maxDistance, distance);
+        // Find max distance for normalization (student home -> candidate school)
+        const candidateFeatures = geojsonData.features.filter(f => {
+          const destName = normalize(f.properties["Building Name"]);
+          if (!destName) return false;
+          if (destName === normalize(selectedSchoolName)) return false;
+          if (excluded.has(destName)) return false;
+          return true;
+        });
+        for (const s of studentsToAssign) {
+          for (const f of candidateFeatures) {
+            const c = f.geometry && f.geometry.coordinates ? f.geometry.coordinates : null;
+            if (!c || c.length < 2) continue;
+            const d = milesCrow(Number(s.lng), Number(s.lat), Number(c[0]), Number(c[1]));
+            if (Number.isFinite(d)) maxDistance = Math.max(maxDistance, d);
           }
         }
         
@@ -5115,28 +5179,25 @@ document.addEventListener('DOMContentLoaded', function() {
         // ✅ Process students with progress tracking
         let processedCount = 0;
         
-        for(const student of studentsToAssign) {
+        for (const student of studentsToAssign) {
             // ✅ Check if assignment was cancelled
             if (assignmentCancelled) {
               console.log("❌ Assignment cancelled during processing");
               return;
             }
             
-            const studentChoices = odLookup.get(student.StudentID) || [];
-            const choices = studentChoices.filter(d =>
-                d.DestinationSchoolName &&
-                normalize(d.DestinationSchoolName) !== normalize(d.CurrentSchoolName) &&
-                !excluded.has(normalize(d.DestinationSchoolName))
-            );
-
             let bestSchool = null;
             let bestScore = -Infinity;
 
-            for (const d of choices) {
-                const distance = parseFloat((d.Distance || "").replace(/[^\d.-]/g, "")) || 0;
-                const destName = normalize(d.DestinationSchoolName);
+            for (const f of candidateFeatures) {
+                const destName = normalize(f.properties["Building Name"]);
                 const destProperties = schoolLookup.get(destName);
                 if (!destProperties) continue;
+
+                const coords = f.geometry && f.geometry.coordinates ? f.geometry.coordinates : null;
+                if (!coords || coords.length < 2) continue;
+                const distance = milesCrow(Number(student.lng), Number(student.lat), Number(coords[0]), Number(coords[1]));
+                if (!Number.isFinite(distance)) continue;
 
                 // ✅ Check seat availability (capacity constraint)
                 const enrollment = parseInt(destProperties["Enrollment"]) || 0;
@@ -5170,16 +5231,16 @@ document.addEventListener('DOMContentLoaded', function() {
                   (weightScorecard * scorecardScore);
 
                 // Debug logging for first few choices
-                console.log(`🏫 ${destName}: Student=${student.StudentID}, Distance=${distance}(${distanceScore.toFixed(3)}), Utilization=${(utilization * 100).toFixed(1)}%(${enrollmentScore.toFixed(3)}), Quality=${quality}(${qualityScore.toFixed(3)}), Scorecard=${scorecard}(${scorecardScore.toFixed(3)}), Total=${score.toFixed(3)}`);
+                console.log(`🏫 ${destName}: Student=${student.studentId}, Distance=${distance.toFixed(2)}(${distanceScore.toFixed(3)}), Utilization=${(utilization * 100).toFixed(1)}%(${enrollmentScore.toFixed(3)}), Quality=${quality}(${qualityScore.toFixed(3)}), Scorecard=${scorecard}(${scorecardScore.toFixed(3)}), Total=${score.toFixed(3)}`);
 
                 if (score > bestScore) {
                   bestScore = score;
-                  bestSchool = d.DestinationSchoolName;
+                  bestSchool = destProperties["Building Name"] || f.properties["Building Name"];
                 }
             }
 
             if (bestSchool) {
-                finalAssignments[student.StudentID] = bestSchool;
+                finalAssignments[student.studentId] = bestSchool;
                 // ✅ Increment assigned count for the chosen school
                 assignedCounts[normalize(bestSchool)]++;
             }
@@ -5290,14 +5351,23 @@ document.addEventListener('DOMContentLoaded', function() {
         let totalAssignedDistance = 0;
         let studentCount = 0;
 
+        const originFeature = featureByName.get(normalize(selectedSchoolName));
+        const originCoords = originFeature && originFeature.geometry ? originFeature.geometry.coordinates : null;
+
         studentsToAssign.forEach(student => {
-            const sid = student.StudentID;
-            const original = odData.find(d => d.StudentID === sid && normalize(d.CurrentSchoolName) === normalize(d.DestinationSchoolName));
-            if (original) totalOriginalDistance += parseFloat(original.Distance);
+            const sid = student.studentId;
+            if (originCoords && originCoords.length >= 2) {
+              const d0 = milesCrow(Number(student.lng), Number(student.lat), Number(originCoords[0]), Number(originCoords[1]));
+              if (Number.isFinite(d0)) totalOriginalDistance += d0;
+            }
 
             const assignedSchool = finalAssignments[sid];
-            const reassigned = odData.find(d => d.StudentID === sid && normalize(d.DestinationSchoolName) === normalize(assignedSchool));
-            if (reassigned) totalAssignedDistance += parseFloat(reassigned.Distance);
+            const destFeature = assignedSchool ? featureByName.get(normalize(assignedSchool)) : null;
+            const destCoords = destFeature && destFeature.geometry ? destFeature.geometry.coordinates : null;
+            if (destCoords && destCoords.length >= 2) {
+              const d1 = milesCrow(Number(student.lng), Number(student.lat), Number(destCoords[0]), Number(destCoords[1]));
+              if (Number.isFinite(d1)) totalAssignedDistance += d1;
+            }
 
             studentCount++;
         });
@@ -6133,10 +6203,12 @@ function startOnboardingWalkthrough(options = {}) {
   }
 
   function openMenu() {
-    if (menu) menu.style.display = 'block';
+    if (typeof window.openSidebarMenu === 'function') window.openSidebarMenu();
+    else if (menu) menu.style.display = 'block';
   }
   function closeMenu() {
-    if (menu) menu.style.display = 'none';
+    if (typeof window.closeSidebarMenu === 'function') window.closeSidebarMenu();
+    else if (menu) menu.style.display = 'none';
   }
 
   function ensureProcessStep(stepNum) {

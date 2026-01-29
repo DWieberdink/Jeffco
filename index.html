@@ -19,12 +19,14 @@
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js" defer></script>
   <script src="https://d3js.org/d3.v7.min.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.js" defer></script>
+  <!-- ELK.js (graph layout engine) for flowchart auto-layout -->
+  <script src="https://cdn.jsdelivr.net/npm/elkjs@0.11.0/lib/elk.bundled.js" defer></script>
   <!-- Cache-bust local scripts so GitHub Pages / browsers don't serve stale JS -->
-  <script src="DecisionLogic.js?v=20251219_1" defer></script>
+  <script src="DecisionLogic.js?v=20260129_1" defer></script>
   <script src="PrioritizationLogic.js?v=20251219_1" defer></script>
   <script src="PrioritizationUI.js?v=20251219_1" defer></script>
-  <script src="FlowchartLogic.js?v=20260113_1" defer></script>
-  <script src="script.js?v=20260129_3" defer></script>
+  <script src="FlowchartLogic.js?v=20260129_6" defer></script>
+  <script src="script.js?v=20260129_4" defer></script>
   
 
 
@@ -1143,12 +1145,12 @@
       height: auto;
     }
 
-    /* ✅ Map overlay controls stack (right side) */
+    /* ✅ Map overlay controls stack (left side) */
     #map-right-controls {
       position: absolute;
       top: 12px; /* align with hamburger button */
-      right: 20px;
-      left: auto;
+      left: 20px;
+      right: auto;
       z-index: 1200;
       display: flex;
       flex-direction: column;
@@ -1336,15 +1338,70 @@
         width: 100% !important;
       }
 
-      /* Hamburger menu: fixed so it doesn't go off-screen on mobile */
+      /* Hamburger menu: becomes full-height drawer on small screens too */
       #sidebarMenu {
-        position: fixed !important;
-        top: calc(var(--brand-bar-height) - 4px) !important;
-        right: 12px !important;
-        left: auto !important;
-        max-width: 92vw;
-        z-index: 2200;
+        width: min(360px, 92vw);
       }
+    }
+
+    /* Hamburger menu (Google-Maps-style modal drawer) */
+    #sidebarMenuBackdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 3000;
+      display: none;
+    }
+    #sidebarMenu {
+      position: fixed;
+      top: 0;
+      right: 0;
+      left: auto;
+      height: 100vh;
+      width: 360px;
+      max-width: 92vw;
+      z-index: 3001;
+      background: #fff;
+      border-left: 1px solid #e5e7eb;
+      box-shadow: -18px 0 48px rgba(0,0,0,0.25);
+      transform: translateX(102%);
+      transition: transform 0.2s ease;
+      display: block; /* visibility controlled by transform/backdrop */
+      padding: 12px 12px 16px 12px;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    body.menu-open #sidebarMenuBackdrop { display: block; }
+    body.menu-open #sidebarMenu { transform: translateX(0); }
+    body.menu-open { overflow: hidden; }
+
+    /* Drawer header + list items */
+    #sidebarMenu .menu-header {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      padding: 6px 4px 10px 4px;
+      position: sticky;
+      top: 0;
+      background: #fff;
+      z-index: 1;
+    }
+    #sidebarMenu .menu-header-title {
+      font-weight: 900;
+      color: #111;
+      font-size: 14px;
+      letter-spacing: .01em;
+    }
+    #sidebarMenu .menu-close-btn {
+      border: 1px solid #d1d5db;
+      background: #fff;
+      cursor: pointer;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-weight: 900;
+      font-size: 13px;
+      color: #111827;
     }
 
     /* Hamburger dropdown menu readability */
@@ -1422,6 +1479,54 @@
     #sidebarMenu .menu-view-toggle button.active {
       background: #007cbf;
       color: #fff;
+    }
+
+    /* Menu rows with icon + label (Google Maps feel) */
+    #sidebarMenu .menu-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 10px 10px;
+      border: 1px solid transparent;
+      border-radius: 12px;
+      background: #fff;
+      cursor: pointer;
+      text-align: left;
+    }
+    #sidebarMenu .menu-row:hover { background: #f5f7fa; }
+    #sidebarMenu .menu-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex: 0 0 auto;
+    }
+    #sidebarMenu .menu-row-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    #sidebarMenu .menu-row-text .t {
+      font-weight: 900;
+      color: #111827;
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #sidebarMenu .menu-row-text .s {
+      font-size: 12px;
+      color: #6b7280;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     /* Top brand bar */
@@ -2590,10 +2695,11 @@
   </button>
 </nav>
 <!-- Hamburger dropdown menu -->
-<div id="sidebarMenu" style="display:none; position:absolute; top:52px; right:12px; left:auto; z-index:2002; background:#fff; border:1px solid #e5e7eb; border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,0.14); padding:10px 12px; width:280px; font-size:13px;">
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-    <span style="font-weight:900; color:#111;">Menu</span>
-    <button id="sidebarMenuClose" aria-label="Close menu" style="border:none; background:transparent; cursor:pointer; font-size:18px; line-height:1; padding:4px 6px;">×</button>
+<div id="sidebarMenuBackdrop" aria-hidden="true" style="display:none;"></div>
+<div id="sidebarMenu" aria-label="Main menu" aria-modal="true" role="dialog">
+  <div class="menu-header">
+    <span class="menu-header-title">Menu</span>
+    <button id="sidebarMenuClose" class="menu-close-btn" type="button" aria-label="Close menu">Close</button>
   </div>
 
   <div class="menu-section">
@@ -2601,7 +2707,7 @@
     <div class="menu-view-toggle" style="margin-top:6px;">
       <button id="menuShowMap" class="active" aria-label="Show map view">Map</button>
       <button id="menuShowFlowchart" aria-label="Show flowchart view">Flowchart</button>
-      <button id="menuShowStep1" aria-label="Show school-level view">School-level</button>
+      <button id="menuShowStep1" aria-label="Show school data view">School data</button>
     </div>
   </div>
 
@@ -2634,10 +2740,19 @@
 
   <div class="menu-section">
     <div class="menu-section-title">Help &amp; Data</div>
-    <div style="margin-top:6px; display:grid; gap:8px;">
-      <button id="menuStartTour" class="menu-action-btn" type="button">Start tour</button>
-      <button id="menuClosureScenarios" class="menu-action-btn" type="button">Closure Scenarios</button>
-      <button id="menuDataLogic" class="menu-action-btn" type="button">Data &amp; logic (sources)</button>
+    <div style="margin-top:6px; display:grid; gap:4px;">
+      <button id="menuStartTour" class="menu-row" type="button">
+        <span class="menu-icon">?</span>
+        <span class="menu-row-text"><span class="t">Start tour</span><span class="s">Guided walkthrough</span></span>
+      </button>
+      <button id="menuClosureScenarios" class="menu-row" type="button">
+        <span class="menu-icon">⇄</span>
+        <span class="menu-row-text"><span class="t">Closure Scenarios</span><span class="s">Student reassignment simulation</span></span>
+      </button>
+      <button id="menuDataLogic" class="menu-row" type="button">
+        <span class="menu-icon">ⓘ</span>
+        <span class="menu-row-text"><span class="t">Data &amp; Logic</span><span class="s">How calculations and data work</span></span>
+      </button>
     </div>
   </div>
 </div>
@@ -3243,7 +3358,7 @@
       </div>
       
       <div class="flowchart-svg-container">
-        <svg id="main-flowchart-svg" viewBox="-50 -50 1000 1400" preserveAspectRatio="xMidYMid meet"></svg>
+        <svg id="main-flowchart-svg" viewBox="-50 -50 1800 1000" preserveAspectRatio="xMidYMid meet"></svg>
       </div>
       
       <!-- Flowchart Controls -->

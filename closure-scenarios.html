@@ -101,6 +101,51 @@
       color: var(--blue);
     }
 
+    /* Simple toggle switch (used in drawer header) */
+    .cs-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      user-select: none;
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .cs-switch input {
+      position: absolute;
+      opacity: 0;
+      width: 1px;
+      height: 1px;
+      pointer-events: none;
+    }
+    .cs-switch .track {
+      width: 46px;
+      height: 26px;
+      border-radius: 999px;
+      background: #d1d5db;
+      position: relative;
+      transition: background 150ms ease;
+      flex: 0 0 auto;
+    }
+    .cs-switch .thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      transition: transform 150ms ease;
+    }
+    .cs-switch input:checked + .track {
+      background: #6b7280;
+    }
+    .cs-switch input:checked + .track .thumb {
+      transform: translateX(20px);
+    }
+
     @media (max-width: 720px) {
       .topbar { grid-template-columns: 1fr; text-align: center; }
       .brand-left, .topbar-right { justify-content: center; }
@@ -272,6 +317,122 @@
       vertical-align: -1px;
     }
 
+    /* Map full-screen + right drawer (index.html-like hamburger) */
+    :root { --cs-topbar-h: 56px; }
+    .cs-map-shell {
+      position: relative;
+    }
+    .cs-map-shell .map-wrap { margin-top: 0; }
+
+    .cs-drawer {
+      position: fixed;
+      top: var(--cs-topbar-h);
+      right: 0;
+      width: min(420px, 92vw);
+      height: calc(100vh - var(--cs-topbar-h));
+      background: #fff;
+      border-left: 1px solid var(--border);
+      box-shadow: -12px 0 40px rgba(0,0,0,0.12);
+      transform: translateX(100%);
+      transition: transform 200ms ease;
+      z-index: 5000;
+      display: flex;
+      flex-direction: column;
+    }
+    body.cs-drawer-open .cs-drawer { transform: translateX(0); }
+    .cs-drawer-header {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: #f8fafc;
+    }
+    .cs-drawer-header .title {
+      font-weight: 900;
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.2;
+    }
+    .cs-drawer-body {
+      padding: 12px 12px 18px 12px;
+      overflow: auto;
+    }
+    /* Force scenario setup into one column inside the drawer */
+    .cs-drawer .controls { grid-template-columns: 1fr; }
+
+    .cs-drawer-backdrop {
+      position: fixed;
+      top: var(--cs-topbar-h);
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 150ms ease;
+      z-index: 4500;
+    }
+    body.cs-drawer-open .cs-drawer-backdrop {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    body.cs-fullscreen .page {
+      padding: 0;
+      max-width: none;
+      margin: 0;
+    }
+    body.cs-fullscreen .cs-map-shell.card {
+      position: fixed;
+      top: var(--cs-topbar-h);
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border-radius: 0;
+      border-left: 0;
+      border-right: 0;
+      border-bottom: 0;
+      margin: 0;
+      padding: 0;
+    }
+    body.cs-fullscreen .cs-map-shell .map-wrap {
+      border: 0;
+      border-radius: 0;
+      margin: 0;
+      height: 100%;
+    }
+    body.cs-fullscreen #assignmentMap { height: 100%; }
+    body.cs-fullscreen #resultsCard { display: none !important; }
+    body.cs-fullscreen .cs-map-shell .map-legend { display: none; }
+
+    /* When sidebar is pinned, don't block map clicks with backdrop */
+    body.cs-drawer-pinned .cs-drawer-backdrop {
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    /* Map overlay buttons */
+    .cs-map-btn {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid rgba(0,0,0,0.12);
+      background: rgba(255,255,255,0.95);
+      box-shadow: 0 4px 18px rgba(0,0,0,0.12);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 10;
+    }
+    .cs-map-btn:hover { background: #fff; }
+    .cs-map-btn svg { width: 18px; height: 18px; stroke: #111827; }
+
     /* Password Protection Overlay (match index.html behavior) */
     #passwordOverlay {
       position: fixed;
@@ -301,14 +462,73 @@
     </div>
     <div class="topbar-right">
       <a class="btn" href="index.html">Back to Dashboard</a>
-      <button class="btn primary" id="exportCsvBtn" type="button" disabled>Export results CSV</button>
+      <button class="btn primary" id="csDrawerToggle" type="button" title="Open scenario setup">☰ Scenario setup</button>
     </div>
   </div>
 
   <div class="page">
-    <div class="card">
-      <h2 class="section-title">Scenario setup</h2>
+    <div class="card cs-map-shell" aria-label="Assignment map">
+      <div class="map-wrap" style="position:relative;">
+        <button class="cs-map-btn" id="csMapFullscreenBtn" type="button" title="Toggle full-screen map" aria-label="Toggle full-screen map">
+          <!-- Expand icon -->
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M8 3H3v5"></path>
+            <path d="M3 3l7 7"></path>
+            <path d="M16 3h5v5"></path>
+            <path d="M21 3l-7 7"></path>
+            <path d="M8 21H3v-5"></path>
+            <path d="M3 21l7-7"></path>
+            <path d="M16 21h5v-5"></path>
+            <path d="M21 21l-7-7"></path>
+          </svg>
+        </button>
+        <div id="assignmentMap"></div>
+      </div>
+      <div class="map-legend">
+        <span><span class="legend-dot" style="background:#111827;"></span>Closed school</span>
+        <span><span class="legend-dot" style="background:#2563eb;"></span>Destination (size = assigned)</span>
+        <span><span class="legend-dot" style="background:#2563eb; opacity:0.25;"></span>Flow line (thickness = assigned)</span>
+      </div>
+    </div>
 
+    <div class="card hidden" id="resultsCard">
+      <h2 class="section-title">Results</h2>
+      <div class="kpis" id="kpis"></div>
+
+      <div class="table-wrap">
+        <table aria-label="Destination summary table">
+          <thead>
+            <tr>
+              <th>Destination</th>
+              <th class="right">Assigned</th>
+              <th class="right">Remaining seats</th>
+              <th class="right">Avg miles (home→new)</th>
+              <th class="right">Max miles (home→new)</th>
+              <th>Added grades</th>
+            </tr>
+          </thead>
+          <tbody id="destTbody"></tbody>
+        </table>
+      </div>
+      <div class="muted" id="resultsNote" style="margin-top:8px; font-size:12px;"></div>
+    </div>
+  </div>
+
+  <!-- Scenario setup drawer (right-side hamburger) -->
+  <div class="cs-drawer-backdrop" id="csDrawerBackdrop" aria-hidden="true"></div>
+  <aside class="cs-drawer" id="csDrawer" aria-label="Scenario setup">
+    <div class="cs-drawer-header">
+      <div class="title">Scenario setup</div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <label class="cs-switch" title="Keep scenario setup open">
+          <span style="font-weight:800;">Show sidebar</span>
+          <input id="csDrawerPin" type="checkbox" />
+          <span class="track" aria-hidden="true"><span class="thumb"></span></span>
+        </label>
+        <button class="btn" id="csDrawerClose" type="button" title="Close scenario setup">Close</button>
+      </div>
+    </div>
+    <div class="cs-drawer-body">
       <div class="controls">
         <div class="control">
           <label for="closeSchoolSelect">Close school</label>
@@ -324,16 +544,10 @@
           </div>
         </div>
         <div class="control">
-          <label>Assignment</label>
+          <label>Students by Attendance Boundary</label>
           <div class="radio-row">
-            <label><input type="checkbox" id="forceAssignAll" checked /> Always assign all students (allow overfill if needed)</label>
-          </div>
-        </div>
-        <div class="control">
-          <label>Student filters</label>
-          <div class="radio-row">
-            <label><input type="checkbox" id="includeHomeSchool" checked /> Include Home School</label>
-            <label><input type="checkbox" id="includeChoice" checked /> Include Choice</label>
+            <label><input type="checkbox" id="includeHomeSchool" checked /> Attending Home School</label>
+            <label><input type="checkbox" id="includeChoice" checked /> Not Attending Home School</label>
           </div>
         </div>
         <div class="control">
@@ -341,7 +555,7 @@
           <div class="radio-row">
             <label style="gap:6px;"><span class="muted">Min</span> <input id="minMiles" type="number" step="0.1" min="0" value="0" style="width:90px; padding:6px 8px; border:1px solid var(--border); border-radius:8px;" /></label>
             <label style="gap:6px;"><span class="muted">Max</span> <input id="maxMiles" type="number" step="0.1" min="0" placeholder="∞" style="width:90px; padding:6px 8px; border:1px solid var(--border); border-radius:8px;" /></label>
-            <label style="gap:8px;"><input type="checkbox" id="allowBeyondMax" checked /> Allow beyond max if needed</label>
+            <label style="gap:8px;"><input type="checkbox" id="allowBeyondMax" /> Allow beyond max if needed</label>
           </div>
         </div>
         <div class="control">
@@ -362,46 +576,13 @@
         </div>
       </div>
 
-      <div id="odProgress" class="progress-wrap">
+      <div id="odProgress" class="progress-wrap" style="margin-top:10px;">
         <div class="progress-label">Loading student roster</div>
         <progress id="odProgressBar" max="100" value="0"></progress>
         <div class="progress-meta" id="odProgressMeta">Starting…</div>
       </div>
     </div>
-
-    <div style="height: 12px;"></div>
-
-    <div class="card hidden" id="resultsCard">
-      <h2 class="section-title">Results</h2>
-      <div class="kpis" id="kpis"></div>
-
-      <div class="map-wrap" aria-label="Assignment map">
-        <div id="assignmentMap"></div>
-      </div>
-      <div class="map-legend">
-        <span><span class="legend-dot" style="background:#111827;"></span>Closed school</span>
-        <span><span class="legend-dot" style="background:#2563eb;"></span>Destination (size = assigned)</span>
-        <span><span class="legend-dot" style="background:#2563eb; opacity:0.25;"></span>Flow line (thickness = assigned)</span>
-      </div>
-
-      <div class="table-wrap">
-        <table aria-label="Destination summary table">
-          <thead>
-            <tr>
-              <th>Destination</th>
-              <th class="right">Assigned</th>
-              <th class="right">Remaining seats</th>
-              <th class="right">Avg miles (home→new)</th>
-              <th class="right">Max miles (home→new)</th>
-              <th>Added grades</th>
-            </tr>
-          </thead>
-          <tbody id="destTbody"></tbody>
-        </table>
-      </div>
-      <div class="muted" id="resultsNote" style="margin-top:8px; font-size:12px;"></div>
-    </div>
-  </div>
+  </aside>
 
   <!-- Password Protection Overlay -->
   <div id="passwordOverlay">

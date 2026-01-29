@@ -332,7 +332,13 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       // School does NOT meet both criteria (above at least one threshold)
       if (decisions.util2 === "Yes") {
-        currentFlow = 2;
+        // Include projected enrollment growth in the "overcrowding" branch:
+        // only route into Flow 2 if growth is above the threshold.
+        if (decisions.growth === "Yes") {
+          currentFlow = 2;
+        } else {
+          currentFlow = 3;
+        }
       } else {
         currentFlow = 3;
       }
