@@ -6,7 +6,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>School Facility Planning Tool | Data &amp; Logic</title>
+    <title>School Facility Planning Webtool | Data &amp; Logic Tool</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
     <!-- Updated: EducationalAdequacy OR logic with DepartmentalDeficiency in Flow 3 -->
     <!-- CACHE BUST: 2024-01-15-tab-fix-v2 -->
@@ -38,7 +38,7 @@
             --border: #e5e7eb;
             --text: #111827;
             --muted: #6b7280;
-            --brand-bar-height: 52px;
+            --brand-bar-height: 56px;
         }
 
         /* Top brand bar (match dashboard) */
@@ -76,16 +76,23 @@
             transform: translateX(-50%);
             text-align: center;
             font-size: 18px;
-            font-weight: 700;
+            font-weight: 800;
             color: #111827;
             margin: 0;
             pointer-events: none;
             width: 100%;
-            white-space: nowrap;
+            line-height: 1.2;
+            white-space: normal;
             overflow: hidden;
-            text-overflow: ellipsis;
             padding: 0 160px; /* leave room for back button on right */
             box-sizing: border-box;
+        }
+        #top-brand-bar .brand-title .sub {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--muted);
+            margin-top: 2px;
         }
         #top-brand-bar img {
             height: 26px;
@@ -503,7 +510,10 @@
             <img src="client-logo.png" alt="Client Logo" class="client-logo">
             <span class="brand-label">by</span>
             <img src="PerkinsEastmanLogo.svg" alt="Perkins Eastman Logo" class="pe-logo">
-            <span class="brand-title">School Facility Planning Tool | Data &amp; Logic</span>
+            <div class="brand-title">
+                School Facility Planning Webtool
+                <span class="sub">Data &amp; Logic Tool</span>
+            </div>
             <a href="index.html" class="top-back-button">Back to Dashboard</a>
         </div>
     </div>

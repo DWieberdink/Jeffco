@@ -210,6 +210,44 @@ function getDecisionColorKey(decisionType) {
   return getDecisionColorHex(decisionType).replace("#", "").toLowerCase();
 }
 
+// School level colors (used by "Color by school level" and utilization pies)
+const SCHOOL_LEVEL_COLORS = {
+  'Elementary': '#2563eb',  // blue
+  'Middle': '#7c3aed',      // purple
+  'High': '#dc2626',        // red
+  'K-8': '#f59e0b',         // amber
+  'Alternative': '#10b981', // green
+  'Unknown': '#64748b'
+};
+function getSchoolLevelColorHex(level) {
+  const key = (level || '').toString().trim();
+  return SCHOOL_LEVEL_COLORS[key] || '#94a3b8';
+}
+function getSchoolLevelColorKey(level) {
+  return getSchoolLevelColorHex(level).replace('#', '').toLowerCase();
+}
+
+// Utilization phase colors (Color by Utilization)
+const UTILIZATION_PHASE_COLORS = {
+  low: '#2563eb',  // blue
+  mid: '#10b981',  // green
+  high: '#dc2626', // red
+};
+function normalizeUtilizationValue(raw) {
+  const n = parseFloat(raw);
+  if (!Number.isFinite(n)) return 0;
+  // If utilization came in as a percent (e.g. 92), convert to ratio.
+  if (n > 1.5) return n / 100;
+  return n;
+}
+function getUtilizationThresholds() {
+  const t = window.thresholds || window.decisionLogic?.thresholds || {};
+  const low = normalizeUtilizationValue(t.utilization ?? 0.6);
+  const high = normalizeUtilizationValue(t.utilizationHigh ?? 0.9);
+  // Ensure low <= high
+  return (low <= high) ? { low, high } : { low: high, high: low };
+}
+
 // Base-map label/POI visibility (applied to Mapbox style layers)
 const MAP_LABEL_PREFS_KEY = 'mapLabelPrefs';
 const DEFAULT_MAP_LABEL_PREFS = {
@@ -518,9 +556,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const body = document.body;
     const leftToggle = document.getElementById('toggleLeftSidebar');
     const rightToggle = document.getElementById('toggleRightSidebar');
+    const closeLeftPanelBtn = document.getElementById('closeLeftPanelBtn');
+    const closeRightPanelBtn = document.getElementById('closeRightPanelBtn');
     const startTourBtn = document.getElementById('menuStartTour');
     const closureScenariosBtn = document.getElementById('menuClosureScenarios');
     const dataLogicBtn = document.getElementById('menuDataLogic');
+    const schoolProjectListBtn = document.getElementById('menuSchoolProjectList');
     const rightSidebar = document.getElementById('map-sidebar');
     const showMapBtn = document.getElementById('menuShowMap');
     const showFlowchartBtn = document.getElementById('menuShowFlowchart');
@@ -709,6 +750,28 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       });
     }
+
+    // Sticky "×" buttons on the panels (desktop + mobile)
+    if (closeLeftPanelBtn) {
+      closeLeftPanelBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        body.classList.add('sidebar-collapsed');
+        if (leftToggle) leftToggle.checked = false;
+        updateMobileBackdrop();
+        if (window.map && typeof window.map.resize === 'function') setTimeout(() => window.map.resize(), 50);
+      });
+    }
+    if (closeRightPanelBtn) {
+      closeRightPanelBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        body.classList.add('right-sidebar-collapsed');
+        if (rightToggle) rightToggle.checked = false;
+        updateMobileBackdrop();
+        if (window.map && typeof window.map.resize === 'function') setTimeout(() => window.map.resize(), 50);
+      });
+    }
     if (startTourBtn) {
       startTourBtn.addEventListener('click', () => {
         hideMenu();
@@ -730,6 +793,13 @@ document.addEventListener('DOMContentLoaded', function() {
       dataLogicBtn.addEventListener('click', () => {
         hideMenu();
         window.open('data-viewer.html', '_blank');
+      });
+    }
+    if (schoolProjectListBtn) {
+      schoolProjectListBtn.addEventListener('click', () => {
+        hideMenu();
+        // Opens the School Project List / profile page in a new tab.
+        window.open('school-profile.html', '_blank');
       });
     }
     if (showMapBtn) {
@@ -1124,7 +1194,8 @@ let minEnrollment = 0;
 let maxEnrollment = 2000;
 let minSeats = -500;  // Allow negative seats (over capacity schools)
 let maxSeats = 500;
-let showVariableRadius = false;
+// Landing page default: size dots by capacity/enrollment
+let showVariableRadius = true;
 let showUtilizationPie = false;
 let selectedFlows = ['expansion', 'maintenance', 'closure', 'other']; // Track selected flows
 let schoolDistancesByOrigin = {}; // Origin UniqueID -> array of destination rows (normalized lower)
@@ -1898,10 +1969,28 @@ function updateLayer() {
 
   // Prepare pie icon names before updating the source so symbols render immediately
   if (showUtilizationPie) {
+    const getPieColorKeyForFeature = (f) => {
+      const mode =
+        (window.__mapColorByMode === 'utilization') ? 'utilization'
+        : ((window.__mapColorByMode === 'level') ? 'level' : 'decision');
+
+      if (mode === 'level') {
+        const lvl = (f && f.properties) ? (f.properties.__schoolLevelNorm || normalizeSchoolLevel(f.properties['School Level']) || 'Unknown') : 'Unknown';
+        return getSchoolLevelColorKey(lvl);
+      }
+      if (mode === 'utilization') {
+        const { low, high } = getUtilizationThresholds();
+        const util = normalizeUtilizationValue(f?.properties?.['Utilization'] ?? 0);
+        if (util < low) return UTILIZATION_PHASE_COLORS.low.replace('#', '').toLowerCase();
+        if (util > high) return UTILIZATION_PHASE_COLORS.high.replace('#', '').toLowerCase();
+        return UTILIZATION_PHASE_COLORS.mid.replace('#', '').toLowerCase();
+      }
+      const decisionType = (f && f.properties) ? (f.properties["Decision Type"] || f.properties["decision"] || "Unknown") : "Unknown";
+      return getDecisionColorKey(decisionType);
+    };
     filteredFeatures.forEach(f => {
       const bucket = f.properties["utilPieBucket"] || "0.0";
-      const decisionType = f.properties["Decision Type"] || f.properties["decision"] || "Unknown";
-      const colorKey = getDecisionColorKey(decisionType);
+      const colorKey = getPieColorKeyForFeature(f);
       f.properties["utilPieImage"] = `util-pie-${bucket}-${colorKey}`;
     });
   }
@@ -1937,8 +2026,21 @@ function updateLayer() {
   if (showUtilizationPie) {
     filteredFeatures.forEach(f => {
       const bucket = f.properties["utilPieBucket"] || "0.0";
-      const decisionType = f.properties["Decision Type"] || f.properties["decision"] || "Unknown";
-      const colorKey = getDecisionColorKey(decisionType);
+      const mode =
+        (window.__mapColorByMode === 'utilization') ? 'utilization'
+        : ((window.__mapColorByMode === 'level') ? 'level' : 'decision');
+      const colorKey =
+        (mode === 'level')
+          ? getSchoolLevelColorKey(f.properties.__schoolLevelNorm || normalizeSchoolLevel(f.properties['School Level']) || 'Unknown')
+          : (mode === 'utilization')
+            ? (() => {
+                const { low, high } = getUtilizationThresholds();
+                const util = normalizeUtilizationValue(f?.properties?.['Utilization'] ?? 0);
+                if (util < low) return UTILIZATION_PHASE_COLORS.low.replace('#', '').toLowerCase();
+                if (util > high) return UTILIZATION_PHASE_COLORS.high.replace('#', '').toLowerCase();
+                return UTILIZATION_PHASE_COLORS.mid.replace('#', '').toLowerCase();
+              })()
+            : getDecisionColorKey(f.properties["Decision Type"] || f.properties["decision"] || "Unknown");
       f.properties["utilPieImage"] = `util-pie-${bucket}-${colorKey}`;
     });
   }
@@ -1947,32 +2049,36 @@ function updateLayer() {
   // otherwise use a constant radius. If utilization pies are enabled, hide circle sizing
   // and show pie icons instead.
   if (!showUtilizationPie) {
-    if (showVariableRadius && filteredFeatures.length > 0) {
-      const enrollValues = filteredFeatures
-        .map(f => parseFloat(f.properties["Enrollment"] || 0))
+    if (showVariableRadius && originalGeojsonData && Array.isArray(originalGeojsonData.features) && originalGeojsonData.features.length > 0) {
+      // IMPORTANT: scale is based on ALL schools, not the filtered subset,
+      // so dot sizes remain stable when filters hide/show features.
+      const allEnrollValues = originalGeojsonData.features
+        .map(f => parseFloat(f?.properties?.["Enrollment"] || 0))
         .filter(v => Number.isFinite(v) && v > 0);
-      if (enrollValues.length > 0) {
-        const minEnrollVal = Math.min(...enrollValues);
-        const maxEnrollVal = Math.max(...enrollValues);
+
+      if (allEnrollValues.length > 0) {
+        const minEnrollVal = Math.min(...allEnrollValues);
+        const maxEnrollVal = Math.max(...allEnrollValues);
         // Avoid zero-width ranges; pad a bit
         const rangeMin = Math.max(0, Math.floor(minEnrollVal / 10) * 10);
         const rangeMax = Math.ceil(maxEnrollVal / 10) * 10;
         const clampedRangeMax = rangeMax > rangeMin ? rangeMax : rangeMin + 10;
+
         map.setPaintProperty(
           'schools-layer',
           'circle-radius',
           [
             'interpolate',
             ['linear'],
-            ['coalesce', ['get', 'Enrollment'], 0],
+            ['to-number', ['coalesce', ['get', 'Enrollment'], 0]],
             rangeMin, 4,
             clampedRangeMax, 14
           ]
         );
-        console.log("📏 Variable radius enabled (enrollment)", { rangeMin, rangeMax: clampedRangeMax });
+        console.log("📏 Variable radius enabled (global enrollment scale)", { rangeMin, rangeMax: clampedRangeMax });
       } else {
         map.setPaintProperty('schools-layer', 'circle-radius', 6);
-        console.warn("⚠️ Variable radius requested but no enrollment values found; using constant size.");
+        console.warn("⚠️ Variable radius requested but no enrollment values found in originalGeojsonData; using constant size.");
       }
     } else {
       map.setPaintProperty('schools-layer', 'circle-radius', 6);
@@ -1981,16 +2087,20 @@ function updateLayer() {
 
   // When utilization pies are enabled, size the pie icons by enrollment if requested
   if (map.getLayer('schools-pie-layer')) {
-    if (showUtilizationPie && showVariableRadius && filteredFeatures.length > 0) {
-      const enrollValues = filteredFeatures
-        .map(f => parseFloat(f.properties["Enrollment"] || 0))
+    if (showUtilizationPie && showVariableRadius && originalGeojsonData && Array.isArray(originalGeojsonData.features) && originalGeojsonData.features.length > 0) {
+      // IMPORTANT: scale is based on ALL schools, not the filtered subset,
+      // so icon sizes remain stable when filters hide/show features.
+      const allEnrollValues = originalGeojsonData.features
+        .map(f => parseFloat(f?.properties?.["Enrollment"] || 0))
         .filter(v => Number.isFinite(v) && v > 0);
-      if (enrollValues.length > 0) {
-        const minEnrollVal = Math.min(...enrollValues);
-        const maxEnrollVal = Math.max(...enrollValues);
+
+      if (allEnrollValues.length > 0) {
+        const minEnrollVal = Math.min(...allEnrollValues);
+        const maxEnrollVal = Math.max(...allEnrollValues);
         const rangeMin = Math.max(0, Math.floor(minEnrollVal / 10) * 10);
         const rangeMax = Math.ceil(maxEnrollVal / 10) * 10;
         const clampedRangeMax = rangeMax > rangeMin ? rangeMax : rangeMin + 10;
+
         // Map enrollment to icon-size between ~0.6 and 1.2 (on 40px sprites → 24–48px)
         map.setLayoutProperty(
           'schools-pie-layer',
@@ -1998,7 +2108,7 @@ function updateLayer() {
           [
             'interpolate',
             ['linear'],
-            ['coalesce', ['get', 'Enrollment'], 0],
+            ['to-number', ['coalesce', ['get', 'Enrollment'], 0]],
             rangeMin, 0.6,
             clampedRangeMax, 1.2
           ]
@@ -2190,7 +2300,9 @@ function updateLegend() {
   const legendContent = document.getElementById('legend-content');
   const legendToggle = document.getElementById('legend-toggle');
   if (!legendContent) return;
-  const colorMode = (window.__mapColorByMode === 'level') ? 'level' : 'decision';
+  const colorMode =
+    (window.__mapColorByMode === 'utilization') ? 'utilization'
+    : ((window.__mapColorByMode === 'level') ? 'level' : 'decision');
   const useDecisionColors = colorMode === 'decision';
   
   legendContent.innerHTML = '';
@@ -2202,9 +2314,11 @@ function updateLegend() {
     const baseLabel =
       showingAssignments
         ? 'Assignment View'
-        : (colorMode === 'level')
-          ? 'School Level Legend'
-          : 'Decision Types Legend';
+        : (colorMode === 'utilization')
+          ? 'Utilization Legend'
+          : (colorMode === 'level')
+            ? 'School Level Legend'
+            : 'Decision Types Legend';
     const chevron = legendToggle.querySelector('span.chevron');
     const textSpan = legendToggle.querySelector('.legend-title') || legendToggle.querySelector('span:not(.chevron)');
     if (textSpan) textSpan.textContent = baseLabel;
@@ -2259,6 +2373,77 @@ function updateLegend() {
       legendContent.appendChild(row);
     }
   } else {
+    // Utilization mode: show the 3-phase legend + keep flow filter checkboxes (without decision colors).
+    if (colorMode === 'utilization') {
+      const { low, high } = getUtilizationThresholds();
+      const lowPct = Math.round(low * 100);
+      const highPct = Math.round(high * 100);
+
+      const hdr = document.createElement('div');
+      hdr.textContent = 'Utilization';
+      hdr.style.cssText = 'font-weight:900; margin: 4px 0 6px 0; color:#111827;';
+      legendContent.appendChild(hdr);
+
+      const mkRow = (label, color) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:4px;';
+        const swatch = document.createElement('span');
+        swatch.style.cssText = `background:${color}; width: 12px; height: 12px; border-radius: 2px; border: 1px solid #cbd5e1; display:inline-block;`;
+        const txt = document.createElement('span');
+        txt.textContent = label;
+        txt.style.cssText = 'font-size: 12px; color:#111827; font-weight:700;';
+        row.appendChild(swatch);
+        row.appendChild(txt);
+        return row;
+      };
+
+      legendContent.appendChild(mkRow(`Too low (< ${lowPct}%)`, UTILIZATION_PHASE_COLORS.low));
+      legendContent.appendChild(mkRow(`In range (${lowPct}%–${highPct}%)`, UTILIZATION_PHASE_COLORS.mid));
+      legendContent.appendChild(mkRow(`Too high (> ${highPct}%)`, UTILIZATION_PHASE_COLORS.high));
+
+      const note = document.createElement('div');
+      note.style.cssText = 'margin-top:6px; font-size:12px; color:#6b7280;';
+      note.textContent = 'Thresholds follow the utilization sliders in Strategic Sorting.';
+      legendContent.appendChild(note);
+
+      const sep = document.createElement('div');
+      sep.style.cssText = 'height:1px; background:#e5e7eb; margin:10px 0;';
+      legendContent.appendChild(sep);
+
+      const filterHdr = document.createElement('div');
+      filterHdr.textContent = 'Strategies (filter)';
+      filterHdr.style.cssText = 'font-weight:900; margin: 4px 0 6px 0; color:#111827;';
+      legendContent.appendChild(filterHdr);
+
+      const groups = [
+        { id: 'flow-expansion', label: 'Expansion' },
+        { id: 'flow-maintenance', label: 'Maintenance/Investment' },
+        { id: 'flow-closure', label: 'Closure/Consolidation' },
+        { id: 'flow-other', label: 'Other' },
+      ];
+
+      groups.forEach((g) => {
+        const row = document.createElement('label');
+        row.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:6px; cursor:pointer;';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.id = g.id;
+        cb.checked = flowCheckboxStates[g.id] !== false;
+        cb.addEventListener('change', (e) => {
+          flowCheckboxStates[g.id] = !!e.target.checked;
+          updateFlowFilter();
+        });
+        const txt = document.createElement('span');
+        txt.textContent = g.label;
+        txt.style.cssText = 'font-size: 12px; color:#111827; font-weight:800;';
+        row.appendChild(cb);
+        row.appendChild(txt);
+        legendContent.appendChild(row);
+      });
+
+      return;
+    }
+
     // In School level mode, show ONLY the school-level legend (no decision groups).
     if (colorMode === 'level') {
       const hdr = document.createElement('div');
@@ -2905,6 +3090,16 @@ map.on('load', () => {
         map.on('mouseleave', 'articulation-areas-fill', () => { map.getCanvas().style.cursor = ''; });
 
         map.on('click', 'articulation-areas-fill', (e) => {
+          // If the user clicked directly on a school point, let school interaction win.
+          // This prevents "double popups" (area + school) on a single click.
+          try {
+            const schoolLayers = ['schools-layer', 'schools-pie-layer'].filter((id) => map.getLayer && map.getLayer(id));
+            if (schoolLayers.length) {
+              const schoolHits = map.queryRenderedFeatures(e.point, { layers: schoolLayers }) || [];
+              if (schoolHits.length) return;
+            }
+          } catch {}
+
           const f = e.features && e.features[0] ? e.features[0] : null;
           const areaName = f && f.properties ? (f.properties.__aaName || f.properties['Articulation Area'] || '') : '';
           if (!areaName) return;
@@ -3175,14 +3370,17 @@ map.on('load', () => {
         filter: ['in', ['get', 'UniqueID'], ['literal', []]]
       });
       
+      // Now that the schools layers exist, reapply filters + sizing so
+      // "Show Size by Capacity" works immediately on first load.
+      try { updateLayer(); } catch (e) { console.warn("⚠️ updateLayer after schools-layer add failed:", e); }
+
       updateLegend();
 
       // Setup other map features that depend on the 'schools' source
-      // Distance/details popup for school clicks: allow closing by clicking
-      // anywhere else on the map.
-      const popup = new mapboxgl.Popup({
+      // School details: show on hover (not on click).
+      const schoolHoverPopup = new mapboxgl.Popup({
         closeButton: false,
-        closeOnClick: true
+        closeOnClick: false
       });
 
       map.on('mouseenter', 'schools-layer', () => {
@@ -3193,42 +3391,27 @@ map.on('load', () => {
         map.getCanvas().style.cursor = '';
       });
 
-      // Support clicks on both circle and pie layers
-      const handleSchoolClick = (e) => {
-        const feature = e.features && e.features[0];
-        if (!feature) return;
+      const normLower = (s) => (s || "").toString().toLowerCase().trim();
 
-        const coordinates = feature.geometry.coordinates.slice();
-        const schoolNameRaw = feature.properties['Building Name'];
-        const uniqueIdFromFeature = (feature.properties['UniqueID'] || "").toString().trim();
-
-        // Derive a canonical school name using DecisionLogic data when possible,
-        // so that it matches the names used in all dropdowns. Prefer matching by
-        // normalized name rather than relying solely on UniqueID on the feature,
-        // since some features may not yet have that ID injected.
-        const norm = (s) => (s || "").toString().toLowerCase().trim();
-        console.log("🖱️ Map click on school feature:", {
-          rawName: schoolNameRaw,
-          uniqueIdFromFeature
-        });
-
+      function resolveCanonicalSchoolFromFeature(feature) {
+        const schoolNameRaw = feature?.properties?.['Building Name'];
+        const uniqueIdFromFeature = (feature?.properties?.['UniqueID'] || "").toString().trim();
         let schoolName = schoolNameRaw;
         let originRow = null;
+
+        // Prefer DecisionLogic name normalization so it matches dropdowns.
         if (window.decisionLogic && Array.isArray(window.decisionLogic.schoolData)) {
-          originRow = window.decisionLogic.schoolData.find(r => norm(r["Building Name"]) === norm(schoolNameRaw));
+          originRow = window.decisionLogic.schoolData.find(r => normLower(r["Building Name"]) === normLower(schoolNameRaw));
           if (!originRow && uniqueIdFromFeature) {
             originRow = window.decisionLogic.schoolData.find(r => {
               const uid = (r.UniqueID || r["UniqueID"] || r["Unique Id"] || "").toString().trim();
               return uid === uniqueIdFromFeature;
             });
           }
-          if (originRow && originRow["Building Name"]) {
-            schoolName = originRow["Building Name"];
-          }
+          if (originRow && originRow["Building Name"]) schoolName = originRow["Building Name"];
         }
 
-        // Determine a robust origin ID using either the joined decision data or
-        // the feature properties as a fallback.
+        // Determine best UniqueID for distance/highlight logic
         let originUniqueId = "";
         if (originRow) {
           originUniqueId = (
@@ -3238,32 +3421,120 @@ map.on('load', () => {
             ""
           ).toString().trim();
         }
-        if (!originUniqueId && uniqueIdFromFeature) {
-          originUniqueId = uniqueIdFromFeature;
+        if (!originUniqueId && uniqueIdFromFeature) originUniqueId = uniqueIdFromFeature;
+
+        return { schoolName, originRow, originUniqueId, uniqueIdFromFeature };
+      }
+
+      function lookupDistanceMiles(originId, destId, destName) {
+        const originKey = normLower(originId);
+        const destKey = normLower(destId);
+        const destinationName = destName || destId || '';
+        let distMiles = null;
+        try {
+          if (originKey && destKey && originKey === destKey) {
+            distMiles = 0;
+          } else if (originKey && window.schoolDistancesByOrigin && Array.isArray(window.schoolDistancesByOrigin[originKey])) {
+            const rows = window.schoolDistancesByOrigin[originKey];
+            const match =
+              rows.find(r => normLower(r.destId) === destKey) ||
+              rows.find(r => normLower(r.destName) === normLower(destinationName));
+            if (match && match.distanceMiles !== null && match.distanceMiles !== undefined && match.distanceMiles !== '') {
+              const v = parseFloat(match.distanceMiles);
+              if (isFinite(v)) distMiles = v;
+            }
+          }
+          // Fallback reverse direction
+          if (distMiles === null && destKey && window.schoolDistancesByOrigin && Array.isArray(window.schoolDistancesByOrigin[destKey])) {
+            const rowsRev = window.schoolDistancesByOrigin[destKey];
+            const matchRev = rowsRev.find(r => normLower(r.destId) === originKey);
+            if (matchRev && matchRev.distanceMiles !== null && matchRev.distanceMiles !== undefined && matchRev.distanceMiles !== '') {
+              const v = parseFloat(matchRev.distanceMiles);
+              if (isFinite(v)) distMiles = v;
+            }
+          }
+        } catch {}
+        return (distMiles === null || distMiles === undefined || !isFinite(distMiles)) ? null : distMiles;
+      }
+
+      function buildSchoolPopupHtml(feature, schoolName, originUniqueId) {
+        const capacity = feature?.properties?.['Capacity'];
+        const utilization = feature?.properties?.['Utilization'];
+
+        let html = `<strong>${schoolName}</strong>`;
+
+        if (capacity !== undefined && capacity !== null && capacity !== '') {
+          html += `<br><span>Capacity: ${capacity}</span>`;
+        }
+        if (utilization !== undefined && utilization !== null && utilization !== '') {
+          const utilNum = parseFloat(utilization);
+          if (isFinite(utilNum)) {
+            const pct = utilNum <= 1.5 ? utilNum * 100 : utilNum;
+            html += `<br><span>Utilization: ${pct.toFixed(0)}%</span>`;
+          } else {
+            html += `<br><span>Utilization: ${utilization}</span>`;
+          }
         }
 
-        console.log("🖱️ Canonical school name resolved from map click:", schoolName, "originRow found?", !!originRow, "originUniqueId:", originUniqueId);
+        // If an origin is selected, include distance in the hover popup.
+        const originId = (window.currentOriginId || '').toString().trim() || getOriginIdForName(window.currentOriginName);
+        const originName = window.currentOriginName || 'selected school';
+        if (originId && originUniqueId) {
+          const miles = lookupDistanceMiles(originId, originUniqueId, schoolName);
+          if (miles !== null) {
+            html += `<br><span>Distance to ${originName}: ${miles.toFixed(1)} mi</span>`;
+          }
+        }
+
+        if (showingAssignments) {
+          const assignedSource = map.getSource('assigned-schools');
+          if (assignedSource && assignedSource._data?.features) {
+            const assignedFeature = assignedSource._data.features.find(f => f.properties.name === schoolName);
+            if (assignedFeature) {
+              html += `<br><span style="color: #FF530D; font-weight: bold;">📚 Received ${assignedFeature.properties.assigned} students</span>`;
+            }
+          }
+        }
+
+        return html;
+      }
+
+      // Hover handlers (both circle + utilization pie layers)
+      const handleSchoolHover = (e) => {
+        const feature = e.features && e.features[0];
+        if (!feature) return;
+        const coordinates = feature.geometry.coordinates.slice();
+        const { schoolName, originUniqueId } = resolveCanonicalSchoolFromFeature(feature);
+        const html = buildSchoolPopupHtml(feature, schoolName, originUniqueId);
+        schoolHoverPopup.setLngLat(coordinates).setHTML(html).addTo(map);
+      };
+
+      const clearSchoolHoverPopup = () => {
+        try { schoolHoverPopup.remove(); } catch {}
+      };
+
+      map.on('mousemove', 'schools-layer', handleSchoolHover);
+      map.on('mouseleave', 'schools-layer', clearSchoolHoverPopup);
+      map.on('mousemove', 'schools-pie-layer', handleSchoolHover);
+      map.on('mouseleave', 'schools-pie-layer', clearSchoolHoverPopup);
+
+      // Support clicks on both circle and pie layers for selection logic,
+      // but do NOT show a school info popup (hover handles that).
+      const handleSchoolClick = (e) => {
+        const feature = e.features && e.features[0];
+        if (!feature) return;
+
+        const coordinates = feature.geometry.coordinates.slice();
+        const { schoolName, originUniqueId, uniqueIdFromFeature } = resolveCanonicalSchoolFromFeature(feature);
 
         const hasOrigin = (window.currentOriginId && window.currentOriginId.trim()) ||
                           (window.currentOriginName && window.currentOriginName.trim());
         const destName = schoolName;
         const destId = originUniqueId || getOriginIdForName(destName) || "";
 
-        // If an origin is already selected, treat map clicks as destination lookups only (do not change origin)
+        // If an origin is already selected, treat map clicks as destination lookups only (do not change origin).
+        // NOTE: do not show a click-popup (hover handles school info).
         if (hasOrigin) {
-          try {
-            const originId = window.currentOriginId || getOriginIdForName(window.currentOriginName);
-            if (originId && destId && typeof window.updateDistanceToSelected === 'function') {
-              window.updateDistanceToSelected(originId, destId, destName, coordinates);
-            } else if (map && mapboxgl && coordinates) {
-              new mapboxgl.Popup({ closeOnMove: true })
-                .setLngLat(coordinates)
-                .setHTML(`<div style="font-size:12px;"><strong>${destName}</strong></div>`)
-                .addTo(map);
-            }
-          } catch (eDistance) {
-            console.warn("⚠️ Unable to compute distance to selected origin:", eDistance);
-          }
           return;
         }
 
@@ -3285,25 +3556,6 @@ map.on('load', () => {
           }
         }
 
-        const capacity = feature.properties['Capacity'];
-        const utilization = feature.properties['Utilization'];
-
-        let popupContent = `<strong>${schoolName}</strong>`;
-        if (capacity !== undefined && capacity !== null && capacity !== '') {
-          popupContent += `<br><span>Capacity: ${capacity}</span>`;
-        }
-        if (utilization !== undefined && utilization !== null && utilization !== '') {
-          const utilNum = parseFloat(utilization);
-          if (isFinite(utilNum)) {
-            // If stored as a ratio (e.g., 0.99), convert to percent; if already percent (e.g., 99), keep as is.
-            const pct = utilNum <= 1.5 ? utilNum * 100 : utilNum;
-            const utilText = `${pct.toFixed(0)}%`;
-            popupContent += `<br><span>Utilization: ${utilText}</span>`;
-          } else {
-            popupContent += `<br><span>Utilization: ${utilization}</span>`;
-          }
-        }
-
         // Remember current origin for distance calculations and destination
         // highlighting.
         if (originUniqueId) {
@@ -3319,52 +3571,6 @@ map.on('load', () => {
           const showAllSchools = mode === 'all';
           applyNearbyFilter(originUniqueId || getOriginIdForName(schoolName), schoolName, overlapOnly, showAllSchools);
         }
-
-        // If we have a current origin school, show distance from that origin
-        // to this clicked school (0 if it's the origin itself).
-        if (window.currentOriginId && window.distanceToWelcomingRowsByOrigin) {
-          const originId = window.currentOriginId.toString().trim();
-          const originName = window.currentOriginName || "origin school";
-          let distText = "N/A";
-          if (uniqueIdFromFeature && uniqueIdFromFeature === originId) {
-            distText = "0.0";
-          } else if (uniqueIdFromFeature) {
-            const rowsByOrigin = window.distanceToWelcomingRowsByOrigin || {};
-            const candidatesRaw = rowsByOrigin[originId];
-            if (Array.isArray(candidatesRaw)) {
-              const match = candidatesRaw.find(r => {
-                const destPrefix =
-                  r["Destination CDE Prefix"] ||
-                  r["Destination CDE Prefix "] ||
-                  r["DestinationCDEPrefix"];
-                return destPrefix && destPrefix.toString().trim() === uniqueIdFromFeature;
-              });
-              if (match) {
-                const distRaw =
-                  match["Network Distance (Miles)"] ||
-                  match["Network Distance"] ||
-                  match["NetworkDistanceMiles"];
-                const dist = parseFloat((distRaw || "").toString().trim());
-                if (isFinite(dist)) {
-                  distText = dist.toFixed(1);
-                }
-              }
-            }
-          }
-          popupContent += `<br><span>Distance to ${originName}: ${distText} mi</span>`;
-        }
-
-        if (showingAssignments) {
-          const assignedSource = map.getSource('assigned-schools');
-          if (assignedSource && assignedSource._data?.features) {
-            const assignedFeature = assignedSource._data.features.find(f => f.properties.name === schoolName);
-            if (assignedFeature) {
-              popupContent += `<br><span style="color: #FF530D; font-weight: bold;">📚 Received ${assignedFeature.properties.assigned} students</span>`;
-            }
-          }
-        }
-
-        popup.setLngLat(coordinates).setHTML(popupContent).addTo(map);
 
         // Update nearby-destination highlight rings based on the newly selected
         // origin school.
@@ -3723,6 +3929,7 @@ map.on('load', () => {
   const unselectAllSchoolsBtn = document.getElementById('unselectAllSchoolsBtn');
   const colorByDecisionBtn = document.getElementById('colorByDecisionBtn');
   const colorByLevelBtn = document.getElementById('colorByLevelBtn');
+  const colorByUtilBtn = document.getElementById('colorByUtilBtn');
   let enrollmentRangeSynced = false;
   let seatsRangeSynced = false;
   let utilSpritesAdded = false;
@@ -3732,18 +3939,10 @@ map.on('load', () => {
   const defaultFilterPosition = { top: '20px', right: '20px' };
   let mapSelectSyncing = false;
   let showNearbyHighlight = false; // default off; enable via checkbox
-  let mapColorByMode = 'decision'; // 'decision' | 'level'
+  // Landing page default: color by school level
+  let mapColorByMode = 'level'; // 'decision' | 'level' | 'utilization'
   // Expose so global helpers (legend/updateLayer) can read it safely.
   window.__mapColorByMode = mapColorByMode;
-
-  const SCHOOL_LEVEL_COLORS = {
-    'Elementary': '#2563eb',  // blue
-    'Middle': '#7c3aed',      // purple
-    'High': '#dc2626',        // red
-    'K-8': '#f59e0b',         // amber
-    'Alternative': '#10b981', // green
-    'Unknown': '#64748b'
-  };
 
   function getDecisionColorExpression() {
     const expr = ['match', ['get', 'Decision Type']];
@@ -3764,12 +3963,30 @@ map.on('load', () => {
     return expr;
   }
 
+  function getUtilizationPhaseColorExpression() {
+    const { low, high } = getUtilizationThresholds();
+    // Blue: too low (below low threshold)
+    // Red: too high (above high threshold)
+    // Green: in between
+    return [
+      'case',
+      ['<', ['coalesce', ['get', 'Utilization'], 0], low], UTILIZATION_PHASE_COLORS.low,
+      ['>', ['coalesce', ['get', 'Utilization'], 0], high], UTILIZATION_PHASE_COLORS.high,
+      UTILIZATION_PHASE_COLORS.mid
+    ];
+  }
+
   function applyMapColorByMode() {
     try {
       if (!window.map || !window.map.getLayer || !window.map.getLayer('schools-layer')) return;
       const mapRef = window.map;
-      const mode = (window.__mapColorByMode === 'level') ? 'level' : 'decision';
-      const expr = (mode === 'level') ? getSchoolLevelColorExpression() : getDecisionColorExpression();
+      const mode = (window.__mapColorByMode === 'utilization')
+        ? 'utilization'
+        : ((window.__mapColorByMode === 'level') ? 'level' : 'decision');
+      const expr =
+        (mode === 'utilization') ? getUtilizationPhaseColorExpression()
+        : (mode === 'level') ? getSchoolLevelColorExpression()
+        : getDecisionColorExpression();
       mapRef.setPaintProperty('schools-layer', 'circle-color', expr);
       // Keep halo/assigned layers as-is
     } catch (e) {
@@ -3789,18 +4006,27 @@ map.on('load', () => {
       const baseOk = mapRef.hasImage && mapRef.hasImage('util-pie-0.0');
       const sentinelKey = `util-pie-0.0-${getDecisionColorKey("Building Addition")}`;
       const sentinelOk = mapRef.hasImage && mapRef.hasImage(sentinelKey);
-      if (utilSpritesAdded && baseOk && sentinelOk) {
+      const sentinelLevelKey = `util-pie-0.0-${getSchoolLevelColorKey("Elementary")}`;
+      const sentinelLevelOk = mapRef.hasImage && mapRef.hasImage(sentinelLevelKey);
+      if (utilSpritesAdded && baseOk && sentinelOk && sentinelLevelOk) {
         return;
       }
     } catch {}
     utilSpritesAdded = false;
     const buckets = [];
-    for (let i = 0; i <= 12; i++) { // 0.0 to 1.2 in 0.1 increments
+    for (let i = 0; i <= 10; i++) { // 0.0 to 1.0 in 0.1 increments
       buckets.push((i / 10).toFixed(1));
     }
 
+    // Include both decision colors and school-level colors so pie icons can
+    // follow either "Color by" mode.
     const colorHexes = Array.from(
-      new Set(Object.values(DECISION_COLORS).concat(["#7f8c8d"]))
+      new Set(
+        Object.values(DECISION_COLORS)
+          .concat(Object.values(SCHOOL_LEVEL_COLORS))
+          .concat(Object.values(UTILIZATION_PHASE_COLORS))
+          .concat(["#7f8c8d", "#94a3b8"])
+      )
     );
     const colorKeys = colorHexes.map(h => h.replace("#", "").toLowerCase());
 
@@ -3818,9 +4044,10 @@ map.on('load', () => {
       ctx.closePath();
       ctx.fill();
 
-      // Foreground arc proportional to utilization (0..1.2 mapped to 0..1 of circle)
+      // Foreground arc proportional to utilization.
+      // We treat 1.0 as 100% (full pie). Values > 1.0 (over-capacity) are clamped to full.
       const util = Number.isFinite(utilValue) ? utilValue : 0;
-      const frac = Math.max(0, Math.min(util / 1.2, 1)); // clamp to [0,1]
+      const frac = Math.max(0, Math.min(util / 1.0, 1)); // clamp to [0,1]
       const endAngle = -Math.PI / 2 + frac * Math.PI * 2; // start at top
       ctx.fillStyle = fillColor;
       ctx.beginPath();
@@ -3874,6 +4101,17 @@ map.on('load', () => {
   }
   // Expose so style switching + updateLayer can re-register images after map.setStyle()
   window.ensureUtilizationPieSprites = ensureUtilizationPieSprites;
+
+  // Ensure the "Show Size by Capacity" UI state is applied on load (so the map
+  // matches the selected button even before the user clicks).
+  try {
+    if (toggleYes && toggleNo) {
+      const yesActive = toggleYes.classList.contains('active');
+      showVariableRadius = !!yesActive;
+      toggleYes.classList.toggle('active', !!yesActive);
+      toggleNo.classList.toggle('active', !yesActive);
+    }
+  } catch {}
 
   noUiSlider.create(enrollmentSlider, {
     start: [0, 2500], connect: true, step: 10, range: { min: 0, max: 2500 }
@@ -4301,19 +4539,26 @@ map.on('load', () => {
 
   // --- Color-by toggle (Decision vs School level) ---
   function setMapColorMode(mode) {
-    mapColorByMode = (mode === 'level') ? 'level' : 'decision';
+    mapColorByMode = (mode === 'utilization') ? 'utilization' : ((mode === 'level') ? 'level' : 'decision');
     window.__mapColorByMode = mapColorByMode;
     if (colorByDecisionBtn) colorByDecisionBtn.classList.toggle('active', mapColorByMode === 'decision');
     if (colorByLevelBtn) colorByLevelBtn.classList.toggle('active', mapColorByMode === 'level');
+    if (colorByUtilBtn) colorByUtilBtn.classList.toggle('active', mapColorByMode === 'utilization');
     try {
       if (typeof window.applyMapColorByMode === 'function') window.applyMapColorByMode();
+    } catch (e) {}
+    // If utilization pies are active, we need to update the chosen sprite per feature
+    // so the pie color follows the selected "Color by" mode.
+    try {
+      if (showUtilizationPie) updateLayer();
     } catch (e) {}
     // Keep legend updated (it contains the decision filter checkboxes)
     try { updateLegend(); } catch (e) {}
   }
   if (colorByDecisionBtn) colorByDecisionBtn.addEventListener('click', () => setMapColorMode('decision'));
   if (colorByLevelBtn) colorByLevelBtn.addEventListener('click', () => setMapColorMode('level'));
-  setMapColorMode('decision');
+  if (colorByUtilBtn) colorByUtilBtn.addEventListener('click', () => setMapColorMode('utilization'));
+  setMapColorMode('level');
 
   // --- LEGEND AND TOGGLE LOGIC ---
   // Toggle buttons removed - always showing decisions view
@@ -4737,14 +4982,24 @@ function injectDecisionsIntoGeoJSON(geojson, decisions, options = {}) {
   }));
   console.log("📋 Sample decision data:", sampleDecisions);
   
+  const num = (v) => {
+    const s = (v ?? '').toString().trim().replace(/^'+\s*/, '').replace(/,/g, '');
+    if (!s) return 0;
+    const n = parseFloat(s);
+    return Number.isFinite(n) ? n : 0;
+  };
+
   const decisionMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), row["decision"] || "Unknown"]));
-  const scorecardMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), parseFloat(row["Scorecard"] || "0")]));
-  const buildingQualityMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), parseFloat(row["BuildingTreshhold"] || "0")]));
+  const scorecardMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["Scorecard"])]));
+  const buildingQualityMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["BuildingTreshhold"])]));
   // Add a map for Utilization
-  const utilizationMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), parseFloat(row["Utilization"] || "0")]));
-  const capacityMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), parseFloat(row["Capacity"] || "0")]));
-  const availableSeatsMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), parseFloat(row["Available Seats"] || "0")]));
-  const enrollmentMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), parseFloat(row["Enrollment"] || "0")]));
+  const utilizationMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["Utilization"])]));
+  const capacityMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["Capacity"])]));
+  const availableSeatsMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["Available Seats"] ?? row["AvailableSeats"])]));
+  const enrollmentMap = new Map(decisions.map(row => [
+    normalizeName(row["Building Name"]),
+    num(row["Enrollment"] ?? row[" Total Enrollment"] ?? row["Total Enrollment"])
+  ]));
   const schoolLevelMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), row["School Level"] || "Unknown"]));
   const flowMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), row["flow"] || 0]));
   const uniqueIdMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), (row.UniqueID || row["UniqueID"] || row["Unique Id"] || "").toString().trim()]));
@@ -4780,7 +5035,8 @@ function injectDecisionsIntoGeoJSON(geojson, decisions, options = {}) {
 
   // Helper to bucket utilization for pie images (0.0 to 1.2+)
   function utilizationBucket(util) {
-    const clamped = Math.max(0, Math.min(util, 1.2));
+    // Bucket at most 1.0 (100%) so full pies are stable.
+    const clamped = Math.max(0, Math.min(util, 1.0));
     const step = 0.1;
     const bucket = Math.round(clamped / step) * step; // e.g., 0.0, 0.1, 0.2...
     return bucket.toFixed(1); // string like "0.0"
@@ -4819,7 +5075,10 @@ function injectDecisionsIntoGeoJSON(geojson, decisions, options = {}) {
     f.properties["Decision Type"] = decisionMap.get(name) || "Unknown";
     f.properties["Scorecard"] = scorecardMap.get(name) || 0;
     f.properties["Building Quality"] = buildingQualityMap.get(name) || 0;
-    f.properties["Utilization"] = utilizationMap.get(name) || 0;
+    // Normalize utilization to a ratio (0..1+) when possible.
+    const utilRaw = utilizationMap.get(name);
+    const utilNorm = normalizeUtilizationValue(utilRaw);
+    f.properties["Utilization"] = utilNorm;
     f.properties["Capacity"] = capacityMap.get(name) || 0;
     f.properties["Available Seats"] = availableSeatsMap.get(name) || 0;
     const enrollmentVal = enrollmentMap.get(name);
@@ -4884,8 +5143,7 @@ function injectDecisionsIntoGeoJSON(geojson, decisions, options = {}) {
         statusNorm.includes("closed");
     }
 
-    const utilVal = utilizationMap.get(name);
-    const utilNum = Number.isFinite(utilVal) ? utilVal : 0;
+    const utilNum = Number.isFinite(utilNorm) ? utilNorm : 0;
     f.properties["utilPieBucket"] = utilizationBucket(utilNum);
   });
   

@@ -214,6 +214,21 @@
       color: var(--text);
     }
 
+    /* Compact multi-select for destination exclusions */
+    .cs-multiselect {
+      width: 100%;
+      min-height: 180px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      font-size: 13px;
+      line-height: 1.2;
+    }
+    .cs-multiselect option {
+      padding: 4px 6px;
+    }
+
     .progress-wrap {
       margin-top: 10px;
       padding: 10px 12px;
@@ -562,6 +577,18 @@
           <label>Map layers</label>
           <div class="radio-row">
             <label><input type="checkbox" id="toggleArticulationAreas" /> Show articulation areas</label>
+          </div>
+        </div>
+        <div class="control">
+          <label for="csExcludeDestinations">Exclude destination schools</label>
+          <select id="csExcludeDestinations" class="cs-multiselect" multiple>
+            <option value="">Loading schools…</option>
+          </select>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+            <button class="btn" id="csClearExcludedDestinations" type="button">Clear exclusions</button>
+          </div>
+          <div class="muted" style="font-size:12px; margin-top:6px;">
+            Excluded schools will never be assigned as destinations, regardless of grade overlap or distance settings.
           </div>
         </div>
         <div class="control">

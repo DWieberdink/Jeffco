@@ -35,8 +35,11 @@
   const elDrawerBackdrop = document.getElementById("csDrawerBackdrop");
   const elDrawerPin = document.getElementById("csDrawerPin");
   const elMapFullscreenBtn = document.getElementById("csMapFullscreenBtn");
+  const elExcludeDestinations = document.getElementById("csExcludeDestinations");
+  const elClearExcludedDestinations = document.getElementById("csClearExcludedDestinations");
 
   const CS_PIN_KEY = "csScenarioPinned";
+  const CS_EXCLUDE_DEST_KEY = "csExcludedDestinations_v1";
 
   let decisionReady = false;
   let odStudentsReady = false;
@@ -64,6 +67,7 @@
   let articulationGeojson = null;
   let articulationLoaded = false;
   let dropdownWired = false;
+  let excludedDestinations = new Set(); // Set<schoolCode>
 
   // Assignment behavior:
   // - Capacity is always respected (remaining seats never negative)
@@ -127,6 +131,44 @@
     // Only pad short numeric suffixes; keep 4+ digits as-is.
     const padded = num.length < 4 ? num.padStart(4, "0") : num;
     return `${prefix}${padded}`;
+  }
+
+  function loadExcludedDestinationsFromStorage() {
+    let raw = "";
+    try { raw = localStorage.getItem(CS_EXCLUDE_DEST_KEY) || ""; } catch (e) { raw = ""; }
+    const out = new Set();
+    try {
+      const arr = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(arr)) {
+        arr.forEach((v) => {
+          const c = norm(v);
+          if (c) out.add(c);
+        });
+      }
+    } catch (e) {}
+    excludedDestinations = out;
+  }
+
+  function persistExcludedDestinationsToStorage() {
+    try { localStorage.setItem(CS_EXCLUDE_DEST_KEY, JSON.stringify(Array.from(excludedDestinations || []))); } catch (e) {}
+  }
+
+  function populateExcludedDestinationsDropdown() {
+    if (!elExcludeDestinations) return;
+    // Populate from Active schools with coords (valid destinations)
+    const list = Array.from(schoolMetaByCode.values())
+      .filter((s) => norm(s.status).toLowerCase() === "active")
+      .filter((s) => coordsByCode.has(s.code))
+      .sort((a, b) => (a.name || a.code).localeCompare((b.name || b.code), undefined, { sensitivity: "base", numeric: true }));
+
+    elExcludeDestinations.innerHTML = "";
+    list.forEach((s) => {
+      const opt = document.createElement("option");
+      opt.value = s.code;
+      opt.textContent = `${s.name || s.code} (${s.code})`;
+      if (excludedDestinations && excludedDestinations.has(s.code)) opt.selected = true;
+      elExcludeDestinations.appendChild(opt);
+    });
   }
 
   function normNameKey(s) {
@@ -876,6 +918,11 @@
       });
     });
 
+    // Manual exclusions: always remove these destinations, independent of other filters.
+    const eligibleCandidates = (excludedDestinations && excludedDestinations.size)
+      ? candidates.filter((c) => !excludedDestinations.has(c.code))
+      : candidates;
+
     filteredRoster.forEach((s) => {
       const grade = norm(s.grade);
       const slng = s.lng;
@@ -900,7 +947,7 @@
       }
 
       const options = [];
-      for (const c of candidates) {
+      for (const c of eligibleCandidates) {
         const d = milesCrow(Number(slng), Number(slat), c.coords[0], c.coords[1]);
         if (!Number.isFinite(d)) continue;
         if (d < min) continue;
@@ -1111,6 +1158,42 @@
         renderResult(result);
       });
     });
+    if (elExcludeDestinations) {
+      elExcludeDestinations.addEventListener("change", () => {
+        // Sync selection -> Set
+        try {
+          excludedDestinations = new Set(
+            Array.from(elExcludeDestinations.selectedOptions || [])
+              .map((o) => norm(o.value))
+              .filter(Boolean)
+          );
+        } catch (e) {
+          excludedDestinations = new Set();
+        }
+        persistExcludedDestinationsToStorage();
+
+        if (!lastResult) return;
+        if (!canRun()) return;
+        const closeCode = norm(elSelect.value);
+        const allow = getGradeRuleMode() === "allow";
+        const result = runSimulation(closeCode, allow);
+        renderResult(result);
+      });
+    }
+    if (elClearExcludedDestinations) {
+      elClearExcludedDestinations.addEventListener("click", () => {
+        excludedDestinations = new Set();
+        persistExcludedDestinationsToStorage();
+        populateExcludedDestinationsDropdown();
+
+        if (!lastResult) return;
+        if (!canRun()) return;
+        const closeCode = norm(elSelect.value);
+        const allow = getGradeRuleMode() === "allow";
+        const result = runSimulation(closeCode, allow);
+        renderResult(result);
+      });
+    }
     if (elToggleArticulationAreas) {
       elToggleArticulationAreas.addEventListener("change", () => {
         // Ensure map is created before toggling
@@ -1128,6 +1211,9 @@
       // Build map immediately so the page starts as "map-first"
       ensureMap();
 
+      // Restore excluded destinations early (UI populated after data loads).
+      loadExcludedDestinationsFromStorage();
+
       updateProgress(0, "Loading Decision Data Export (seats)…");
       await loadDecisionData();
       await loadSchoolCoordsFromMapExport();
@@ -1135,6 +1221,9 @@
       await loadArticulationAreas();
       await loadOdStudents();
       updateProgress(100, "Student roster loaded (OD_Students).");
+
+      // Populate destination exclusion UI once we have names + coords.
+      populateExcludedDestinationsDropdown();
 
       // Restore pinned state (and open drawer by default)
       let pinned = false;
