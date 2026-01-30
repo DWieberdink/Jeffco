@@ -12,6 +12,41 @@
   const ARTICULATION_AREAS_GEOJSON_PATH = "ArticulationArea.geojson";
   const CACHE_BUST = "20260129_13";
 
+  // Articulation area colors (match dashboard regional palette)
+  const CS_ARTICULATION_AREA_COLORS = {
+    // Northwest (green): Arvada West, Green Mountain, Golden, Ralston Valley
+    "Arvada West": "#c7d59b",
+    "Green Mountain": "#c7d59b",
+    "Golden": "#c7d59b",
+    "Ralston Valley": "#c7d59b",
+    // Northeast (blue): Arvada, Pomona, Standley Lake
+    "Arvada": "#82c9e8",
+    "Pomona": "#82c9e8",
+    "Standley Lake": "#82c9e8",
+    // Central (red/pink): Wheat Ridge, Lakewood, Jefferson, Alameda
+    "Wheat Ridge": "#e7a3a7",
+    "Lakewood": "#e7a3a7",
+    "Jefferson": "#e7a3a7",
+    "Alameda": "#e7a3a7",
+    // Southeast (purple): Bear Creek, Chatfield, Dakota Ridge, Columbine
+    "Bear Creek": "#b693c9",
+    "Chatfield": "#b693c9",
+    "Dakota Ridge": "#b693c9",
+    "Columbine": "#b693c9",
+    // Mountain (orange): Conifer, Evergreen
+    "Conifer": "#f1bd7b",
+    "Evergreen": "#f1bd7b",
+  };
+
+  function getCsArticulationColorExpression() {
+    const expr = ["match", ["get", "__aaName"]];
+    Object.entries(CS_ARTICULATION_AREA_COLORS).forEach(([name, color]) => {
+      expr.push(name, color);
+    });
+    expr.push("#94a3b8");
+    return expr;
+  }
+
   // Match main dashboard token
   mapboxgl.accessToken = "pk.eyJ1IjoicGF0d2QwNSIsImEiOiJjbTZ2bGVhajIwMTlvMnFwc2owa3BxZHRoIn0.moDNfqMUolnHphdwsIF87w";
 
@@ -35,6 +70,8 @@
   const elDrawerBackdrop = document.getElementById("csDrawerBackdrop");
   const elDrawerPin = document.getElementById("csDrawerPin");
   const elMapFullscreenBtn = document.getElementById("csMapFullscreenBtn");
+  const elToggleStudentOrigins = document.getElementById("toggleStudentOrigins");
+  const elToggleStudentDecisions = document.getElementById("toggleStudentDecisions");
   const elExcludeDestinations = document.getElementById("csExcludeDestinations");
   const elClearExcludedDestinations = document.getElementById("csClearExcludedDestinations");
 
@@ -64,6 +101,8 @@
   let mapReady = false;
   let pendingMapResult = null;
   let pendingSchoolsFc = null;
+  let pendingStudentOriginLinesFc = null;
+  let pendingStudentDecisionLinesFc = null;
   let articulationGeojson = null;
   let articulationLoaded = false;
   let dropdownWired = false;
@@ -576,7 +615,7 @@
         source: "cs-articulation-areas",
         layout: { visibility: (elToggleArticulationAreas && elToggleArticulationAreas.checked) ? "visible" : "none" },
         paint: {
-          "fill-color": "#f59e0b",
+          "fill-color": getCsArticulationColorExpression(),
           "fill-opacity": 0.12,
         },
       });
@@ -586,7 +625,7 @@
         source: "cs-articulation-areas",
         layout: { visibility: (elToggleArticulationAreas && elToggleArticulationAreas.checked) ? "visible" : "none" },
         paint: {
-          "line-color": "#f59e0b",
+          "line-color": getCsArticulationColorExpression(),
           "line-opacity": 0.45,
           "line-width": 1.5,
         },
@@ -651,6 +690,39 @@
       map.addSource("cs-schools", {
         type: "geojson",
         data: pendingSchoolsFc || { type: "FeatureCollection", features: [] },
+      });
+      map.addSource("cs-student-origins", {
+        type: "geojson",
+        data: pendingStudentOriginLinesFc || { type: "FeatureCollection", features: [] },
+      });
+      map.addSource("cs-student-decisions", {
+        type: "geojson",
+        data: pendingStudentDecisionLinesFc || { type: "FeatureCollection", features: [] },
+      });
+
+      // Student origin lines (home -> closed school). Light orange.
+      map.addLayer({
+        id: "cs-student-origin-lines",
+        type: "line",
+        source: "cs-student-origins",
+        layout: { visibility: (elToggleStudentOrigins && elToggleStudentOrigins.checked) ? "visible" : "none" },
+        paint: {
+          "line-color": "#f59e0b",
+          "line-opacity": 0.08,
+          "line-width": 0.7,
+        },
+      });
+      // Student decision lines (home -> assigned destination). Thin purple.
+      map.addLayer({
+        id: "cs-student-decision-lines",
+        type: "line",
+        source: "cs-student-decisions",
+        layout: { visibility: (elToggleStudentDecisions && elToggleStudentDecisions.checked) ? "visible" : "none" },
+        paint: {
+          "line-color": "#7c3aed",
+          "line-opacity": 0.09,
+          "line-width": 0.7,
+        },
       });
 
       // Flow lines
@@ -760,7 +832,25 @@
         // Best-effort initial draw
         try { map.getSource("cs-schools").setData(buildSchoolsFeatureCollection(null, [])); } catch (e) {}
       }
+      if (pendingStudentOriginLinesFc && map.getSource("cs-student-origins")) {
+        try { map.getSource("cs-student-origins").setData(pendingStudentOriginLinesFc); } catch (e) {}
+      }
+      if (pendingStudentDecisionLinesFc && map.getSource("cs-student-decisions")) {
+        try { map.getSource("cs-student-decisions").setData(pendingStudentDecisionLinesFc); } catch (e) {}
+      }
     });
+  }
+
+  function setStudentOriginsVisibility(show) {
+    if (!mapReady || !map) return;
+    const vis = show ? "visible" : "none";
+    if (map.getLayer("cs-student-origin-lines")) map.setLayoutProperty("cs-student-origin-lines", "visibility", vis);
+  }
+
+  function setStudentDecisionsVisibility(show) {
+    if (!mapReady || !map) return;
+    const vis = show ? "visible" : "none";
+    if (map.getLayer("cs-student-decision-lines")) map.setLayoutProperty("cs-student-decision-lines", "visibility", vis);
   }
 
   function setArticulationVisibility(show) {
@@ -820,6 +910,15 @@
     if (srcOrigin) srcOrigin.setData(originFc);
     // Update all schools layer to show receiving schools + counts
     updateSchoolsLayer(result.closeCode, result.destRows || []);
+    // Update student origin lines (if computed)
+    if (map.getSource("cs-student-origins")) {
+      const fc = result.studentOriginLinesFc || { type: "FeatureCollection", features: [] };
+      map.getSource("cs-student-origins").setData(fc);
+    }
+    if (map.getSource("cs-student-decisions")) {
+      const fc = result.studentDecisionLinesFc || { type: "FeatureCollection", features: [] };
+      map.getSource("cs-student-decisions").setData(fc);
+    }
 
     // Fit bounds
     const all = [originCoords, ...lineFeatures.map((f) => f.geometry.coordinates[1])];
@@ -903,6 +1002,10 @@
     let currentMilesCount = 0;
 
     const originCoords = coordsByCode.get(closeCode) || null;
+    const studentOriginLineFeatures = [];
+    const MAX_ORIGIN_LINES = 5000;
+    const studentDecisionLineFeatures = [];
+    const MAX_DECISION_LINES = 5000;
 
     const candidates = [];
     schoolMetaByCode.forEach((m, code) => {
@@ -944,6 +1047,13 @@
           currentMilesMax = Math.max(currentMilesMax, d0);
           currentMilesCount += 1;
         }
+        if (studentOriginLineFeatures.length < MAX_ORIGIN_LINES) {
+          studentOriginLineFeatures.push({
+            type: "Feature",
+            properties: {},
+            geometry: { type: "LineString", coordinates: [[Number(slng), Number(slat)], originCoords] },
+          });
+        }
       }
 
       const options = [];
@@ -984,6 +1094,18 @@
       scenarioMilesSum += chosen.miles;
       scenarioMilesMax = Math.max(scenarioMilesMax, chosen.miles);
       if (max !== null && chosen.miles > max) exceededMax += 1;
+
+      // Student decision line (home -> chosen destination)
+      if (studentDecisionLineFeatures.length < MAX_DECISION_LINES) {
+        const destCoords = coordsByCode.get(chosen.code) || null;
+        if (destCoords) {
+          studentDecisionLineFeatures.push({
+            type: "Feature",
+            properties: {},
+            geometry: { type: "LineString", coordinates: [[Number(slng), Number(slat)], destCoords] },
+          });
+        }
+      }
 
       let rec = destAgg.get(chosen.code);
       if (!rec) {
@@ -1041,6 +1163,8 @@
       remainingSeatsByCode: remaining,
       allowNonOverlapping,
       filters: { includeHome, includeChoice, minMiles: min, maxMiles: max, allowBeyondMax },
+      studentOriginLinesFc: { type: "FeatureCollection", features: studentOriginLineFeatures },
+      studentDecisionLinesFc: { type: "FeatureCollection", features: studentDecisionLineFeatures },
     };
   }
 
@@ -1201,10 +1325,87 @@
         setArticulationVisibility(!!elToggleArticulationAreas.checked);
       });
     }
+    if (elToggleStudentOrigins) {
+      elToggleStudentOrigins.addEventListener("change", () => {
+        ensureMap();
+        setStudentOriginsVisibility(!!elToggleStudentOrigins.checked);
+        // If toggled on after a run, show the current run's lines immediately
+        if (mapReady && map && map.getSource("cs-student-origins") && lastResult && lastResult.studentOriginLinesFc) {
+          try { map.getSource("cs-student-origins").setData(lastResult.studentOriginLinesFc); } catch (e) {}
+        }
+      });
+    }
+    if (elToggleStudentDecisions) {
+      elToggleStudentDecisions.addEventListener("change", () => {
+        ensureMap();
+        setStudentDecisionsVisibility(!!elToggleStudentDecisions.checked);
+        if (mapReady && map && map.getSource("cs-student-decisions") && lastResult && lastResult.studentDecisionLinesFc) {
+          try { map.getSource("cs-student-decisions").setData(lastResult.studentDecisionLinesFc); } catch (e) {}
+        }
+      });
+    }
   }
 
   async function main() {
     try {
+      // #region agent log (debug)
+      try {
+        const brand = document.querySelector('#topbar .cs-brand-title') || document.querySelector('#top-brand-bar .brand-title') || document.querySelector('.brand-title');
+        const sub = document.querySelector('#topbar .cs-brand-sub') || document.querySelector('#top-brand-bar .brand-title .sub') || document.querySelector('.brand-title .sub');
+        const h2 = document.querySelector('h2');
+        const localScripts = Array.from(document.scripts || [])
+          .map(s => s && s.src ? s.src : '')
+          .filter(src => !!src && !/^https?:\/\//i.test(src))
+          .map(src => src.split('/').pop())
+          .slice(0, 30);
+        fetch('http://127.0.0.1:7242/ingest/0c9cdb70-a708-4eb8-8215-2339a4485391', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: 'debug-session',
+            runId: 'pre-clean-audit',
+            hypothesisId: 'A_titles_B_brand_C_menu_D_cachebust',
+            location: 'closure-scenarios.js:main',
+            message: 'Closure scenarios page snapshot',
+            data: {
+              path: location && location.pathname,
+              title: document.title,
+              brandTitle: brand ? (brand.childNodes[0]?.textContent || brand.textContent || '').trim() : null,
+              brandSub: sub ? (sub.textContent || '').trim() : null,
+              h2: h2 ? (h2.textContent || '').trim() : null,
+              localScripts
+            },
+            timestamp: Date.now()
+          })
+        }).catch(() => {});
+      } catch (e) {}
+      // #endregion agent log (debug)
+
+      // #region agent log (debug)
+      try {
+        const topbarTitle = document.querySelector('.topbar .title');
+        const topbarSub = document.querySelector('.topbar .title .sub');
+        fetch('http://127.0.0.1:7242/ingest/0c9cdb70-a708-4eb8-8215-2339a4485391', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: 'debug-session',
+            runId: 'post-fix',
+            hypothesisId: 'B_brand_C_pagecopy',
+            location: 'closure-scenarios.js:main:topbar',
+            message: 'Closure scenarios topbar snapshot',
+            data: {
+              path: location && location.pathname,
+              title: document.title,
+              topbarTitle: topbarTitle ? (topbarTitle.childNodes[0]?.textContent || topbarTitle.textContent || '').trim() : null,
+              topbarSub: topbarSub ? (topbarSub.textContent || '').trim() : null
+            },
+            timestamp: Date.now()
+          })
+        }).catch(() => {});
+      } catch (e) {}
+      // #endregion agent log (debug)
+
       setTopbarHeightVar();
       window.addEventListener("resize", setTopbarHeightVar);
       wireUI();
