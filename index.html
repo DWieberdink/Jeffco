@@ -31,6 +31,19 @@
 
 
   <style>
+    /* Visually hidden (keep for screen readers) */
+    .sr-only {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+
     /* Compact map filter styling */
     #filter-panel-content {
       display: flex;
@@ -84,7 +97,7 @@
       background: #f3f4f6;
     }
     .compact-slider {
-      width: 100%;
+      width: min(260px, 100%);
       box-sizing: border-box;
     }
     .compact-slider .noUi-target {
@@ -141,7 +154,7 @@
       padding: 0 !important;
       height: 18px !important; /* ensure handles are fully visible */
       box-sizing: border-box;
-      width: 100% !important;
+      width: min(260px, 100%) !important; /* narrower sliders */
     }
     #filter-panel .compact-slider .noUi-target,
     #filter-panel .compact-slider .noUi-base,
@@ -1149,21 +1162,22 @@
     #map-right-controls {
       position: absolute;
       top: 12px; /* align with hamburger button */
-      left: 20px;
+      left: 12px;
       right: auto;
       z-index: 1200;
       display: flex;
       flex-direction: column;
-      gap: 10px; /* School selector above Map Filters */
+      gap: 8px; /* School selector above Map Filters */
       align-items: stretch;
-      width: min(420px, calc(100vw - 40px));
+      width: min(360px, calc(100vw - 24px));
     }
 
     /* Shared panel styling (School selector + nested panels) */
     .map-overlay-panel {
       background: #fff;
-      border-radius: 4px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
       overflow: hidden;
       width: 100%;
     }
@@ -1183,12 +1197,13 @@
       border-radius: 0;
       box-shadow: none;
       resize: none; /* use custom handle */
-      overflow: auto;
+      overflow-x: hidden;
+      overflow-y: auto;
       width: 100%;
       min-width: 0;
       max-width: none;
       min-height: 0;
-      padding-bottom: 16px; /* space for custom resize handle */
+      padding-bottom: 0;
     }
     #filter-panel[open] {
       min-height: 240px;
@@ -1204,22 +1219,7 @@
       max-width: none;
       padding-bottom: 0; /* keep collapsed height tight */
     }
-    /* Custom resize handle (bottom-left) */
-    #filter-resize-handle {
-      position: absolute;
-      bottom: 6px;
-      left: 6px;
-      width: 14px;
-      height: 14px;
-      background: #d1d5db;
-      border: 1px solid #cbd5e1;
-      border-radius: 3px;
-      cursor: nesw-resize;
-      box-shadow: inset 0 1px 1px rgba(0,0,0,0.08);
-    }
-    #filter-panel:not([open]) #filter-resize-handle {
-      display: none;
-    }
+    /* (Removed) legacy resize handle */
     /* Nearby section adjustments */
     #nearbySchoolsSection summary::-webkit-details-marker { display: none; }
     #nearbySchoolsSection summary::marker { content: ""; }
@@ -1254,8 +1254,9 @@
       min-width: 200px;
       max-width: 100%;
       box-sizing: border-box;
-      max-height: 70vh;
-      overflow: auto;
+      max-height: 85vh; /* make dropdown taller to avoid internal scrolling */
+      overflow-x: hidden;
+      overflow-y: auto;
     }
     /* Ensure filter children align to the same width */
     #filter-panel-content > * {
@@ -2017,21 +2018,25 @@
     .map-style-toggle {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
+      gap: 6px;
+      flex-wrap: nowrap; /* keep pills on one row */
+      width: 100%;
     }
     .map-style-toggle label {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 10px;
+      padding: 4px 8px;
       border: 1px solid #d1d5db;
       border-radius: 16px;
       background: #fff;
       cursor: pointer;
-      font-size: 12px;
+      font-size: 11px;
       color: #111827;
       user-select: none;
+      flex: 1 1 0;
+      justify-content: center;
+      white-space: nowrap;
     }
     .map-style-toggle input[type="radio"] {
       width: 14px;
@@ -2041,6 +2046,10 @@
     .map-style-toggle input[type="radio"]:checked + span {
       font-weight: 700;
       color: #007cbf;
+    }
+    /* Prevent Map Base Layers from collapsing */
+    #mapBaseLayersDetails > summary {
+      display: none;
     }
     #filter-panel .nouislider-container {
       margin-top: 10px;
@@ -2059,8 +2068,9 @@
     }
     /* School selection (shown ABOVE Map Filters) */
     #map-school-select-panel {
-      padding: 8px 10px 10px 10px;
+      padding: 10px;
       box-sizing: border-box;
+      overflow-x: hidden; /* prevent any horizontal scrollbars */
     }
     #map-school-select-panel .school-select-filter {
       margin: 0;
@@ -2070,31 +2080,97 @@
       box-shadow: none;
       width: 100%;
     }
+    #map-school-select-panel .school-banner-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      min-width: 0;
+      height: 36px; /* keeps select + hamburger aligned */
+    }
+    #mapFiltersToggleBtn {
+      height: 36px;
+      width: 36px;
+      padding: 0;
+      border-radius: 10px;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      color: #111827;
+      font-weight: 900;
+      cursor: pointer;
+      white-space: nowrap;
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      line-height: 1;
+    }
+    #mapFiltersToggleBtn:hover {
+      background: #f9fafb;
+    }
     #nearbySchoolsSection,
     #nearbySchoolsContainer {
       width: 100%;
       box-sizing: border-box;
     }
-    #map-school-select-panel .school-select-header {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    #map-school-select-panel .school-select-header h3 {
-      margin: 0;
-      font-size: 13px;
-    }
     #mapOriginSchoolSelect {
-      width: 100%;
-      margin-top: 6px;
-      font-size: 12px;
-      padding: 8px 10px;
-      border-radius: 6px;
+      flex: 1 1 auto;
+      min-width: 0;
+      height: 36px;
+      width: auto;
+      margin-top: 0;
+      font-size: 13px;
+      padding: 6px 10px;
+      border-radius: 10px;
       border: 1px solid #d1d5db;
       box-sizing: border-box;
       background: #fff;
       color: #111827;
       display: block;
+      line-height: 1.1;
+      position: relative;
+      top: 7px; /* nudge down to align pill bottoms on Windows */
+    }
+
+    /* Banner-like behavior: keep school row visible; hide the <summary> (use button instead) */
+    #filter-panel > summary {
+      display: none;
+    }
+    #filter-panel-content {
+      overflow-x: hidden;
+    }
+
+    /* Replace "School Type" dropdown with static checkbox grid (no nested dropdown menu UI) */
+    #schoolTypeDropdownMenu.filter-checkbox-grid {
+      position: static;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 10px;
+      width: 100%;
+      max-width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      background: #fff;
+      box-shadow: none;
+      overflow: hidden;
+    }
+    #schoolTypeDropdownMenu.filter-checkbox-grid label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      font-size: 12px;
+      font-weight: 700;
+      color: #111827;
+      white-space: nowrap;
+    }
+    #schoolTypeDropdownMenu.filter-checkbox-grid input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      accent-color: #007cbf;
+      flex: 0 0 auto;
     }
 
     /* Keep the school selector row clean (native select should render above the map) */
@@ -3181,31 +3257,46 @@
     <div id="map-right-controls">
       <div id="map-school-select-panel" class="map-overlay-panel">
         <div class="school-select-filter">
-          <div class="school-select-header">
-            <h3>School Selection</h3>
+          <div class="school-banner-row" aria-label="Map school selector">
+            <label class="sr-only" for="mapOriginSchoolSelect">School</label>
+            <select id="mapOriginSchoolSelect">
+              <option value="">-- Select School --</option>
+            </select>
+            <button id="mapFiltersToggleBtn" type="button" aria-expanded="false" aria-label="Map filters menu" title="Map filters">
+              ☰
+            </button>
           </div>
-          <select id="mapOriginSchoolSelect">
-            <option value="">-- Select School --</option>
-          </select>
         </div>
-
-        <details id="nearbySchoolsSection" style="display:none;">
-          <summary style="font-weight:600; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:8px;">
-            <span>School Matches</span>
-            <button id="showNearbySchoolsBtn" style="padding:4px 8px; font-size:11px; border:1px solid #007cbf; background:#fff; color:#007cbf; border-radius:3px; cursor:pointer;">Show Overlapping Grades Schools</button>
-          </summary>
-          <div id="nearbySchoolsContainer" style="padding:6px 0; border:1px solid #e5e7eb; border-radius:6px; background:transparent; max-height:220px; overflow:auto;">
-            <div id="nearbySchoolsList" style="font-size:12px; color:#444;">Click “Show Overlapping Grades Schools” after selecting a school.</div>
-          </div>
-        </details>
 
         <details id="filter-panel">
           <summary><strong>Map Filters</strong></summary>
           <div id="filter-panel-content">
-            <details id="mapBaseLayersDetails" style="margin: 0 0 10px 0;">
+            <div class="filter-row">
+              <span class="filter-label">Show Size by Capacity</span>
+              <div class="compact-toggle-group">
+                <button id="toggleYes">Yes</button>
+                <button id="toggleNo" class="active">No</button>
+              </div>
+            </div>
+            <div class="filter-row">
+              <span class="filter-label">Color by</span>
+              <div class="compact-toggle-group" aria-label="Color map by">
+                <button id="colorByDecisionBtn" class="active" type="button">Decision</button>
+                <button id="colorByLevelBtn" type="button">School level</button>
+              </div>
+            </div>
+            <details id="nearbySchoolsSection" style="display:none; margin: 0 0 10px 0;">
               <summary style="font-weight:700; font-size:13px; cursor:pointer; padding:4px 2px; display:flex; align-items:center; gap:8px;">
-                <span>Map Base Layers</span>
+                <span>School Matches</span>
+                <button id="showNearbySchoolsBtn" style="padding:4px 8px; font-size:11px; border:1px solid #007cbf; background:#fff; color:#007cbf; border-radius:6px; cursor:pointer;">Show Overlapping Grades Schools</button>
               </summary>
+              <div id="nearbySchoolsContainer" style="padding:8px 10px; border:1px solid #e5e7eb; border-radius:10px; background:#fff; max-height:220px; overflow:auto;">
+                <div id="nearbySchoolsList" style="font-size:12px; color:#444;">Click “Show Overlapping Grades Schools” after selecting a school.</div>
+              </div>
+            </details>
+            <details id="mapBaseLayersDetails" open style="margin: 0 0 10px 0;">
+              <summary style="display:none;">Map Base Layers</summary>
+              <div style="font-weight:900; font-size:13px; padding:4px 2px; color:#111827;">Map Base Layers</div>
               <div style="padding: 8px 0 2px 0;">
                 <div class="filter-row map-style-row">
                   <span class="filter-label">Map Style</span>
@@ -3240,21 +3331,18 @@
             </details>
             <div class="filter-row" style="align-items:flex-start;">
               <span class="filter-label">School Type</span>
-              <div style="display:flex; gap:6px; align-items:center; width:100%; justify-content:flex-start;">
-                <div class="filter-dropdown" style="max-width: 240px;">
-                  <button id="schoolTypeDropdownToggle" class="compact-btn" type="button">
-                    <span id="schoolTypeDropdownLabel">All types</span>
-                    <span class="chevron">▾</span>
-                  </button>
-                  <div id="schoolTypeDropdownMenu" class="filter-dropdown-menu">
-                    <label><input type="checkbox" value="Elementary" checked>Elementary</label>
-                    <label><input type="checkbox" value="Middle" checked>Middle</label>
-                    <label><input type="checkbox" value="High" checked>High</label>
-                    <label><input type="checkbox" value="K-8" checked>K-8</label>
-                    <label><input type="checkbox" value="Alternative" checked>Alternative</label>
-                  </div>
+              <div style="display:flex; flex-direction:column; gap:8px; width:100%; min-width:0;">
+                <div id="schoolTypeDropdownMenu" class="filter-checkbox-grid">
+                  <label><input type="checkbox" value="Elementary" checked>Elementary</label>
+                  <label><input type="checkbox" value="Middle" checked>Middle</label>
+                  <label><input type="checkbox" value="High" checked>High</label>
+                  <label><input type="checkbox" value="K-8" checked>K-8</label>
+                  <label><input type="checkbox" value="Alternative" checked>Alternative</label>
                 </div>
-                <button id="unselectAllSchoolsBtn" class="compact-btn" type="button">Clear</button>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                  <button id="unselectAllSchoolsBtn" class="compact-btn" type="button">Clear</button>
+                  <div id="schoolTypeDropdownLabel" class="muted" style="font-size:12px; white-space:nowrap;">All types</div>
+                </div>
               </div>
             </div>
             <select id="schoolTypeFilter" multiple size="5" style="display:none;">
@@ -3277,13 +3365,6 @@
             </div>
             <div id="seatsRangeSlider" class="compact-slider"></div>
 
-            <div class="filter-row">
-              <span class="filter-label">Show Size by Capacity</span>
-              <div class="compact-toggle-group">
-                <button id="toggleYes">Yes</button>
-                <button id="toggleNo" class="active">No</button>
-              </div>
-            </div>
             <div style="display:flex; flex-direction:column; gap:6px; margin-top:6px; font-size:12px;">
               <label style="display:flex; align-items:center; gap:6px;">
                 <input type="checkbox" id="toggleNearbyHighlight" checked style="width:14px; height:14px;">
@@ -3303,7 +3384,6 @@
               </label>
             </div>
           </div>
-          <div id="filter-resize-handle" aria-label="Resize map filters"></div>
         </details>
       </div>
     </div>

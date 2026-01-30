@@ -1906,6 +1906,16 @@ function updateLayer() {
     });
   }
 
+  // Cache normalized school level for Mapbox expressions (used by "Color by school level")
+  filteredFeatures.forEach(f => {
+    try {
+      const lvl = normalizeSchoolLevel(f && f.properties ? f.properties['School Level'] : '');
+      f.properties.__schoolLevelNorm = lvl || 'Unknown';
+    } catch (e) {
+      if (f && f.properties) f.properties.__schoolLevelNorm = 'Unknown';
+    }
+  });
+
   const updatedData = { ...originalGeojsonData, features: filteredFeatures };
   
   // Update both schools and halo layers
@@ -1917,6 +1927,11 @@ function updateLayer() {
   if (!map.getLayer || !map.getLayer('schools-layer')) {
     return;
   }
+
+  // Ensure circle color matches current "Color by" selection
+  try {
+    if (typeof window.applyMapColorByMode === 'function') window.applyMapColorByMode();
+  } catch (e) {}
 
   // Prepare pie icon names when utilization pies are enabled
   if (showUtilizationPie) {
@@ -2175,6 +2190,8 @@ function updateLegend() {
   const legendContent = document.getElementById('legend-content');
   const legendToggle = document.getElementById('legend-toggle');
   if (!legendContent) return;
+  const colorMode = (window.__mapColorByMode === 'level') ? 'level' : 'decision';
+  const useDecisionColors = colorMode === 'decision';
   
   legendContent.innerHTML = '';
   // Match the padding scale used by Map Filters panel content
@@ -2182,7 +2199,12 @@ function updateLegend() {
 
   // Update the toggle label to reflect current mode (Decision Types Legend vs Assignment View)
   if (legendToggle) {
-    const baseLabel = showingAssignments ? 'Assignment View' : 'Decision Types Legend';
+    const baseLabel =
+      showingAssignments
+        ? 'Assignment View'
+        : (colorMode === 'level')
+          ? 'School Level Legend'
+          : 'Decision Types Legend';
     const chevron = legendToggle.querySelector('span.chevron');
     const textSpan = legendToggle.querySelector('.legend-title') || legendToggle.querySelector('span:not(.chevron)');
     if (textSpan) textSpan.textContent = baseLabel;
@@ -2237,6 +2259,41 @@ function updateLegend() {
       legendContent.appendChild(row);
     }
   } else {
+    // In School level mode, show ONLY the school-level legend (no decision groups).
+    if (colorMode === 'level') {
+      const hdr = document.createElement('div');
+      hdr.textContent = 'School Level Colors';
+      hdr.style.cssText = 'font-weight:900; margin: 4px 0 6px 0; color:#111827;';
+      legendContent.appendChild(hdr);
+
+      const levels = [
+        ['Elementary', '#2563eb'],
+        ['Middle', '#7c3aed'],
+        ['High', '#dc2626'],
+        ['K-8', '#f59e0b'],
+        ['Alternative', '#10b981'],
+        ['Unknown', '#64748b']
+      ];
+      levels.forEach(([label, color]) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:4px;';
+        const swatch = document.createElement('span');
+        swatch.style.cssText = `background:${color}; width: 12px; height: 12px; border-radius: 2px; border: 1px solid #cbd5e1; display:inline-block;`;
+        const txt = document.createElement('span');
+        txt.textContent = label;
+        txt.style.cssText = 'font-size: 12px; color:#111827; font-weight:700;';
+        row.appendChild(swatch);
+        row.appendChild(txt);
+        legendContent.appendChild(row);
+      });
+
+      const sep = document.createElement('div');
+      sep.style.cssText = 'height:1px; background:#e5e7eb; margin:10px 0;';
+      legendContent.appendChild(sep);
+      
+      return;
+    }
+
     for (const [groupName, items] of Object.entries(decisionLegendGroups)) {
       const groupColorMap = {
         'Expansion': '#1D4ED8',                // Blue (matches Expansion palette)
@@ -2256,8 +2313,10 @@ function updateLegend() {
       groupHeader.className = 'legend-group-header';
       groupHeader.style.cssText = 'font-weight: bold; margin-top: 6px; margin-bottom: 2px; color: #333; border-bottom: 2px solid #ddd; padding-bottom: 2px; display: flex; align-items: center; background: #f8f9fa; padding: 2px 4px; border-radius: 4px;';
       // Tint group header to match the strategy color
-      if (groupColorMap[groupName]) groupHeader.style.borderBottomColor = groupColorMap[groupName];
-      if (groupBgMap[groupName]) groupHeader.style.background = groupBgMap[groupName];
+      if (useDecisionColors) {
+        if (groupColorMap[groupName]) groupHeader.style.borderBottomColor = groupColorMap[groupName];
+        if (groupBgMap[groupName]) groupHeader.style.background = groupBgMap[groupName];
+      }
       
       // Create checkbox
       const checkbox = document.createElement('input');
@@ -2331,7 +2390,8 @@ function updateLegend() {
         // Create color swatch
         const swatch = document.createElement('span');
         swatch.className = 'legend-swatch';
-        swatch.style.cssText = `background:${color}; width: 12px; height: 12px; border-radius: 2px; margin-right: 4px; border: 1px solid #ccc; display: inline-block;`;
+        const swatchColor = useDecisionColors ? color : '#cbd5e1';
+        swatch.style.cssText = `background:${swatchColor}; width: 12px; height: 12px; border-radius: 2px; margin-right: 4px; border: 1px solid #ccc; display: inline-block;`;
         
         // Create label text
         const labelText = document.createElement('span');
@@ -3661,6 +3721,8 @@ map.on('load', () => {
   const schoolTypeDropdownMenu = document.getElementById('schoolTypeDropdownMenu');
   const schoolTypeDropdownLabel = document.getElementById('schoolTypeDropdownLabel');
   const unselectAllSchoolsBtn = document.getElementById('unselectAllSchoolsBtn');
+  const colorByDecisionBtn = document.getElementById('colorByDecisionBtn');
+  const colorByLevelBtn = document.getElementById('colorByLevelBtn');
   let enrollmentRangeSynced = false;
   let seatsRangeSynced = false;
   let utilSpritesAdded = false;
@@ -3670,6 +3732,52 @@ map.on('load', () => {
   const defaultFilterPosition = { top: '20px', right: '20px' };
   let mapSelectSyncing = false;
   let showNearbyHighlight = false; // default off; enable via checkbox
+  let mapColorByMode = 'decision'; // 'decision' | 'level'
+  // Expose so global helpers (legend/updateLayer) can read it safely.
+  window.__mapColorByMode = mapColorByMode;
+
+  const SCHOOL_LEVEL_COLORS = {
+    'Elementary': '#2563eb',  // blue
+    'Middle': '#7c3aed',      // purple
+    'High': '#dc2626',        // red
+    'K-8': '#f59e0b',         // amber
+    'Alternative': '#10b981', // green
+    'Unknown': '#64748b'
+  };
+
+  function getDecisionColorExpression() {
+    const expr = ['match', ['get', 'Decision Type']];
+    // Preserve insertion order of DECISION_COLORS
+    Object.keys(DECISION_COLORS).forEach((k) => {
+      expr.push(k, DECISION_COLORS[k]);
+    });
+    expr.push('#7f8c8d');
+    return expr;
+  }
+
+  function getSchoolLevelColorExpression() {
+    const expr = ['match', ['get', '__schoolLevelNorm']];
+    Object.keys(SCHOOL_LEVEL_COLORS).forEach((k) => {
+      expr.push(k, SCHOOL_LEVEL_COLORS[k]);
+    });
+    expr.push('#94a3b8');
+    return expr;
+  }
+
+  function applyMapColorByMode() {
+    try {
+      if (!window.map || !window.map.getLayer || !window.map.getLayer('schools-layer')) return;
+      const mapRef = window.map;
+      const mode = (window.__mapColorByMode === 'level') ? 'level' : 'decision';
+      const expr = (mode === 'level') ? getSchoolLevelColorExpression() : getDecisionColorExpression();
+      mapRef.setPaintProperty('schools-layer', 'circle-color', expr);
+      // Keep halo/assigned layers as-is
+    } catch (e) {
+      console.warn("⚠️ Unable to apply map color mode:", e);
+    }
+  }
+  // Make globally accessible (updateLayer / assignment code paths).
+  window.applyMapColorByMode = applyMapColorByMode;
 
   // Generate and register pie icon sprites for utilization buckets
   function ensureUtilizationPieSprites() {
@@ -4027,6 +4135,7 @@ map.on('load', () => {
   // --- Map filter panel positioning (static, no drag) ---
   const filterPanel = document.getElementById('filter-panel');
   const filterResizeHandle = document.getElementById('filter-resize-handle');
+  const mapFiltersToggleBtn = document.getElementById('mapFiltersToggleBtn');
   if (filterPanel) {
     // If the Map Filters panel is embedded inside the School Selection panel,
     // it should behave like a normal in-flow <details> section (no absolute positioning/resize).
@@ -4126,6 +4235,19 @@ map.on('load', () => {
     }
   }
 
+  // Map banner toggle button (Google-Maps-style): keep School dropdown always visible.
+  if (filterPanel && mapFiltersToggleBtn) {
+    const syncToggle = () => {
+      try { mapFiltersToggleBtn.setAttribute('aria-expanded', filterPanel.open ? 'true' : 'false'); } catch (e) {}
+    };
+    mapFiltersToggleBtn.addEventListener('click', () => {
+      filterPanel.open = !filterPanel.open;
+      syncToggle();
+    });
+    filterPanel.addEventListener('toggle', syncToggle);
+    syncToggle();
+  }
+
   // --- School type dropdown logic ---
   function syncSchoolTypeFromDropdown() {
     if (!schoolTypeDropdownMenu) return;
@@ -4177,30 +4299,29 @@ map.on('load', () => {
   // Initialize selection label
   syncSchoolTypeFromDropdown();
 
+  // --- Color-by toggle (Decision vs School level) ---
+  function setMapColorMode(mode) {
+    mapColorByMode = (mode === 'level') ? 'level' : 'decision';
+    window.__mapColorByMode = mapColorByMode;
+    if (colorByDecisionBtn) colorByDecisionBtn.classList.toggle('active', mapColorByMode === 'decision');
+    if (colorByLevelBtn) colorByLevelBtn.classList.toggle('active', mapColorByMode === 'level');
+    try {
+      if (typeof window.applyMapColorByMode === 'function') window.applyMapColorByMode();
+    } catch (e) {}
+    // Keep legend updated (it contains the decision filter checkboxes)
+    try { updateLegend(); } catch (e) {}
+  }
+  if (colorByDecisionBtn) colorByDecisionBtn.addEventListener('click', () => setMapColorMode('decision'));
+  if (colorByLevelBtn) colorByLevelBtn.addEventListener('click', () => setMapColorMode('level'));
+  setMapColorMode('decision');
+
   // --- LEGEND AND TOGGLE LOGIC ---
   // Toggle buttons removed - always showing decisions view
   
-  // Always show decisions view (default behavior)
-  if (map.getLayer('schools-layer')) {
-    map.setPaintProperty(
-      'schools-layer',
-      'circle-color',
-      ['match', ['get', 'Decision Type'],
-        "Building Addition", '#1D4ED8',
-        "Policy Solution for Overcrowding", '#3B82F6',
-        "Building Addition with Capital Investment", '#1E3A8A',
-        "Building Replacement", '#5B21B6',
-        "Targeted Capital Investment", '#FBBF24',
-        "Standard Maintenance", '#1B9E77',
-        "Major Capital Investment", '#F97316',
-        "Welcoming School", '#C62828',
-        "Welcoming School with Capital Investment", '#E53935',
-        "Closure (Goes to Welcoming School)", '#B71C1C',
-        "Welcoming School with Building Replacement", '#8B0000',
-        "Other / Unknown", '#2F4F4F',
-        '#7f8c8d']
-    );
-  }
+  // Apply initial circle color based on current mode (Decision by default).
+  try {
+    if (typeof window.applyMapColorByMode === 'function') window.applyMapColorByMode();
+  } catch (e) {}
 
   if (map.getLayer('assigned-schools-layer')) {
     map.setLayoutProperty(
@@ -5310,11 +5431,10 @@ document.addEventListener('DOMContentLoaded', function() {
           console.error("❌ assigned-schools source not found!");
         }
         
-        // Always showing decisions view (toggle removed)
-        // showingAssignments = true; // Removed
-        if (map.getLayer('schools-layer')) {
-          map.setPaintProperty('schools-layer', 'circle-color', '#007cbf');
-        }
+        // Keep main layer coloring consistent with "Color by" toggle
+        try {
+          if (typeof window.applyMapColorByMode === 'function') window.applyMapColorByMode();
+        } catch (e) {}
         
         // Toggle buttons removed - always showing decisions view
         
