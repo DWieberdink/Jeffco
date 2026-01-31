@@ -62,6 +62,7 @@
   const elToggleArticulationAreas = document.getElementById("toggleArticulationAreas");
   const elIncludeHomeSchool = document.getElementById("includeHomeSchool");
   const elIncludeChoice = document.getElementById("includeChoice");
+  const elIncludeOutOfDistrictChoice = document.getElementById("includeOutOfDistrictChoice");
   const elMinMiles = document.getElementById("minMiles");
   const elMaxMiles = document.getElementById("maxMiles");
   const elAllowBeyondMax = document.getElementById("allowBeyondMax");
@@ -412,12 +413,15 @@
   function getStudentFilterConfig() {
     const includeHome = !elIncludeHomeSchool ? true : !!elIncludeHomeSchool.checked;
     const includeChoice = !elIncludeChoice ? true : !!elIncludeChoice.checked;
-    return { includeHome, includeChoice };
+    const includeOutOfDistrictChoice = !elIncludeOutOfDistrictChoice ? true : !!elIncludeOutOfDistrictChoice.checked;
+    return { includeHome, includeChoice, includeOutOfDistrictChoice };
   }
 
   function choiceBucket(choiceRaw) {
     const c = norm(choiceRaw).toLowerCase();
     if (!c) return "unknown";
+    if (c.includes("out of district")) return "out_of_district_choice";
+    if (c.includes("ood")) return "out_of_district_choice";
     if (c.includes("choice")) return "choice";
     if (c.includes("home")) return "home";
     return c;
@@ -970,7 +974,7 @@
 
   function runSimulation(closeCode, allowNonOverlapping) {
     const rosterFromOdStudents = studentsBySchoolCode.get(closeCode) || [];
-    const { includeHome, includeChoice } = getStudentFilterConfig();
+    const { includeHome, includeChoice, includeOutOfDistrictChoice } = getStudentFilterConfig();
     const { min, max, allowBeyondMax } = getDistanceConfig();
     const forceAssignAll = FORCE_ASSIGN_ALL;
 
@@ -978,7 +982,8 @@
       const b = choiceBucket(s.choice);
       if (b === "choice") return includeChoice;
       if (b === "home") return includeHome;
-      return includeHome || includeChoice;
+      if (b === "out_of_district_choice") return includeOutOfDistrictChoice;
+      return includeHome || includeChoice || includeOutOfDistrictChoice;
     });
 
     const impacted = filteredRoster.length;
@@ -1217,7 +1222,11 @@
     const f = result.filters || {};
     const filterNote =
       ` Filters: ` +
-      `${f.includeHome ? "Attending Home School" : ""}${(f.includeHome && f.includeChoice) ? " + " : ""}${f.includeChoice ? "Not Attending Home School" : ""}` +
+      `${f.includeHome ? "Attending Home School" : ""}` +
+      `${(f.includeHome && (f.includeChoice || f.includeOutOfDistrictChoice)) ? " + " : ""}` +
+      `${f.includeChoice ? "Choice" : ""}` +
+      `${(f.includeChoice && f.includeOutOfDistrictChoice) ? " + " : ""}` +
+      `${f.includeOutOfDistrictChoice ? "Out of District Choice" : ""}` +
       `, miles ${Number(f.minMiles || 0).toFixed(1)}–${(f.maxMiles === null || f.maxMiles === undefined) ? "∞" : Number(f.maxMiles).toFixed(1)}` +
       `${f.maxMiles !== null && f.allowBeyondMax ? " (soft max)" : ""}.`;
     elResultsNote.textContent =
@@ -1271,7 +1280,7 @@
         renderResult(result);
       });
     });
-    [elIncludeHomeSchool, elIncludeChoice, elMinMiles, elMaxMiles, elAllowBeyondMax].forEach((el) => {
+    [elIncludeHomeSchool, elIncludeChoice, elIncludeOutOfDistrictChoice, elMinMiles, elMaxMiles, elAllowBeyondMax].forEach((el) => {
       if (!el) return;
       el.addEventListener("change", () => {
         if (!lastResult) return;
