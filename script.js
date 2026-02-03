@@ -39,8 +39,236 @@ const ARTICULATION_AREA_COLORS = {
   'Standley Lake': '#1d4ed8',
   'Wheat Ridge': '#c2410c'
 };
+// FCI deficiency table
+const FCI_DEFICIENCY_CSV_PATH = 'FCIdeficiencytable.csv';
+const FCI_STATUS_COLORS = {
+  excellent: '#166534',
+  good: '#84cc16',
+  fair: '#f59e0b',
+  poor: '#f97316',
+  deficient: '#dc2626',
+  nodata: '#16a34a'
+};
+// EA classroom condition
+const EA_CLASSROOMS_CSV_PATH = 'EAClassrooms.csv';
+const EA_CONDITION_COLORS = {
+  poor: '#dc2626',
+  fair: '#f59e0b',
+  good: '#a3e635',
+  excellent: '#16a34a',
+  nodata: '#9ca3af'
+};
+const BUILDING_CONDITION_COLORS = {
+  poor: '#dc2626',
+  fair: '#f59e0b',
+  good: '#a3e635',
+  excellent: '#16a34a',
+  nodata: '#9ca3af'
+};
 let articulationAreasGeojson4326 = null;
 let articulationAreasLoaded = false;
+let fciRows = [];
+let fciBySchoolId = new Map(); // id -> { squareFt, overallFci, bySystem: Map }
+let fciSystems = [];
+let fciOverallQuartiles = null; // { q1, q3 }
+let fciSystemQuartiles = new Map(); // system -> { q1, q3 }
+let fciSelectedSystem = '';
+let eaScoresById = new Map(); // id -> classroom EA score
+let eaClassroomCountsById = new Map(); // id -> classroom count
+let eaScoresByName = new Map(); // normalized name -> EA score
+let eaClassroomCountsByName = new Map(); // normalized name -> classroom count
+let eaQuintiles = null; // { q1, q2, q3, q4 }
+let buildingScoresById = new Map(); // id -> BuildingScore
+let buildingQuartiles = null; // { q1, q2, q3 }
+let compareFciSystem = [];
+
+function getFciStatusColorHex(status) {
+  const key = (status || '').toString().trim().toLowerCase();
+  if (key === 'excellent') return FCI_STATUS_COLORS.excellent;
+  if (key === 'good') return FCI_STATUS_COLORS.good;
+  if (key === 'fair') return FCI_STATUS_COLORS.fair;
+  if (key === 'poor') return FCI_STATUS_COLORS.poor;
+  if (key === 'deficient') return FCI_STATUS_COLORS.deficient;
+  return FCI_STATUS_COLORS.nodata;
+}
+function getFciStatusColorKey(status) {
+  return getFciStatusColorHex(status).replace('#', '').toLowerCase();
+}
+
+function getEaConditionColorHex(status) {
+  const key = (status || '').toString().trim().toLowerCase();
+  if (key === 'poor') return EA_CONDITION_COLORS.poor;
+  if (key === 'fair') return EA_CONDITION_COLORS.fair;
+  if (key === 'good') return EA_CONDITION_COLORS.good;
+  if (key === 'excellent') return EA_CONDITION_COLORS.excellent;
+  return EA_CONDITION_COLORS.nodata;
+}
+function getEaConditionColorKey(status) {
+  return getEaConditionColorHex(status).replace('#', '').toLowerCase();
+}
+
+function getBuildingConditionColorHex(status) {
+  const key = (status || '').toString().trim().toLowerCase();
+  if (key === 'poor') return BUILDING_CONDITION_COLORS.poor;
+  if (key === 'fair') return BUILDING_CONDITION_COLORS.fair;
+  if (key === 'good') return BUILDING_CONDITION_COLORS.good;
+  if (key === 'excellent') return BUILDING_CONDITION_COLORS.excellent;
+  return BUILDING_CONDITION_COLORS.nodata;
+}
+function getBuildingConditionColorKey(status) {
+  return getBuildingConditionColorHex(status).replace('#', '').toLowerCase();
+}
+
+function getLegendFilterState(mode) {
+  if (!window.__legendFilterState) window.__legendFilterState = {};
+  if (!window.__legendFilterState[mode]) window.__legendFilterState[mode] = {};
+  return window.__legendFilterState[mode];
+}
+
+function legendFilterAllows(mode, key) {
+  const state = window.__legendFilterState?.[mode];
+  if (!state) return true;
+  const values = Object.values(state);
+  if (!values.length) return true;
+  const anyOn = values.some(v => v === true);
+  if (!anyOn) return false;
+  if (key == null) return true;
+  return state[key] !== false;
+}
+
+const COMPARE_CATEGORY_DEFS = {
+  utilization: { label: 'Utilization' },
+  fci: { label: 'FCI' },
+  classroom: { label: 'Classroom condition' },
+  building: { label: 'Building condition' }
+};
+
+function getCompareBuckets(categoryKey) {
+  if (categoryKey === 'utilization') {
+    const { low, high } = getUtilizationThresholds();
+    const lowPct = Math.round(low * 100);
+    const highPct = Math.round(high * 100);
+    return [
+      { key: 'low', label: `Too low (< ${lowPct}%)`, color: UTILIZATION_PHASE_COLORS.low },
+      { key: 'mid', label: `In range (${lowPct}%–${highPct}%)`, color: UTILIZATION_PHASE_COLORS.mid },
+      { key: 'high', label: `Too high (> ${highPct}%)`, color: UTILIZATION_PHASE_COLORS.high }
+    ];
+  }
+  if (categoryKey === 'fci') {
+    return [
+      { key: 'Excellent', label: 'Excellent (<= 0.10)', color: FCI_STATUS_COLORS.excellent },
+      { key: 'Good', label: 'Good (<= 0.20)', color: FCI_STATUS_COLORS.good },
+      { key: 'Fair', label: 'Fair (<= 0.40)', color: FCI_STATUS_COLORS.fair },
+      { key: 'Poor', label: 'Poor (<= 0.60)', color: FCI_STATUS_COLORS.poor },
+      { key: 'Deficient', label: 'Deficient (<= 1.00)', color: FCI_STATUS_COLORS.deficient },
+      { key: 'No Data', label: 'No Deferred Maintenance', color: FCI_STATUS_COLORS.nodata }
+    ];
+  }
+  if (categoryKey === 'classroom') {
+    return [
+      { key: 'Poor', label: 'Poor (<= Q1)', color: EA_CONDITION_COLORS.poor },
+      { key: 'Fair', label: 'Fair (Q1–Q2)', color: EA_CONDITION_COLORS.fair },
+      { key: 'Good', label: 'Good (Q2–Q3)', color: EA_CONDITION_COLORS.good },
+      { key: 'Excellent', label: 'Excellent (> Q3)', color: EA_CONDITION_COLORS.excellent },
+      { key: 'No Data', label: 'No Data', color: EA_CONDITION_COLORS.nodata }
+    ];
+  }
+  if (categoryKey === 'building') {
+    return [
+      { key: 'Poor', label: 'Poor (<= Q1)', color: BUILDING_CONDITION_COLORS.poor },
+      { key: 'Fair', label: 'Fair (Q1–Q2)', color: BUILDING_CONDITION_COLORS.fair },
+      { key: 'Good', label: 'Good (Q2–Q3)', color: BUILDING_CONDITION_COLORS.good },
+      { key: 'Excellent', label: 'Excellent (> Q3)', color: BUILDING_CONDITION_COLORS.excellent },
+      { key: 'No Data', label: 'No Data', color: BUILDING_CONDITION_COLORS.nodata }
+    ];
+  }
+  return [];
+}
+
+function getCompareBucketForFeature(categoryKey, feature) {
+  if (!feature || !feature.properties) return 'No Data';
+  if (categoryKey === 'utilization') {
+    const { low, high } = getUtilizationThresholds();
+    const util = normalizeUtilizationValue(feature?.properties?.['Utilization'] ?? 0);
+    return (util < low) ? 'low' : (util > high) ? 'high' : 'mid';
+  }
+  if (categoryKey === 'fci') {
+    const getSelectedCompareFciSystemsFromDom = () => {
+      const list = document.getElementById('compareFciSystemList');
+      if (!list) return [];
+      const selected = [];
+      list.querySelectorAll('input[data-compare-fci-system]').forEach((cb) => {
+        if (cb.checked) selected.push(cb.getAttribute('data-compare-fci-system'));
+      });
+      return selected;
+    };
+    const sysList = getSelectedCompareFciSystemsFromDom().length
+      ? getSelectedCompareFciSystemsFromDom()
+      : (Array.isArray(compareFciSystem) ? compareFciSystem : []);
+    if (sysList.length) {
+      // Average system statuses by mapping to numeric index (per-school, per-system)
+      const values = [];
+      const schoolId = normalizeId(feature?.properties?.["UniqueID"]);
+      const entry = schoolId ? fciBySchoolId.get(schoolId) : null;
+      sysList.forEach((sys) => {
+        const p1Value = entry?.bySystem?.get(sys)?.priorityAvgCostPerSf?.[1];
+        const quartiles = computeFciQuartilesForSystem(sys);
+        const status = getFciStatusFromValue(p1Value, quartiles, false);
+        const idx =
+          status === 'Good' ? 1 :
+          status === 'Fair' ? 2 :
+          status === 'Poor' ? 3 :
+          null;
+        if (idx) values.push(idx);
+      });
+      if (!values.length) return 'No Data';
+      const avg = values.reduce((a, b) => a + b, 0) / values.length;
+      return avg <= 1.5 ? 'Good' : (avg <= 2.5 ? 'Fair' : 'Poor');
+    }
+    const overall = feature?.properties?.__fciOverall;
+    return getFciStatusFromValue(overall, fciOverallQuartiles, true);
+  }
+  if (categoryKey === 'classroom') {
+    return feature?.properties?.__eaCondition || 'No Data';
+  }
+  if (categoryKey === 'building') {
+    return feature?.properties?.__buildingCondition || 'No Data';
+  }
+  return 'No Data';
+}
+
+function getSchoolLevelForFeature(feature) {
+  if (!feature || !feature.properties) return 'Unknown';
+  return feature?.properties?.__schoolLevelNorm || normalizeSchoolLevel(feature?.properties?.['School Level']) || 'Unknown';
+}
+
+function getCompareBucketForSchool(categoryKey, schoolId, feature) {
+  if (categoryKey === 'fci') {
+    const entry = schoolId ? fciBySchoolId.get(schoolId) : null;
+    if (!entry) return 'No Data';
+    const sysList = (Array.isArray(compareFciSystem) && compareFciSystem.length) ? compareFciSystem : [];
+    if (sysList.length) {
+      const values = [];
+      sysList.forEach((sys) => {
+        const p1Value = entry?.bySystem?.get(sys)?.priorityAvgCostPerSf?.[1];
+        const quartiles = computeFciQuartilesForSystem(sys);
+        const status = getFciStatusFromValue(p1Value, quartiles, false);
+        const idx =
+          status === 'Good' ? 1 :
+          status === 'Fair' ? 2 :
+          status === 'Poor' ? 3 :
+          null;
+        if (idx) values.push(idx);
+      });
+      if (!values.length) return 'No Data';
+      const avg = values.reduce((a, b) => a + b, 0) / values.length;
+      return avg <= 1.5 ? 'Good' : (avg <= 2.5 ? 'Fair' : 'Poor');
+    }
+    return getFciStatusFromValue(entry?.overallFci, fciOverallQuartiles, true);
+  }
+  if (feature) return getCompareBucketForFeature(categoryKey, feature);
+  return 'No Data';
+}
 
 function normalizeArticulationAreaKey(v) {
   return (v || '').toString().trim().toLowerCase();
@@ -53,6 +281,59 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function parseNumberLoose(v) {
+  if (v == null) return null;
+  const s = String(v)
+    .replace(/\$/g, '')
+    .replace(/,/g, '')
+    .replace(/%/g, '')
+    .trim();
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseCountLoose(v) {
+  const n = parseNumberLoose(v);
+  if (!Number.isFinite(n)) return null;
+  return Math.round(n);
+}
+
+// Reusable percentile/quantile helper (client-side)
+function computeQuantiles(values, quantiles) {
+  const nums = (values || []).filter(v => Number.isFinite(v)).slice().sort((a, b) => a - b);
+  if (!nums.length) return quantiles.map(() => null);
+  const getAt = (q) => {
+    const pos = (nums.length - 1) * q;
+    const base = Math.floor(pos);
+    const rest = pos - base;
+    if (nums[base + 1] != null) {
+      return nums[base] + rest * (nums[base + 1] - nums[base]);
+    }
+    return nums[base];
+  };
+  return quantiles.map(q => getAt(q));
+}
+
+function getFciStatusFromValue(value, quartiles, useFixedThresholds) {
+  if (!Number.isFinite(value)) {
+    return 'No Data';
+  }
+  if (useFixedThresholds) {
+    if (value <= 0.10) return 'Excellent';
+    if (value <= 0.20) return 'Good';
+    if (value <= 0.40) return 'Fair';
+    if (value <= 0.60) return 'Poor';
+    return 'Deficient';
+  }
+  if (!quartiles || !Number.isFinite(quartiles.q1) || !Number.isFinite(quartiles.q3)) {
+    return 'No Data';
+  }
+  if (value >= quartiles.q3) return 'Poor';
+  if (value <= quartiles.q1) return 'Good';
+  return 'Fair';
 }
 
 function getArticulationColorExpression() {
@@ -125,6 +406,7 @@ function buildArticulationSchoolsIndexFromMapExport(mapExportRows, decisionRows)
   });
 
   const perArea = new Map();
+  const areaNameByKey = new Map();
   const ensureArea = (areaKey) => {
     if (!perArea.has(areaKey)) perArea.set(areaKey, new Map()); // level -> Set(names)
     return perArea.get(areaKey);
@@ -137,6 +419,10 @@ function buildArticulationSchoolsIndexFromMapExport(mapExportRows, decisionRows)
     if (!areaKey || !name) return;
     // Map_Export.csv uses this sentinel for schools not in an articulation area
     if (areaKey === 'noarticulationarea' || areaKey === 'no articulation area' || areaKey === 'n/a') return;
+
+    if (!areaNameByKey.has(areaKey) && areaRaw) {
+      areaNameByKey.set(areaKey, areaRaw);
+    }
 
     const level = levelByName.get(normalizeName(name)) || 'Unknown';
     const levels = ensureArea(areaKey);
@@ -177,11 +463,594 @@ function buildArticulationSchoolsIndexFromMapExport(mapExportRows, decisionRows)
       groups[k] = arr;
       total += arr.length;
     });
-    out.set(areaKey, { total, groupKeys, groups });
+    out.set(areaKey, {
+      total,
+      groupKeys,
+      groups,
+      areaName: areaNameByKey.get(areaKey) || ''
+    });
   });
 
   return out;
 }
+
+function getDecisionSquareFt(row) {
+  const raw =
+    row?.[" SquareFt "] ??
+    row?.["SquareFt"] ??
+    row?.["Square Ft"] ??
+    row?.["Square Feet"] ??
+    row?.["SquareFeet"];
+  return parseNumberLoose(raw);
+}
+
+function getFciRowSquareFt(row) {
+  const raw =
+    row?.Sqft ??
+    row?.SqFt ??
+    row?.["Sq Ft"] ??
+    row?.["SquareFt"] ??
+    row?.["Square Ft"] ??
+    row?.["Square Feet"] ??
+    row?.["SquareFeet"];
+  return parseNumberLoose(raw);
+}
+
+function getFciRowValue(row) {
+  const raw = row?.FCI ?? row?.Fci ?? row?.["Fci"];
+  return parseNumberLoose(raw);
+}
+
+function getEaRowValue(row) {
+  const raw =
+    row?.ClassroomEAScore ??
+    row?.["Classroom EA Score"] ??
+    row?.["EA Score"] ??
+    row?.["EAScore"];
+  return parseNumberLoose(raw);
+}
+
+function getBuildingScoreValue(row) {
+  const raw = row?.BuildingScore ?? row?.["BuildingScore"] ?? row?.["Building Score"];
+  return parseNumberLoose(raw);
+}
+
+function calcAvgCostPerSf(sf, totalCost, rowCount) {
+  if (!Number.isFinite(sf) || !Number.isFinite(totalCost) || !Number.isFinite(rowCount)) return null;
+  if (sf <= 0 || totalCost <= 0 || rowCount <= 0) return null;
+  return (sf / totalCost) / rowCount;
+}
+
+function buildFciModel(rows, decisionRows) {
+  const squareFtById = new Map();
+  (decisionRows || []).forEach((r) => {
+    const id = normalizeId(r?.UniqueID ?? r?.["UniqueID"] ?? r?.["Unique Id"]);
+    if (!id) return;
+    const sf = getDecisionSquareFt(r);
+    if (Number.isFinite(sf)) squareFtById.set(id, sf);
+  });
+
+  const bySchoolId = new Map();
+  const systemsSet = new Set();
+
+  (rows || []).forEach((r) => {
+    const schoolId = normalizeId(r?.["School Code"] ?? r?.["SchoolCode"] ?? r?.SchoolCode);
+    const system = (r?.System ?? '').toString().trim();
+    if (!schoolId || !system) return;
+    systemsSet.add(system);
+
+    const entry = bySchoolId.get(schoolId) || {
+      id: schoolId,
+      squareFt: squareFtById.get(schoolId) ?? null,
+      overallFci: null,
+      bySystem: new Map(),
+      fciValues: []
+    };
+    bySchoolId.set(schoolId, entry);
+
+    const rowSf = getFciRowSquareFt(r);
+    if (Number.isFinite(rowSf)) entry.squareFt = rowSf;
+
+    const fciVal = getFciRowValue(r);
+    if (Number.isFinite(fciVal)) entry.fciValues.push(fciVal);
+
+    const totalCostSystem = parseNumberLoose(
+      r?.["Total Cost by School, By System"] ??
+      r?.["TotalCostBySystem"] ??
+      r?.["Total Cost by School, By System"]
+    );
+
+    const p1Count = parseCountLoose(r?.["Priority1 Count"] ?? r?.["Priority 1 Count"] ?? r?.["Priority1Count"]);
+    const p2Count = parseCountLoose(r?.["Priority2 Count"] ?? r?.["Priority 2 Count"] ?? r?.["Priority2Count"]);
+    const p3Count = parseCountLoose(r?.["Priority3 Count"] ?? r?.["Priority 3 Count"] ?? r?.["Priority3Count"]);
+    const p4Count = parseCountLoose(r?.["Priority4 Count"] ?? r?.["Priority 4 Count"] ?? r?.["Priority4Count"]);
+
+    const p1Cost = parseNumberLoose(r?.["Priority1 Cost"] ?? r?.["Priority 1 Cost"] ?? r?.["Priority1Cost"]);
+    const p2Cost = parseNumberLoose(r?.["Priority2 Cost"] ?? r?.["Priority 2 Cost"] ?? r?.["Priority2Cost"]);
+    const p3Cost = parseNumberLoose(r?.["Priority3 Cost"] ?? r?.["Priority 3 Cost"] ?? r?.["Priority3Cost"]);
+    const p4Cost = parseNumberLoose(r?.["Priority4 Cost"] ?? r?.["Priority 4 Cost"] ?? r?.["Priority4Cost"]);
+
+    const existingSys = entry.bySystem.get(system) || {
+      system,
+      totalCostSystem: 0,
+      priorityCounts: { 1: 0, 2: 0, 3: 0, 4: 0 },
+      priorityCosts: { 1: 0, 2: 0, 3: 0, 4: 0 },
+      fciValues: []
+    };
+    if (Number.isFinite(totalCostSystem)) existingSys.totalCostSystem += totalCostSystem;
+    if (Number.isFinite(p1Count)) existingSys.priorityCounts[1] += p1Count;
+    if (Number.isFinite(p2Count)) existingSys.priorityCounts[2] += p2Count;
+    if (Number.isFinite(p3Count)) existingSys.priorityCounts[3] += p3Count;
+    if (Number.isFinite(p4Count)) existingSys.priorityCounts[4] += p4Count;
+    if (Number.isFinite(p1Cost)) existingSys.priorityCosts[1] += p1Cost;
+    if (Number.isFinite(p2Cost)) existingSys.priorityCosts[2] += p2Cost;
+    if (Number.isFinite(p3Cost)) existingSys.priorityCosts[3] += p3Cost;
+    if (Number.isFinite(p4Cost)) existingSys.priorityCosts[4] += p4Cost;
+    if (Number.isFinite(fciVal)) existingSys.fciValues.push(fciVal);
+    entry.bySystem.set(system, existingSys);
+  });
+
+  bySchoolId.forEach((entry) => {
+    const sf = entry.squareFt;
+    entry.bySystem.forEach((sysEntry) => {
+      const rowCount =
+        (sysEntry.priorityCounts[1] || 0) +
+        (sysEntry.priorityCounts[2] || 0) +
+        (sysEntry.priorityCounts[3] || 0) +
+        (sysEntry.priorityCounts[4] || 0);
+      // If counts are missing but we have costs, assume at least 1 row
+      const fallbackRowCount = rowCount || ((sysEntry.totalCostSystem && sysEntry.totalCostSystem > 0) ? 1 : 0);
+      if (!sysEntry.priorityCounts[1] && sysEntry.priorityCosts[1] > 0) sysEntry.priorityCounts[1] = 1;
+      if (!sysEntry.priorityCounts[2] && sysEntry.priorityCosts[2] > 0) sysEntry.priorityCounts[2] = 1;
+      if (!sysEntry.priorityCounts[3] && sysEntry.priorityCosts[3] > 0) sysEntry.priorityCounts[3] = 1;
+      if (!sysEntry.priorityCounts[4] && sysEntry.priorityCosts[4] > 0) sysEntry.priorityCounts[4] = 1;
+      sysEntry.rowCount = fallbackRowCount || null;
+      sysEntry.avgCostPerSf = calcAvgCostPerSf(sf, sysEntry.totalCostSystem, sysEntry.rowCount);
+      sysEntry.priorityAvgCostPerSf = {
+        1: calcAvgCostPerSf(sf, sysEntry.priorityCosts[1], sysEntry.priorityCounts[1]),
+        2: calcAvgCostPerSf(sf, sysEntry.priorityCosts[2], sysEntry.priorityCounts[2]),
+        3: calcAvgCostPerSf(sf, sysEntry.priorityCosts[3], sysEntry.priorityCounts[3]),
+        4: calcAvgCostPerSf(sf, sysEntry.priorityCosts[4], sysEntry.priorityCounts[4])
+      };
+      const sysFciVals = sysEntry.fciValues || [];
+      sysEntry.fciSystem = sysFciVals.length
+        ? (sysFciVals.reduce((a, b) => a + b, 0) / sysFciVals.length)
+        : null;
+    });
+    const vals = entry.fciValues || [];
+    entry.overallFci = vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+  });
+
+  const overallValues = Array.from(bySchoolId.values())
+    .map(e => e.overallFci)
+    .filter(v => Number.isFinite(v));
+  const [q1, q3] = computeQuantiles(overallValues, [0.25, 0.75]);
+  const overallQuartiles = { q1, q3 };
+
+  return {
+    bySchoolId,
+    systems: Array.from(systemsSet).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })),
+    overallQuartiles
+  };
+}
+
+function buildEaModel(rows) {
+  const byId = new Map();
+  const countsById = new Map();
+  const byName = new Map();
+  const countsByName = new Map();
+  const scores = [];
+  (rows || []).forEach((r) => {
+    const id = normalizeId(r?.["School Code"] ?? r?.["SchoolCode"] ?? r?.SchoolCode);
+    const nameRaw = r?.EASchoolName ?? r?.["School Name"] ?? r?.SchoolName ?? '';
+    const nameVariants = buildNameVariants(nameRaw);
+    const score = getEaRowValue(r);
+    if (!Number.isFinite(score)) return;
+    if (id) byId.set(id, score);
+    nameVariants.forEach((n) => {
+      if (!byName.has(n)) byName.set(n, score);
+    });
+    scores.push(score);
+    const countRaw = r?.ClassroomCount ?? r?.["Classroom Count"] ?? r?.["Classroom_Count"];
+    const count = parseCountLoose(countRaw);
+    if (Number.isFinite(count)) {
+      if (id) countsById.set(id, count);
+      nameVariants.forEach((n) => {
+        if (!countsByName.has(n)) countsByName.set(n, count);
+      });
+    }
+  });
+  const [q1, q2, q3] = computeQuantiles(scores, [0.25, 0.5, 0.75]);
+  return { byId, countsById, byName, countsByName, quartiles: { q1, q2, q3 } };
+}
+
+function getEaConditionFromValue(value, quintiles) {
+  if (!Number.isFinite(value) || !quintiles) return 'No Data';
+  const { q1, q2, q3 } = quintiles;
+  if (!Number.isFinite(q1) || !Number.isFinite(q2) || !Number.isFinite(q3)) return 'No Data';
+  if (value <= q1) return 'Poor';
+  if (value <= q2) return 'Fair';
+  if (value <= q3) return 'Good';
+  return 'Excellent';
+}
+
+function applyEaMetricsToFeatures(features) {
+  if (!Array.isArray(features) || !features.length) return;
+  features.forEach((f) => {
+    if (!f || !f.properties) return;
+    const id = normalizeId(f.properties["UniqueID"]);
+    const score = eaScoresById.get(id);
+    const nameKey = f.properties["Building Name"] || f.properties["School Name"] || '';
+    const { score: scoreByName, count: countByName } = getEaByName(nameKey);
+    const scoreFinal = Number.isFinite(score) ? score : (Number.isFinite(scoreByName) ? scoreByName : null);
+    f.properties.__eaScore = scoreFinal;
+    f.properties.__eaCondition = getEaConditionFromValue(scoreFinal, eaQuintiles);
+    const count = eaClassroomCountsById.get(id) ?? countByName;
+    f.properties.__eaClassroomCount = Number.isFinite(count) ? count : null;
+    const cond = f.properties.__eaCondition;
+    if (Number.isFinite(count)) {
+      const cost =
+        cond === 'Poor' ? count * 500000 :
+        cond === 'Fair' ? count * 250000 :
+        0;
+      f.properties.__classroomCost = cost;
+    } else {
+      f.properties.__classroomCost = null;
+    }
+  });
+}
+
+function buildBuildingConditionModel(rows) {
+  const byId = new Map();
+  const scores = [];
+  (rows || []).forEach((r) => {
+    const id = normalizeId(r?.UniqueID ?? r?.["UniqueID"] ?? r?.["Unique Id"]);
+    if (!id) return;
+    const score = getBuildingScoreValue(r);
+    if (!Number.isFinite(score)) return;
+    byId.set(id, score);
+    scores.push(score);
+  });
+  const [q1, q2, q3] = computeQuantiles(scores, [0.25, 0.5, 0.75]);
+  return { byId, quartiles: { q1, q2, q3 } };
+}
+
+function getBuildingConditionFromValue(value, quartiles) {
+  if (!Number.isFinite(value) || !quartiles) return 'No Data';
+  const { q1, q2, q3 } = quartiles;
+  if (!Number.isFinite(q1) || !Number.isFinite(q2) || !Number.isFinite(q3)) return 'No Data';
+  if (value <= q1) return 'Poor';
+  if (value <= q2) return 'Fair';
+  if (value <= q3) return 'Good';
+  return 'Excellent';
+}
+
+function applyBuildingMetricsToFeatures(features) {
+  if (!Array.isArray(features) || !features.length) return;
+  features.forEach((f) => {
+    if (!f || !f.properties) return;
+    const id = normalizeId(f.properties["UniqueID"]);
+    const score = buildingScoresById.get(id);
+    f.properties.__buildingScore = Number.isFinite(score) ? score : null;
+    f.properties.__buildingCondition = getBuildingConditionFromValue(score, buildingQuartiles);
+  });
+}
+
+function computeFciQuartilesForSystem(systemName) {
+  if (!systemName) return null;
+  const cached = fciSystemQuartiles.get(systemName);
+  if (cached) return cached;
+  const values = [];
+  fciBySchoolId.forEach((entry) => {
+    const val = entry?.bySystem?.get(systemName)?.priorityAvgCostPerSf?.[1];
+    if (Number.isFinite(val)) values.push(val);
+  });
+  const [q1, q3] = computeQuantiles(values, [0.25, 0.75]);
+  const quartiles = { q1, q3 };
+  fciSystemQuartiles.set(systemName, quartiles);
+  return quartiles;
+}
+
+function getActiveFciQuartiles() {
+  if (fciSelectedSystem) return computeFciQuartilesForSystem(fciSelectedSystem);
+  return fciOverallQuartiles;
+}
+
+function getFciPriority1ValueForSchoolId(schoolId) {
+  const entry = fciBySchoolId.get(schoolId);
+  if (!entry) return null;
+  if (fciSelectedSystem) {
+    return entry.bySystem?.get(fciSelectedSystem)?.priorityAvgCostPerSf?.[1] ?? null;
+  }
+  return entry.overallFci ?? null;
+}
+
+function getFciStatusForSchoolId(schoolId) {
+  const value = getFciPriority1ValueForSchoolId(schoolId);
+  const useFixed = !fciSelectedSystem;
+  return getFciStatusFromValue(value, getActiveFciQuartiles(), useFixed);
+}
+
+function applyFciMetricsToFeatures(features) {
+  if (!Array.isArray(features) || !features.length) return;
+  const overallQuartiles = fciOverallQuartiles;
+  const systemQuartiles = getActiveFciQuartiles();
+  features.forEach((f) => {
+    if (!f || !f.properties) return;
+    const id = normalizeId(f.properties["UniqueID"]);
+    const entry = fciBySchoolId.get(id);
+    const overall = entry?.overallFci ?? null;
+    const p1Value = entry?.bySystem?.get(fciSelectedSystem)?.priorityAvgCostPerSf?.[1] ?? null;
+    const status = fciSelectedSystem
+      ? getFciStatusFromValue(p1Value, systemQuartiles, false)
+      : getFciStatusFromValue(overall, overallQuartiles, true);
+
+    f.properties.__fciOverall = overall;
+    f.properties.__fciSystemPriority1 = p1Value;
+    f.properties.__fciStatus = status;
+    f.properties.__fciOverallStatus = getFciStatusFromValue(overall, overallQuartiles, true);
+  });
+}
+
+function setFciSelectedSystem(systemName) {
+  fciSelectedSystem = (systemName || '').toString().trim();
+  window.__fciSelectedSystem = fciSelectedSystem;
+  if (originalGeojsonData && Array.isArray(originalGeojsonData.features)) {
+    applyFciMetricsToFeatures(originalGeojsonData.features);
+  }
+  try {
+    if (typeof updateLayer === 'function') updateLayer();
+  } catch {}
+  try { updateLegend(); } catch {}
+  try { updateArticulationAreaFciTable(); } catch {}
+  try { window.__aaRefreshPopup && window.__aaRefreshPopup(); } catch {}
+}
+
+function ensureFeatureByIdMap() {
+  if (window.__featureById && window.__featureById.size) return;
+  const map = new Map();
+  (originalGeojsonData?.features || []).forEach((f) => {
+    const id = normalizeId(f?.properties?.["UniqueID"]);
+    if (id) map.set(id, f);
+  });
+  window.__featureById = map;
+}
+
+function getFeatureById(id) {
+  ensureFeatureByIdMap();
+  return window.__featureById?.get(id);
+}
+
+function shortLevelLabel(level) {
+  const key = (level || '').toString();
+  if (key.toLowerCase() === 'elementary') return 'Elem';
+  if (key.toLowerCase() === 'middle') return 'Mid';
+  if (key.toLowerCase() === 'high') return 'High';
+  if (key.toLowerCase() === 'alternative') return 'Alt';
+  if (key.toLowerCase() === 'multi-level') return 'Multi';
+  if (key.toLowerCase() === 'option') return 'Option';
+  return key || 'Unknown';
+}
+
+function getArticulationAreaSchoolNames(areaKey) {
+  const data = articulationSchoolsByArea?.get(areaKey);
+  if (!data) return [];
+  const names = [];
+  (data.groupKeys || []).forEach((k) => {
+    (data.groups?.[k] || []).forEach((n) => names.push(n));
+  });
+  return names;
+}
+
+function resolveSchoolIdFromName(name) {
+  const row = decisionAllByName?.get(normalizeName(name));
+  let id = normalizeId(row?.UniqueID ?? row?.["UniqueID"] ?? row?.["Unique Id"]);
+  if (id) return id;
+  const mapRow = mapExportLookupMaps?.byName?.get(normalizeName(name));
+  const mapCode = (mapRow?.["Building Code"] || mapRow?.["BuildingCode"] || '').toString().trim();
+  id = normalizeId(mapCode);
+  return id || null;
+}
+
+function computeArticulationAreaCategoryStats(areaKey, categoryKey) {
+  const names = getArticulationAreaSchoolNames(areaKey);
+  const visibleIds = window.__currentFilteredSchoolIds;
+  const buckets = getCompareBuckets(categoryKey);
+  const bucketKeys = buckets.map(b => b.key);
+  const counts = {};
+  bucketKeys.forEach((k) => { counts[k] = 0; });
+  if (!counts['No Data']) counts['No Data'] = 0;
+  const byLevel = {};
+
+  names.forEach((name) => {
+    const id = resolveSchoolIdFromName(name);
+    if (!id) return;
+    if (visibleIds && visibleIds.size && !visibleIds.has(id)) return;
+    const feature = getFeatureById(id);
+    const level = getSchoolLevelForFeature(feature) || 'Unknown';
+    const bucket = getCompareBucketForSchool(categoryKey, id, feature) || 'No Data';
+    if (!counts.hasOwnProperty(bucket)) counts[bucket] = 0;
+    counts[bucket] += 1;
+    if (!byLevel[level]) {
+      byLevel[level] = { counts: {}, total: 0 };
+    }
+    byLevel[level].counts[bucket] = (byLevel[level].counts[bucket] || 0) + 1;
+    byLevel[level].total += 1;
+  });
+
+  const denom = Object.entries(counts).reduce((sum, [k, v]) => (k === 'No Data' ? sum : sum + v), 0);
+  const pct = {};
+  Object.keys(counts).forEach((k) => {
+    pct[k] = denom ? (counts[k] / denom) * 100 : null;
+  });
+
+  return {
+    buckets,
+    counts,
+    pct,
+    byLevel
+  };
+}
+
+function updateArticulationAreaFciTable() {
+  try {
+    const container = document.getElementById('articulationAreaFciTable');
+    if (!container) return;
+    if (!articulationSchoolsByArea || !articulationSchoolsByArea.size) {
+      container.innerHTML = '<div style="font-size:12px; color:#6b7280;">Articulation areas not loaded.</div>';
+      return;
+    }
+
+    const fmtPct = (n) => (Number.isFinite(n) ? `${n.toFixed(1)}%` : '—');
+
+    const selectedCategories = Array.isArray(window.__compareCategories) && window.__compareCategories.length
+      ? window.__compareCategories.slice()
+      : Object.keys(COMPARE_CATEGORY_DEFS);
+
+    if (!selectedCategories.length) {
+      container.innerHTML = '<div style="font-size:12px; color:#6b7280;">Select categories to compare.</div>';
+      return;
+    }
+
+    const needsFci = selectedCategories.includes('fci');
+    if (needsFci && (!fciBySchoolId || !fciBySchoolId.size)) {
+      container.innerHTML = '<div style="font-size:12px; color:#6b7280;">FCI data not loaded.</div>';
+      return;
+    }
+
+    const rows = [];
+    articulationSchoolsByArea.forEach((data, areaKey) => {
+      const areaName = (data && data.areaName) ? data.areaName : areaKey;
+      const perCategory = {};
+      selectedCategories.forEach((catKey) => {
+        perCategory[catKey] = computeArticulationAreaCategoryStats(areaKey, catKey);
+      });
+      rows.push({
+        area: areaName || areaKey,
+        perCategory
+      });
+    });
+
+    rows.sort((a, b) => a.area.localeCompare(b.area, undefined, { sensitivity: 'base', numeric: true }));
+
+    const headerNote = `<div style="font-size:11px; color:#6b7280; margin-bottom:6px;">Compare categories (FCI uses selected compare systems if any)</div>`;
+    const categoryBuckets = {};
+    selectedCategories.forEach((k) => {
+      categoryBuckets[k] = getCompareBuckets(k) || [];
+    });
+
+    const shortBucketLabel = (key) => {
+      const k = (key || '').toString().toLowerCase();
+      if (k === 'excellent') return 'Ex';
+      if (k === 'deficient') return 'Def';
+      if (k === 'no data') return 'ND';
+      if (k === 'good') return 'Good';
+      if (k === 'fair') return 'Fair';
+      if (k === 'poor') return 'Poor';
+      if (k === 'low') return 'Low';
+      if (k === 'mid') return 'Mid';
+      if (k === 'high') return 'High';
+      return key;
+    };
+
+    const renderAreaAvg = (stats) => {
+      const row = stats.buckets.map((b) => {
+        const pct = stats.pct?.[b.key];
+        const pctText = Number.isFinite(pct) ? `${pct.toFixed(0)}%` : '—';
+        return `<span style="display:flex; align-items:center; gap:4px;">
+          <span class="compare-swatch" style="background:${b.color};"></span>${pctText}
+        </span>`;
+      }).join('');
+      return `<div class="compare-row">${row}</div>`;
+    };
+
+    const renderLevelAvg = (stats) => {
+      const levels = Object.keys(stats.byLevel || {}).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }));
+      if (!levels.length) return `<div class="compare-row"><span>—</span></div>`;
+      const row = levels.map((lvl) => {
+        const entry = stats.byLevel[lvl];
+        const total = entry.total || 0;
+        if (!total) return '';
+        let bestKey = null;
+        let bestCount = -1;
+        Object.entries(entry.counts || {}).forEach(([k, v]) => {
+          if (k === 'No Data') return;
+          if (v > bestCount) {
+            bestCount = v;
+            bestKey = k;
+          }
+        });
+        const bucket = stats.buckets.find(b => b.key === bestKey) || stats.buckets[stats.buckets.length - 1];
+        const pct = bestCount >= 0 ? Math.round((bestCount / total) * 100) : null;
+        return `<span style="display:flex; align-items:center; gap:4px;">
+          <span class="compare-swatch" style="background:${bucket?.color || '#cbd5e1'};"></span>${shortLevelLabel(lvl)} ${pct ?? '—'}%
+        </span>`;
+      }).join('');
+      return `<div class="compare-row">${row}</div>`;
+    };
+
+    const tableHtml = `
+      ${headerNote}
+      <table>
+        <thead>
+          <tr>
+            <th>Area</th>
+            ${selectedCategories.map(k => {
+              const label = escapeHtml(COMPARE_CATEGORY_DEFS[k]?.label || k);
+              const buckets = categoryBuckets[k] || [];
+              const legend = buckets.length
+                ? `<div class="compare-row" style="margin-top:4px; font-size:10px; color:#4b5563;">
+                    ${buckets.map(b => `<span style="display:flex; align-items:center; gap:4px;">
+                      <span class="compare-swatch" style="background:${b.color};"></span>${escapeHtml(shortBucketLabel(b.key))}
+                    </span>`).join('')}
+                  </div>`
+                : '';
+              return `<th>${label}${legend}</th>`;
+            }).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td>${escapeHtml(r.area)}</td>
+              ${selectedCategories.map(k => {
+                const stats = r.perCategory[k];
+                if (!stats) return `<td>—</td>`;
+                return `<td>
+                  <div class="compare-cell">
+                    <div class="compare-subtitle">Area avg</div>
+                    ${renderAreaAvg(stats)}
+                    <div class="compare-subtitle">By level</div>
+                    ${renderLevelAvg(stats)}
+                  </div>
+                </td>`;
+              }).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+    container.innerHTML = tableHtml;
+  } catch (err) {
+    const container = document.getElementById('articulationAreaFciTable');
+    if (container) {
+      container.innerHTML = '<div style="font-size:12px; color:#b91c1c;">Articulation table failed to render. Please refresh.</div>';
+    }
+    console.warn('Articulation table render error:', err);
+  }
+}
+
+// Ensure the articulation table renders at least once after DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    updateArticulationAreaFciTable();
+  } catch (e) {
+    const container = document.getElementById('articulationAreaFciTable');
+    if (container) {
+      container.innerHTML = '<div style="font-size:12px; color:#6b7280;">Loading articulation summary...</div>';
+    }
+  }
+});
 
 // Decision outcome colors (keep consistent with map circle coloring)
 const DECISION_COLORS = {
@@ -217,6 +1086,8 @@ const SCHOOL_LEVEL_COLORS = {
   'High': '#dc2626',        // red
   'K-8': '#f59e0b',         // amber
   'Alternative': '#10b981', // green
+  'Multi-Level': '#0ea5e9', // sky
+  'Option': '#14b8a6',      // teal
   'Unknown': '#64748b'
 };
 function getSchoolLevelColorHex(level) {
@@ -1270,6 +2141,8 @@ function normalizeSchoolLevel(level) {
   if (norm.includes('high')) return 'High';
   if (norm.includes('k-8') || norm.includes('k8')) return 'K-8';
   if (norm.includes('alternative')) return 'Alternative';
+  if (norm.includes('multi') || norm.includes('multi-level') || norm.includes('multilevel')) return 'Multi-Level';
+  if (norm.includes('option')) return 'Option';
   return level; // fallback to raw value
 }
 
@@ -1668,6 +2541,78 @@ function ensureBaseSourcesLayers() {
     });
   }
 
+  // Articulation areas overlay (optional; keep below school dots)
+  // NOTE: Mapbox wipes sources/layers on map.setStyle(), so we must rebuild these here.
+  try {
+    const aaCb = document.getElementById('toggleArticulationAreas');
+    const aaVis = (aaCb && aaCb.checked) ? 'visible' : 'none';
+    const emptyFc = { type: 'FeatureCollection', features: [] };
+
+    if (!m.getSource('articulation-areas')) {
+      m.addSource('articulation-areas', {
+        type: 'geojson',
+        data: articulationAreasGeojson4326 || emptyFc
+      });
+    } else {
+      // Keep current data if already loaded (avoids a blank overlay after style change)
+      try {
+        const src = m.getSource('articulation-areas');
+        if (src && typeof src.setData === 'function' && articulationAreasGeojson4326) {
+          src.setData(articulationAreasGeojson4326);
+        }
+      } catch {}
+    }
+
+    const insertBefore = (m.getLayer('schools-layer') ? 'schools-layer' : undefined);
+
+    if (!m.getLayer('articulation-areas-fill')) {
+      const layerDef = {
+        id: 'articulation-areas-fill',
+        type: 'fill',
+        source: 'articulation-areas',
+        layout: { visibility: aaVis },
+        paint: {
+          'fill-color': getArticulationColorExpression(),
+          'fill-opacity': 0.16
+        }
+      };
+      if (insertBefore) m.addLayer(layerDef, insertBefore);
+      else m.addLayer(layerDef);
+    } else {
+      try { m.setLayoutProperty('articulation-areas-fill', 'visibility', aaVis); } catch {}
+    }
+
+    if (!m.getLayer('articulation-areas-outline')) {
+      const layerDef = {
+        id: 'articulation-areas-outline',
+        type: 'line',
+        source: 'articulation-areas',
+        layout: { visibility: aaVis },
+        paint: {
+          'line-color': getArticulationColorExpression(),
+          'line-opacity': 0.45,
+          'line-width': 1.5
+        }
+      };
+      if (insertBefore) m.addLayer(layerDef, insertBefore);
+      else m.addLayer(layerDef);
+    } else {
+      try { m.setLayoutProperty('articulation-areas-outline', 'visibility', aaVis); } catch {}
+    }
+
+    // Ensure data is (re)loaded after style changes; safe no-op if already cached.
+    try {
+      loadArticulationAreas4326()
+        .then((gj) => {
+          try {
+            const src = m.getSource('articulation-areas');
+            if (src && typeof src.setData === 'function') src.setData(gj || emptyFc);
+          } catch {}
+        })
+        .catch(() => {});
+    } catch {}
+  } catch (e) {}
+
   // Main schools layer
   if (!m.getLayer('schools-layer')) {
     m.addLayer({
@@ -1941,7 +2886,35 @@ function updateLayer() {
       }
     }
 
-    return matchesEnrollment && matchesSeats && matchesType && matchesFlow && matchesNearby;
+    if (!(matchesEnrollment && matchesSeats && matchesType && matchesFlow && matchesNearby)) return false;
+
+    // Legend-based filtering (applies to current color-by mode)
+    const mode =
+      (window.__mapColorByMode === 'building') ? 'building'
+      : ((window.__mapColorByMode === 'classroom') ? 'classroom'
+        : ((window.__mapColorByMode === 'fci') ? 'fci'
+          : ((window.__mapColorByMode === 'utilization') ? 'utilization'
+            : ((window.__mapColorByMode === 'level') ? 'level' : 'decision'))));
+
+    let legendKey = null;
+    if (mode === 'decision') {
+      legendKey = (f && f.properties) ? (f.properties["Decision Type"] || f.properties["decision"] || "Unknown") : "Unknown";
+    } else if (mode === 'level') {
+      legendKey = (f && f.properties) ? (f.properties.__schoolLevelNorm || normalizeSchoolLevel(f.properties['School Level']) || 'Unknown') : 'Unknown';
+    } else if (mode === 'utilization') {
+      const { low, high } = getUtilizationThresholds();
+      const util = normalizeUtilizationValue(f?.properties?.['Utilization'] ?? 0);
+      legendKey = (util < low) ? 'low' : (util > high) ? 'high' : 'mid';
+    } else if (mode === 'fci') {
+      legendKey = f?.properties?.__fciStatus || 'No Data';
+    } else if (mode === 'building') {
+      legendKey = f?.properties?.__buildingCondition || 'No Data';
+    } else if (mode === 'classroom') {
+      legendKey = f?.properties?.__eaCondition || 'No Data';
+    }
+    if (!legendFilterAllows(mode, legendKey)) return false;
+
+    return true;
   });
   
   console.log(`🟦 Flow 2 (Expansion): ${flow2Filtered} of ${flow2Count} schools passed all filters`);
@@ -1971,12 +2944,27 @@ function updateLayer() {
   if (showUtilizationPie) {
     const getPieColorKeyForFeature = (f) => {
       const mode =
-        (window.__mapColorByMode === 'utilization') ? 'utilization'
-        : ((window.__mapColorByMode === 'level') ? 'level' : 'decision');
+        (window.__mapColorByMode === 'building') ? 'building'
+        : ((window.__mapColorByMode === 'classroom') ? 'classroom'
+          : ((window.__mapColorByMode === 'fci') ? 'fci'
+            : ((window.__mapColorByMode === 'utilization') ? 'utilization'
+              : ((window.__mapColorByMode === 'level') ? 'level' : 'decision'))));
 
       if (mode === 'level') {
         const lvl = (f && f.properties) ? (f.properties.__schoolLevelNorm || normalizeSchoolLevel(f.properties['School Level']) || 'Unknown') : 'Unknown';
         return getSchoolLevelColorKey(lvl);
+      }
+      if (mode === 'building') {
+        const status = f?.properties?.__buildingCondition || 'No Data';
+        return getBuildingConditionColorKey(status);
+      }
+      if (mode === 'classroom') {
+        const status = f?.properties?.__eaCondition || 'No Data';
+        return getEaConditionColorKey(status);
+      }
+      if (mode === 'fci') {
+        const status = f?.properties?.__fciStatus || 'No Data';
+        return getFciStatusColorKey(status);
       }
       if (mode === 'utilization') {
         const { low, high } = getUtilizationThresholds();
@@ -2012,6 +3000,14 @@ function updateLayer() {
     map.getSource('schools').setData(updatedData);
   }
 
+  // Track filtered schools for rollups (articulation area table)
+  try {
+    window.__currentFilteredSchoolIds = new Set(
+      filteredFeatures.map(f => normalizeId(f?.properties?.["UniqueID"]))
+    );
+  } catch {}
+  try { updateArticulationAreaFciTable(); } catch {}
+
   // If layers aren't ready yet, skip styling updates
   if (!map.getLayer || !map.getLayer('schools-layer')) {
     return;
@@ -2027,10 +3023,19 @@ function updateLayer() {
     filteredFeatures.forEach(f => {
       const bucket = f.properties["utilPieBucket"] || "0.0";
       const mode =
-        (window.__mapColorByMode === 'utilization') ? 'utilization'
-        : ((window.__mapColorByMode === 'level') ? 'level' : 'decision');
+        (window.__mapColorByMode === 'building') ? 'building'
+        : ((window.__mapColorByMode === 'classroom') ? 'classroom'
+          : ((window.__mapColorByMode === 'fci') ? 'fci'
+            : ((window.__mapColorByMode === 'utilization') ? 'utilization'
+              : ((window.__mapColorByMode === 'level') ? 'level' : 'decision'))));
       const colorKey =
-        (mode === 'level')
+        (mode === 'building')
+          ? getBuildingConditionColorKey(f.properties.__buildingCondition || 'No Data')
+          : (mode === 'classroom')
+          ? getEaConditionColorKey(f.properties.__eaCondition || 'No Data')
+          : (mode === 'fci')
+          ? getFciStatusColorKey(f.properties.__fciStatus || 'No Data')
+          : (mode === 'level')
           ? getSchoolLevelColorKey(f.properties.__schoolLevelNorm || normalizeSchoolLevel(f.properties['School Level']) || 'Unknown')
           : (mode === 'utilization')
             ? (() => {
@@ -2301,8 +3306,11 @@ function updateLegend() {
   const legendToggle = document.getElementById('legend-toggle');
   if (!legendContent) return;
   const colorMode =
-    (window.__mapColorByMode === 'utilization') ? 'utilization'
-    : ((window.__mapColorByMode === 'level') ? 'level' : 'decision');
+    (window.__mapColorByMode === 'building') ? 'building'
+    : ((window.__mapColorByMode === 'classroom') ? 'classroom'
+      : ((window.__mapColorByMode === 'fci') ? 'fci'
+        : ((window.__mapColorByMode === 'utilization') ? 'utilization'
+          : ((window.__mapColorByMode === 'level') ? 'level' : 'decision'))));
   const useDecisionColors = colorMode === 'decision';
   
   legendContent.innerHTML = '';
@@ -2314,11 +3322,17 @@ function updateLegend() {
     const baseLabel =
       showingAssignments
         ? 'Assignment View'
-        : (colorMode === 'utilization')
-          ? 'Utilization Legend'
-          : (colorMode === 'level')
-            ? 'School Level Legend'
-            : 'Decision Types Legend';
+        : (colorMode === 'building')
+          ? 'Building Condition Legend'
+          : (colorMode === 'classroom')
+            ? 'Classroom Condition Legend'
+            : (colorMode === 'fci')
+              ? 'FCI Legend'
+              : (colorMode === 'utilization')
+                ? 'Utilization Legend'
+                : (colorMode === 'level')
+                  ? 'School Level Legend'
+                  : 'Decision Types Legend';
     const chevron = legendToggle.querySelector('span.chevron');
     const textSpan = legendToggle.querySelector('.legend-title') || legendToggle.querySelector('span:not(.chevron)');
     if (textSpan) textSpan.textContent = baseLabel;
@@ -2352,6 +3366,48 @@ function updateLegend() {
 
   // Title is now handled by the legend toggle header; no separate title inside content
 
+  const addLegendFilterRow = (mode, key, label, color) => {
+    const state = getLegendFilterState(mode);
+    if (!(key in state)) state[key] = true;
+    const row = document.createElement('label');
+    row.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:4px; cursor:pointer;';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = state[key] !== false;
+    cb.addEventListener('change', (e) => {
+      state[key] = !!e.target.checked;
+      try { updateLayer(); } catch {}
+    });
+    const swatch = document.createElement('span');
+    swatch.style.cssText = `background:${color}; width: 12px; height: 12px; border-radius: 2px; border: 1px solid #cbd5e1; display:inline-block;`;
+    const txt = document.createElement('span');
+    txt.textContent = label;
+    txt.style.cssText = 'font-size: 12px; color:#111827; font-weight:700;';
+    row.appendChild(cb);
+    row.appendChild(swatch);
+    row.appendChild(txt);
+    legendContent.appendChild(row);
+  };
+
+  const appendSchoolLevelLegend = () => {
+    const hdr = document.createElement('div');
+    hdr.textContent = 'School Level Colors';
+    hdr.style.cssText = 'font-weight:900; margin: 10px 0 6px 0; color:#111827;';
+    legendContent.appendChild(hdr);
+
+    const levels = [
+      ['Elementary', '#2563eb'],
+      ['Middle', '#7c3aed'],
+      ['High', '#dc2626'],
+      ['Alternative', '#10b981'],
+      ['Multi-Level', '#0ea5e9'],
+      ['Option', '#14b8a6']
+    ];
+    levels.forEach(([label, color]) => {
+      addLegendFilterRow('level', label, label, color);
+    });
+  };
+
   if (showingAssignments) {
     for (const [label, color] of Object.entries(assignmentLegend)) {
       const row = document.createElement('div');
@@ -2373,6 +3429,73 @@ function updateLegend() {
       legendContent.appendChild(row);
     }
   } else {
+    if (colorMode === 'building') {
+      const hdr = document.createElement('div');
+      hdr.textContent = 'Building Condition';
+      hdr.style.cssText = 'font-weight:900; margin: 4px 0 6px 0; color:#111827;';
+      legendContent.appendChild(hdr);
+
+      addLegendFilterRow('building', 'Poor', 'Poor (<= Q1)', BUILDING_CONDITION_COLORS.poor);
+      addLegendFilterRow('building', 'Fair', 'Fair (Q1–Q2)', BUILDING_CONDITION_COLORS.fair);
+      addLegendFilterRow('building', 'Good', 'Good (Q2–Q3)', BUILDING_CONDITION_COLORS.good);
+      addLegendFilterRow('building', 'Excellent', 'Excellent (> Q3)', BUILDING_CONDITION_COLORS.excellent);
+      addLegendFilterRow('building', 'No Data', 'No Data', BUILDING_CONDITION_COLORS.nodata);
+
+      const note = document.createElement('div');
+      note.style.cssText = 'margin-top:6px; font-size:12px; color:#6b7280;';
+      note.textContent = 'Quartiles computed client-side from BuildingScore.';
+      legendContent.appendChild(note);
+      return;
+    }
+
+    if (colorMode === 'classroom') {
+      const hdr = document.createElement('div');
+      hdr.textContent = 'Classroom Condition';
+      hdr.style.cssText = 'font-weight:900; margin: 4px 0 6px 0; color:#111827;';
+      legendContent.appendChild(hdr);
+
+      addLegendFilterRow('classroom', 'Poor', 'Poor', EA_CONDITION_COLORS.poor);
+      addLegendFilterRow('classroom', 'Fair', 'Fair', EA_CONDITION_COLORS.fair);
+      addLegendFilterRow('classroom', 'Good', 'Good', EA_CONDITION_COLORS.good);
+      addLegendFilterRow('classroom', 'Excellent', 'Excellent', EA_CONDITION_COLORS.excellent);
+      addLegendFilterRow('classroom', 'No Data', 'No Data', EA_CONDITION_COLORS.nodata);
+
+      const note = document.createElement('div');
+      note.style.cssText = 'margin-top:6px; font-size:12px; color:#6b7280;';
+      note.textContent = 'Quartiles computed client-side from Classroom EA scores.';
+      legendContent.appendChild(note);
+      return;
+    }
+
+    if (colorMode === 'fci') {
+      const hdr = document.createElement('div');
+      hdr.textContent = fciSelectedSystem
+        ? `${fciSelectedSystem} FCI`
+        : 'FCI';
+      hdr.style.cssText = 'font-weight:900; margin: 4px 0 6px 0; color:#111827;';
+      legendContent.appendChild(hdr);
+
+      if (fciSelectedSystem) {
+        addLegendFilterRow('fci', 'Good', 'Good (<= Q1)', FCI_STATUS_COLORS.good);
+        addLegendFilterRow('fci', 'Fair', 'Fair (Q1–Q3)', FCI_STATUS_COLORS.fair);
+        addLegendFilterRow('fci', 'Poor', 'Poor (>= Q3)', FCI_STATUS_COLORS.poor);
+      } else {
+        addLegendFilterRow('fci', 'Excellent', 'Excellent (<= 0.10)', FCI_STATUS_COLORS.excellent);
+        addLegendFilterRow('fci', 'Good', 'Good (<= 0.20)', FCI_STATUS_COLORS.good);
+        addLegendFilterRow('fci', 'Fair', 'Fair (<= 0.40)', FCI_STATUS_COLORS.fair);
+        addLegendFilterRow('fci', 'Poor', 'Poor (<= 0.60)', FCI_STATUS_COLORS.poor);
+        addLegendFilterRow('fci', 'Deficient', 'Deficient (<= 1.00)', FCI_STATUS_COLORS.deficient);
+      }
+      addLegendFilterRow('fci', 'No Data', 'No Deferred Maintenance', FCI_STATUS_COLORS.nodata);
+
+      const note = document.createElement('div');
+      note.style.cssText = 'margin-top:6px; font-size:12px; color:#6b7280;';
+      note.textContent = fciSelectedSystem
+        ? `Selected system: ${fciSelectedSystem} (Priority 1 quartiles, client-side)`
+        : 'Overall FCI thresholds: ≤0.10 Excellent, ≤0.20 Good, ≤0.40 Fair, ≤0.60 Poor, ≤1.00 Deficient (client-side)';
+      legendContent.appendChild(note);
+      return;
+    }
     // Utilization mode: show the 3-phase legend + keep flow filter checkboxes (without decision colors).
     if (colorMode === 'utilization') {
       const { low, high } = getUtilizationThresholds();
@@ -2384,31 +3507,18 @@ function updateLegend() {
       hdr.style.cssText = 'font-weight:900; margin: 4px 0 6px 0; color:#111827;';
       legendContent.appendChild(hdr);
 
-      const mkRow = (label, color) => {
-        const row = document.createElement('div');
-        row.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:4px;';
-        const swatch = document.createElement('span');
-        swatch.style.cssText = `background:${color}; width: 12px; height: 12px; border-radius: 2px; border: 1px solid #cbd5e1; display:inline-block;`;
-        const txt = document.createElement('span');
-        txt.textContent = label;
-        txt.style.cssText = 'font-size: 12px; color:#111827; font-weight:700;';
-        row.appendChild(swatch);
-        row.appendChild(txt);
-        return row;
-      };
-
-      legendContent.appendChild(mkRow(`Too low (< ${lowPct}%)`, UTILIZATION_PHASE_COLORS.low));
-      legendContent.appendChild(mkRow(`In range (${lowPct}%–${highPct}%)`, UTILIZATION_PHASE_COLORS.mid));
-      legendContent.appendChild(mkRow(`Too high (> ${highPct}%)`, UTILIZATION_PHASE_COLORS.high));
+      addLegendFilterRow('utilization', 'low', `Too low (< ${lowPct}%)`, UTILIZATION_PHASE_COLORS.low);
+      addLegendFilterRow('utilization', 'mid', `In range (${lowPct}%–${highPct}%)`, UTILIZATION_PHASE_COLORS.mid);
+      addLegendFilterRow('utilization', 'high', `Too high (> ${highPct}%)`, UTILIZATION_PHASE_COLORS.high);
 
       const note = document.createElement('div');
       note.style.cssText = 'margin-top:6px; font-size:12px; color:#6b7280;';
       note.textContent = 'Thresholds follow the utilization sliders in Strategic Sorting.';
       legendContent.appendChild(note);
 
-      const sep = document.createElement('div');
-      sep.style.cssText = 'height:1px; background:#e5e7eb; margin:10px 0;';
-      legendContent.appendChild(sep);
+      const sep1 = document.createElement('div');
+      sep1.style.cssText = 'height:1px; background:#e5e7eb; margin:10px 0;';
+      legendContent.appendChild(sep1);
 
       const filterHdr = document.createElement('div');
       filterHdr.textContent = 'Strategies (filter)';
@@ -2446,36 +3556,7 @@ function updateLegend() {
 
     // In School level mode, show ONLY the school-level legend (no decision groups).
     if (colorMode === 'level') {
-      const hdr = document.createElement('div');
-      hdr.textContent = 'School Level Colors';
-      hdr.style.cssText = 'font-weight:900; margin: 4px 0 6px 0; color:#111827;';
-      legendContent.appendChild(hdr);
-
-      const levels = [
-        ['Elementary', '#2563eb'],
-        ['Middle', '#7c3aed'],
-        ['High', '#dc2626'],
-        ['K-8', '#f59e0b'],
-        ['Alternative', '#10b981'],
-        ['Unknown', '#64748b']
-      ];
-      levels.forEach(([label, color]) => {
-        const row = document.createElement('div');
-        row.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:4px;';
-        const swatch = document.createElement('span');
-        swatch.style.cssText = `background:${color}; width: 12px; height: 12px; border-radius: 2px; border: 1px solid #cbd5e1; display:inline-block;`;
-        const txt = document.createElement('span');
-        txt.textContent = label;
-        txt.style.cssText = 'font-size: 12px; color:#111827; font-weight:700;';
-        row.appendChild(swatch);
-        row.appendChild(txt);
-        legendContent.appendChild(row);
-      });
-
-      const sep = document.createElement('div');
-      sep.style.cssText = 'height:1px; background:#e5e7eb; margin:10px 0;';
-      legendContent.appendChild(sep);
-      
+      appendSchoolLevelLegend();
       return;
     }
 
@@ -2568,26 +3649,11 @@ function updateLegend() {
       
       // Add items in this group
       for (const [label, color] of Object.entries(items)) {
-        const row = document.createElement('div');
-        row.className = 'legend-row';
-        row.style.cssText = 'margin-left: 15px; margin-bottom: 1px; padding: 0; display: flex; align-items: center;';
-        
-        // Create color swatch
-        const swatch = document.createElement('span');
-        swatch.className = 'legend-swatch';
         const swatchColor = useDecisionColors ? color : '#cbd5e1';
-        swatch.style.cssText = `background:${swatchColor}; width: 12px; height: 12px; border-radius: 2px; margin-right: 4px; border: 1px solid #ccc; display: inline-block;`;
-        
-        // Create label text
-        const labelText = document.createElement('span');
-        labelText.textContent = label;
-        labelText.style.cssText = 'font-size: 13px; color: #555;';
-        
-        row.appendChild(swatch);
-        row.appendChild(labelText);
-        legendContent.appendChild(row);
+        addLegendFilterRow('decision', label, label, swatchColor);
       }
     }
+
   }
 }
 
@@ -2687,6 +3753,32 @@ map.on('load', () => {
       console.warn("⚠️ Failed to load full Decision Data Export.csv:", err);
       return [];
     });
+  const eaPromise = fetch(EA_CLASSROOMS_CSV_PATH)
+    .then(res => res.text())
+    .then(text => new Promise(resolve => {
+      Papa.parse(text, {
+        header: true,
+        skipEmptyLines: true,
+        complete: results => resolve(results.data || [])
+      });
+    }))
+    .catch(err => {
+      console.warn("⚠️ Failed to load EAClassrooms.csv:", err);
+      return [];
+    });
+  const fciPromise = fetch(FCI_DEFICIENCY_CSV_PATH)
+    .then(res => res.text())
+    .then(text => new Promise(resolve => {
+      Papa.parse(text, {
+        header: true,
+        skipEmptyLines: true,
+        complete: results => resolve(results.data || [])
+      });
+    }))
+    .catch(err => {
+      console.warn("⚠️ Failed to load FCI deficiency table:", err);
+      return [];
+    });
   const distancesPromise = fetch('SchooltoSchoolDistances.csv')
     .then(res => res.text())
     .then(text => {
@@ -2747,8 +3839,8 @@ map.on('load', () => {
       return [];
     });
 
-  Promise.all([geojsonPromise, decisionDataPromise, decisionAllPromise, distancesPromise, mapExportPromise])
-    .then(([geojson, decisionData, decisionAll, _distances, mapExportRows]) => {
+  Promise.all([geojsonPromise, decisionDataPromise, decisionAllPromise, eaPromise, fciPromise, distancesPromise, mapExportPromise])
+    .then(([geojson, decisionData, decisionAll, eaRowsData, fciRowsData, _distances, mapExportRows]) => {
       void _distances; // preloaded for side-effects; not otherwise referenced
       console.log("✅ GeoJSON, Decision Data, full Decision export, and Map Export are loaded.");
 
@@ -2780,6 +3872,87 @@ map.on('load', () => {
           .filter(([k]) => !!k)
       );
 
+      // Build building condition model (BuildingScore from Decision Data Export)
+      try {
+        const bModel = buildBuildingConditionModel(decisionAllRows);
+        buildingScoresById = bModel.byId;
+        buildingQuartiles = bModel.quartiles;
+      } catch (e) {
+        console.warn("⚠️ Failed to build building condition model:", e);
+        buildingScoresById = new Map();
+        buildingQuartiles = null;
+      }
+
+      // Build EA classroom condition model
+      try {
+        const eaModel = buildEaModel(eaRowsData);
+        eaScoresById = eaModel.byId;
+        eaClassroomCountsById = eaModel.countsById || new Map();
+        eaScoresByName = eaModel.byName || new Map();
+        eaClassroomCountsByName = eaModel.countsByName || new Map();
+        eaQuintiles = eaModel.quartiles;
+      } catch (e) {
+        console.warn("⚠️ Failed to build EA classroom model:", e);
+        eaScoresById = new Map();
+        eaClassroomCountsById = new Map();
+        eaScoresByName = new Map();
+        eaClassroomCountsByName = new Map();
+        eaQuintiles = null;
+      }
+
+      // Build FCI model (joins FCI table to Decision Data Export by UniqueID)
+      fciRows = Array.isArray(fciRowsData) ? fciRowsData : [];
+      try {
+        const model = buildFciModel(fciRows, decisionAllRows);
+        fciBySchoolId = model.bySchoolId;
+        fciSystems = model.systems;
+        fciOverallQuartiles = model.overallQuartiles;
+      } catch (e) {
+        console.warn("⚠️ Failed to build FCI model:", e);
+        fciBySchoolId = new Map();
+        fciSystems = [];
+        fciOverallQuartiles = null;
+      }
+
+      // Populate FCI system dropdown (if present)
+      try {
+        const fciSelect = document.getElementById('fciSystemSelect');
+        if (fciSelect) {
+          fciSelect.innerHTML = '<option value="">All systems (overall FCI)</option>';
+          fciSystems.forEach((sys) => {
+            const opt = document.createElement('option');
+            opt.value = sys;
+            opt.textContent = sys;
+            fciSelect.appendChild(opt);
+          });
+          fciSelect.value = fciSelectedSystem || '';
+        }
+      } catch (e) {}
+      try {
+        const compareList = document.getElementById('compareFciSystemList');
+        const compareSummary = document.getElementById('compareFciSystemsSummary');
+        if (compareList) {
+          compareList.innerHTML = '';
+          fciSystems.forEach((sys) => {
+            const label = document.createElement('label');
+            label.style.cssText = 'display:flex; align-items:center; gap:6px;';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.setAttribute('data-compare-fci-system', sys);
+            cb.checked = Array.isArray(compareFciSystem) && compareFciSystem.includes(sys);
+            const span = document.createElement('span');
+            span.textContent = sys;
+            label.appendChild(cb);
+            label.appendChild(span);
+            compareList.appendChild(label);
+          });
+          if (compareSummary) {
+            const selectedCount = compareList.querySelectorAll('input[data-compare-fci-system]:checked').length;
+            compareSummary.textContent = selectedCount ? `${selectedCount} selected` : 'Select systems';
+          }
+        }
+      } catch (e) {}
+
       // Build articulation area -> school list index (for map popups)
       try {
         // Use Map_Export.csv because it contains the per-school articulation area assignment.
@@ -2788,12 +3961,34 @@ map.on('load', () => {
       } catch (e) {
         articulationSchoolsByArea = new Map();
       }
+      try { updateArticulationAreaFciTable(); } catch {}
 
       // Keep all schools; filtering will be controlled by toggles
       geojsonData = merged.geojson;
       window.geojsonData = geojsonData; // Expose globally for prioritization UI
       
       injectDecisionsIntoGeoJSON(geojsonData, decisionData);
+
+      // Inject FCI metrics (overall + selected system status)
+      try {
+        applyFciMetricsToFeatures(geojsonData.features || []);
+      } catch (e) {
+        console.warn("⚠️ Unable to apply FCI metrics to GeoJSON:", e);
+      }
+
+      // Inject EA classroom metrics
+      try {
+        applyEaMetricsToFeatures(geojsonData.features || []);
+      } catch (e) {
+        console.warn("⚠️ Unable to apply EA metrics to GeoJSON:", e);
+      }
+
+      // Inject building condition metrics
+      try {
+        applyBuildingMetricsToFeatures(geojsonData.features || []);
+      } catch (e) {
+        console.warn("⚠️ Unable to apply building metrics to GeoJSON:", e);
+      }
       
       // Store a deep copy of the original data for filtering
       originalGeojsonData = JSON.parse(JSON.stringify(geojsonData));
@@ -2809,6 +4004,7 @@ map.on('load', () => {
       }
       
       initializeDropdownFilters(decisionData);
+      try { setFciSelectedSystem(fciSelectedSystem); } catch {}
       // Wire up "Show Overlapping Grades Schools" toggle button
       const nearbyBtn = document.getElementById('showNearbySchoolsBtn');
       if (nearbyBtn) {
@@ -3049,26 +4245,580 @@ map.on('load', () => {
           .catch((e) => console.warn('Failed to load articulation areas', e));
 
         // Click popups for articulation areas (no hover-follow)
-        const popup = new mapboxgl.Popup({ closeButton: true, closeOnClick: false });
+        // Note: allow resizing beyond Mapbox default maxWidth.
+        const popup = new mapboxgl.Popup({ closeButton: true, closeOnClick: false, maxWidth: 'none', className: 'aa-popup' });
         let pinned = false;
         popup.on('close', () => { pinned = false; });
+
+        // Make the popup behave like a small movable/resizable "panel"
+        const enhanceArticulationPopupPanel = () => {
+          try {
+            const root = popup.getElement ? popup.getElement() : null;
+            if (!root) return;
+            const content = root.querySelector('.mapboxgl-popup-content');
+            if (!content) return;
+
+            // Make close button visible + black (some themes/styles override it)
+            try {
+              const btn = root.querySelector('.mapboxgl-popup-close-button');
+              if (btn) {
+                btn.style.display = 'block';
+                btn.style.opacity = '1';
+                btn.style.color = '#111827';
+                btn.style.fontWeight = '900';
+                btn.style.fontSize = '18px';
+                btn.style.lineHeight = '18px';
+              }
+            } catch {}
+
+            // Panel sizing + layout
+            content.style.minWidth = '260px';
+            content.style.minHeight = '140px';
+            content.style.maxWidth = '80vw';
+            content.style.maxHeight = '70vh';
+            content.style.display = 'flex';
+            content.style.flexDirection = 'column';
+            content.style.overflow = 'hidden'; // needed for resize handles; body will scroll
+            content.style.resize = 'both';
+            // Reset any prior drag transform if we are using fixed placement.
+            content.style.transform = '';
+            content.dataset.aaDx = '0';
+            content.dataset.aaDy = '0';
+
+            // Ensure close button doesn't overlap the header content.
+            const header = content.querySelector('.aa-popup-header');
+            if (header) {
+              header.style.paddingRight = '28px';
+            }
+
+            const body = content.querySelector('.aa-popup-body');
+            if (body) {
+              body.style.flex = '1 1 auto';
+              body.style.minHeight = '0';
+              body.style.overflow = 'auto';
+            }
+
+            // Draggable (drag the header)
+            const handle = content.querySelector('.aa-popup-drag');
+            if (!handle) return;
+            if (handle.__aaDragBound) return;
+            handle.__aaDragBound = true;
+
+            const num = (v) => {
+              const n = Number.parseFloat(v);
+              return Number.isFinite(n) ? n : 0;
+            };
+            if (content.dataset.aaDx == null) content.dataset.aaDx = '0';
+            if (content.dataset.aaDy == null) content.dataset.aaDy = '0';
+
+            let dragging = false;
+            let startX = 0;
+            let startY = 0;
+            let baseDx = 0;
+            let baseDy = 0;
+
+            const clampToViewport = () => {
+              const margin = 8;
+              const rect = content.getBoundingClientRect();
+              let dx = num(content.dataset.aaDx);
+              let dy = num(content.dataset.aaDy);
+
+              const maxRight = window.innerWidth - margin;
+              const maxBottom = window.innerHeight - margin;
+
+              if (rect.left < margin) dx += (margin - rect.left);
+              if (rect.top < margin) dy += (margin - rect.top);
+              if (rect.right > maxRight) dx -= (rect.right - maxRight);
+              if (rect.bottom > maxBottom) dy -= (rect.bottom - maxBottom);
+
+              if (dx !== num(content.dataset.aaDx) || dy !== num(content.dataset.aaDy)) {
+                applyTransform(dx, dy, true);
+              }
+            };
+
+            const applyTransform = (dx, dy, skipClamp) => {
+              content.dataset.aaDx = String(dx);
+              content.dataset.aaDy = String(dy);
+              // Apply translate only to content so Mapbox can keep positioning the popup container.
+              content.style.transform = `translate(${dx}px, ${dy}px)`;
+              if (!skipClamp) clampToViewport();
+            };
+
+            const onMove = (clientX, clientY) => {
+              const dx = baseDx + (clientX - startX);
+              const dy = baseDy + (clientY - startY);
+              applyTransform(dx, dy);
+            };
+
+            const onMouseMove = (ev) => {
+              if (!dragging) return;
+              ev.preventDefault();
+              onMove(ev.clientX, ev.clientY);
+            };
+            const onMouseUp = () => {
+              if (!dragging) return;
+              dragging = false;
+              document.removeEventListener('mousemove', onMouseMove, true);
+              document.removeEventListener('mouseup', onMouseUp, true);
+            };
+
+            const onTouchMove = (ev) => {
+              if (!dragging) return;
+              const t = ev.touches && ev.touches[0] ? ev.touches[0] : null;
+              if (!t) return;
+              ev.preventDefault();
+              onMove(t.clientX, t.clientY);
+            };
+            const onTouchEnd = () => {
+              if (!dragging) return;
+              dragging = false;
+              document.removeEventListener('touchmove', onTouchMove, { capture: true });
+              document.removeEventListener('touchend', onTouchEnd, { capture: true });
+              document.removeEventListener('touchcancel', onTouchEnd, { capture: true });
+            };
+
+            handle.addEventListener('mousedown', (ev) => {
+              if (ev.button !== 0) return;
+              // Don't start a map drag; treat as panel drag.
+              ev.preventDefault();
+              dragging = true;
+              startX = ev.clientX;
+              startY = ev.clientY;
+              baseDx = num(content.dataset.aaDx);
+              baseDy = num(content.dataset.aaDy);
+              document.addEventListener('mousemove', onMouseMove, true);
+              document.addEventListener('mouseup', onMouseUp, true);
+            });
+
+            handle.addEventListener('touchstart', (ev) => {
+              const t = ev.touches && ev.touches[0] ? ev.touches[0] : null;
+              if (!t) return;
+              ev.preventDefault();
+              dragging = true;
+              startX = t.clientX;
+              startY = t.clientY;
+              baseDx = num(content.dataset.aaDx);
+              baseDy = num(content.dataset.aaDy);
+              document.addEventListener('touchmove', onTouchMove, { capture: true, passive: false });
+              document.addEventListener('touchend', onTouchEnd, { capture: true });
+              document.addEventListener('touchcancel', onTouchEnd, { capture: true });
+            }, { passive: false });
+
+            // Keep popup within viewport on map move/zoom/resize
+            if (!content.__aaClampBound) {
+              content.__aaClampBound = true;
+              const onMapMove = () => {
+                try { clampToViewport(); } catch {}
+              };
+              content.__aaClampHandler = onMapMove;
+              try {
+                map.on('move', onMapMove);
+                map.on('zoom', onMapMove);
+                map.on('resize', onMapMove);
+              } catch {}
+              popup.on('close', () => {
+                try {
+                  map.off('move', onMapMove);
+                  map.off('zoom', onMapMove);
+                  map.off('resize', onMapMove);
+                } catch {}
+              });
+            }
+
+            // Initial clamp to keep header on screen
+            try { clampToViewport(); } catch {}
+          } catch {}
+        };
+
+        const positionArticulationPopupTopRight = () => {
+          try {
+            const canvas = map.getCanvas();
+            const w = canvas.clientWidth || canvas.width;
+            const offset = 12;
+            const lngLat = map.unproject([w - offset, offset]);
+            popup.setLngLat(lngLat);
+          } catch {}
+        };
 
         const buildPopupHtml = (areaName) => {
           const areaKey = normalizeArticulationAreaKey(areaName);
           const data = articulationSchoolsByArea && articulationSchoolsByArea.get(areaKey) ? articulationSchoolsByArea.get(areaKey) : null;
           const groups = data && data.groups ? data.groups : {};
-          const groupKeys = data && Array.isArray(data.groupKeys) ? data.groupKeys : Object.keys(groups || {});
-          const total = data && Number.isFinite(data.total) ? data.total : groupKeys.reduce((sum, k) => sum + ((groups[k] || []).length), 0);
+          const allGroupKeys = data && Array.isArray(data.groupKeys) ? data.groupKeys : Object.keys(groups || {});
+          const getSelectedSchoolTypesFromDom = () => {
+            try {
+              const menu = document.getElementById('schoolTypeDropdownMenu');
+              let selected = [];
+              if (menu) {
+                selected = Array.from(menu.querySelectorAll('input[type="checkbox"]'))
+                  .filter(cb => cb.checked)
+                  .map(cb => (cb.value || '').toString().trim())
+                  .filter(Boolean);
+              }
+              if (!selected.length) {
+                const select = document.getElementById('schoolTypeFilter');
+                if (select) {
+                  selected = Array.from(select.options)
+                    .filter(opt => opt.selected)
+                    .map(opt => (opt.value || '').toString().trim())
+                    .filter(Boolean);
+                }
+              }
+              return selected;
+            } catch {
+              return [];
+            }
+          };
+          const selectedLevelKeys = getSelectedSchoolTypesFromDom()
+            .map(k => (k || '').toString().trim().toLowerCase());
+          const groupKeys = selectedLevelKeys.length
+            ? allGroupKeys.filter((k) => selectedLevelKeys.includes((k || '').toString().trim().toLowerCase()))
+            : allGroupKeys;
+          const total = data && Number.isFinite(data.total)
+            ? groupKeys.reduce((sum, k) => sum + ((groups[k] || []).length), 0)
+            : groupKeys.reduce((sum, k) => sum + ((groups[k] || []).length), 0);
+          const pct = (n) => (Number.isFinite(n) ? `${n.toFixed(1)}%` : '—');
+          const areaColor = ARTICULATION_AREA_COLORS[areaName] || ARTICULATION_AREA_COLORS[(areaName || '').toString().trim()] || '#94a3b8';
+
+          const getSelectedCompareCategories = () => {
+            const list = document.getElementById('compareCategoryList');
+            if (list) {
+              const selected = [];
+              list.querySelectorAll('input[data-compare-category]').forEach((cb) => {
+                if (cb.checked) selected.push(cb.getAttribute('data-compare-category'));
+              });
+              if (selected.length) return selected;
+            }
+            if (Array.isArray(window.__compareCategories) && window.__compareCategories.length) {
+              return window.__compareCategories.slice();
+            }
+            return Object.keys(COMPARE_CATEGORY_DEFS);
+          };
+          const selectedCategories = getSelectedCompareCategories();
+
+          const getBucketColor = (catKey, bucketKey) => {
+            const buckets = getCompareBuckets(catKey) || [];
+            return (buckets.find(b => b.key === bucketKey)?.color) || '#cbd5e1';
+          };
+
+          const getSelectedCompareSystemsFromDom = () => {
+            const list = document.getElementById('compareFciSystemList');
+            if (!list) return [];
+            const selected = [];
+            list.querySelectorAll('input[data-compare-fci-system]').forEach((cb) => {
+              if (cb.checked) selected.push(cb.getAttribute('data-compare-fci-system'));
+            });
+            return selected;
+          };
+          const selectedCompareSystems = getSelectedCompareSystemsFromDom();
+          const selectedCategoryLine = selectedCategories.length
+            ? `Selected categories: ${selectedCategories.map(k => escapeHtml(COMPARE_CATEGORY_DEFS[k]?.label || k)).join(', ')}`
+            : 'Selected categories: None';
+          const selectedSystemsLine = selectedCompareSystems.length
+            ? `FCI systems: ${selectedCompareSystems.map(s => escapeHtml(s)).join(', ')}`
+            : '';
+          const fmtNum2 = (n) => (Number.isFinite(n) ? n.toFixed(2) : '—');
+          const fmtCurrency = (n) => {
+            if (!Number.isFinite(n)) return '$0.00';
+            const fixed = n.toFixed(2);
+            return `$${fixed.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+          };
+          const fmtCurrencyK = (n) => {
+            if (!Number.isFinite(n)) return '$0k';
+            const k = Math.round(n / 1000);
+            const withCommas = k.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            return `$${withCommas}k`;
+          };
+          const AVG_SWATCH_SIZE = 12;
+          const avgSwatchStyle = `width:${AVG_SWATCH_SIZE}px; height:${AVG_SWATCH_SIZE}px; border-radius:2px; border:1px solid #9ca3af; display:inline-block;`;
+
+          const getNumericValue = (catKey, schoolId, feature, fciEntry, fciSystemName) => {
+            if (catKey === 'utilization') {
+              const util = normalizeUtilizationValue(feature?.properties?.['Utilization'] ?? 0);
+              return Number.isFinite(util) ? util * 100 : null;
+            }
+            if (catKey === 'classroom') {
+              const nameKeyRaw = feature?.properties?.["Building Name"] || feature?.properties?.["School Name"] || '';
+              const { score: scoreByName, count: countByName } = getEaByName(nameKeyRaw);
+              const count = eaClassroomCountsById.get(schoolId) ?? countByName ?? feature?.properties?.__eaClassroomCount;
+              const score = eaScoresById.get(schoolId) ?? scoreByName ?? feature?.properties?.__eaScore;
+              if (!Number.isFinite(count) || !Number.isFinite(score)) return null;
+              const cond = getEaConditionFromValue(score, eaQuintiles);
+              const cost =
+                cond === 'Poor' ? count * 500000 :
+                cond === 'Fair' ? count * 250000 :
+                0;
+              return Number.isFinite(cost) ? cost : null;
+            }
+            if (catKey === 'building') {
+              const v = feature?.properties?.__buildingScore;
+              return Number.isFinite(v) ? v : null;
+            }
+            if (catKey === 'fci') {
+              if (fciSystemName) {
+                const sysEntry = fciEntry?.bySystem?.get(fciSystemName);
+                const pc = sysEntry?.priorityCosts || {};
+                const p1 = pc[1];
+                return Number.isFinite(p1) ? p1 : null;
+              }
+              const v = fciEntry?.overallFci;
+              return Number.isFinite(v) ? v : null;
+            }
+            return null;
+          };
+
+          const getColorValue = (catKey, schoolId, feature, fciEntry, fciSystemName) => {
+            if (catKey === 'fci') {
+              if (fciSystemName) {
+                const v = fciEntry?.bySystem?.get(fciSystemName)?.priorityAvgCostPerSf?.[1];
+                return Number.isFinite(v) ? v : null;
+              }
+              const v = fciEntry?.overallFci;
+              return Number.isFinite(v) ? v : null;
+            }
+            if (catKey === 'classroom') {
+              const v = feature?.properties?.__eaScore;
+              return Number.isFinite(v) ? v : null;
+            }
+            return getNumericValue(catKey, schoolId, feature, fciEntry, fciSystemName);
+          };
+
+          const computeAverageData = () => {
+            const levelTotals = {};
+            const areaTotals = {};
+            const ensureEntry = (key) => {
+              if (!areaTotals[key]) areaTotals[key] = { sumDisplay: 0, countDisplay: 0, sumColor: 0, countColor: 0 };
+            };
+            const ensureLevelEntry = (level, key) => {
+              if (!levelTotals[level]) levelTotals[level] = {};
+              if (!levelTotals[level][key]) levelTotals[level][key] = { sumDisplay: 0, countDisplay: 0, sumColor: 0, countColor: 0 };
+            };
+            const avgKeys = [];
+            const baseOrder = ['utilization', 'classroom', 'building'];
+            baseOrder.forEach((catKey) => {
+              if (!selectedCategories.includes(catKey)) return;
+              avgKeys.push({
+                key: catKey,
+                label: COMPARE_CATEGORY_DEFS[catKey]?.label || catKey,
+                catKey,
+                system: null,
+                isPercent: catKey === 'utilization',
+                isSum: catKey === 'classroom'
+              });
+            });
+            if (selectedCategories.includes('fci')) {
+              avgKeys.push({ key: 'fci_overall', label: 'FCI (Overall)', catKey: 'fci', system: null, isPercent: false, isSum: false });
+            }
+            if (selectedCompareSystems.length) {
+              selectedCompareSystems.forEach((sys) => {
+                avgKeys.push({ key: `fci_${sys}`, label: `FCI (${sys})`, catKey: 'fci', system: sys, isPercent: false, isSum: true });
+              });
+            }
+            const schoolNames = getArticulationAreaSchoolNames(areaKey);
+            schoolNames.forEach((name) => {
+              const id = resolveSchoolIdFromName(name);
+              if (!id) return;
+              const feature = getFeatureById(id);
+              const level = getSchoolLevelForFeature(feature) || 'Unknown';
+              const entry = fciBySchoolId.get(id);
+              avgKeys.forEach(({ key, catKey, system }) => {
+                const displayVal = getNumericValue(catKey, id, feature, entry, system);
+                const colorVal = getColorValue(catKey, id, feature, entry, system);
+                if (!Number.isFinite(displayVal) && !Number.isFinite(colorVal)) return;
+                ensureEntry(key);
+                if (Number.isFinite(displayVal)) {
+                  areaTotals[key].sumDisplay += displayVal;
+                  areaTotals[key].countDisplay += 1;
+                }
+                if (Number.isFinite(colorVal)) {
+                  areaTotals[key].sumColor += colorVal;
+                  areaTotals[key].countColor += 1;
+                }
+                ensureLevelEntry(level, key);
+                if (Number.isFinite(displayVal)) {
+                  levelTotals[level][key].sumDisplay += displayVal;
+                  levelTotals[level][key].countDisplay += 1;
+                }
+                if (Number.isFinite(colorVal)) {
+                  levelTotals[level][key].sumColor += colorVal;
+                  levelTotals[level][key].countColor += 1;
+                }
+              });
+            });
+            return { avgKeys, areaTotals, levelTotals };
+          };
+
+          const { avgKeys, areaTotals, levelTotals } = computeAverageData();
+
+          const getBucketForAvg = (catKey, system, avg) => {
+            if (!Number.isFinite(avg)) return 'No Data';
+            if (catKey === 'fci') {
+              return system
+                ? getFciStatusFromValue(avg, computeFciQuartilesForSystem(system), false)
+                : getFciStatusFromValue(avg, fciOverallQuartiles, true);
+            }
+            if (catKey === 'utilization') {
+              const { low, high } = getUtilizationThresholds();
+              const util = normalizeUtilizationValue((avg ?? 0) / 100);
+              return (util < low) ? 'low' : (util > high) ? 'high' : 'mid';
+            }
+            if (catKey === 'classroom') return getEaConditionFromValue(avg, eaQuintiles);
+            if (catKey === 'building') return getBuildingConditionFromValue(avg, buildingQuartiles);
+            return 'No Data';
+          };
+
+          const getColorForBucket = (catKey, bucket) => {
+            if (catKey === 'fci') return getFciStatusColorHex(bucket);
+            if (catKey === 'utilization') {
+              return bucket === 'low' ? UTILIZATION_PHASE_COLORS.low
+                : bucket === 'high' ? UTILIZATION_PHASE_COLORS.high
+                : UTILIZATION_PHASE_COLORS.mid;
+            }
+            if (catKey === 'classroom') return getEaConditionColorHex(bucket);
+            if (catKey === 'building') return getBuildingConditionColorHex(bucket);
+            return '#cbd5e1';
+          };
+
+          const buildAveragesHtml = () => {
+            if (!avgKeys.length) return '';
+            const lines = avgKeys.map(({ key, label, isPercent, catKey, system, isSum }) => {
+              const totals = areaTotals[key];
+              const displayVal = totals && totals.countDisplay ? (isSum ? totals.sumDisplay : (totals.sumDisplay / totals.countDisplay)) : (isSum ? 0 : null);
+              const colorVal = totals && totals.countColor ? (totals.sumColor / totals.countColor) : null;
+              const areaLabel = isSum ? fmtCurrencyK(displayVal) : `${fmtNum2(displayVal)}${isPercent ? '%' : ''}`;
+              const areaBucket = getBucketForAvg(catKey, system, colorVal);
+              const areaColor = getColorForBucket(catKey, areaBucket);
+              return `
+                <div style="font-size:11px; color:#111827; display:inline-flex; align-items:center; gap:6px;">
+                  <strong>${escapeHtml(label)}</strong>
+                  <span title="${escapeHtml(label)}: ${areaLabel}" style="${avgSwatchStyle} background:${areaColor};"></span>
+                  <span style="color:#6b7280;">${areaLabel}</span>
+                </div>
+              `;
+            }).join('');
+            return `<div style="margin:6px 0 10px 0; display:flex; flex-wrap:wrap; gap:12px; align-items:center;">${lines}</div>`;
+          };
+
+          const buildLevelAverageSwatches = (level) => {
+            if (!avgKeys.length) return '';
+            const row = avgKeys.map(({ key, label, isPercent, catKey, system, isSum }) => {
+              const entry = levelTotals[level]?.[key];
+              const hasDisplay = entry && entry.countDisplay;
+              const hasColor = entry && entry.countColor;
+              const displayVal = hasDisplay ? (isSum ? entry.sumDisplay : (entry.sumDisplay / entry.countDisplay)) : (isSum ? 0 : null);
+              const colorVal = hasColor ? (entry.sumColor / entry.countColor) : null;
+              const bucket = getBucketForAvg(catKey, system, colorVal);
+              const color = getColorForBucket(catKey, bucket);
+              const valText = hasDisplay
+                ? (isSum ? fmtCurrencyK(displayVal) : (fmtNum2(displayVal) + (isPercent ? '%' : '')))
+                : (isSum ? fmtCurrencyK(displayVal) : '—');
+              return `<span title="${escapeHtml(label)}: ${valText}" style="${avgSwatchStyle} background:${color};"></span>`;
+            }).join('');
+            return `<span style="display:inline-flex; gap:6px; align-items:center;">${row}</span>`;
+          };
 
           const maxPerGroup = 25;
           const groupHtml = groupKeys.map((k) => {
             const list = Array.isArray(groups[k]) ? groups[k] : [];
             const shown = list.slice(0, maxPerGroup);
             const more = list.length > maxPerGroup ? (list.length - maxPerGroup) : 0;
-            const items = shown.map((s) => `<li style="margin:0 0 2px 0;">${escapeHtml(s)}</li>`).join('');
+            const getFciSystemStatusForSchool = (schoolId, systemName) => {
+              const entry = schoolId ? fciBySchoolId.get(schoolId) : null;
+              const p1Value = entry?.bySystem?.get(systemName)?.priorityAvgCostPerSf?.[1];
+              const quartiles = computeFciQuartilesForSystem(systemName);
+              return getFciStatusFromValue(p1Value, quartiles, false);
+            };
+            const items = shown.map((s) => {
+              const id = resolveSchoolIdFromName(s);
+              const feature = id ? getFeatureById(id) : null;
+              const baseSwatches = [];
+              const fciSwatches = [];
+              const SWATCH_SIZE = 10;
+              const swatchStyle = `width:${SWATCH_SIZE}px; height:${SWATCH_SIZE}px; border-radius:2px; border:1px solid #9ca3af; display:inline-block;`;
+              const fmtNum2 = (n) => (Number.isFinite(n) ? n.toFixed(2) : null);
+              const getCategoryValueForSchool = (catKey) => {
+                if (catKey === 'utilization') {
+                  const raw = feature?.properties?.['Utilization'];
+                  const util = normalizeUtilizationValue(raw ?? 0);
+                  return Number.isFinite(util) ? util * 100 : null;
+                }
+                if (catKey === 'classroom') {
+                  const nameKeyRaw = feature?.properties?.["Building Name"] || feature?.properties?.["School Name"] || s || '';
+                  const eaByName = getEaByName(nameKeyRaw || s || '');
+                  const count = eaClassroomCountsById.get(id) ?? eaByName.count ?? feature?.properties?.__eaClassroomCount;
+                  const score = eaScoresById.get(id) ?? eaByName.score ?? feature?.properties?.__eaScore;
+                  if (!Number.isFinite(count) || !Number.isFinite(score)) return null;
+                  const cond = getEaConditionFromValue(score, eaQuintiles);
+                  const cost =
+                    cond === 'Poor' ? count * 500000 :
+                    cond === 'Fair' ? count * 250000 :
+                    0;
+                  return Number.isFinite(cost) ? cost : null;
+                }
+                if (catKey === 'building') {
+                  return feature?.properties?.__buildingScore ?? null;
+                }
+                if (catKey === 'fci') {
+                  const entry = id ? fciBySchoolId.get(id) : null;
+                  return entry?.overallFci ?? null;
+                }
+                return null;
+              };
+              const includeFciOverall = selectedCategories.includes('fci');
+              const includeFciSystems = selectedCompareSystems.length > 0;
+              const baseOrder = ['utilization', 'classroom', 'building'];
+              baseOrder.forEach((catKey) => {
+                if (!selectedCategories.includes(catKey)) return;
+                const bucket = getCompareBucketForSchool(catKey, id, feature);
+                const color = getBucketColor(catKey, bucket);
+                const value = getCategoryValueForSchool(catKey);
+                const valueText = (value == null)
+                  ? ''
+                  : (catKey === 'utilization'
+                    ? ` (value ${fmtNum2(value)}%)`
+                    : (catKey === 'classroom'
+                      ? ` (value ${fmtCurrencyK(value)})`
+                      : ` (value ${fmtNum2(value)})`));
+                baseSwatches.push(`<span title="${escapeHtml(COMPARE_CATEGORY_DEFS[catKey]?.label || catKey)}: ${escapeHtml(bucket)}${valueText}" style="${swatchStyle} background:${color};"></span>`);
+              });
+              if (includeFciOverall) {
+                const entry = id ? fciBySchoolId.get(id) : null;
+                const overallStatus = entry ? getFciStatusFromValue(entry.overallFci, fciOverallQuartiles, true) : 'No Data';
+                const overallColor = getFciStatusColorHex(overallStatus);
+                const overallVal = fmtNum2(entry?.overallFci);
+                  fciSwatches.push(`<span title="FCI: ${escapeHtml(overallStatus)}${overallVal != null ? ` (value ${overallVal})` : ''}" style="${swatchStyle} background:${overallColor};"></span>`);
+              }
+              if (includeFciSystems) {
+                const entry = id ? fciBySchoolId.get(id) : null;
+                selectedCompareSystems.forEach((sys) => {
+                  const status = getFciSystemStatusForSchool(id, sys);
+                  const color = getFciStatusColorHex(status);
+                  const sysEntry = entry?.bySystem?.get(sys);
+                  const pc = sysEntry?.priorityCosts || {};
+                  const p1 = Number.isFinite(pc[1]) ? pc[1] : null;
+                  const costText = fmtCurrencyK(p1);
+                  fciSwatches.push(`<span title="${escapeHtml(sys)}: ${escapeHtml(status)} (Priority 1 ${costText})" style="${swatchStyle} background:${color};"></span>`);
+                });
+              }
+              const swatches = [
+                baseSwatches.join(''),
+                fciSwatches.length ? `<span style="display:inline-flex; gap:6px; align-items:center; margin-left:6px;">${fciSwatches.join('')}</span>` : ''
+              ].join('');
+            const swatchWrap = swatches ? `<div style="display:inline-flex; gap:6px; align-items:center; margin-left:auto; padding-left:8px; flex-wrap:wrap; flex:0 0 auto; align-self:center;">${swatches}</div>` : '';
+              return `<li style="margin:0 0 6px 0; display:flex; align-items:flex-start; gap:8px;">
+                <span style="flex:1 1 auto; min-width:0; line-height:1.2;">${escapeHtml(s)}</span>
+                ${swatchWrap}
+              </li>`;
+            }).join('');
             const moreLine = more ? `<div style="margin:4px 0 0 0; color:#6b7280; font-size:12px;">+${more} more…</div>` : '';
+            const levelColor = getSchoolLevelColorHex(k);
+            const levelAvgSwatches = buildLevelAverageSwatches(k);
             return (
-              `<div style="margin-top:10px; font-weight:800;">${escapeHtml(k)} (${list.length})</div>` +
+              `<div style="margin-top:10px; font-weight:800; display:flex; align-items:center; gap:6px;">
+                <span style="width:10px; height:10px; border-radius:2px; border:1px solid #cbd5e1; background:${levelColor}; display:inline-block;"></span>
+                ${escapeHtml(k)} (${list.length})
+                ${levelAvgSwatches ? `<span style="margin-left:auto; display:inline-flex; gap:6px; align-items:center;">${levelAvgSwatches}</span>` : ''}
+              </div>` +
               `<ul style="padding-left:18px; margin:4px 0 0 0;">${items}</ul>` +
               `${moreLine}`
             );
@@ -3076,15 +4826,36 @@ map.on('load', () => {
 
           const emptyHtml = `<div style="color:#6b7280; font-size:12px;">No schools found for this area.</div>`;
           return (
-            `<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; font-weight:900; margin-bottom:6px;">` +
-              `<div>${escapeHtml(areaName)} Area</div>` +
-              `<div style="font-size:12px; color:#6b7280; font-weight:600;">${total} total</div>` +
+            `<div class="aa-popup-header aa-popup-drag" style="display:flex; align-items:center; gap:10px; font-weight:900; margin-bottom:2px; cursor:move; user-select:none;">` +
+              `<span style="width:12px; height:12px; border-radius:2px; border:1px solid #cbd5e1; background:${areaColor}; display:inline-block;"></span>` +
+              `<div style="flex:1; min-width:0;">${escapeHtml(areaName)} Area</div>` +
             `</div>` +
-            `<div style="max-height:180px; overflow:auto; border-top:1px solid #e5e7eb; padding-top:6px;">` +
+            `<div class="aa-popup-meta" style="font-size:12px; color:#6b7280; font-weight:600; margin:0 0 8px 0;">${total} total schools</div>` +
+            `<div class="aa-popup-body" style="border-top:1px solid #e5e7eb; padding-top:6px;">` +
+            `<div style="font-size:11px; color:#6b7280; margin:0 0 6px 0;">${selectedCategoryLine}${selectedSystemsLine ? `<br>${selectedSystemsLine}` : ''}</div>` +
+            `${buildAveragesHtml()}` +
             `${groupKeys.length ? groupHtml : emptyHtml}` +
             `</div>`
           );
         };
+
+        // Expose for refresh when compare selections change
+        try { window.__aaBuildPopupHtml = buildPopupHtml; } catch {}
+        try {
+          window.__aaRefreshPopup = () => {
+            try {
+              if (!pinned || !window.__aaPopupAreaName) return;
+              popup.setHTML(buildPopupHtml(window.__aaPopupAreaName)).addTo(map);
+              positionArticulationPopupTopRight();
+              setTimeout(() => {
+                try { enhanceArticulationPopupPanel(); } catch {}
+                try { positionArticulationPopupTopRight(); } catch {}
+              }, 0);
+            } catch {}
+          };
+        } catch {}
+        try { window.__aaPositionPopupTopRight = positionArticulationPopupTopRight; } catch {}
+        try { window.__aaEnhancePopupPanel = enhanceArticulationPopupPanel; } catch {}
 
         map.on('mouseenter', 'articulation-areas-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', 'articulation-areas-fill', () => { map.getCanvas().style.cursor = ''; });
@@ -3104,7 +4875,39 @@ map.on('load', () => {
           const areaName = f && f.properties ? (f.properties.__aaName || f.properties['Articulation Area'] || '') : '';
           if (!areaName) return;
           pinned = true;
-          popup.setLngLat(e.lngLat).setHTML(buildPopupHtml(areaName)).addTo(map);
+          window.__aaPopupAreaName = areaName;
+          try { window.__aaPopup = popup; } catch {}
+          popup.setHTML(buildPopupHtml(areaName)).addTo(map);
+          positionArticulationPopupTopRight();
+          // Keep pinned to top-right while map moves/zooms/resizes.
+          if (!popup.__aaFixedPosBound) {
+            popup.__aaFixedPosBound = true;
+            const onMove = () => positionArticulationPopupTopRight();
+            popup.__aaFixedPosHandler = onMove;
+            try {
+              map.on('move', onMove);
+              map.on('zoom', onMove);
+              map.on('resize', onMove);
+            } catch {}
+            popup.on('close', () => {
+              try {
+                map.off('move', onMove);
+                map.off('zoom', onMove);
+                map.off('resize', onMove);
+              } catch {}
+              popup.__aaFixedPosBound = false;
+            });
+          }
+          // Wait one tick so Mapbox has inserted DOM nodes, then enhance (drag/resize).
+          setTimeout(() => {
+            try { enhanceArticulationPopupPanel(); } catch {}
+            try { positionArticulationPopupTopRight(); } catch {}
+          }, 0);
+        });
+
+        // Refresh popup when compare selections change
+        window.addEventListener('aaPopupRefresh', () => {
+          try { window.__aaRefreshPopup && window.__aaRefreshPopup(); } catch {}
         });
 
         // Allow click-away to dismiss (X button also works)
@@ -3460,6 +5263,12 @@ map.on('load', () => {
       function buildSchoolPopupHtml(feature, schoolName, originUniqueId) {
         const capacity = feature?.properties?.['Capacity'];
         const utilization = feature?.properties?.['Utilization'];
+        const fmtCurrencyK = (n) => {
+          if (!Number.isFinite(n)) return '—';
+          const k = Math.round(n / 1000);
+          const withCommas = k.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+          return `$${withCommas}k`;
+        };
 
         let html = `<strong>${schoolName}</strong>`;
 
@@ -3475,6 +5284,65 @@ map.on('load', () => {
             html += `<br><span>Utilization: ${utilization}</span>`;
           }
         }
+
+        // Show the selected "Color by" value
+        try {
+          const mode =
+            (window.__mapColorByMode === 'classroom') ? 'classroom'
+            : ((window.__mapColorByMode === 'fci') ? 'fci'
+              : ((window.__mapColorByMode === 'utilization') ? 'utilization'
+                : ((window.__mapColorByMode === 'level') ? 'level' : 'decision')));
+          if (mode === 'decision') {
+            const decision = feature?.properties?.['Decision Type'] || feature?.properties?.['decision'] || 'Unknown';
+            html += `<br><span>Decision: ${decision}</span>`;
+          } else if (mode === 'level') {
+            const lvl = feature?.properties?.__schoolLevelNorm || normalizeSchoolLevel(feature?.properties?.['School Level']) || 'Unknown';
+            html += `<br><span>School level: ${lvl}</span>`;
+          } else if (mode === 'building') {
+            const cond = feature?.properties?.__buildingCondition || 'No Data';
+            const score = feature?.properties?.__buildingScore;
+            const num = Number.isFinite(score) ? score.toFixed(3) : '—';
+            html += `<br><span>Building condition: ${cond} (${num})</span>`;
+          } else if (mode === 'utilization') {
+            const { low, high } = getUtilizationThresholds();
+            const util = normalizeUtilizationValue(feature?.properties?.['Utilization'] ?? 0);
+            const band = (util < low) ? 'Too low' : (util > high) ? 'Too high' : 'In range';
+            html += `<br><span>Utilization band: ${band}</span>`;
+          } else if (mode === 'fci') {
+            const status = feature?.properties?.__fciStatus || 'No Data';
+            const schoolId = normalizeId(feature?.properties?.['UniqueID']);
+            const entry = schoolId ? fciBySchoolId.get(schoolId) : null;
+            if (fciSelectedSystem) {
+              const sysEntry = entry?.bySystem?.get(fciSelectedSystem);
+              const p1Cost = sysEntry?.priorityCosts?.[1];
+              html += `<br><span>${fciSelectedSystem}: ${status} (Priority 1 ${fmtCurrencyK(p1Cost)})</span>`;
+            } else {
+              const val = feature?.properties?.__fciOverall;
+              const num = Number.isFinite(val) ? val.toFixed(3) : '—';
+              html += `<br><span>FCI: ${status} (${num})</span>`;
+            }
+          } else if (mode === 'classroom') {
+            const score = feature?.properties?.__eaScore;
+            const num = Number.isFinite(score) ? score.toFixed(3) : '—';
+            const schoolId = normalizeId(feature?.properties?.['UniqueID']) || resolveSchoolIdFromName(schoolName);
+            const nameKeyRaw = feature?.properties?.["Building Name"] || feature?.properties?.["School Name"] || schoolName || '';
+            const eaByName = getEaByName(nameKeyRaw || schoolName || '');
+            const count = eaClassroomCountsById.get(schoolId) ?? eaByName.count ?? feature?.properties?.__eaClassroomCount;
+            const scoreVal = eaScoresById.get(schoolId) ?? eaByName.score ?? score;
+            let cost = null;
+            let condLocal = 'No Data';
+            if (Number.isFinite(count) && Number.isFinite(scoreVal)) {
+              condLocal = getEaConditionFromValue(scoreVal, eaQuintiles);
+              cost =
+                condLocal === 'Poor' ? count * 500000 :
+                condLocal === 'Fair' ? count * 250000 :
+                0;
+            }
+            const costText = fmtCurrencyK(cost);
+            html += `<br><span>Classroom condition: ${condLocal} (${num})</span>`;
+            html += `<br><span>Classroom $: ${costText}</span>`;
+          }
+        } catch {}
 
         // If an origin is selected, include distance in the hover popup.
         const originId = (window.currentOriginId || '').toString().trim() || getOriginIdForName(window.currentOriginName);
@@ -3930,6 +5798,13 @@ map.on('load', () => {
   const colorByDecisionBtn = document.getElementById('colorByDecisionBtn');
   const colorByLevelBtn = document.getElementById('colorByLevelBtn');
   const colorByUtilBtn = document.getElementById('colorByUtilBtn');
+  const colorByFciBtn = document.getElementById('colorByFciBtn');
+  const colorByClassroomBtn = document.getElementById('colorByClassroomBtn');
+  const colorByBuildingBtn = document.getElementById('colorByBuildingBtn');
+  const fciSystemSelect = document.getElementById('fciSystemSelect');
+  const compareFciSystemSelect = document.getElementById('compareFciSystemSelect');
+  const compareCategoryList = document.getElementById('compareCategoryList');
+  const compareFciSystemList = document.getElementById('compareFciSystemList');
   let enrollmentRangeSynced = false;
   let seatsRangeSynced = false;
   let utilSpritesAdded = false;
@@ -3940,7 +5815,7 @@ map.on('load', () => {
   let mapSelectSyncing = false;
   let showNearbyHighlight = false; // default off; enable via checkbox
   // Landing page default: color by school level
-  let mapColorByMode = 'level'; // 'decision' | 'level' | 'utilization'
+  let mapColorByMode = 'level'; // 'decision' | 'level' | 'utilization' | 'fci' | 'classroom' | 'building'
   // Expose so global helpers (legend/updateLayer) can read it safely.
   window.__mapColorByMode = mapColorByMode;
 
@@ -3976,15 +5851,64 @@ map.on('load', () => {
     ];
   }
 
+  function getFciStatusColorExpression() {
+    return [
+      'match',
+      ['get', '__fciStatus'],
+      'Excellent', FCI_STATUS_COLORS.excellent,
+      'Good', FCI_STATUS_COLORS.good,
+      'Fair', FCI_STATUS_COLORS.fair,
+      'Poor', FCI_STATUS_COLORS.poor,
+      'Deficient', FCI_STATUS_COLORS.deficient,
+      'No Data', FCI_STATUS_COLORS.nodata,
+      FCI_STATUS_COLORS.nodata
+    ];
+  }
+
+  function getEaConditionColorExpression() {
+    return [
+      'match',
+      ['get', '__eaCondition'],
+      'Poor', EA_CONDITION_COLORS.poor,
+      'Fair', EA_CONDITION_COLORS.fair,
+      'Good', EA_CONDITION_COLORS.good,
+      'Excellent', EA_CONDITION_COLORS.excellent,
+      'No Data', EA_CONDITION_COLORS.nodata,
+      EA_CONDITION_COLORS.nodata
+    ];
+  }
+
+  function getBuildingConditionColorExpression() {
+    return [
+      'match',
+      ['get', '__buildingCondition'],
+      'Poor', BUILDING_CONDITION_COLORS.poor,
+      'Fair', BUILDING_CONDITION_COLORS.fair,
+      'Good', BUILDING_CONDITION_COLORS.good,
+      'Excellent', BUILDING_CONDITION_COLORS.excellent,
+      'No Data', BUILDING_CONDITION_COLORS.nodata,
+      BUILDING_CONDITION_COLORS.nodata
+    ];
+  }
+
   function applyMapColorByMode() {
     try {
       if (!window.map || !window.map.getLayer || !window.map.getLayer('schools-layer')) return;
       const mapRef = window.map;
-      const mode = (window.__mapColorByMode === 'utilization')
-        ? 'utilization'
-        : ((window.__mapColorByMode === 'level') ? 'level' : 'decision');
+      const mode = (window.__mapColorByMode === 'building')
+        ? 'building'
+        : ((window.__mapColorByMode === 'classroom')
+          ? 'classroom'
+          : ((window.__mapColorByMode === 'fci')
+            ? 'fci'
+            : ((window.__mapColorByMode === 'utilization')
+              ? 'utilization'
+              : ((window.__mapColorByMode === 'level') ? 'level' : 'decision'))));
       const expr =
-        (mode === 'utilization') ? getUtilizationPhaseColorExpression()
+        (mode === 'building') ? getBuildingConditionColorExpression()
+        : (mode === 'classroom') ? getEaConditionColorExpression()
+        : (mode === 'fci') ? getFciStatusColorExpression()
+        : (mode === 'utilization') ? getUtilizationPhaseColorExpression()
         : (mode === 'level') ? getSchoolLevelColorExpression()
         : getDecisionColorExpression();
       mapRef.setPaintProperty('schools-layer', 'circle-color', expr);
@@ -4025,6 +5949,9 @@ map.on('load', () => {
         Object.values(DECISION_COLORS)
           .concat(Object.values(SCHOOL_LEVEL_COLORS))
           .concat(Object.values(UTILIZATION_PHASE_COLORS))
+          .concat(Object.values(FCI_STATUS_COLORS))
+          .concat(Object.values(EA_CONDITION_COLORS))
+          .concat(Object.values(BUILDING_CONDITION_COLORS))
           .concat(["#7f8c8d", "#94a3b8"])
       )
     );
@@ -4506,6 +6433,13 @@ map.on('load', () => {
         `${checked.length} selected`;
     }
     updateLayer();
+    try {
+      if (window.__aaRefreshPopupNow) {
+        window.__aaRefreshPopupNow();
+      } else if (window.__aaRefreshPopup) {
+        window.__aaRefreshPopup();
+      }
+    } catch {}
   }
 
   if (schoolTypeDropdownMenu) {
@@ -4539,18 +6473,41 @@ map.on('load', () => {
 
   // --- Color-by toggle (Decision vs School level) ---
   function setMapColorMode(mode) {
-    mapColorByMode = (mode === 'utilization') ? 'utilization' : ((mode === 'level') ? 'level' : 'decision');
+    mapColorByMode =
+      (mode === 'building') ? 'building'
+      : ((mode === 'classroom') ? 'classroom'
+        : ((mode === 'fci') ? 'fci'
+          : ((mode === 'utilization') ? 'utilization'
+            : ((mode === 'level') ? 'level' : 'decision'))));
     window.__mapColorByMode = mapColorByMode;
     if (colorByDecisionBtn) colorByDecisionBtn.classList.toggle('active', mapColorByMode === 'decision');
     if (colorByLevelBtn) colorByLevelBtn.classList.toggle('active', mapColorByMode === 'level');
     if (colorByUtilBtn) colorByUtilBtn.classList.toggle('active', mapColorByMode === 'utilization');
+    if (colorByFciBtn) colorByFciBtn.classList.toggle('active', mapColorByMode === 'fci');
+    if (colorByClassroomBtn) colorByClassroomBtn.classList.toggle('active', mapColorByMode === 'classroom');
+    if (colorByBuildingBtn) colorByBuildingBtn.classList.toggle('active', mapColorByMode === 'building');
     try {
       if (typeof window.applyMapColorByMode === 'function') window.applyMapColorByMode();
     } catch (e) {}
+    // Ensure classroom/building metrics are present before refresh
+    if (mapColorByMode === 'classroom') {
+      try {
+        if (originalGeojsonData && Array.isArray(originalGeojsonData.features)) {
+          applyEaMetricsToFeatures(originalGeojsonData.features);
+        }
+      } catch {}
+    }
+    if (mapColorByMode === 'building') {
+      try {
+        if (originalGeojsonData && Array.isArray(originalGeojsonData.features)) {
+          applyBuildingMetricsToFeatures(originalGeojsonData.features);
+        }
+      } catch {}
+    }
     // If utilization pies are active, we need to update the chosen sprite per feature
     // so the pie color follows the selected "Color by" mode.
     try {
-      if (showUtilizationPie) updateLayer();
+      updateLayer();
     } catch (e) {}
     // Keep legend updated (it contains the decision filter checkboxes)
     try { updateLegend(); } catch (e) {}
@@ -4558,7 +6515,185 @@ map.on('load', () => {
   if (colorByDecisionBtn) colorByDecisionBtn.addEventListener('click', () => setMapColorMode('decision'));
   if (colorByLevelBtn) colorByLevelBtn.addEventListener('click', () => setMapColorMode('level'));
   if (colorByUtilBtn) colorByUtilBtn.addEventListener('click', () => setMapColorMode('utilization'));
+  if (colorByFciBtn) colorByFciBtn.addEventListener('click', () => setMapColorMode('fci'));
+  if (colorByClassroomBtn) colorByClassroomBtn.addEventListener('click', () => setMapColorMode('classroom'));
+  if (colorByBuildingBtn) colorByBuildingBtn.addEventListener('click', () => setMapColorMode('building'));
   setMapColorMode('level');
+
+  const getSelectedCompareCategoriesFromDom = () => {
+    const selected = [];
+    if (compareCategoryList) {
+      compareCategoryList.querySelectorAll('input[data-compare-category]').forEach((cb) => {
+        if (cb.checked) selected.push(cb.getAttribute('data-compare-category'));
+      });
+    }
+    return selected;
+  };
+  const getSelectedCompareSystemsFromDom = () => {
+    const selected = [];
+    if (compareFciSystemList) {
+      compareFciSystemList.querySelectorAll('input[data-compare-fci-system]').forEach((cb) => {
+        if (cb.checked) selected.push(cb.getAttribute('data-compare-fci-system'));
+      });
+    }
+    return selected;
+  };
+  const syncCompareCategories = () => {
+    const selected = getSelectedCompareCategoriesFromDom();
+    window.__compareCategories = selected;
+    try { updateArticulationAreaFciTable(); } catch {}
+    try {
+      if (window.__aaRefreshPopup) {
+        requestAnimationFrame(() => window.__aaRefreshPopup());
+      }
+    } catch {}
+    try { window.__aaPopupDirty = true; } catch {}
+  };
+  if (compareCategoryList) {
+    compareCategoryList.querySelectorAll('input[data-compare-category]').forEach((cb) => {
+      cb.addEventListener('change', syncCompareCategories);
+    });
+    // Fallback: capture bubbling changes at the container level
+    compareCategoryList.addEventListener('change', syncCompareCategories);
+  }
+  // Global fallback: ensure checkbox changes always sync
+  document.addEventListener('change', (e) => {
+    if (e.target && e.target.matches && e.target.matches('input[data-compare-category]')) {
+      syncCompareCategories();
+    }
+    if (e.target && e.target.matches && e.target.matches('input[data-compare-fci-system]')) {
+      syncCompareFciSystems();
+    }
+  }, true);
+  document.addEventListener('input', (e) => {
+    if (e.target && e.target.matches && e.target.matches('input[data-compare-category]')) {
+      syncCompareCategories();
+    }
+    if (e.target && e.target.matches && e.target.matches('input[data-compare-fci-system]')) {
+      syncCompareFciSystems();
+    }
+  }, true);
+  const syncCompareFciSystems = () => {
+    if (!compareFciSystemList) return;
+    const selected = getSelectedCompareSystemsFromDom();
+    compareFciSystem = selected;
+    try { updateArticulationAreaFciTable(); } catch {}
+    try {
+      const compareSummary = document.getElementById('compareFciSystemsSummary');
+      if (compareSummary) {
+        compareSummary.textContent = selected.length ? `${selected.length} selected` : 'Select systems';
+      }
+    } catch {}
+    try {
+      if (window.__aaRefreshPopup) {
+        requestAnimationFrame(() => window.__aaRefreshPopup());
+      }
+    } catch {}
+    try { window.__aaPopupDirty = true; } catch {}
+  };
+  if (compareFciSystemList) {
+    compareFciSystemList.addEventListener('change', syncCompareFciSystems);
+  }
+  // Poll for compare selections in case events are swallowed
+  let lastCompareCategoriesKey = '';
+  let lastCompareSystemsKey = '';
+  const getCompareSelectionKey = () => {
+    const cats = getSelectedCompareCategoriesFromDom().sort().join('|');
+    const systems = getSelectedCompareSystemsFromDom().sort().join('|');
+    const fciSys = (fciSelectedSystem || '').toString().trim();
+    return `${cats}__${systems}__${fciSys}`;
+  };
+  const pollCompareSelections = () => {
+    const cats = getSelectedCompareCategoriesFromDom().sort().join('|');
+    const systems = getSelectedCompareSystemsFromDom().sort().join('|');
+    if (cats !== lastCompareCategoriesKey) {
+      lastCompareCategoriesKey = cats;
+      syncCompareCategories();
+    }
+    if (systems !== lastCompareSystemsKey) {
+      lastCompareSystemsKey = systems;
+      syncCompareFciSystems();
+    }
+  };
+  try { setInterval(pollCompareSelections, 300); } catch {}
+
+  // Mutation observer fallback: detect checkbox state changes
+  try {
+    const compareObserver = new MutationObserver(() => {
+      try {
+        syncCompareCategories();
+        syncCompareFciSystems();
+      } catch {}
+    });
+    if (compareCategoryList) {
+      compareObserver.observe(compareCategoryList, { attributes: true, subtree: true });
+    }
+    if (compareFciSystemList) {
+      compareObserver.observe(compareFciSystemList, { attributes: true, subtree: true });
+    }
+  } catch {}
+
+  // Final fallback: refresh popup when marked dirty
+  try {
+    if (!window.__aaPopupRefreshTimer) {
+      window.__aaPopupRefreshTimer = setInterval(() => {
+        if (window.__aaPopupDirty && window.__aaRefreshPopup) {
+          window.__aaPopupDirty = false;
+          try { window.__aaRefreshPopup(); } catch {}
+        }
+      }, 400);
+    }
+  } catch {}
+
+  // Always refresh popup if compare selections changed while pinned
+  try {
+    if (!window.__aaPopupSelectionTimer) {
+      window.__aaLastSelectionKey = getCompareSelectionKey();
+      if (!window.__aaRefreshPopupNow) {
+        window.__aaRefreshPopupNow = () => {
+          try {
+            if (!window.__aaPopup || !window.__aaBuildPopupHtml || !window.__aaPopupAreaName) return;
+            window.__aaPopup.setHTML(window.__aaBuildPopupHtml(window.__aaPopupAreaName)).addTo(window.map);
+            try { window.__aaPositionPopupTopRight && window.__aaPositionPopupTopRight(); } catch {}
+            setTimeout(() => {
+              try { window.__aaEnhancePopupPanel && window.__aaEnhancePopupPanel(); } catch {}
+              try { window.__aaPositionPopupTopRight && window.__aaPositionPopupTopRight(); } catch {}
+            }, 0);
+          } catch {}
+        };
+      }
+      window.__aaPopupSelectionTimer = setInterval(() => {
+        try {
+          if (!window.__aaPopupAreaName) return;
+          const key = getCompareSelectionKey();
+          if (key !== window.__aaLastSelectionKey) {
+            window.__aaLastSelectionKey = key;
+            if (window.__aaRefreshPopupNow) {
+              window.__aaRefreshPopupNow();
+            } else if (window.__aaRefreshPopup) {
+              window.__aaRefreshPopup();
+            }
+          }
+        } catch {}
+      }, 500);
+    }
+  } catch {}
+  syncCompareCategories();
+  syncCompareFciSystems();
+
+  if (fciSystemSelect) {
+    fciSystemSelect.addEventListener('change', () => {
+      setFciSelectedSystem(fciSystemSelect.value);
+      // Selecting a system implies FCI view
+      setMapColorMode('fci');
+    });
+  }
+  if (compareFciSystemSelect) {
+    compareFciSystemSelect.addEventListener('change', () => {
+      compareFciSystem = compareFciSystemSelect.value;
+      try { updateArticulationAreaFciTable(); } catch {}
+    });
+  }
 
   // --- LEGEND AND TOGGLE LOGIC ---
   // Toggle buttons removed - always showing decisions view
@@ -4969,6 +7104,32 @@ map.on('load', () => {
 // ✅ Inject decisions into geojson features
 function normalizeName(name) {
   return name?.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function buildNameVariants(name) {
+  const n0 = normalizeName(name || '');
+  if (!n0) return [];
+  const variants = new Set();
+  variants.add(n0);
+  const n1 = n0
+    .replace(/elementary/g, 'es')
+    .replace(/middle school/g, 'ms')
+    .replace(/middle/g, 'ms')
+    .replace(/high school/g, 'hs')
+    .replace(/high/g, 'hs');
+  variants.add(n1);
+  const n2 = n0.replace(/school/g, '').replace(/\s+/g, ' ').trim();
+  variants.add(n2);
+  const n3 = n1.replace(/school/g, '').replace(/\s+/g, ' ').trim();
+  variants.add(n3);
+  return Array.from(variants).filter(Boolean);
+}
+
+function getEaByName(nameRaw) {
+  const variants = buildNameVariants(nameRaw);
+  const score = variants.map(n => eaScoresByName.get(n)).find(v => Number.isFinite(v));
+  const count = variants.map(n => eaClassroomCountsByName.get(n)).find(v => Number.isFinite(v));
+  return { score, count };
 }
 
 function injectDecisionsIntoGeoJSON(geojson, decisions, options = {}) {
@@ -8596,6 +10757,8 @@ if (typeof window.switchToMap !== 'function') {
       if (!maxH) return;
       headers.forEach(h => { h.style.minHeight = `${Math.ceil(maxH)}px`; });
     }
+    // Expose for resize handler outside this scope
+    try { window.equalizeCompareCardHeaderHeights = equalizeCompareCardHeaderHeights; } catch {}
 
     function buildCompareCard(r) {
       const schoolName = getSchoolName(r) || 'School';
@@ -8810,7 +10973,9 @@ if (typeof window.switchToMap !== 'function') {
         if (t) clearTimeout(t);
         t = setTimeout(() => {
           const grid = document.getElementById('step1CompareGrid');
-          if (grid) equalizeCompareCardHeaderHeights(grid);
+          if (grid && typeof window.equalizeCompareCardHeaderHeights === 'function') {
+            window.equalizeCompareCardHeaderHeights(grid);
+          }
         }, 120);
       });
     }

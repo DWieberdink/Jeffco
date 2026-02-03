@@ -1,0 +1,123 @@
+School Code,School Name,EASchoolName,ClassroomCount,ClassroomEAScore
+CO-1420-0660,01_Bear Creek K-8,Bear Creek K-8,31,0.707864583
+CO-1420-0952,01_Bradford K-8 North,Bradford K-8 North,10,0.576402778
+CO-1420-0950,01_Bradford K-8 South,Bradford K-8 South,21,0.64560303
+CO-1420-3088,01_Foster Dual Language PK-8,Foster Dual Language PK-8,19,0.746784722
+CO-1420-8856,01_Three Creeks K-8,Three Creeks K-8,38,0.811666667
+CO-1420-6285,02_Anderson Preschool,Anderson Preschool,0,0.807645833
+CO-1420-1244,02_Campbell Preschool,Campbell Preschool,16,0.750865385
+CO-1420-0724,03_Belmar School of Integrated Arts,Belmar School of Integrated Arts,19,0.619419338
+CO-1420-0965,03_Brady Exploration School,Brady Exploration School,10,0.731840278
+CO-1420-4798,03_Connections Learning Center,Connections Learning Center,9,0.828138889
+CO-1420-3201,03_Free Horizon Montessori,Free Horizon Montessori,17,0.67975
+CO-1420-6539,03_Jeffco Open School,Jeffco Open School,32,0.723767019
+CO-1420-5472,03_Manning School,Manning School,23,0.738649306
+CO-1420-5892,03_Miller Special School,Miller Special School,31,
+CO-1420-6808,03_Patterson International School,Patterson International School,17,0.535443376
+CO-1420-6848,03_Peak Expeditionary School at Pennington,Peak Expeditionary School at Pennington,13,0.645880556
+CO-1420-8036,03_Sobesky Academy,Sobesky Academy,13,0.6108539
+CO-1420-9234,03_Warren Tech Central,Warren Tech Central,39,0.501430556
+CO-1420-9245,03_Warren Tech North,Warren Tech North,16,0.546773504
+CO-1420-1001,03_Warren Tech South,Warren Tech South,7,0.714013889
+CO-1420-0030,ES_Adams,Adams ES,20,0.663777778
+CO-1420-0779,ES_Bergen,Bergen ES,22,0.71888312
+CO-1420-0951,ES_Blue Heron,Blue Heron ES,22,0.596222863
+CO-1420-1861,ES_Columbine Hills,Columbine Hills ES,20,0.753605685
+CO-1420-1876,ES_Coronado,Coronado ES,22,0.810025
+CO-1420-8090,ES_Deane,Deane ES,21,0.579183761
+CO-1420-9432,ES_Dennison,Dennison ES,28,0.61309375
+CO-1420-2194,ES_Devinny,Devinny ES,22,0.866270833
+CO-1420-2322,ES_Dutch Creek,Dutch Creek ES,19,0.641780342
+CO-1420-2496,ES_Edgewater,Edgewater ES,19,0.689889103
+CO-1420-2550,ES_Eiber,Eiber ES,18,0.795036111
+CO-1420-2616,ES_Elk Creek,Elk Creek ES,22,0.840390323
+CO-1420-2866,ES_Fairmount,Fairmount ES,27,0.530058873
+CO-1420-3025,ES_Foothills,Foothills ES,21,0.679388889
+CO-1420-3216,ES_Fremont,Fremont ES,16,0.611162014
+CO-1420-3536,ES_Governor's Ranch,Governor's Ranch ES,23,0.51662906
+CO-1420-3622,ES_Green Gables,Green Gables ES,14,0.489883974
+CO-1420-3726,ES_Hackberry Hill,Hackberry Hill ES,20,0.768795139
+CO-1420-4190,ES_Hutchinson,Hutchinson ES,21,0.667368314
+CO-1420-4549,ES_Kendallvue,Kendallvue ES,20,0.738079487
+CO-1420-4550,ES_Kendrick Lakes,Kendrick Lakes ES,21,0.839027778
+CO-1420-4830,ES_Kyffin,Kyffin ES,21,0.763869444
+CO-1420-5004,ES_Lasley,Lasley ES,29,0.761510417
+CO-1420-5024,ES_Lawrence,Lawrence ES,18,0.832133013
+CO-1420-5036,ES_Leawood,Leawood ES,20,0.566729915
+CO-1420-5222,ES_Little,Little ES,16,0.6393336
+CO-1420-5350,ES_Lukas,Lukas ES,21,0.767340278
+CO-1420-5354,ES_Lumberg,Lumberg ES,24,0.650524145
+CO-1420-5524,ES_Maple Grove,Maple Grove ES,18,0.634591026
+CO-1420-5580,ES_Marshdale,Marshdale ES,18,0.901236111
+CO-1420-5758,ES_Meiklejohn,Meiklejohn ES,28,0.841867108
+CO-1420-5944,ES_Mitchell,Mitchell ES,25,0.679167692
+CO-1420-6133,ES_Mortensen,Mortensen ES,19,0.791475
+CO-1420-6135,ES_Mount Carbon,Mount Carbon ES,23,0.545442521
+CO-1420-6286,ES_Normandy,Normandy ES,19,0.591404915
+CO-1420-6804,ES_Parmalee,Parmalee ES,9,0.776472222
+CO-1420-7128,ES_Powderhorn,Powderhorn ES,33,0.648001282
+CO-1420-7190,ES_Prospect Valley,Prospect Valley ES,25,0.802378472
+CO-1420-7238,ES_Ralston,Ralston ES,14,0.709410256
+CO-1420-7282,ES_Red Rocks,Red Rocks ES,13,0.759170299
+CO-1420-7483,ES_Rooney Ranch,Rooney Ranch ES,24,0.705838248
+CO-1420-7468,ES_Rose Stein International,Rose Stein International ES,20,0.741705556
+CO-1420-7529,ES_Ryan,Ryan ES,26,0.720133333
+CO-1420-7708,ES_Secrest,Secrest ES,17,0.734277778
+CO-1420-7753,ES_Semper,Semper ES,20,0.627487393
+CO-1420-7780,ES_Shaffer,Shaffer ES,23,0.819541731
+CO-1420-7833,ES_Shelton,Shelton ES,24,0.670202001
+CO-1420-7870,ES_Sierra,Sierra ES,31,0.891683333
+CO-1420-7962,ES_Slater,Slater ES,16,0.568224573
+CO-1420-8102,ES_South Lakewood,South Lakewood ES,24,0.755409722
+CO-1420-8223,ES_Stevens,Stevens ES,23,0.723397222
+CO-1420-8276,ES_Stober,Stober ES,17,0.865100694
+CO-1420-8280,ES_Stony Creek,Stony Creek ES,24,0.782094509
+CO-1420-8300,ES_Stott,Stott ES,16,0.684727001
+CO-1420-8432,ES_Swanson,Swanson ES,16,0.679315972
+CO-1420-9008,ES_Ute Meadows,Ute Meadows ES,23,0.713929211
+CO-1420-9052,ES_Van Arsdale,Van Arsdale ES,24,0.696520513
+CO-1420-9058,ES_Vanderhoof,Vanderhoof ES,22,0.498932425
+CO-1420-9232,ES_Warder,Warder ES,20,0.841785842
+CO-1420-9328,ES_Weber,Weber ES,0,0.689170707
+CO-1420-9342,ES_Welchester,Welchester ES,16,0.915916667
+CO-1420-9424,ES_West Jefferson,West Jefferson ES,17,0.865672222
+CO-1420-9429,ES_West Woods,West Woods ES,26,0.494312767
+CO-1420-9412,ES_Westgate,Westgate ES,16,0.575480235
+CO-1420-9490,ES_Westridge,Westridge ES,21,0.448711538
+CO-1420-9648,ES_Wilmot,Wilmot ES,20,0.802130556
+CO-1420-0108,HS_Alameda Int'l Jr-Sr,Alameda Int'l Jr-Sr HS,31,0.861581838
+CO-1420-0370,HS_Arvada,Arvada HS,37,0.713697917
+CO-1420-0378,HS_Arvada West,Arvada West HS,48,0.696302083
+CO-1420-0664,HS_Bear Creek,Bear Creek HS,52,0.671524306
+CO-1420-1522,HS_Chatfield,Chatfield HS,56,0.576630456
+CO-1420-1864,HS_Columbine,Columbine HS,53,0.469260417
+CO-1420-1886,HS_Conifer Senior,Conifer Senior HS,34,0.644017361
+CO-1420-2120,HS_D'Evelyn Jr-Sr,D'Evelyn Jr-Sr HS,40,0.541041667
+CO-1420-2093,HS_Dakota Ridge,Dakota Ridge HS,53,0.602222222
+CO-1420-2836,HS_Evergreen,Evergreen HS,31,0.564659722
+CO-1420-3502,HS_Golden,Golden HS,37,0.681919147
+CO-1420-3628,HS_Green Mountain,Green Mountain HS,46,0.662484623
+CO-1420-4422,HS_Jefferson Jr-Sr,Jefferson Jr-Sr HS,25,0.666690972
+CO-1420-4942,HS_Lakewood,Lakewood HS,56,0.579826389
+CO-1420-5623,HS_Long View,Long View HS,4,0.730090278
+CO-1420-0033,HS_McLain Community,McLain Community HS,17,0.612996528
+CO-1420-7114,HS_Pomona Jr-Sr,Pomona Jr-Sr HS,48,0.561982639
+CO-1420-7239,HS_Ralston Valley,Ralston Valley HS,55,0.696703259
+CO-1420-8209,HS_Standley Lake,Standley Lake HS,52,0.61803373
+CO-1420-9510,HS_Wheat Ridge,Wheat Ridge HS,38,
+CO-1420-2288,MS_ Drake,Drake MS,38,0.814022106
+CO-1420-0694,MS_Bell,Bell MS,22,0.699701389
+CO-1420-1318,MS_Carmody,Carmody MS,28,0.824768429
+CO-1420-1976,MS_Creighton,Creighton MS,29,0.619604167
+CO-1420-2130,MS_Deer Creek,Deer Creek MS,36,0.706763622
+CO-1420-2300,MS_Dunstan,Dunstan MS,28,0.858645833
+CO-1420-2832,MS_Evergreen,Evergreen MS,16,0.729664878
+CO-1420-2820,MS_Everitt,Everitt MS,19,0.687126717
+CO-1420-2963,MS_Falcon Bluffs,Falcon Bluffs MS,16,0.683717262
+CO-1420-4548,MS_Ken Caryl,Ken Caryl MS,28,0.530666667
+CO-1420-5454,MS_Mandalay,Mandalay MS,17,0.723763889
+CO-1420-6330,MS_North Arvada,North Arvada MS,21,0.699361645
+CO-1420-6470,MS_Oberon,Oberon MS,27,0.625902778
+CO-1420-8381,MS_Summit Ridge,Summit Ridge MS,35,0.705399306
+CO-1420-9299,MS_Wayne Carle,Wayne Carle MS,24,0.638409722
+CO-1420-9428,MS_West Jefferson,West Jefferson MS,17,0.685034402

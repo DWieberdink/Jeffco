@@ -689,6 +689,10 @@
     .legend.legend-collapsed #legend-content {
       display: none;
     }
+    /* Hide Mapbox/OSM attribution text */
+    .mapboxgl-ctrl-attrib {
+      display: none !important;
+    }
 
 
 
@@ -1208,7 +1212,8 @@
       flex-direction: column;
       gap: 8px; /* School selector above Map Filters */
       align-items: stretch;
-      width: min(360px, calc(100vw - 24px));
+      /* Wider so Map Labels can fit on one line */
+      width: min(520px, calc(100vw - 24px));
     }
 
     /* Shared panel styling (School selector + nested panels) */
@@ -1911,6 +1916,52 @@
     .step1-table td:first-child { color:#111827; font-weight: 800; width: 38%; }
     .step1-table td:last-child { color:#111827; word-break: break-word; }
 
+    /* Articulation area FCI summary table */
+    #articulationAreaFciTable table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    #articulationAreaFciTable thead th {
+      position: sticky;
+      top: 0;
+      background: #f9fafb;
+      z-index: 1;
+    }
+    #articulationAreaFciTable th,
+    #articulationAreaFciTable td {
+      text-align: left;
+      padding: 6px 8px;
+      border-bottom: 1px solid #e5e7eb;
+      vertical-align: top;
+    }
+    .compare-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 180px;
+    }
+    .compare-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 11px;
+      color: #111827;
+    }
+    .compare-swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      border: 1px solid #cbd5e1;
+      display: inline-block;
+      flex: 0 0 auto;
+    }
+    .compare-subtitle {
+      font-size: 11px;
+      color: #6b7280;
+      font-weight: 700;
+    }
+
     .step1-compare-grid {
       display: grid;
       grid-template-columns: repeat(12, 1fr);
@@ -2092,9 +2143,119 @@
       font-weight: 700;
       color: #007cbf;
     }
-    /* Prevent Map Base Layers from collapsing */
-    #mapBaseLayersDetails > summary {
+
+    /* Map labels toggle (multi-select, horizontal pills) */
+    .map-label-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: nowrap; /* keep all label pills on one row */
+      width: 100%;
+    }
+    .map-label-toggle label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 16px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 11px;
+      color: #111827;
+      user-select: none;
+      white-space: nowrap;
+      flex: 1 1 0;
+      justify-content: center;
+      min-width: 0;
+    }
+    .map-label-toggle label span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .map-label-toggle input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      accent-color: #007cbf;
+    }
+    /* Give "checked" pills a subtle highlight */
+    .map-label-toggle label:has(input[type="checkbox"]:checked) {
+      border-color: #93c5fd;
+      background: #eff6ff;
+    }
+    /* Floating Map Layers control (Google Maps style) */
+    #mapLayersFloating {
+      position: fixed;
+      left: 16px;
+      bottom: 120px;
+      z-index: 450;
+    }
+    #mapLayersFloating summary {
+      list-style: none;
+      cursor: pointer;
+      border: 1px solid #d1d5db;
+      background: #fff;
+      border-radius: 10px;
+      padding: 8px 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+      font-size: 12px;
+      font-weight: 700;
+      color: #111827;
+    }
+    #mapLayersFloating summary::-webkit-details-marker {
       display: none;
+    }
+    #mapLayersFloating .layers-panel {
+      margin-top: 8px;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.16);
+      padding: 10px 12px;
+      width: 320px;
+    }
+    .compare-fci-dropdown {
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      background: #fff;
+      width: 100%;
+    }
+    .compare-fci-dropdown summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #111827;
+      height: 32px;
+      display: flex;
+      align-items: center;
+    }
+    .compare-fci-dropdown summary::after {
+      content: "▾";
+      margin-left: auto;
+      color: #6b7280;
+      font-size: 12px;
+    }
+    .filter-label.subtle {
+      font-size: 12px;
+      font-weight: 600;
+      color: #6b7280;
+    }
+    .compare-fci-dropdown summary::-webkit-details-marker { display: none; }
+    .compare-fci-dropdown .compare-fci-panel {
+      padding: 6px 8px 8px 8px;
+      border-top: 1px solid #e5e7eb;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 11px;
+      max-height: 200px;
+      overflow: auto;
     }
     #filter-panel .nouislider-container {
       margin-top: 10px;
@@ -2190,7 +2351,7 @@
     #schoolTypeDropdownMenu.filter-checkbox-grid {
       position: static;
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 6px 10px;
       width: 100%;
       max-width: 100%;
@@ -3108,20 +3269,20 @@
           <details class="flow-section" style="margin-bottom: 15px;">
             <summary style="color: black; font-weight: bold; cursor: pointer;">Distance to Welcoming Schools by School Level</summary>
             <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
-              <label>Elementary School: <span id="elementaryDistanceOut">4.0</span> miles
-                <input type="range" id="elementaryDistanceSlider" min="1" max="10" step="0.5" value="4.0" oninput="document.getElementById('elementaryDistanceOut').textContent = this.value">
+              <label>Elementary School: <span id="elementaryDistanceOutFlow4">4.0</span> miles
+                <input type="range" id="elementaryDistanceSliderFlow4" min="1" max="10" step="0.5" value="4.0" oninput="document.getElementById('elementaryDistanceOutFlow4').textContent = this.value">
               </label>
-              <label>K-8 School: <span id="k8DistanceOut">6.0</span> miles
-                <input type="range" id="k8DistanceSlider" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('k8DistanceOut').textContent = this.value">
+              <label>K-8 School: <span id="k8DistanceOutFlow4">6.0</span> miles
+                <input type="range" id="k8DistanceSliderFlow4" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('k8DistanceOutFlow4').textContent = this.value">
               </label>
-              <label>Middle School: <span id="middleDistanceOut">6.0</span> miles
-                <input type="range" id="middleDistanceSlider" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('middleDistanceOut').textContent = this.value">
+              <label>Middle School: <span id="middleDistanceOutFlow4">6.0</span> miles
+                <input type="range" id="middleDistanceSliderFlow4" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('middleDistanceOutFlow4').textContent = this.value">
               </label>
-              <label>High School: <span id="highDistanceOut">6.0</span> miles
-                <input type="range" id="highDistanceSlider" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('highDistanceOut').textContent = this.value">
+              <label>High School: <span id="highDistanceOutFlow4">6.0</span> miles
+                <input type="range" id="highDistanceSliderFlow4" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('highDistanceOutFlow4').textContent = this.value">
               </label>
-              <label>6-12 School: <span id="k12DistanceOut">6.0</span> miles
-                <input type="range" id="k12DistanceSlider" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('k12DistanceOut').textContent = this.value">
+              <label>6-12 School: <span id="k12DistanceOutFlow4">6.0</span> miles
+                <input type="range" id="k12DistanceSliderFlow4" min="1" max="10" step="0.5" value="6.0" oninput="document.getElementById('k12DistanceOutFlow4').textContent = this.value">
               </label>
             </div>
           </details>
@@ -3307,6 +3468,39 @@
 
     <div id="map-container">
     <div id="map"></div>
+    <details id="mapLayersFloating">
+      <summary>
+        <span style="width:18px; height:18px; display:inline-block;">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path d="M12 3L2 9l10 6 10-6-10-6zm0 8.7L5.6 9 12 5.3 18.4 9 12 11.7zM2 13l10 6 10-6v3l-10 6-10-6v-3z" fill="#111827"></path>
+          </svg>
+        </span>
+        Layers
+      </summary>
+      <div class="layers-panel">
+        <div style="font-weight:900; font-size:13px; padding:4px 2px; color:#111827;">Map Base Layers</div>
+        <div style="padding: 8px 0 2px 0;">
+          <div class="filter-row map-style-row">
+            <span class="filter-label">Map Style</span>
+            <div class="map-style-toggle">
+              <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/light-v11" id="mapStyleLight"><span>Light</span></label>
+              <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/standard" id="mapStyleStandard"><span>Standard</span></label>
+              <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/standard-satellite" id="mapStyleSatellite"><span>Standard Satellite</span></label>
+            </div>
+          </div>
+          <div class="filter-row" style="align-items:flex-start; margin-top: 8px;">
+            <span class="filter-label">Map Labels</span>
+            <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
+              <div class="map-label-toggle" aria-label="Map label toggles">
+                <label><input type="checkbox" id="toggleRoadLabels" checked><span>Road labels</span></label>
+                <label><input type="checkbox" id="togglePlaceLabels" checked><span>Place labels</span></label>
+                <label><input type="checkbox" id="togglePoiLabels" checked><span>Points of Interest</span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
 
     <div id="map-legend" class="legend legend-collapsed">
       <div id="legend-toggle" class="legend-toggle">
@@ -3347,6 +3541,47 @@
                 <button id="colorByDecisionBtn" type="button">Decision</button>
                 <button id="colorByLevelBtn" class="active" type="button">School level</button>
                 <button id="colorByUtilBtn" type="button">Utilization</button>
+                <button id="colorByFciBtn" type="button">FCI</button>
+                <button id="colorByClassroomBtn" type="button">Classroom condition</button>
+                <button id="colorByBuildingBtn" type="button">Building condition</button>
+              </div>
+            </div>
+            <div class="filter-row" style="align-items:flex-start;">
+              <span class="filter-label subtle">FCI System</span>
+              <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
+                <select id="fciSystemSelect" style="height:32px; border:1px solid #d1d5db; border-radius:8px; padding:4px 8px; font-size:12px;">
+                  <option value="">All systems (overall FCI)</option>
+                </select>
+              </div>
+            </div>
+            <div class="filter-row" style="align-items:flex-start;">
+              <span class="filter-label">Compare Categories</span>
+              <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
+                <div id="compareCategoryList" style="display:flex; flex-wrap:wrap; gap:6px; font-size:11px;">
+                  <label style="display:flex; align-items:center; gap:6px;">
+                    <input type="checkbox" data-compare-category="utilization" checked>
+                    <span>Utilization</span>
+                  </label>
+                  <label style="display:flex; align-items:center; gap:6px;">
+                    <input type="checkbox" data-compare-category="fci" checked>
+                    <span>FCI</span>
+                  </label>
+                  <label style="display:flex; align-items:center; gap:6px;">
+                    <input type="checkbox" data-compare-category="classroom" checked>
+                    <span>Classroom condition</span>
+                  </label>
+                  <label style="display:flex; align-items:center; gap:6px;">
+                    <input type="checkbox" data-compare-category="building" checked>
+                    <span>Building condition</span>
+                  </label>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                  <label style="font-size:11px; color:#6b7280;">FCI Systems (compare)</label>
+                  <details id="compareFciSystemsDropdown" class="compare-fci-dropdown">
+                    <summary id="compareFciSystemsSummary">Select systems</summary>
+                    <div id="compareFciSystemList" class="compare-fci-panel"></div>
+                  </details>
+                </div>
               </div>
             </div>
             <details id="nearbySchoolsSection" style="display:none; margin: 0 0 10px 0;">
@@ -3358,41 +3593,7 @@
                 <div id="nearbySchoolsList" style="font-size:12px; color:#444;">Click “Show Overlapping Grades Schools” after selecting a school.</div>
               </div>
             </details>
-            <details id="mapBaseLayersDetails" open style="margin: 0 0 10px 0;">
-              <summary style="display:none;">Map Base Layers</summary>
-              <div style="font-weight:900; font-size:13px; padding:4px 2px; color:#111827;">Map Base Layers</div>
-              <div style="padding: 8px 0 2px 0;">
-                <div class="filter-row map-style-row">
-                  <span class="filter-label">Map Style</span>
-                  <div class="map-style-toggle">
-                    <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/light-v11" id="mapStyleLight"><span>Light</span></label>
-                    <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/standard" id="mapStyleStandard"><span>Standard</span></label>
-                    <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/standard-satellite" id="mapStyleSatellite"><span>Standard Satellite</span></label>
-                  </div>
-                </div>
-                <div class="filter-row" style="align-items:flex-start; margin-top: 8px;">
-                  <span class="filter-label">Map Labels</span>
-                  <div style="display:flex; flex-direction:column; gap:6px; width:100%; font-size:12px;">
-                    <label style="display:flex; align-items:center; gap:6px;">
-                      <input type="checkbox" id="toggleRoadLabels" checked style="width:14px; height:14px;">
-                      <span>Road labels</span>
-                    </label>
-                    <label style="display:flex; align-items:center; gap:6px;">
-                      <input type="checkbox" id="togglePlaceLabels" checked style="width:14px; height:14px;">
-                      <span>Place labels</span>
-                    </label>
-                    <label style="display:flex; align-items:center; gap:6px;">
-                      <input type="checkbox" id="togglePoiLabels" checked style="width:14px; height:14px;">
-                      <span>POIs (restaurants, parks)</span>
-                    </label>
-                    <label style="display:flex; align-items:center; gap:6px;">
-                      <input type="checkbox" id="toggleArticulationAreas" style="width:14px; height:14px;">
-                      <span>Articulation areas</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </details>
+            <!-- Map Base Layers moved to floating control -->
             <div class="filter-row" style="align-items:flex-start;">
               <span class="filter-label">School Type</span>
               <div style="display:flex; flex-direction:column; gap:8px; width:100%; min-width:0;">
@@ -3400,8 +3601,9 @@
                   <label><input type="checkbox" value="Elementary" checked>Elementary</label>
                   <label><input type="checkbox" value="Middle" checked>Middle</label>
                   <label><input type="checkbox" value="High" checked>High</label>
-                  <label><input type="checkbox" value="K-8" checked>K-8</label>
                   <label><input type="checkbox" value="Alternative" checked>Alternative</label>
+                  <label><input type="checkbox" value="Multi-Level" checked>Multi-Level</label>
+                  <label><input type="checkbox" value="Option" checked>Option</label>
                 </div>
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
                   <button id="unselectAllSchoolsBtn" class="compact-btn" type="button">Clear</button>
@@ -3409,12 +3611,13 @@
                 </div>
               </div>
             </div>
-            <select id="schoolTypeFilter" multiple size="5" style="display:none;">
+            <select id="schoolTypeFilter" multiple size="7" style="display:none;">
                 <option value="Elementary" selected>Elementary</option>
                 <option value="Middle" selected>Middle</option>
                 <option value="High" selected>High</option>
-                <option value="K-8" selected>K-8</option>
                 <option value="Alternative" selected>Alternative</option>
+                <option value="Multi-Level" selected>Multi-Level</option>
+                <option value="Option" selected>Option</option>
             </select>
 
             <div class="filter-row">
@@ -3430,6 +3633,10 @@
             <div id="seatsRangeSlider" class="compact-slider"></div>
 
             <div style="display:flex; flex-direction:column; gap:6px; margin-top:6px; font-size:12px;">
+              <label style="display:flex; align-items:center; gap:6px;">
+                <input type="checkbox" id="toggleArticulationAreas" style="width:14px; height:14px;">
+                <span>Articulation areas</span>
+              </label>
               <label style="display:flex; align-items:center; gap:6px;">
                 <input type="checkbox" id="toggleNearbyHighlight" checked style="width:14px; height:14px;">
                 <span>Show nearby school highlights</span>
@@ -3636,6 +3843,18 @@
                   <button class="close-tooltip-btn" onclick="this.parentElement.style.display='none'">&times;</button>
                   This table lists each school with its assigned decision type (strategy group) based on the Strategic Sorting thresholds. Schools are grouped by their decision outcome.
                 </span>
+              </div>
+              <div style="position: relative; min-height: 40px;">
+                <details id="articulation-area-fci-details" open>
+                  <summary class="custom-summary" style="display:flex; align-items:center;">
+                    <strong>Articulation Area FCI Summary</strong>
+                  </summary>
+                  <div class="details-content-wrapper" style="padding: 0.5rem;">
+                    <div id="articulationAreaFciTable" style="padding: 0; min-height: 24px;">
+                      <div style="font-size:12px; color:#6b7280;">Loading articulation summary...</div>
+                    </div>
+                  </div>
+                </details>
               </div>
             </div>
           </details>

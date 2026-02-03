@@ -53,7 +53,7 @@
     </div>
     
     <script>
-        function showTab(tabName) {
+        function showTab(tabName, event) {
             console.log('Switching to tab:', tabName);
             
             // Hide all tab contents
@@ -76,7 +76,8 @@
             }
             
             // Add active class to clicked button
-            event.target.classList.add('active');
+            const evt = event || window.event;
+            if (evt && evt.target) evt.target.classList.add('active');
         }
     </script>
 </body>
