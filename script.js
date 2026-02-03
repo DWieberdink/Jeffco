@@ -4248,7 +4248,11 @@ map.on('load', () => {
         // Note: allow resizing beyond Mapbox default maxWidth.
         const popup = new mapboxgl.Popup({ closeButton: true, closeOnClick: false, maxWidth: 'none', className: 'aa-popup' });
         let pinned = false;
-        popup.on('close', () => { pinned = false; });
+        popup.on('close', () => {
+          pinned = false;
+          try { window.__aaPopupAreaName = null; } catch {}
+          try { window.__aaPopup = null; } catch {}
+        });
 
         // Make the popup behave like a small movable/resizable "panel"
         const enhanceArticulationPopupPanel = () => {
@@ -4280,10 +4284,11 @@ map.on('load', () => {
             content.style.flexDirection = 'column';
             content.style.overflow = 'hidden'; // needed for resize handles; body will scroll
             content.style.resize = 'both';
+            content.style.position = 'relative';
             // Reset any prior drag transform if we are using fixed placement.
             content.style.transform = '';
-            content.dataset.aaDx = '0';
-            content.dataset.aaDy = '0';
+            if (!content.style.left) content.style.left = '0px';
+            if (!content.style.top) content.style.top = '0px';
 
             // Ensure close button doesn't overlap the header content.
             const header = content.querySelector('.aa-popup-header');
@@ -4296,6 +4301,86 @@ map.on('load', () => {
               body.style.flex = '1 1 auto';
               body.style.minHeight = '0';
               body.style.overflow = 'auto';
+            }
+
+            // Resize handles on all sides (rebind each time)
+            if (content.__aaResizeHandles) {
+              content.querySelectorAll('.aa-resize-handle').forEach(h => h.remove());
+              content.__aaResizeHandles = false;
+            }
+            if (!content.__aaResizeHandles) {
+              content.__aaResizeHandles = true;
+              const makeHandle = (dir, style) => {
+                const h = document.createElement('div');
+                h.className = `aa-resize-handle aa-resize-${dir}`;
+                h.style.cssText = style;
+                h.dataset.dir = dir;
+                return h;
+              };
+              const handles = [
+                makeHandle('n', 'position:absolute; top:-3px; left:10px; right:10px; height:6px; cursor:n-resize;'),
+                makeHandle('s', 'position:absolute; bottom:-3px; left:10px; right:10px; height:6px; cursor:s-resize;'),
+                makeHandle('e', 'position:absolute; right:-3px; top:10px; bottom:10px; width:6px; cursor:e-resize;'),
+                makeHandle('w', 'position:absolute; left:-3px; top:10px; bottom:10px; width:6px; cursor:w-resize;'),
+                makeHandle('ne', 'position:absolute; right:-3px; top:-3px; width:10px; height:10px; cursor:ne-resize;'),
+                makeHandle('nw', 'position:absolute; left:-3px; top:-3px; width:10px; height:10px; cursor:nw-resize;'),
+                makeHandle('se', 'position:absolute; right:-3px; bottom:-3px; width:10px; height:10px; cursor:se-resize;'),
+                makeHandle('sw', 'position:absolute; left:-3px; bottom:-3px; width:10px; height:10px; cursor:sw-resize;')
+              ];
+              handles.forEach(h => {
+                h.addEventListener('mousedown', (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const rect = content.getBoundingClientRect();
+                  const startX = e.clientX;
+                  const startY = e.clientY;
+                  const startW = rect.width;
+                  const startH = rect.height;
+                  const minW = 260;
+                  const minH = 140;
+                  const maxW = Math.min(window.innerWidth - 40, window.innerWidth * 0.9);
+                  const maxH = Math.min(window.innerHeight - 40, window.innerHeight * 0.9);
+                  const startLeft = parseFloat(content.style.left || '0') || 0;
+                  const startTop = parseFloat(content.style.top || '0') || 0;
+
+                  const onMove = (ev) => {
+                    const dx = ev.clientX - startX;
+                    const dy = ev.clientY - startY;
+                    let newW = startW;
+                    let newH = startH;
+                    let newLeft = startLeft;
+                    let newTop = startTop;
+                    const dir = h.dataset.dir || '';
+                    if (dir.includes('e')) {
+                      newW = Math.min(maxW, Math.max(minW, startW + dx));
+                    }
+                    if (dir.includes('s')) {
+                      newH = Math.min(maxH, Math.max(minH, startH + dy));
+                    }
+                    if (dir.includes('w')) {
+                      newW = Math.min(maxW, Math.max(minW, startW - dx));
+                      newLeft = startLeft + dx;
+                    }
+                    if (dir.includes('n')) {
+                      newH = Math.min(maxH, Math.max(minH, startH - dy));
+                      newTop = startTop + dy;
+                    }
+                    content.style.width = `${newW}px`;
+                    content.style.height = `${newH}px`;
+                    content.style.left = `${newLeft}px`;
+                    content.style.top = `${newTop}px`;
+                  };
+                  const onUp = () => {
+                    document.body.style.userSelect = '';
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onUp);
+                  };
+                  document.body.style.userSelect = 'none';
+                  window.addEventListener('mousemove', onMove);
+                  window.addEventListener('mouseup', onUp);
+                });
+                content.appendChild(h);
+              });
             }
 
             // Draggable (drag the header)
@@ -4907,7 +4992,9 @@ map.on('load', () => {
 
         // Refresh popup when compare selections change
         window.addEventListener('aaPopupRefresh', () => {
-          try { window.__aaRefreshPopup && window.__aaRefreshPopup(); } catch {}
+          try {
+            if (pinned && window.__aaRefreshPopup) window.__aaRefreshPopup();
+          } catch {}
         });
 
         // Allow click-away to dismiss (X button also works)

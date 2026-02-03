@@ -66,6 +66,7 @@
   const elMinMiles = document.getElementById("minMiles");
   const elMaxMiles = document.getElementById("maxMiles");
   const elAllowBeyondMax = document.getElementById("allowBeyondMax");
+  const elAllowOverutilized = document.getElementById("allowOverutilized");
   const elDrawerToggle = document.getElementById("csDrawerToggle");
   const elDrawerClose = document.getElementById("csDrawerClose");
   const elDrawerBackdrop = document.getElementById("csDrawerBackdrop");
@@ -432,7 +433,8 @@
     const maxRaw = parseNumberMaybe(elMaxMiles?.value);
     const max = maxRaw !== null ? Math.max(0, maxRaw) : null;
     const allowBeyondMax = !!(elAllowBeyondMax && elAllowBeyondMax.checked);
-    return { min, max, allowBeyondMax };
+    const allowOverutilized = !!(elAllowOverutilized && elAllowOverutilized.checked);
+    return { min, max, allowBeyondMax, allowOverutilized };
   }
 
   async function loadSchoolCoordsFromMapExport() {
@@ -975,7 +977,7 @@
   function runSimulation(closeCode, allowNonOverlapping) {
     const rosterFromOdStudents = studentsBySchoolCode.get(closeCode) || [];
     const { includeHome, includeChoice, includeOutOfDistrictChoice } = getStudentFilterConfig();
-    const { min, max, allowBeyondMax } = getDistanceConfig();
+    const { min, max, allowBeyondMax, allowOverutilized } = getDistanceConfig();
     const forceAssignAll = FORCE_ASSIGN_ALL;
 
     const filteredRoster = rosterFromOdStudents.filter((s) => {
@@ -1076,7 +1078,7 @@
       const pickFrom = (list) => {
         for (const opt of list) {
           const seatsLeft = remaining.get(opt.code) ?? 0;
-          if (!forceAssignAll && seatsLeft <= 0) continue;
+          if (!forceAssignAll && !allowOverutilized && seatsLeft <= 0) continue;
           if (!opt.overlaps && !allowNonOverlapping && !forceAssignAll) continue;
           remaining.set(opt.code, seatsLeft - 1);
           return opt;
@@ -1167,7 +1169,7 @@
       destRows,
       remainingSeatsByCode: remaining,
       allowNonOverlapping,
-      filters: { includeHome, includeChoice, minMiles: min, maxMiles: max, allowBeyondMax },
+      filters: { includeHome, includeChoice, minMiles: min, maxMiles: max, allowBeyondMax, allowOverutilized },
       studentOriginLinesFc: { type: "FeatureCollection", features: studentOriginLineFeatures },
       studentDecisionLinesFc: { type: "FeatureCollection", features: studentDecisionLineFeatures },
     };
