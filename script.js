@@ -140,7 +140,7 @@ const COMPARE_CATEGORY_DEFS = {
   utilization: { label: 'Utilization' },
   fci: { label: 'FCI' },
   classroom: { label: 'Classroom condition' },
-  building: { label: 'Building condition' }
+  building: { label: 'Building Score' }
 };
 
 function getCompareBuckets(categoryKey) {
@@ -3323,7 +3323,7 @@ function updateLegend() {
       showingAssignments
         ? 'Assignment View'
         : (colorMode === 'building')
-          ? 'Building Condition Legend'
+        ? 'Building Score Legend'
           : (colorMode === 'classroom')
             ? 'Classroom Condition Legend'
             : (colorMode === 'fci')
@@ -3431,7 +3431,7 @@ function updateLegend() {
   } else {
     if (colorMode === 'building') {
       const hdr = document.createElement('div');
-      hdr.textContent = 'Building Condition';
+      hdr.textContent = 'Building Score';
       hdr.style.cssText = 'font-weight:900; margin: 4px 0 6px 0; color:#111827;';
       legendContent.appendChild(hdr);
 
@@ -5389,7 +5389,7 @@ map.on('load', () => {
             const cond = feature?.properties?.__buildingCondition || 'No Data';
             const score = feature?.properties?.__buildingScore;
             const num = Number.isFinite(score) ? score.toFixed(3) : '—';
-            html += `<br><span>Building condition: ${cond} (${num})</span>`;
+            html += `<br><span>Building score: ${cond} (${num})</span>`;
           } else if (mode === 'utilization') {
             const { low, high } = getUtilizationThresholds();
             const util = normalizeUtilizationValue(feature?.properties?.['Utilization'] ?? 0);
