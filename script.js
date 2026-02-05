@@ -723,6 +723,23 @@ function buildBuildingConditionModel(rows) {
   return { byId, quartiles: { q1, q2, q3 } };
 }
 
+function computeBuildingQuartilesForFeatures(features) {
+  const scores = [];
+  (features || []).forEach((f) => {
+    if (!f || !f.properties) return;
+    const id = normalizeId(f.properties["UniqueID"]);
+    let score = buildingScoresById.get(id);
+    if (!Number.isFinite(score)) {
+      const nameKey = f.properties["Building Name"] || f.properties["School Name"] || '';
+      const row = decisionAllByName.get(normalizeName(nameKey));
+      score = row ? getBuildingScoreValue(row) : null;
+    }
+    if (Number.isFinite(score)) scores.push(score);
+  });
+  const [q1, q2, q3] = computeQuantiles(scores, [0.25, 0.5, 0.75]);
+  return { q1, q2, q3 };
+}
+
 function getBuildingConditionFromValue(value, quartiles) {
   if (!Number.isFinite(value) || !quartiles) return 'No Data';
   const { q1, q2, q3 } = quartiles;
@@ -2818,7 +2835,7 @@ function updateLayer() {
   let flow2Count = 0;
   let flow2Filtered = 0;
   
-  const filteredFeatures = originalGeojsonData.features.filter(f => {
+  const baseFilteredFeatures = originalGeojsonData.features.filter(f => {
     const nameRaw = (f.properties['Building Name'] || '').toString();
     const nameNorm = nameRaw.toLowerCase();
     // Read precomputed flags injected into GeoJSON (keeps behavior consistent after slider updates/style changes)
@@ -2895,7 +2912,19 @@ function updateLayer() {
     }
 
     if (!(matchesEnrollment && matchesSeats && matchesType && matchesFlow && matchesNearby)) return false;
+    return true;
+  });
 
+  // Recompute building score quartiles from the currently included schools
+  // so each visible filter set yields all four quartiles.
+  try {
+    buildingQuartiles = computeBuildingQuartilesForFeatures(baseFilteredFeatures);
+    applyBuildingMetricsToFeatures(originalGeojsonData.features);
+  } catch (e) {
+    console.warn("⚠️ Failed to recompute building quartiles:", e);
+  }
+
+  const filteredFeatures = baseFilteredFeatures.filter(f => {
     // Legend-based filtering (applies to current color-by mode)
     const mode =
       (window.__mapColorByMode === 'building') ? 'building'
@@ -5387,6 +5416,9 @@ map.on('load', () => {
             : ((window.__mapColorByMode === 'fci') ? 'fci'
               : ((window.__mapColorByMode === 'utilization') ? 'utilization'
                 : ((window.__mapColorByMode === 'level') ? 'level' : 'decision')));
+          const buildingCond = feature?.properties?.__buildingCondition || 'No Data';
+          const buildingScore = feature?.properties?.__buildingScore;
+          const buildingScoreNum = Number.isFinite(buildingScore) ? buildingScore.toFixed(3) : '—';
           if (mode === 'decision') {
             const decision = feature?.properties?.['Decision Type'] || feature?.properties?.['decision'] || 'Unknown';
             html += `<br><span>Decision: ${decision}</span>`;
@@ -5394,10 +5426,7 @@ map.on('load', () => {
             const lvl = feature?.properties?.__schoolLevelNorm || normalizeSchoolLevel(feature?.properties?.['School Level']) || 'Unknown';
             html += `<br><span>School level: ${lvl}</span>`;
           } else if (mode === 'building') {
-            const cond = feature?.properties?.__buildingCondition || 'No Data';
-            const score = feature?.properties?.__buildingScore;
-            const num = Number.isFinite(score) ? score.toFixed(3) : '—';
-            html += `<br><span>Building score: ${cond} (${num})</span>`;
+            html += `<br><span>Building score: ${buildingCond} (${buildingScoreNum})</span>`;
           } else if (mode === 'utilization') {
             const { low, high } = getUtilizationThresholds();
             const util = normalizeUtilizationValue(feature?.properties?.['Utilization'] ?? 0);
@@ -5436,6 +5465,11 @@ map.on('load', () => {
             const costText = fmtCurrencyK(cost);
             html += `<br><span>Classroom condition: ${condLocal} (${num})</span>`;
             html += `<br><span>Classroom $: ${costText}</span>`;
+          }
+
+          // Always include building score (even when not the active color mode).
+          if (mode !== 'building') {
+            html += `<br><span>Building score: ${buildingCond} (${buildingScoreNum})</span>`;
           }
         } catch {}
 
