@@ -11,6 +11,14 @@ if (!DEBUG) {
   console.log = (...args) => __origLog('[DEBUG]', ...args);
 }
 
+// Cache-bust static data files when needed (bump when CSV/GeoJSON changes).
+const ASSET_VERSION = '2026-02-05-1';
+const withCacheBust = (url) => {
+  if (!ASSET_VERSION) return url;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}v=${encodeURIComponent(ASSET_VERSION)}`;
+};
+
 // Map style management
 const MAP_STYLES = {
   light: 'mapbox://styles/mapbox/light-v11',
@@ -347,7 +355,7 @@ function getArticulationColorExpression() {
 
 async function loadArticulationAreas4326() {
   if (articulationAreasLoaded) return articulationAreasGeojson4326;
-  const res = await fetch(ARTICULATION_AREAS_GEOJSON_PATH);
+  const res = await fetch(withCacheBust(ARTICULATION_AREAS_GEOJSON_PATH));
   const gj = await res.json();
   const crsName = ((gj && gj.crs && gj.crs.properties && gj.crs.properties.name) || '').toString();
 
@@ -2085,7 +2093,7 @@ function ensureOdStudentsLoaded() {
   if (odStudentsLoadPromise) return odStudentsLoadPromise;
   odStudentsLoadPromise = new Promise((resolve) => {
     try {
-      Papa.parse("OD_Students.csv", {
+      Papa.parse(withCacheBust("OD_Students.csv"), {
         download: true,
         header: true,
         delimiter: ",",
@@ -3738,9 +3746,9 @@ map.on('load', () => {
   try { rebuildMapLabelLayerIndex(); } catch {}
   try { applyMapLabelPrefs(); } catch {}
 
-  const geojsonPromise = fetch('Schools.geojson').then(res => res.json());
+  const geojsonPromise = fetch(withCacheBust('Schools.geojson')).then(res => res.json());
   const decisionDataPromise = window.decisionLogic.initialize();
-  const decisionAllPromise = fetch('Decision Data Export.csv')
+  const decisionAllPromise = fetch(withCacheBust('Decision Data Export.csv'))
     .then(res => res.text())
     .then(text => new Promise(resolve => {
       Papa.parse(text, {
@@ -3753,7 +3761,7 @@ map.on('load', () => {
       console.warn("⚠️ Failed to load full Decision Data Export.csv:", err);
       return [];
     });
-  const eaPromise = fetch(EA_CLASSROOMS_CSV_PATH)
+  const eaPromise = fetch(withCacheBust(EA_CLASSROOMS_CSV_PATH))
     .then(res => res.text())
     .then(text => new Promise(resolve => {
       Papa.parse(text, {
@@ -3766,7 +3774,7 @@ map.on('load', () => {
       console.warn("⚠️ Failed to load EAClassrooms.csv:", err);
       return [];
     });
-  const fciPromise = fetch(FCI_DEFICIENCY_CSV_PATH)
+  const fciPromise = fetch(withCacheBust(FCI_DEFICIENCY_CSV_PATH))
     .then(res => res.text())
     .then(text => new Promise(resolve => {
       Papa.parse(text, {
@@ -3779,7 +3787,7 @@ map.on('load', () => {
       console.warn("⚠️ Failed to load FCI deficiency table:", err);
       return [];
     });
-  const distancesPromise = fetch('SchooltoSchoolDistances.csv')
+  const distancesPromise = fetch(withCacheBust('SchooltoSchoolDistances.csv'))
     .then(res => res.text())
     .then(text => {
       return new Promise(resolve => {
@@ -3825,7 +3833,7 @@ map.on('load', () => {
       window.schoolDistancesByOrigin = {};
     });
 
-  const mapExportPromise = fetch('Map_Export.csv')
+  const mapExportPromise = fetch(withCacheBust('Map_Export.csv'))
     .then(res => res.text())
     .then(text => new Promise(resolve => {
       Papa.parse(text, {
