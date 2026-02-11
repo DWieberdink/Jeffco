@@ -32,10 +32,35 @@ function ensureLinkIds() {
   }));
 }
 
+// Default layout when no saved layout exists (keeps GitHub Pages / live server consistent).
+// Use "Export for GitHub" in Layout Tools to update this when you rearrange the flowchart.
+const DEFAULT_FLOWCHART_POSITIONS = {
+  "START": { x: -247.00234985351562, y: 8.593657493591309 },
+  "F1_UTIL1": { x: -33.21879196166992, y: 8.875520706176758 }, "F1_UTIL2": { x: -35.97391891479492, y: -88.93140411376953 },
+  "F1_GROWTH2": { x: -34.59635543823242, y: -188.1158905029297 }, "F1_DIST": { x: -35.97391891479492, y: 108.06000518798828 },
+  "F1_GROWTH": { x: -37.351478576660156, y: 212.75474548339844 },
+  "F2_ATTENDANCE": { x: 223.63880920410156, y: -132.1666717529297 }, "F2_EXPAND": { x: 223.63880920410156, y: -225.6972198486328 },
+  "F2_FAC": { x: 417.989013671875, y: -216.43138122558594 }, "F2_EDU1": { x: 225.22109985351562, y: -312.5646667480469 },
+  "F2_EDU2": { x: 419.5743713378906, y: -313.1373291015625 }, "F2_OUT1": { x: 227.774658203125, y: -396.8319396972656 },
+  "F2_OUT2": { x: 417.989013671875, y: -130.82284545898438 }, "F2_OUT3": { x: 593.16943359375, y: -313.1373291015625 },
+  "F2_OUT4": { x: 418.78167724609375, y: -397.95318603515625 },
+  "F3_FAC_ABOVE": { x: 220.6871337890625, y: -0.8997395038604736 }, "F3_FAC_BELOW": { x: 406.35528564453125, y: 1.3768327236175537 },
+  "F3_EDU1": { x: 216.475341796875, y: 87.54791259765625 }, "F3_EDU2": { x: 405.512939453125, y: 88.98212432861328 },
+  "F3_OUT1": { x: 584.0929565429688, y: 40.96768569946289 }, "F3_OUT2": { x: 581.5658569335938, y: 112.56816864013672 },
+  "F3_OUT3": { x: 403.8282165527344, y: 169.8485565185547 }, "F3_OUT4": { x: 215.6329803466797, y: 171.7837677001953 },
+  "F4_EDU1": { x: 393.82550048828125, y: 387.7051696777344 }, "F4_FAC1": { x: 580.3935546875, y: 382.4497375488281 },
+  "F4_FAC2": { x: 397.1777648925781, y: 480.25665283203125 }, "F4_DIST": { x: 395.8002014160156, y: 583.5738525390625 },
+  "F4_OUT1": { x: 579.0159912109375, y: 290.1530456542969 }, "F4_OUT2": { x: 584.5262451171875, y: 483.01177978515625 },
+  "F4_OUT3": { x: 213.96197509765625, y: 578.0635986328125 }, "F4_OUT4": { x: 585.90380859375, y: 582.1962890625 }
+};
+
 async function applyElkLayoutIfAvailable() {
-  // Only apply ELK when the user does NOT have a saved manual layout.
+  // Use saved layout from localStorage, or fall back to DEFAULT_FLOWCHART_POSITIONS (so GitHub Pages matches live server).
   let savedPositions = {};
   try { savedPositions = JSON.parse(localStorage.getItem('flowchartNodePositions') || '{}'); } catch (e) {}
+  if (!savedPositions || Object.keys(savedPositions).length === 0) {
+    savedPositions = DEFAULT_FLOWCHART_POSITIONS;
+  }
   const hasSaved = savedPositions && Object.keys(savedPositions).length > 0;
   if (hasSaved) {
     elkLastLayoutOk = false;
@@ -718,15 +743,18 @@ function initializeFlowchartData() {
   // Use updated standard layout with Flow 2 and Flow 3 restructure
   console.log("🔄 Using updated standard flowchart layout with Flow 2 and Flow 3 updates");
   
-  // Load saved positions from localStorage to use as defaults
+  // Load saved positions from localStorage, or use DEFAULT_FLOWCHART_POSITIONS (keeps GitHub Pages = live server)
   let savedPositions = {};
   try {
     savedPositions = JSON.parse(localStorage.getItem('flowchartNodePositions') || '{}');
+    if (!savedPositions || Object.keys(savedPositions).length === 0) {
+      savedPositions = DEFAULT_FLOWCHART_POSITIONS;
+    }
     if (Object.keys(savedPositions).length > 0) {
-      console.log("📂 Using saved layout positions as defaults:", Object.keys(savedPositions).length, "nodes");
+      console.log("📂 Using layout positions:", Object.keys(savedPositions).length, "nodes");
     }
   } catch (error) {
-    console.warn("⚠️ Could not load saved positions, using hardcoded defaults");
+    savedPositions = DEFAULT_FLOWCHART_POSITIONS;
   }
   
   // Helper function to get position (saved or default)
@@ -2507,6 +2535,24 @@ window.exportPositionsAsCode = function() {
   } catch (error) {
     console.error("❌ Error exporting positions:", error);
     return null;
+  }
+};
+
+// ✅ Export layout for GitHub: copies JSON to clipboard so you can update DEFAULT_FLOWCHART_POSITIONS in FlowchartLogic.js
+window.exportPositionsForGitHub = function() {
+  try {
+    const savedPositions = JSON.parse(localStorage.getItem('flowchartNodePositions') || '{}');
+    const positions = Object.keys(savedPositions).length > 0 ? savedPositions : DEFAULT_FLOWCHART_POSITIONS;
+    const json = JSON.stringify(positions, null, 2);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(json).then(() => {
+        alert("Layout copied to clipboard! Paste into FlowchartLogic.js as DEFAULT_FLOWCHART_POSITIONS to sync GitHub Pages.");
+      }).catch(() => alert("Copy failed. Layout:\n" + json.substring(0, 200) + "..."));
+    } else {
+      prompt("Copy this layout (paste into FlowchartLogic.js):", json);
+    }
+  } catch (e) {
+    alert("Error exporting: " + (e && e.message));
   }
 };
 

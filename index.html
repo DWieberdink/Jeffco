@@ -25,7 +25,7 @@
   <script src="DecisionLogic.js?v=20260210_7" defer></script>
   <script src="PrioritizationLogic.js?v=20251219_1" defer></script>
   <script src="PrioritizationUI.js?v=20260210_7" defer></script>
-  <script src="FlowchartLogic.js?v=20260129_6" defer></script>
+  <script src="FlowchartLogic.js?v=20260210_9" defer></script>
   <script src="script.js?v=20260210_8" defer></script>
   
 
@@ -3768,6 +3768,12 @@
                     onclick="window.saveCurrentLayoutAsDefault()"
                     style="width:100%; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; background:#fff; color:#111827; cursor:pointer; text-align:left; font-size:13px; font-weight:600; margin:0;">
               Save Layout
+            </button>
+            <button id="flowchartExportForGitHubBtn" type="button"
+                    onclick="if(typeof window.exportPositionsForGitHub === 'function') window.exportPositionsForGitHub();"
+                    style="width:100%; padding:6px 10px; border:1px solid #d1d5db; border-radius:6px; background:#fff; color:#111827; cursor:pointer; text-align:left; font-size:13px; font-weight:600; margin:0;"
+                    title="Copy layout JSON to clipboard so GitHub Pages matches your arrangement">
+              Export for GitHub
             </button>
             <button id="editFlowBoxesBtn" type="button"
                     onclick="window.toggleFlowBoxEditMode()"
