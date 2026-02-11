@@ -1159,11 +1159,11 @@ function loadSchoolData() {
       enrollmentThreshold: 200,
       utilization: 0.60,
       utilizationHigh: 0.90,
-      enrollmentGrowth: 0,
+      enrollmentGrowth: 0.05,
       projectedUtilization: 0.90,
       distanceUnderutilized: 3.5,
       buildingThreshold: 1.5,
-      adequateProgramsMin: 50,
+      adequateProgramsMin: 80,
       attendanceAreaEnrollment: 80,
       siteCapacity: "Yes",
       // School-level enrollment thresholds
@@ -1236,11 +1236,11 @@ function loadSchoolData() {
         enrollmentThreshold: 200,
         utilization: 0.60,
         utilizationHigh: 0.90,
-        enrollmentGrowth: 0,
+        enrollmentGrowth: 0.05,
         projectedUtilization: 0.90,
         distanceUnderutilized: 3.5,
         buildingThreshold: 1.5,
-        adequateProgramsMin: 50, // Changed to percentage (0-100)
+        adequateProgramsMin: 80, // Changed to percentage (0-100)
         attendanceAreaEnrollment: 80, // Percentage threshold for attendance area enrollment (0-100)
         siteCapacity: "Yes",
         // School-level enrollment thresholds
@@ -1599,10 +1599,24 @@ function getSelectedSchoolData() {
   return null;
 }
 
+function getEffectiveEnrollmentFlow(row) {
+  if (window.getEffectiveEnrollment) return window.getEffectiveEnrollment(row);
+  const e = parseFloat((row.Enrollment || '').toString().replace(/,/g, '').trim()) || 0;
+  const pk = parseFloat((row.PKEnrollment || row['PKEnrollment'] || row['PK Enrollment'] || '').toString().replace(/,/g, '').trim()) || 0;
+  const inc = (window.getIncludePKInEnrollment && window.getIncludePKInEnrollment());
+  return inc ? e : Math.max(0, e - pk);
+}
+function getEffectiveUtilizationFlow(row) {
+  if (window.getEffectiveUtilization) return window.getEffectiveUtilization(row);
+  const cap = parseFloat((row.Capacity || '').toString().replace(/,/g, '').trim()) || 0;
+  if (!cap || cap <= 0) return +row.Utilization || 0;
+  return getEffectiveEnrollmentFlow(row) / cap;
+}
+
 // ✅ Helper function to determine enrollment decision based on school level
 function getEnrollmentDecision(row, t) {
-  const utilization = +row.Utilization;
-  const enrollment = parseFloat((row.Enrollment || '').toString().replace(/,/g, '').trim());
+  const utilization = getEffectiveUtilizationFlow(row);
+  const enrollment = getEffectiveEnrollmentFlow(row);
   let schoolLevelRaw = row["School Level"] || '';
   let level = normalizeSchoolLevelFlow(schoolLevelRaw);
   
@@ -1657,7 +1671,7 @@ function evaluatePath(row, t) {
   const decisions = {
     // Flow 1 - Main Decision (F1_UTIL1 now includes enrollment logic)
     util1: getEnrollmentDecision(row, t),
-    util2: +row.Utilization > t.utilizationHigh ? "Yes" : "No", 
+    util2: getEffectiveUtilizationFlow(row) > t.utilizationHigh ? "Yes" : "No", 
     dist: (() => {
       let schoolLevelRaw = row["School Level"] || '';
       let level = normalizeSchoolLevelFlow(schoolLevelRaw);
@@ -1686,11 +1700,17 @@ function evaluatePath(row, t) {
       
       return +row.DistanceUnderutilizedschools <= distanceThreshold ? "Yes" : "No";
     })(),
-    growth: +row["Future_EnrollmentGrowth"] > t.enrollmentGrowth ? "Yes" : "No",
+    growth: (() => {
+      const g = window.getEffectiveEnrollmentGrowth ? window.getEffectiveEnrollmentGrowth(row) : null;
+      const val = (g != null && Number.isFinite(g)) ? g : parseFloat(row["Future_EnrollmentGrowth"] ?? row["K+EnrollmentGrowth"] ?? 0);
+      return val > t.enrollmentGrowth ? "Yes" : "No";
+    })(),
     
     // Flow 2 - Building Addition
     attendance: (() => {
-      const attendanceAreaEnrollmentPct = coercePercent0to100(row.AttendanceAreaEnrollment);
+      const raw = window.getEffectiveAttendanceAreaEnrollment ? window.getEffectiveAttendanceAreaEnrollment(row) : null;
+      const val = (raw != null && Number.isFinite(raw)) ? raw : row.AttendanceAreaEnrollment;
+      const attendanceAreaEnrollmentPct = coercePercent0to100(val);
       return attendanceAreaEnrollmentPct >= t.attendanceAreaEnrollment ? "Yes" : "No";
     })(),
     edu2: (+row.EducationalAdequacy * 100) >= t.adequateProgramsMin ? "Yes" : "No",
@@ -1752,7 +1772,10 @@ function evaluatePath(row, t) {
 
   const path = ["START"];
   let currentFlow = 1;
-  
+
+  const enrollment = getEffectiveEnrollmentFlow(row);
+  const enrollmentLow = Number.isFinite(enrollment) && enrollment <= 300;
+
   // FLOW 1 - Main Decision Tree (Updated with OR logic)
   path.push("F1_UTIL1");
   if (decisions.util1 === "Yes") {
@@ -1789,6 +1812,12 @@ function evaluatePath(row, t) {
       path.push("F3_FAC_ABOVE");
       currentFlow = 3;
     }
+  }
+
+  // Override: even if enrollment growth is above threshold, if total enrollment <= 300, route to consolidation (Flow 4)
+  if ((currentFlow === 2 || currentFlow === 3) && enrollmentLow) {
+    currentFlow = 4;
+    while (path.length > 1 && !String(path[path.length - 1]).startsWith("F1_")) path.pop();
   }
 
   // FLOW 2 - Building Addition
@@ -2682,18 +2711,28 @@ function updateFlowchartSchoolInfo(name) {
     if (existingList) existingList.innerHTML = "";
     return;
   }
-  // Get enrollment from Map_Export.csv if available
-  // Enrollment from Decision Data Export only (no Map_Export override)
-  let enroll = getVal(row, ["Enrollment"]) || "N/A";
-  const utilRaw = getVal(row, ["Utilization"]);
-  const util = utilRaw ? (parseFloat(utilRaw) * 100).toFixed(1) + "%" : "N/A";
+  // Use PK-aware helpers for enrollment display (consistent with flow logic)
+  const effectiveEnr = (window.getEffectiveEnrollment && window.getEffectiveEnrollment(row)) ?? getEffectiveEnrollmentFlow(row);
+  const totalEnr = parseFloat((getVal(row, ["Enrollment"]) || "").toString().replace(/,/g, "").trim()) || 0;
+  const pkEnr = parseFloat((getVal(row, ["PKEnrollment", "PK Enrollment"]) || "").toString().replace(/,/g, "").trim()) || 0;
+  const enrollExcl = Math.max(0, totalEnr - pkEnr);
+  const enroll = Number.isFinite(effectiveEnr) ? effectiveEnr.toString() : (Number.isFinite(enrollExcl) ? enrollExcl.toString() : (totalEnr ? totalEnr.toString() : "N/A"));
+  const pk = Number.isFinite(pkEnr) ? pkEnr.toString() : (pkEnr ? pkEnr.toString() : "—");
+  const total = Number.isFinite(totalEnr) ? totalEnr.toString() : "—";
+  const cap = parseFloat((getVal(row, ["Capacity"]) || "").toString().replace(/,/g, "").trim()) || 0;
+  const utilExcl = cap > 0 ? (enrollExcl / cap) * 100 : null;
+  const utilIncl = cap > 0 && totalEnr > 0 ? (totalEnr / cap) * 100 : null;
+  const incPKUtil = (window.getIncludePKInEnrollment && window.getIncludePKInEnrollment());
+  const util = (incPKUtil && Number.isFinite(utilIncl) ? utilIncl : Number.isFinite(utilExcl) ? utilExcl : null);
+  const utilStr = util !== null ? util.toFixed(1) + "%" : "N/A";
   // Find the actual key for School Level (case-insensitive, trimmed)
   let schoolLevelKey = Object.keys(row).find(k => k.trim().toLowerCase() === "school level");
   let schoolType = (schoolLevelKey && row[schoolLevelKey] && row[schoolLevelKey].trim() !== "") ? row[schoolLevelKey] : "N/A";
 
-  let growth = getVal(row, ["Future_EnrollmentGrowth", "Projected Enrollment Growth"]);
-  if (growth !== undefined && growth !== null && growth !== "") {
-    growth = (parseFloat(growth) * 100).toFixed(1) + "%";
+  let growth = window.getEffectiveEnrollmentGrowth ? window.getEffectiveEnrollmentGrowth(row) : null;
+  if (growth != null && Number.isFinite(growth)) {
+    const pct = (growth >= -1.5 && growth <= 1.5) ? growth * 100 : growth;
+    growth = pct.toFixed(1) + "%";
   } else {
     growth = "N/A";
   }
@@ -2715,13 +2754,19 @@ function updateFlowchartSchoolInfo(name) {
     educationalAdequacy = "N/A";
   }
   
-  // Get Attendance Area Enrollment
-  let attendanceAreaEnrollment = getVal(row, ["AttendanceAreaEnrollment", "Attendance Area Enrollment"]);
-  if (attendanceAreaEnrollment !== undefined && attendanceAreaEnrollment !== null && attendanceAreaEnrollment !== "") {
+  // Get Attendance Area Enrollment (PK-aware: incl. PK = AttendanceAreaEnrollment, excl. = NonPKAttendanceAreaEnrollment)
+  let attendanceAreaEnrollment = window.getEffectiveAttendanceAreaEnrollment ? window.getEffectiveAttendanceAreaEnrollment(row) : null;
+  if (attendanceAreaEnrollment != null && Number.isFinite(attendanceAreaEnrollment)) {
     const pct = coercePercent0to100(attendanceAreaEnrollment);
     attendanceAreaEnrollment = (isFinite(pct) ? pct.toFixed(1) : 0) + "%";
   } else {
-    attendanceAreaEnrollment = "N/A";
+    const raw = getVal(row, ["AttendanceAreaEnrollment", "Attendance Area Enrollment"]);
+    if (raw !== undefined && raw !== null && raw !== "") {
+      const pct = coercePercent0to100(raw);
+      attendanceAreaEnrollment = (isFinite(pct) ? pct.toFixed(1) : 0) + "%";
+    } else {
+      attendanceAreaEnrollment = "N/A";
+    }
   }
   
   // Get Site Capacity (Space to expand)
@@ -2742,13 +2787,23 @@ function updateFlowchartSchoolInfo(name) {
     below50PercentileEA = below50PercentileEA === "Yes" || below50PercentileEA === "yes" || below50PercentileEA === "YES" ? "Yes" : "No";
   }
   
+  const utilExclStr = utilExcl !== null ? utilExcl.toFixed(1) + "%" : "N/A";
+  const utilInclStr = utilIncl !== null ? utilIncl.toFixed(1) + "%" : "N/A";
   infoDiv.innerHTML = `<div style='font-size:13px;font-weight:bold;margin-bottom:2px;text-decoration:none;font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif;'>
   ${name}</div>
   <div style='font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif; font-size:11px; margin-bottom:1px; line-height:1.3; display:flex; flex-wrap:wrap; gap:8px; align-items:center;'>
     <span>School Type: <strong>${schoolType}</strong></span>
-    <span>Utilization: <strong>${util}</strong></span>
     <span>Enrollment: <strong>${enroll}</strong></span>
-    <span>Growth: <strong>${growth}</strong></span>
+    <span>PK: <strong>${pk}</strong></span>
+    <span>Total: <strong>${total}</strong></span>
+    <span>Utilization: <strong>${utilStr}</strong></span>
+    <span>Future Enrollment Growth (2030): <strong>${growth}</strong></span>
+  </div>
+  <div style='font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif; font-size:11px; margin-bottom:4px; line-height:1.3; display:flex; flex-wrap:wrap; gap:8px; align-items:center;'>
+    <label style='display:flex;align-items:center;gap:6px;cursor:pointer;'>
+      <input type="checkbox" id="flowchartIncludePKUtilization" ${incPKUtil ? "checked" : ""} title="Include PK in utilization (${utilExclStr} → ${utilInclStr})">
+      <span>Include PK in utilization</span>
+    </label>
   </div>
   <div style='font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif; font-size:11px; margin-bottom:1px; line-height:1.3; display:flex; flex-wrap:wrap; gap:8px; align-items:center;'>
     <span>Educational Adequacy: <strong>${educationalAdequacy}</strong></span>
@@ -2772,6 +2827,18 @@ function updateFlowchartSchoolInfo(name) {
     listDiv.style.fontFamily = "'Franklin Gothic Book', 'Franklin Gothic', 'Arial Narrow', Arial, sans-serif";
     listDiv.style.fontSize = "11px";
     infoDiv.insertAdjacentElement("afterend", listDiv);
+  }
+
+  // Wire the "Include PK in utilization" checkbox
+  const pkUtilCb = infoDiv.querySelector("#flowchartIncludePKUtilization");
+  if (pkUtilCb) {
+    pkUtilCb.addEventListener("change", () => {
+      if (window.setIncludePKInEnrollment) window.setIncludePKInEnrollment(pkUtilCb.checked);
+      // Sync all PK toggles (main app, Step 1) so they stay in sync
+      if (typeof window.syncPKToggleFromStorage === "function") window.syncPKToggleFromStorage();
+      updateFlowchartSchoolInfo(name);
+      if (window.sendSliderData) window.sendSliderData();
+    });
   }
 
   // Wire the button to show nearby welcoming schools

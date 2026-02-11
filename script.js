@@ -13,6 +13,64 @@ if (!DEBUG) {
 
 // Cache-bust static data files when needed (bump when CSV/GeoJSON changes).
 const ASSET_VERSION = '2026-02-05-1';
+
+// --- PK Enrollment: exclude by default (Enrollment - PKEnrollment) -------------------
+const PK_ENROLLMENT_STORAGE_KEY = 'jeffco_include_pk_enrollment_v1';
+window.getIncludePKInEnrollment = function () {
+  try {
+    // Default: exclude PK (return false when no preference stored)
+    const v = window.localStorage && window.localStorage.getItem(PK_ENROLLMENT_STORAGE_KEY);
+    return v === 'true';
+  } catch (_) { return false; }
+};
+window.setIncludePKInEnrollment = function (v) {
+  try {
+    if (window.localStorage) window.localStorage.setItem(PK_ENROLLMENT_STORAGE_KEY, v ? 'true' : 'false');
+  } catch (_) {}
+};
+window.getEffectiveEnrollment = function (row) {
+  if (!row) return 0;
+  const inc = window.getIncludePKInEnrollment && window.getIncludePKInEnrollment();
+  const e = parseFloat((row.Enrollment ?? row.enrollment ?? row['Enrollment'] ?? '').toString().replace(/,/g, '').trim()) || 0;
+  const pk = parseFloat((row.PKEnrollment ?? row['PKEnrollment'] ?? row['PK Enrollment'] ?? '').toString().replace(/,/g, '').trim()) || 0;
+  return inc ? e : Math.max(0, e - pk);
+};
+window.getEffectiveUtilization = function (row) {
+  if (!row) return 0;
+  const cap = parseFloat((row.Capacity ?? row.capacity ?? row['Capacity'] ?? '').toString().replace(/,/g, '').trim()) || 0;
+  if (!cap || cap <= 0) return parseFloat((row.Utilization ?? row.utilization ?? '').toString()) || 0;
+  return window.getEffectiveEnrollment(row) / cap;
+};
+window.getEffectiveEnrollmentGrowth = function (row) {
+  if (!row) return null;
+  const inc = window.getIncludePKInEnrollment && window.getIncludePKInEnrollment();
+  const parse = (v) => {
+    const n = parseFloat((v ?? '').toString().replace(/,/g, '').trim());
+    return Number.isFinite(n) ? n : null;
+  };
+  if (inc) return parse(row['Future_EnrollmentGrowth'] ?? row['Future Enrollment Growth']) ?? null;
+  return parse(row['K+EnrollmentGrowth'] ?? row['K+ Enrollment Growth']) ?? parse(row['Future_EnrollmentGrowth']) ?? null;
+};
+window.getEffectiveAttendanceAreaEnrollment = function (row) {
+  if (!row) return null;
+  const inc = window.getIncludePKInEnrollment && window.getIncludePKInEnrollment();
+  const parse = (v) => {
+    const n = parseFloat((v ?? '').toString().replace(/,/g, '').trim());
+    return Number.isFinite(n) ? n : null;
+  };
+  if (inc) return parse(row['AttendanceAreaEnrollment'] ?? row['Attendance Area Enrollment']) ?? null;
+  return parse(row['NonPKAttendanceAreaEnrollment'] ?? row['NonPK Attendance Area Enrollment']) ?? parse(row['AttendanceAreaEnrollment']) ?? null;
+};
+window.getEffectiveProjectedEnrollment = function (row) {
+  if (!row) return null;
+  const inc = window.getIncludePKInEnrollment && window.getIncludePKInEnrollment();
+  const parse = (v) => {
+    const n = parseFloat((v ?? '').toString().replace(/,/g, '').trim());
+    return Number.isFinite(n) ? n : null;
+  };
+  if (inc) return parse(row['2030_Total'] ?? row['2030 Total']) ?? null;
+  return parse(row['2030_K+'] ?? row['2030 K+']) ?? parse(row['2030_Total']) ?? null;
+};
 const withCacheBust = (url) => {
   if (!ASSET_VERSION) return url;
   const sep = url.includes('?') ? '&' : '?';
@@ -958,7 +1016,7 @@ function updateArticulationAreaFciTable() {
 
     rows.sort((a, b) => a.area.localeCompare(b.area, undefined, { sensitivity: 'base', numeric: true }));
 
-    const headerNote = `<div style="font-size:11px; color:#6b7280; margin-bottom:6px;">Compare categories (FCI uses selected compare systems if any)</div>`;
+    const headerNote = `<div style="font-size:11px; color:#6b7280; margin-bottom:6px;">Categories shown in articulation area popup (FCI uses selected compare systems if any)</div>`;
     const categoryBuckets = {};
     selectedCategories.forEach((k) => {
       categoryBuckets[k] = getCompareBuckets(k) || [];
@@ -4286,10 +4344,15 @@ map.on('load', () => {
         const popup = new mapboxgl.Popup({ closeButton: true, closeOnClick: false, maxWidth: 'none', className: 'aa-popup' });
         let pinned = false;
         popup.on('close', () => {
+          if (window.__aaRefreshing) return;
           pinned = false;
           try { window.__aaPopupAreaName = null; } catch {}
           try { window.__aaPopup = null; } catch {}
         });
+        const _aaRefreshingGuard = (fn) => {
+          window.__aaRefreshing = true;
+          try { fn(); } finally { window.__aaRefreshing = false; }
+        };
 
         // Make the popup behave like a small movable/resizable "panel"
         const enhanceArticulationPopupPanel = () => {
@@ -4976,6 +5039,29 @@ map.on('load', () => {
             } catch {}
           };
         } catch {}
+        try {
+          window.__aaRefreshPopupNow = (areaNameOverride) => {
+            const areaName = areaNameOverride != null ? areaNameOverride : window.__aaPopupAreaName;
+            if (!areaName) return;
+            if (!pinned) return;
+            _aaRefreshingGuard(() => {
+              try {
+                const root = popup.getElement ? popup.getElement() : null;
+                const content = root && document.body.contains(root) ? root.querySelector('.mapboxgl-popup-content') : null;
+                if (!content) {
+                  popup.setHTML(buildPopupHtml(areaName)).addTo(map);
+                } else {
+                  content.innerHTML = buildPopupHtml(areaName);
+                }
+                positionArticulationPopupTopRight();
+                setTimeout(() => {
+                  try { enhanceArticulationPopupPanel(); } catch {}
+                  try { positionArticulationPopupTopRight(); } catch {}
+                }, 0);
+              } catch {}
+            });
+          };
+        } catch {}
         try { window.__aaPositionPopupTopRight = positionArticulationPopupTopRight; } catch {}
         try { window.__aaEnhancePopupPanel = enhanceArticulationPopupPanel; } catch {}
 
@@ -5030,13 +5116,16 @@ map.on('load', () => {
         // Refresh popup when compare selections change
         window.addEventListener('aaPopupRefresh', () => {
           try {
-            if (pinned && window.__aaRefreshPopup) window.__aaRefreshPopup();
+            if (window.__aaRefreshPopupNow) window.__aaRefreshPopupNow();
+            else if (pinned && window.__aaRefreshPopup) window.__aaRefreshPopup();
           } catch {}
         });
 
-        // Allow click-away to dismiss (X button also works)
+        // Allow click-away to dismiss (X button also works), but not when clicking filter panel / compare controls
         map.on('click', (e) => {
           if (!pinned) return;
+          const target = e.originalEvent && e.originalEvent.target;
+          if (target && (target.closest('#filter-panel') || target.closest('#compareCategoryList') || target.closest('#compareFciSystemList') || target.closest('#compareFciSystemsDropdown') || target.closest('.map-school-select-panel'))) return;
           let hits = [];
           try {
             hits = map.queryRenderedFeatures(e.point, { layers: ['articulation-areas-fill'] }) || [];
@@ -5395,6 +5484,20 @@ map.on('load', () => {
         };
 
         let html = `<strong>${schoolName}</strong>`;
+
+        const totalEnr = parseFloat(feature?.properties?.['_TotalEnrollment']);
+        const pkEnr = parseFloat(feature?.properties?.['_PKEnrollment']);
+        if (Number.isFinite(totalEnr) || Number.isFinite(pkEnr)) {
+          const fmtN = (n) => (Number.isFinite(n) ? Math.round(n).toLocaleString() : '—');
+          if (Number.isFinite(pkEnr) && pkEnr > 0 && Number.isFinite(totalEnr)) {
+            const nonPK = Math.max(0, totalEnr - pkEnr);
+            html += `<br><span>Enrollment (excl. PK): ${fmtN(nonPK)}</span>`;
+            html += `<br><span>PK Enrollment: ${fmtN(pkEnr)}</span>`;
+            html += `<br><span>Total: ${fmtN(totalEnr)}</span>`;
+          } else if (Number.isFinite(totalEnr)) {
+            html += `<br><span>Enrollment: ${fmtN(totalEnr)}</span>`;
+          }
+        }
 
         if (capacity !== undefined && capacity !== null && capacity !== '') {
           html += `<br><span>Capacity: ${capacity}</span>`;
@@ -6671,12 +6774,16 @@ map.on('load', () => {
     const selected = getSelectedCompareCategoriesFromDom();
     window.__compareCategories = selected;
     try { updateArticulationAreaFciTable(); } catch {}
+    const areaName = window.__aaPopupAreaName;
     try {
-      if (window.__aaRefreshPopup) {
-        requestAnimationFrame(() => window.__aaRefreshPopup());
+      if (window.__aaRefreshPopupNow) {
+        requestAnimationFrame(() => window.__aaRefreshPopupNow(areaName));
+      } else if (window.__aaRefreshPopup) {
+        window.__aaRefreshPopup();
       }
     } catch {}
     try { window.__aaPopupDirty = true; } catch {}
+    try { window.dispatchEvent(new CustomEvent('aaPopupRefresh')); } catch {}
   };
   if (compareCategoryList) {
     compareCategoryList.querySelectorAll('input[data-compare-category]').forEach((cb) => {
@@ -6714,11 +6821,11 @@ map.on('load', () => {
       }
     } catch {}
     try {
-      if (window.__aaRefreshPopup) {
-        requestAnimationFrame(() => window.__aaRefreshPopup());
-      }
+      if (window.__aaRefreshPopupNow) requestAnimationFrame(() => window.__aaRefreshPopupNow(window.__aaPopupAreaName));
+      else if (window.__aaRefreshPopup) window.__aaRefreshPopup();
     } catch {}
     try { window.__aaPopupDirty = true; } catch {}
+    try { window.dispatchEvent(new CustomEvent('aaPopupRefresh')); } catch {}
   };
   if (compareFciSystemList) {
     compareFciSystemList.addEventListener('change', syncCompareFciSystems);
@@ -6766,9 +6873,12 @@ map.on('load', () => {
   try {
     if (!window.__aaPopupRefreshTimer) {
       window.__aaPopupRefreshTimer = setInterval(() => {
-        if (window.__aaPopupDirty && window.__aaRefreshPopup) {
+        if (window.__aaPopupDirty) {
           window.__aaPopupDirty = false;
-          try { window.__aaRefreshPopup(); } catch {}
+          try {
+            if (window.__aaRefreshPopupNow) window.__aaRefreshPopupNow();
+            else if (window.__aaRefreshPopup) window.__aaRefreshPopup();
+          } catch {}
         }
       }, 400);
     }
@@ -7283,12 +7393,22 @@ function injectDecisionsIntoGeoJSON(geojson, decisions, options = {}) {
   const scorecardMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["Scorecard"])]));
   const buildingQualityMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["BuildingTreshhold"])]));
   // Add a map for Utilization
-  const utilizationMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["Utilization"])]));
+  const getEff = window.getEffectiveEnrollment || (r => num(r["Enrollment"] ?? r[" Total Enrollment"] ?? r["Total Enrollment"]));
+  const getEffUtil = window.getEffectiveUtilization || (r => num(r["Utilization"]));
+  const utilizationMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), getEffUtil(row)]));
   const capacityMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["Capacity"])]));
   const availableSeatsMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["Available Seats"] ?? row["AvailableSeats"])]));
   const enrollmentMap = new Map(decisions.map(row => [
     normalizeName(row["Building Name"]),
+    getEff(row)
+  ]));
+  const totalEnrollmentMap = new Map(decisions.map(row => [
+    normalizeName(row["Building Name"]),
     num(row["Enrollment"] ?? row[" Total Enrollment"] ?? row["Total Enrollment"])
+  ]));
+  const pkEnrollmentMap = new Map(decisions.map(row => [
+    normalizeName(row["Building Name"]),
+    num(row["PKEnrollment"] ?? row["PK Enrollment"] ?? row["PK Enrollment "])
   ]));
   const schoolLevelMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), row["School Level"] || "Unknown"]));
   const flowMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), row["flow"] || 0]));
@@ -7375,6 +7495,10 @@ function injectDecisionsIntoGeoJSON(geojson, decisions, options = {}) {
     if (Number.isFinite(enrollmentVal)) {
       f.properties["Enrollment"] = enrollmentVal;
     }
+    const totalEnr = totalEnrollmentMap.get(name);
+    const pkEnr = pkEnrollmentMap.get(name);
+    if (Number.isFinite(totalEnr)) f.properties["_TotalEnrollment"] = totalEnr;
+    if (Number.isFinite(pkEnr)) f.properties["_PKEnrollment"] = pkEnr;
     f.properties["School Level"] = schoolLevelMap.get(name) || "Unknown";
     f.properties["flow"] = flowMap.get(name) || f.properties["flow"] || 0;
     f.properties["DistanceToWelcoming"] = distanceWelcomingMap.get(name) || null;
@@ -8517,6 +8641,8 @@ document.addEventListener("DOMContentLoaded", function() {
         console.warn("⚠️ DecisionLogic not ready, cannot send slider data.");
       }
 
+      window.sendSliderData = sendSliderData;
+
       // ✅ Update flowchart node labels with new threshold values
       if (typeof window.FlowUtils !== 'undefined' && typeof window.FlowUtils.updateNodeLabels === 'function') {
         console.log("🔄 Updating flowchart node labels with new thresholds");
@@ -8668,6 +8794,28 @@ document.addEventListener("DOMContentLoaded", function() {
       } else {
         console.warn("⚠️ Slider not found:", sliderIds[sliders.indexOf(slider)]);
       }
+    });
+
+    function syncPKToggleFromStorage() {
+      const inc = window.getIncludePKInEnrollment && window.getIncludePKInEnrollment();
+      [document.getElementById("includePKInEnrollmentToggle"), document.getElementById("step1IncludePKToggle")].forEach(el => {
+        if (el) el.checked = !!inc;
+      });
+      // Sync flowchart PK checkbox if it exists (dynamically created when school selected)
+      const flowchartPkCb = document.getElementById("flowchartIncludePKUtilization");
+      if (flowchartPkCb) flowchartPkCb.checked = !!inc;
+    }
+    window.syncPKToggleFromStorage = syncPKToggleFromStorage;
+    function onPKToggleChange(checked) {
+      if (window.setIncludePKInEnrollment) window.setIncludePKInEnrollment(checked);
+      syncPKToggleFromStorage();
+      sendSliderData();
+      if (typeof window.step1Rerender === "function") window.step1Rerender();
+    }
+    syncPKToggleFromStorage();
+    ["includePKInEnrollmentToggle", "step1IncludePKToggle"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("change", () => onPKToggleChange(el.checked));
     });
 
     // Set initial values on load
@@ -10242,7 +10390,7 @@ document.addEventListener('DOMContentLoaded', function() {
       
       if (isResizingRight) {
         const diff = startXRight - e.clientX; // Positive when dragging left (shrinking right sidebar)
-        const newWidth = Math.max(250, Math.min(window.innerWidth * 0.6, startWidthRight + diff));
+        const newWidth = Math.max(250, Math.min(window.innerWidth * 0.85, startWidthRight + diff));
         
         // Store current map state before resize (only once at start)
         if (!isResizingRight._mapState) {
@@ -10652,15 +10800,16 @@ if (typeof window.switchToMap !== 'function') {
     return `${pct.toFixed(d)}%`;
   }
 
-  function kpiTileHtml({ theme, label, value, sub }) {
+  function kpiTileHtml({ theme, label, value, sub, valueClass }) {
     const safeTheme = theme === 'green' ? 'green' : 'purple';
     const v = (value ?? '').toString().trim();
     const show = v ? htmlEscape(v) : '—';
     const subLine = (sub ?? '').toString().trim();
     const subHtml = subLine ? `<div class="sub">${htmlEscape(subLine)}</div>` : '';
+    const vCls = valueClass ? ` ${htmlEscape(valueClass)}` : '';
     return `<div class="step1-kpi-tile ${safeTheme}">
       <div class="label">${htmlEscape(label)}</div>
-      <div class="value">${show}</div>
+      <div class="value${vCls}">${show}</div>
       ${subHtml}
     </div>`;
   }
@@ -10705,12 +10854,9 @@ if (typeof window.switchToMap !== 'function') {
     const pk = parseNumber(pkRaw);
 
     // Enrollment tiles
-    // Attendance Area Enrollment + Growth live in the Enrollment section per request
-    const attAreaRaw = pickFirstNonEmpty(row, ['AttendanceAreaEnrollment', 'Attendance Area Enrollment', 'Attendance Area Enroll.']) || '';
-    const growthRaw = pickFirstNonEmpty(row, ['Future_EnrollmentGrowth', 'Future Enrollment Growth', 'Enrollment Growth']) || '';
-    const frlRaw = pickFirstNonEmpty(row, ['Free & Reduced Lunch %', 'Free Reduced Lunch', '% FRL', 'FRL', 'FRL %']) || '';
-    const growth = parseNumber(growthRaw);
-    const attArea = parseNumber(attAreaRaw);
+    // Attendance Area Enrollment + Growth live in the Enrollment section per request (PK-aware)
+    const effAttArea = window.getEffectiveAttendanceAreaEnrollment ? window.getEffectiveAttendanceAreaEnrollment(row) : null;
+    const effGrowth = window.getEffectiveEnrollmentGrowth ? window.getEffectiveEnrollmentGrowth(row) : null;
 
     // Render details table
     if (detailsTbody) {
@@ -10751,8 +10897,13 @@ if (typeof window.switchToMap !== 'function') {
     // Render building tiles
     if (buildingTiles) {
       const capStr = Number.isFinite(cap) ? fmtInt(cap) : (capRaw ? capRaw.toString().trim() : '—');
-      const utilStr = Number.isFinite(util) ? formatPctSmart(util, { assumeUnitIfSmall: true, decimals: 0 }) : '—';
-      const seatsStr = Number.isFinite(seats) ? fmtInt(seats) : (seatsRaw ? seatsRaw.toString().trim() : '—');
+      const effUtil = window.getEffectiveUtilization ? window.getEffectiveUtilization(row) : (Number.isFinite(util) ? util : null);
+      const utilStr = Number.isFinite(effUtil) ? formatPctSmart(effUtil, { assumeUnitIfSmall: true, decimals: 1 }) : (Number.isFinite(util) ? formatPctSmart(util, { assumeUnitIfSmall: true, decimals: 1 }) : '—');
+      const effEnrForSeats = window.getEffectiveEnrollment ? window.getEffectiveEnrollment(row) : enrollment;
+      const seatsComputed = Number.isFinite(cap) && Number.isFinite(effEnrForSeats)
+        ? Math.round(cap - effEnrForSeats)
+        : NaN;
+      const seatsStr = Number.isFinite(seatsComputed) ? fmtInt(seatsComputed) : (Number.isFinite(seats) ? fmtInt(seats) : (seatsRaw ? seatsRaw.toString().trim() : '—'));
       const bldgScoreStr = Number.isFinite(buildingScore0to10) ? `${buildingScore0to10.toFixed(2)}/10` : (buildingScoreRaw ? buildingScoreRaw.toString().trim() : '—');
       const eduAdeqStr = Number.isFinite(eduAdeq) ? formatPctSmart(eduAdeq, { assumeUnitIfSmall: true, decimals: 0 }) : (eduAdeqRaw ? eduAdeqRaw.toString().trim() : '—');
       const distStr = Number.isFinite(distance) ? `${distance.toFixed(1)} mi` : (distanceRaw ? distanceRaw.toString().trim() : '—');
@@ -10769,17 +10920,22 @@ if (typeof window.switchToMap !== 'function') {
       ].join('');
     }
 
-    // Render enrollment tiles
+    // Render enrollment tiles (Enrollment excl. PK, PK, Total)
     if (enrollmentTiles) {
-      const enrStr = Number.isFinite(enrollment) ? fmtInt(enrollment) : (enrollmentRaw ? enrollmentRaw.toString().trim() : '—');
-      const pkStr = Number.isFinite(pk) ? `Includes PK: ${fmtInt(pk)}` : (pkRaw ? `Includes PK: ${pkRaw.toString().trim()}` : '');
-      const attAreaStr = Number.isFinite(attArea) ? formatPctSmart(attArea, { assumeUnitIfSmall: true, decimals: 0 }) : (attAreaRaw ? attAreaRaw.toString().trim() : '—');
-      const growthStr = (Number.isFinite(growth) ? fmtGrowthPctSmart(growth) : (growthRaw ? growthRaw.toString().trim() : '—')) || '—';
+      const effEnr = window.getEffectiveEnrollment ? window.getEffectiveEnrollment(row) : enrollment;
+      const totalEnr = Number.isFinite(enrollment) ? enrollment : (Number.isFinite(effEnr) && Number.isFinite(pk) ? effEnr + pk : NaN);
+      const enrStr = Number.isFinite(effEnr) ? fmtInt(effEnr) : (enrollmentRaw ? enrollmentRaw.toString().trim() : '—');
+      const pkStr = Number.isFinite(pk) ? `${fmtInt(pk)} PK` : (pkRaw ? `${pkRaw.toString().trim()} PK` : '');
+      const totalStr = Number.isFinite(totalEnr) ? fmtInt(totalEnr) : '';
+      const attAreaStr = (effAttArea != null && Number.isFinite(effAttArea)) ? formatPctSmart(effAttArea, { assumeUnitIfSmall: true, decimals: 1 }) : '—';
+      const growthStr = (effGrowth != null && Number.isFinite(effGrowth)) ? fmtGrowthPctSmart(effGrowth) : '—';
+      const projEnr = window.getEffectiveProjectedEnrollment ? window.getEffectiveProjectedEnrollment(row) : null;
+      const growthSub = (projEnr != null && Number.isFinite(projEnr)) ? `Proj. 2030: ${fmtInt(projEnr)}` : '';
 
       enrollmentTiles.innerHTML = [
-        kpiTileHtml({ theme: 'green', label: 'Enrollment', value: enrStr, sub: pkStr }),
+        kpiTileHtml({ theme: 'green', label: 'Enrollment', value: enrStr, sub: pkStr ? `${pkStr} • Total: ${totalStr || enrStr}` : (totalStr ? `Total: ${totalStr}` : '') }),
         kpiTileHtml({ theme: 'green', label: 'Attendance Area Enrollment', value: attAreaStr }),
-        kpiTileHtml({ theme: 'green', label: 'Future Enrollment Growth', value: growthStr })
+        kpiTileHtml({ theme: 'green', label: 'Future Enrollment Growth (2030)', value: growthStr, sub: growthSub })
       ].join('');
     }
   }
@@ -10803,23 +10959,12 @@ if (typeof window.switchToMap !== 'function') {
     const name = getSchoolName(row) || 'Selected school';
     if (heading) heading.textContent = String(name);
 
-    function buildBadges(r, includeDecision) {
-      const status = r['Status'] || r['status'] || '';
-      const level = r['School Level'] || r['School level'] || r['SchoolLevel'] || '';
-      const includeFlow = r['Include_Flow_Chart'] || r['Include Flow Chart'] || '';
+    function buildBadges(r) {
+      const siteCap = r['SiteCapacity'] || r['Site Capacity'] || '';
       const decision = r['decision'] || r['Decision'] || '';
-      const flow = r['flow'] || r['Flow'] || '';
-
-      const statusNorm = norm(status);
-      const statusClass = statusNorm === 'active' ? 'good' : (statusNorm === 'closed' ? 'bad' : '');
-      const includeNorm = norm(includeFlow);
-
       const badges = [];
-      if (status) badges.push(`<span class="step1-badge ${statusClass}">${htmlEscape(status)}</span>`);
-      if (level) badges.push(`<span class="step1-badge">${htmlEscape(level)}</span>`);
-      if (includeFlow) badges.push(`<span class="step1-badge">${includeNorm === 'yes' ? 'Included in flowchart' : 'Not in flowchart'}</span>`);
-      if (includeDecision && decision) badges.push(`<span class="step1-badge">${htmlEscape(decision)}</span>`);
-      if (includeDecision && flow !== '' && flow !== null && typeof flow !== 'undefined') badges.push(`<span class="step1-badge">Flow ${htmlEscape(flow)}</span>`);
+      if (siteCap) badges.push(`<span class="step1-badge">${htmlEscape(`Site capacity: ${siteCap}`)}</span>`);
+      if (decision) badges.push(`<span class="step1-badge">${htmlEscape(decision)}</span>`);
       return badges.join('');
     }
 
@@ -10891,33 +11036,37 @@ if (typeof window.switchToMap !== 'function') {
 
     function buildCompareCard(r) {
       const schoolName = getSchoolName(r) || 'School';
-      const decision = r['decision'] || r['Decision'] || '';
-      const flow = r['flow'] || r['Flow'] || '';
-      const uid = r['UniqueID'] || r['Unique Id'] || '';
-      const siteCap = r['SiteCapacity'] || '';
-      const below50 = r['Below50PCTL_EA_Cat'] || '';
 
       const enrollment = parseNumber(r['Enrollment']);
-      const capacity = parseNumber(r['Capacity']);
-      const seats = parseNumber(r['Available Seats']);
+      const capacity = parseNumber(pickFirstNonEmpty(r, ['K-5 Capacity', 'K5 Capacity', 'Capacity']) || r['Capacity']);
+      const pk = parseNumber(pickFirstNonEmpty(r, ['PKEnrollment', 'PK Enrollment', 'PK Enrollment ']));
+      const effEnr = window.getEffectiveEnrollment ? window.getEffectiveEnrollment(r) : enrollment;
       const util = parseNumber(r['Utilization']);
       const buildingScore = coerceBuildingScore0to10(r['BuildingScore']);
       const eduAdeq = parseNumber(r['EducationalAdequacy']);
-      const attArea = parseNumber(r['AttendanceAreaEnrollment']);
-      const growth = parseNumber(r['Future_EnrollmentGrowth']);
+      const effAttArea = window.getEffectiveAttendanceAreaEnrollment ? window.getEffectiveAttendanceAreaEnrollment(r) : null;
+      const effGrowth = window.getEffectiveEnrollmentGrowth ? window.getEffectiveEnrollmentGrowth(r) : null;
+      const effProjEnr = window.getEffectiveProjectedEnrollment ? window.getEffectiveProjectedEnrollment(r) : null;
       const distance = parseNumber(r['DistanceUnderutilizedschools']);
 
+      const utilPct = Number.isFinite(effEnr) && Number.isFinite(capacity) && capacity > 0
+        ? (effEnr / capacity) * 100 : (Number.isFinite(util) ? util * 100 : null);
+      const seatsComputed = Number.isFinite(capacity) && Number.isFinite(effEnr)
+        ? Math.round(capacity - effEnr) : parseNumber(r['Available Seats']);
+      const totalEnr = Number.isFinite(enrollment) ? enrollment : (Number.isFinite(effEnr) && Number.isFinite(pk) ? effEnr + pk : NaN);
+      const enrSub = Number.isFinite(pk) ? `${fmtInt(pk)} PK${Number.isFinite(totalEnr) ? ` • Total: ${fmtInt(totalEnr)}` : ''}` : 'Students';
+
       const metrics = [];
-      if (Number.isFinite(util)) {
-        const pct = util * 100;
-        const color = pct >= 95 ? '#dc2626' : (pct >= 85 ? '#f59e0b' : '#16a34a');
-        metrics.push(metricRow({ label: 'Utilization', value: fmtPct(pct), sub: (Number.isFinite(enrollment) && Number.isFinite(capacity) && capacity > 0) ? `${fmtInt(enrollment)} / ${fmtInt(capacity)} students` : '', barW: pct, barC: color }));
+      if (Number.isFinite(utilPct)) {
+        const color = utilPct >= 95 ? '#dc2626' : (utilPct >= 85 ? '#f59e0b' : '#16a34a');
+        const utilSubText = (Number.isFinite(effEnr) && Number.isFinite(capacity) && capacity > 0) ? `${fmtInt(effEnr)} / ${fmtInt(capacity)} students` : '';
+        metrics.push(metricRow({ label: 'Utilization', value: fmtPct(utilPct), sub: utilSubText, barW: utilPct, barC: color }));
       } else {
         metrics.push(metricRow({ label: 'Utilization', value: '', sub: '', barW: null, barC: null }));
       }
-      metrics.push(metricRow({ label: 'Enrollment', value: Number.isFinite(enrollment) ? fmtInt(enrollment) : '', sub: 'Students', barW: null }));
+      metrics.push(metricRow({ label: 'Enrollment', value: Number.isFinite(effEnr) ? fmtInt(effEnr) : '', sub: enrSub, barW: null }));
       metrics.push(metricRow({ label: 'Capacity', value: Number.isFinite(capacity) ? fmtInt(capacity) : '', sub: 'Seats', barW: null }));
-      metrics.push(metricRow({ label: 'Available Seats', value: Number.isFinite(seats) ? fmtInt(seats) : '', sub: '', barW: null }));
+      metrics.push(metricRow({ label: 'Available Seats', value: Number.isFinite(seatsComputed) ? fmtInt(seatsComputed) : '', sub: '', barW: null }));
       if (Number.isFinite(buildingScore)) {
         const pct = clamp((buildingScore / 10) * 100, 0, 100);
         const color = pct >= 70 ? '#16a34a' : (pct >= 45 ? '#f59e0b' : '#dc2626');
@@ -10932,34 +11081,28 @@ if (typeof window.switchToMap !== 'function') {
       } else {
         metrics.push(metricRow({ label: 'Educational Adequacy', value: '', sub: '', barW: null }));
       }
-      if (Number.isFinite(attArea)) {
-        const pct = clamp(attArea, 0, 100);
+      if (effAttArea != null && Number.isFinite(effAttArea)) {
+        const pct = clamp((effAttArea <= 1.5 ? effAttArea * 100 : effAttArea), 0, 100);
         const color = pct >= 90 ? '#dc2626' : (pct >= 80 ? '#f59e0b' : '#16a34a');
         metrics.push(metricRow({ label: 'Attendance Area Enroll.', value: fmtPct(pct), sub: '', barW: pct, barC: color }));
       } else {
         metrics.push(metricRow({ label: 'Attendance Area Enroll.', value: '', sub: '', barW: null }));
       }
-      if (Number.isFinite(growth)) {
-        const pct = (growth >= -1 && growth <= 1) ? growth * 100 : growth;
+      if (effGrowth != null && Number.isFinite(effGrowth)) {
+        const pct = (effGrowth >= -1 && effGrowth <= 1) ? effGrowth * 100 : effGrowth;
         const color = pct >= 5 ? '#16a34a' : (pct <= -5 ? '#dc2626' : '#64748b');
-        metrics.push(metricRow({ label: 'Future Enrollment Growth', value: fmtPct(pct), sub: '', barW: clamp(Math.abs(pct), 0, 100), barC: color }));
+        const growthSub = (effProjEnr != null && Number.isFinite(effProjEnr)) ? `Proj. 2030: ${fmtInt(effProjEnr)}` : '';
+        metrics.push(metricRow({ label: 'Future Enrollment Growth (2030)', value: fmtPct(pct), sub: growthSub, barW: clamp(Math.abs(pct), 0, 100), barC: color }));
       } else {
-        metrics.push(metricRow({ label: 'Future Enrollment Growth', value: '', sub: '', barW: null }));
+        const growthSub = (effProjEnr != null && Number.isFinite(effProjEnr)) ? `Proj. 2030: ${fmtInt(effProjEnr)}` : '';
+        metrics.push(metricRow({ label: 'Future Enrollment Growth (2030)', value: '', sub: growthSub, barW: null }));
       }
       metrics.push(metricRow({ label: 'Distance to Underutilized', value: Number.isFinite(distance) ? `${distance.toFixed(1)} mi` : '', sub: '', barW: null }));
-
-      const keyMeta = [];
-      if (decision) keyMeta.push(`<span class="step1-badge">${htmlEscape(decision)}</span>`);
-      if (flow !== '' && flow !== null && typeof flow !== 'undefined') keyMeta.push(`<span class="step1-badge">Flow ${htmlEscape(flow)}</span>`);
-      if (uid) keyMeta.push(`<span class="step1-badge">${htmlEscape(uid)}</span>`);
-      if (siteCap) keyMeta.push(`<span class="step1-badge">${htmlEscape(`Site capacity: ${siteCap}`)}</span>`);
-      if (below50) keyMeta.push(`<span class="step1-badge">${htmlEscape(`Below 50th pct EA: ${below50}`)}</span>`);
 
       return `<div class="step1-card step1-compare-card">
         <div class="step1-compare-top">
           <div class="step1-compare-title">${htmlEscape(schoolName)}</div>
-          <div class="step1-compare-meta">${buildBadges(r, false)}</div>
-          ${keyMeta.length ? `<div class="step1-compare-meta">${keyMeta.join('')}</div>` : ``}
+          <div class="step1-compare-meta">${buildBadges(r)}</div>
         </div>
         <div class="step1-compare-body" style="margin-top:10px;">${metrics.filter(Boolean).join('')}</div>
       </div>`;
@@ -10973,7 +11116,7 @@ if (typeof window.switchToMap !== 'function') {
 
     // Badges for single view header
     if (badgesWrap) {
-      badgesWrap.innerHTML = isCompare ? '' : buildBadges(row, true);
+      badgesWrap.innerHTML = isCompare ? '' : buildBadges(row);
     }
 
     if (!isCompare) {
@@ -11066,6 +11209,7 @@ if (typeof window.switchToMap !== 'function') {
       const showEmpty = showEmptyCb ? !!showEmptyCb.checked : false;
       renderSchoolRow(row, filterText, showEmpty);
     }
+    window.step1Rerender = rerender;
 
     select.addEventListener('change', () => {
       // Clear filter each time user switches schools (keeps it simple)
@@ -11077,6 +11221,18 @@ if (typeof window.switchToMap !== 'function') {
     if (compareMode) compareMode.addEventListener('change', rerender);
     if (compare1) compare1.addEventListener('change', rerender);
     if (compare2) compare2.addEventListener('change', rerender);
+
+    const step1PkTogg = document.getElementById('step1IncludePKToggle');
+    if (step1PkTogg) {
+      step1PkTogg.checked = (window.getIncludePKInEnrollment && window.getIncludePKInEnrollment()) || false;
+      step1PkTogg.addEventListener('change', () => {
+        if (window.setIncludePKInEnrollment) window.setIncludePKInEnrollment(step1PkTogg.checked);
+        const flow1Togg = document.getElementById('includePKInEnrollmentToggle');
+        if (flow1Togg) flow1Togg.checked = step1PkTogg.checked;
+        if (typeof window.sendSliderData === 'function') window.sendSliderData();
+        rerender();
+      });
+    }
 
     if (openBtn) {
       openBtn.addEventListener('click', () => {

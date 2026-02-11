@@ -22,11 +22,11 @@
   <!-- ELK.js (graph layout engine) for flowchart auto-layout -->
   <script src="https://cdn.jsdelivr.net/npm/elkjs@0.11.0/lib/elk.bundled.js" defer></script>
   <!-- Cache-bust local scripts so GitHub Pages / browsers don't serve stale JS -->
-  <script src="DecisionLogic.js?v=20260129_1" defer></script>
+  <script src="DecisionLogic.js?v=20260210_7" defer></script>
   <script src="PrioritizationLogic.js?v=20251219_1" defer></script>
-  <script src="PrioritizationUI.js?v=20251219_1" defer></script>
+  <script src="PrioritizationUI.js?v=20260210_7" defer></script>
   <script src="FlowchartLogic.js?v=20260129_6" defer></script>
-  <script src="script.js?v=20260129_4" defer></script>
+  <script src="script.js?v=20260210_8" defer></script>
   
 
 
@@ -702,7 +702,7 @@
   flex: 0 0 clamp(280px, 28vw, 360px);
   flex-shrink: 0; /* Explicitly prevent shrinking */
   min-width: 240px;
-  max-width: 44%;
+  max-width: 85%; /* Allow resizer to expand panel for full visibility of Impact Analysis tables */
   display: flex; /* Use flexbox to manage child elements */
   flex-direction: column; /* Stack children vertically */
   justify-content: flex-start; /* keep content top-aligned */
@@ -1789,9 +1789,9 @@
       border-radius: 10px;
       color: #fff;
       box-shadow: 0 6px 14px rgba(0,0,0,0.14);
-      padding: 10px 12px 12px 12px;
+      padding: 10px 12px 10px 12px;
       min-height: 72px;
-      height: 92px; /* keep tile size consistent even when we add a small sub-line (e.g., PK enrollment) */
+      height: 96px; /* allow room for label + value + sub-line without cutoff */
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -1809,16 +1809,19 @@
       max-width: 100%;
     }
     .step1-kpi-tile .value {
-      margin-top: 8px;
+      margin-top: 4px;
       font-size: 32px;
-      font-weight: 1000;
-      line-height: 1;
+    }
+    .step1-kpi-tile .value.util-long {
+      font-size: 14px;
+      line-height: 1.25;
+      font-weight: 800;
     }
     .step1-kpi-tile .sub {
-      margin-top: 6px;
+      margin-top: 2px;
       font-size: 12px;
       font-weight: 900;
-      line-height: 1;
+      line-height: 1.1;
       opacity: 0.95;
       white-space: nowrap;
       overflow: hidden;
@@ -1834,7 +1837,7 @@
     }
     @media (max-width: 780px) {
       .step1-tile-grid { grid-template-columns: 1fr; }
-      .step1-kpi-tile { min-height: 70px; height: 92px; }
+      .step1-kpi-tile { min-height: 70px; height: 96px; }
     }
     .step1-footnote {
       font-size: 12px;
@@ -2186,9 +2189,7 @@
     }
     /* Floating Map Layers control (Google Maps style) */
     #mapLayersFloating {
-      position: fixed;
-      left: 16px;
-      bottom: 120px;
+      position: relative;
       z-index: 450;
     }
     #mapLayersFloating summary {
@@ -2210,7 +2211,11 @@
       display: none;
     }
     #mapLayersFloating .layers-panel {
-      margin-top: 8px;
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      margin-bottom: 8px;
+      margin-top: 0;
       background: #fff;
       border: 1px solid #e5e7eb;
       border-radius: 12px;
@@ -2778,6 +2783,15 @@
     #scenario-input-panel > summary, #scenario-output-panel > summary {
       background-color: #fef2f2; /* McKinsey Red Tint */
     }
+    /* Ensure Model Output: Impact Analysis tables can scroll and remain visible */
+    #scenario-output-panel .details-content-wrapper {
+      overflow-x: auto;
+      min-width: 0;
+    }
+    #prioritized-schools-table-container {
+      overflow-x: auto !important;
+      overflow-y: auto !important;
+    }
 
     /* Generic styles for all data tables */
     .data-table {
@@ -3196,8 +3210,12 @@
           <label>High Utilization Threshold: <span id="utilHighOut">90</span>%
             <input type="range" id="utilHighSlider" min="0" max="120" step="1" value="90" oninput="document.getElementById('utilHighOut').textContent = this.value">
           </label>
-          <label>Enrollment Growth Threshold: <span id="growthOut">0</span>%
-            <input type="range" id="growthSlider" min="-50" max="50" step="1" value="0" oninput="document.getElementById('growthOut').textContent = this.value">
+          <label>Enrollment Growth Threshold: <span id="growthOut">5</span>%
+            <input type="range" id="growthSlider" min="-50" max="50" step="1" value="5" oninput="document.getElementById('growthOut').textContent = this.value">
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+            <input type="checkbox" id="includePKInEnrollmentToggle" title="When checked, enrollment includes Pre-K; when unchecked, enrollment = total - PK">
+            <span>Include PK in enrollment</span>
           </label>
           
           <details class="flow-section" style="margin-bottom: 15px;">
@@ -3236,8 +3254,8 @@
           <label style="display: block; margin-bottom: 16px; font-weight: 500; color: #374151;">Composite Building Score: <span id="buildOut" style="font-weight: 600;">5</span>
             <input type="range" id="buildSlider" min="1" max="10" step="1" value="5">
           </label>
-          <label>Educational Adequacy: <span id="progOut">50</span>
-            <input type="range" id="progSlider" min="0" max="100" step="1" value="50">
+          <label>Educational Adequacy: <span id="progOut">80</span>
+            <input type="range" id="progSlider" min="0" max="100" step="1" value="80">
           </label>
         </div>
       </details>
@@ -3394,10 +3412,16 @@
           </div>
 
           <div id="step1CompareControls" style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-            <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#111827; font-weight:800;">
-              <input id="step1CompareMode" type="checkbox" />
-              <span>Compare schools</span>
-            </label>
+            <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+              <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#111827; font-weight:800;">
+                <input id="step1CompareMode" type="checkbox" />
+                <span>Compare schools</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#111827; font-weight:500;">
+                <input type="checkbox" id="step1IncludePKToggle" title="Include Pre-K in enrollment, utilization, and available seats">
+                <span>Include PK</span>
+              </label>
+            </div>
             <div id="step1CompareSelects" style="display:none; gap:10px; align-items:center; flex-wrap:wrap;">
               <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#111827;">
                 <span style="font-weight:800;">Compare to</span>
@@ -3468,39 +3492,6 @@
 
     <div id="map-container">
     <div id="map"></div>
-    <details id="mapLayersFloating">
-      <summary>
-        <span style="width:18px; height:18px; display:inline-block;">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            <path d="M12 3L2 9l10 6 10-6-10-6zm0 8.7L5.6 9 12 5.3 18.4 9 12 11.7zM2 13l10 6 10-6v3l-10 6-10-6v-3z" fill="#111827"></path>
-          </svg>
-        </span>
-        Layers
-      </summary>
-      <div class="layers-panel">
-        <div style="font-weight:900; font-size:13px; padding:4px 2px; color:#111827;">Map Base Layers</div>
-        <div style="padding: 8px 0 2px 0;">
-          <div class="filter-row map-style-row">
-            <span class="filter-label">Map Style</span>
-            <div class="map-style-toggle">
-              <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/light-v11" id="mapStyleLight"><span>Light</span></label>
-              <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/standard" id="mapStyleStandard"><span>Standard</span></label>
-              <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/standard-satellite" id="mapStyleSatellite"><span>Standard Satellite</span></label>
-            </div>
-          </div>
-          <div class="filter-row" style="align-items:flex-start; margin-top: 8px;">
-            <span class="filter-label">Map Labels</span>
-            <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
-              <div class="map-label-toggle" aria-label="Map label toggles">
-                <label><input type="checkbox" id="toggleRoadLabels" checked><span>Road labels</span></label>
-                <label><input type="checkbox" id="togglePlaceLabels" checked><span>Place labels</span></label>
-                <label><input type="checkbox" id="togglePoiLabels" checked><span>Points of Interest</span></label>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </details>
 
     <div id="map-legend" class="legend legend-collapsed">
       <div id="legend-toggle" class="legend-toggle">
@@ -3555,7 +3546,7 @@
               </div>
             </div>
             <div class="filter-row" style="align-items:flex-start;">
-              <span class="filter-label">Compare Categories</span>
+              <span class="filter-label">Compare Categories (Make Articulation Area Visible)</span>
               <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
                 <div id="compareCategoryList" style="display:flex; flex-wrap:wrap; gap:6px; font-size:11px;">
                   <label style="display:flex; align-items:center; gap:6px;">
@@ -3661,7 +3652,7 @@
 
     
     <!-- Map Controls -->
-    <div style="position: absolute; bottom: 16px; left: 16px; right: auto; z-index: 999; display: flex; flex-direction: column; gap: 8px; align-items: flex-start;">
+    <div style="position: absolute; bottom: 16px; left: 16px; right: auto; z-index: 999; display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px; align-items: center; align-content: flex-end;">
       <button id="fitToSchoolsBtn" aria-label="Fit to all schools" onclick="if(typeof window.fitMapToAllSchools === 'function') window.fitMapToAllSchools();" style="background: rgba(255,255,255,0.95); color: #111827; border: 1px solid rgba(0,0,0,0.12); border-radius: 10px; padding: 0; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 18px rgba(0,0,0,0.12); transition: background 0.2s;" onmouseover="this.style.background='#ffffff'" onmouseout="this.style.background='rgba(255,255,255,0.95)'">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M8 3H3v5"></path>
@@ -3674,6 +3665,39 @@
           <path d="M21 21l-7-7"></path>
         </svg>
       </button>
+      <details id="mapLayersFloating">
+        <summary>
+          <span style="width:18px; height:18px; display:inline-block;">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M12 3L2 9l10 6 10-6-10-6zm0 8.7L5.6 9 12 5.3 18.4 9 12 11.7zM2 13l10 6 10-6v3l-10 6-10-6v-3z" fill="#111827"></path>
+            </svg>
+          </span>
+          Layers
+        </summary>
+        <div class="layers-panel">
+          <div style="font-weight:900; font-size:13px; padding:4px 2px; color:#111827;">Map Base Layers</div>
+          <div style="padding: 8px 0 2px 0;">
+            <div class="filter-row map-style-row">
+              <span class="filter-label">Map Style</span>
+              <div class="map-style-toggle">
+                <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/light-v11" id="mapStyleLight"><span>Light</span></label>
+                <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/standard" id="mapStyleStandard"><span>Standard</span></label>
+                <label><input type="radio" name="mapStyle" value="mapbox://styles/mapbox/standard-satellite" id="mapStyleSatellite"><span>Standard Satellite</span></label>
+              </div>
+            </div>
+            <div class="filter-row" style="align-items:flex-start; margin-top: 8px;">
+              <span class="filter-label">Map Labels</span>
+              <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
+                <div class="map-label-toggle" aria-label="Map label toggles">
+                  <label><input type="checkbox" id="toggleRoadLabels" checked><span>Road labels</span></label>
+                  <label><input type="checkbox" id="togglePlaceLabels" checked><span>Place labels</span></label>
+                  <label><input type="checkbox" id="togglePoiLabels" checked><span>Points of Interest</span></label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </details>
       <div class="toggle-buttons map-flowchart-toggle" style="display:none;">
         <button id="toggleMapFlowchartMap" class="active" onclick="if(typeof window.switchToMap === 'function') window.switchToMap();">Show Map</button>
         <button id="toggleMapFlowchartFlowchart" onclick="console.log('Flowchart button clicked'); if(typeof window.switchToFlowchart === 'function') { console.log('Calling switchToFlowchart'); window.switchToFlowchart(); } else { console.error('switchToFlowchart not found'); }">Show Flowchart</button>
@@ -3844,18 +3868,6 @@
                   This table lists each school with its assigned decision type (strategy group) based on the Strategic Sorting thresholds. Schools are grouped by their decision outcome.
                 </span>
               </div>
-              <div style="position: relative; min-height: 40px;">
-                <details id="articulation-area-fci-details" open>
-                  <summary class="custom-summary" style="display:flex; align-items:center;">
-                    <strong>Articulation Area FCI Summary</strong>
-                  </summary>
-                  <div class="details-content-wrapper" style="padding: 0.5rem;">
-                    <div id="articulationAreaFciTable" style="padding: 0; min-height: 24px;">
-                      <div style="font-size:12px; color:#6b7280;">Loading articulation summary...</div>
-                    </div>
-                  </div>
-                </details>
-              </div>
             </div>
           </details>
           <details id="scenario-output-panel">
@@ -3881,8 +3893,8 @@
                         <h3>Strategy Candidate Groups</h3>
                         <p style="font-size: 0.9em; color: #666; margin-bottom: 1rem;">
                             This section allows you to prioritize schools within each strategy group based on customizable criteria. 
-                            Select a strategy group using the tabs below, then adjust the weight sliders to reflect your priorities. 
-                            Schools will be ranked based on your weighting, with higher priority schools appearing at the top of the list 
+                            Adjust the weight sliders to reflect your priorities. Use the Strategy Group and School filters in the table 
+                            to narrow the list. Schools will be ranked based on your weighting, with higher priority schools appearing at the top 
                             and as larger circles on the map.
                         </p>
                         
@@ -3895,7 +3907,7 @@
                         <div id="prioritization-weights-section" style="display: none;">
                             <!-- Prioritized Schools Table -->
                         <div id="prioritized-schools-section">
-                                <div id="prioritized-schools-table-container" style="max-height: 400px; overflow-y: auto;">
+                                <div id="prioritized-schools-table-container" style="max-height: 400px; overflow-y: auto; overflow-x: auto; min-width: 0;">
                                     <!-- Table will be dynamically generated -->
                                 </div>
                             </div>

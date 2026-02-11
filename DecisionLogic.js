@@ -7,14 +7,14 @@ window.decisionLogic = {
     enrollmentThreshold: 200,
     utilization: 0.60,
     utilizationHigh: 0.90,
-    enrollmentGrowth: 0,
+    enrollmentGrowth: 0.05,
     distanceUnderutilized: 3.5,
     siteCapacity: "Yes",
     buildingThreshold: 1.5,
     buildingThresholdAbove: 1.5,
     buildingThresholdBelow: 1.5,
     buildingThresholdFlow4: 1.5,
-    adequateProgramsMin: 50, // Changed to percentage (0-100)
+    adequateProgramsMin: 80, // Changed to percentage (0-100)
     attendanceAreaEnrollment: 80, // Percentage threshold for attendance area enrollment (0-100)
     distanceReceiving: 1.0,
     // Enrollment thresholds by school level
@@ -59,6 +59,39 @@ document.addEventListener("DOMContentLoaded", () => {
     const n = parseFloat((raw ?? "").toString().trim().replace(/,/g, ''));
     if (!isFinite(n)) return NaN;
     return n <= 1.5 ? n * 10 : n;
+  }
+
+  // Load Articulation Area from Map_Export.csv, keyed by Building Code (UniqueID) and Building Name.
+  function loadArticulationFromMapExport() {
+    return new Promise((resolve) => {
+      if (window.articulationFromMapExport && typeof window.articulationFromMapExport === "object") {
+        resolve(window.articulationFromMapExport);
+        return;
+      }
+      Papa.parse("./Map_Export.csv", {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          try {
+            const map = {};
+            (results.data || []).forEach((row) => {
+              const code = (row["Building Code"] || row.BuildingCode || "").toString().trim();
+              const name = (row["Building Name"] || row.BuildingName || "").toString().trim();
+              const art = (row["Articulation"] || row.Articulation || "").toString().trim();
+              if (code) map[code] = art;
+              if (name) map[name] = art;
+            });
+            window.articulationFromMapExport = map;
+            resolve(map);
+          } catch (e) {
+            console.warn("⚠️ Failed to load Articulation from Map_Export.csv:", e);
+            resolve({});
+          }
+        },
+        error: () => resolve({}),
+      });
+    });
   }
 
   // Load distance to welcoming schools from SchooltoSchoolDistances.csv,
@@ -171,10 +204,24 @@ document.addEventListener("DOMContentLoaded", () => {
     return null;
   }
 
+  function getEffectiveEnrollmentLocal(row) {
+    if (window.getEffectiveEnrollment) return window.getEffectiveEnrollment(row);
+    const e = parseFloat((row.Enrollment || '').toString().replace(/,/g, '').trim()) || 0;
+    const pk = parseFloat((row.PKEnrollment || row['PKEnrollment'] || row['PK Enrollment'] || '').toString().replace(/,/g, '').trim()) || 0;
+    const inc = (window.getIncludePKInEnrollment && window.getIncludePKInEnrollment());
+    return inc ? e : Math.max(0, e - pk);
+  }
+  function getEffectiveUtilizationLocal(row) {
+    if (window.getEffectiveUtilization) return window.getEffectiveUtilization(row);
+    const cap = parseFloat((row.Capacity || '').toString().replace(/,/g, '').trim()) || 0;
+    if (!cap || cap <= 0) return +row.Utilization || 0;
+    return getEffectiveEnrollmentLocal(row) / cap;
+  }
+
   // Helper function to determine enrollment decision based on school level
   function getEnrollmentDecision(row, t) {
-    const utilization = +row.Utilization;
-    const enrollment = parseFloat((row.Enrollment || '').toString().replace(/,/g, '').trim());
+    const utilization = getEffectiveUtilizationLocal(row);
+    const enrollment = getEffectiveEnrollmentLocal(row);
     let schoolLevelRaw = row["School Level"] || '';
     const schoolLevel = schoolLevelRaw.toLowerCase();
     let level = normalizeSchoolLevel(schoolLevelRaw);
@@ -227,7 +274,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const decisions = {
       // Flow 1 - Main Decision (F1_UTIL1 now includes enrollment logic)
       util1: getEnrollmentDecision(row, t),
-      util2: +row.Utilization > t.utilizationHigh ? "Yes" : "No",
+      util2: getEffectiveUtilizationLocal(row) > t.utilizationHigh ? "Yes" : "No",
       dist: (() => {
         let schoolLevelRaw = row["School Level"] || '';
         let level = normalizeSchoolLevel(schoolLevelRaw);
@@ -256,11 +303,17 @@ document.addEventListener("DOMContentLoaded", () => {
         
         return +row.DistanceUnderutilizedschools <= distanceThreshold ? "Yes" : "No";
       })(),
-      growth: +row["Future_EnrollmentGrowth"] > t.enrollmentGrowth ? "Yes" : "No",
+      growth: (() => {
+        const g = window.getEffectiveEnrollmentGrowth ? window.getEffectiveEnrollmentGrowth(row) : null;
+        const val = (g != null && Number.isFinite(g)) ? g : parseFloat(row["Future_EnrollmentGrowth"] ?? row["K+EnrollmentGrowth"] ?? 0);
+        return val > t.enrollmentGrowth ? "Yes" : "No";
+      })(),
       
       // Flow 2 - Building Addition
       attendance: (() => {
-        const attendanceAreaEnrollmentPct = coercePercent0to100(row.AttendanceAreaEnrollment);
+        const raw = window.getEffectiveAttendanceAreaEnrollment ? window.getEffectiveAttendanceAreaEnrollment(row) : null;
+        const val = (raw != null && Number.isFinite(raw)) ? raw : row.AttendanceAreaEnrollment;
+        const attendanceAreaEnrollmentPct = coercePercent0to100(val);
         return attendanceAreaEnrollmentPct >= t.attendanceAreaEnrollment ? "Yes" : "No";
       })(),
       edu2: (+row.EducationalAdequacy * 100) >= t.adequateProgramsMin ? "Yes" : "No",
@@ -313,10 +366,13 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log("📊 Decisions for", row["Building Name"], ":", decisions);
     console.log("📊 Raw data - Utilization:", row.Utilization, "BuildingScore:", row.BuildingScore, "EducationalAdequacy:", row.EducationalAdequacy);
     console.log("📊 Raw data - DistanceUnderutilizedschools:", row.DistanceUnderutilizedschools, "Growth:", row["Future_EnrollmentGrowth"]);
-    
+
+    const enrollment = getEffectiveEnrollmentLocal(row);
+    const enrollmentLow = Number.isFinite(enrollment) && enrollment <= 300;
+
     let currentFlow = 1;
     let finalDecision = "Unknown";
-    
+
     // FLOW 1 - Main Decision Tree (EXACTLY from FlowchartLogic.js)
     if (decisions.util1 === "Yes") {
       // School is below utilization OR enrollment threshold (or both)
@@ -343,7 +399,12 @@ document.addEventListener("DOMContentLoaded", () => {
         currentFlow = 3;
       }
     }
-    
+
+    // Override: even if enrollment growth is above threshold, if total enrollment <= 300, route to consolidation (Flow 4)
+    if ((currentFlow === 2 || currentFlow === 3) && enrollmentLow) {
+      currentFlow = 4;
+    }
+
     // FLOW 2 - Building Addition (EXACTLY from FlowchartLogic.js)
     if (currentFlow === 2) {
       if (decisions.attendance === "Yes") {
@@ -511,20 +572,20 @@ document.addEventListener("DOMContentLoaded", () => {
         decisionCounts[decision] = 1;
       }
 
-      const schoolName = row["Building Name"] || "";
-      const schoolType = row["School Level"] || "";
-      const articulationArea =
-        row["Articulation Area"] || row["ArticulationArea"] || "";
+      const schoolName = (row["Building Name"] || "").toString().replace(/"/g, "&quot;");
+      const schoolType = (row["School Level"] || "").toString().replace(/"/g, "&quot;");
+      const articulationArea = (
+        row["Articulation Area"] || row["ArticulationArea"] || ""
+      ).toString().replace(/"/g, "&quot;");
       const strategyGroup = getStrategyGroupForDecision(decision);
 
       return (
-        `<tr>` +
-        `<td class="text-center">${idx + 1}</td>` +
-        `<td class="truncate-cell" data-tooltip="${schoolName}">${schoolName}</td>` +
-        `<td class="truncate-cell" data-tooltip="${schoolType}">${schoolType}</td>` +
-        `<td class="truncate-cell" data-tooltip="${articulationArea}">${articulationArea || ""}</td>` +
-        `<td class="truncate-cell" data-tooltip="${strategyGroup}">${strategyGroup}</td>` +
-        `<td class="truncate-cell" data-tooltip="${decision}">${decision}</td>` +
+        `<tr data-row>` +
+        `<td class="truncate-cell" data-tooltip="${schoolName}" data-filter="col-0">${schoolName}</td>` +
+        `<td class="truncate-cell" data-tooltip="${schoolType}" data-filter="col-1">${schoolType}</td>` +
+        `<td class="truncate-cell" data-tooltip="${articulationArea}" data-filter="col-2">${articulationArea || ""}</td>` +
+        `<td class="truncate-cell" data-tooltip="${strategyGroup}" data-filter="col-3">${strategyGroup}</td>` +
+        `<td class="truncate-cell" data-tooltip="${decision}" data-filter="col-4">${decision}</td>` +
         `</tr>`
       );
     }).join("");
@@ -613,57 +674,69 @@ document.addEventListener("DOMContentLoaded", () => {
   
     resultsDiv.innerHTML = `
       <div class="decision-by-school-wrap">
-        <table class="data-table decision-by-school-head">
-          <colgroup>
-            <col style="width:8%">
-            <col style="width:26%">
-            <col style="width:16%">
-            <col style="width:18%">
-            <col style="width:16%">
-            <col style="width:16%">
-          </colgroup>
-          <thead>
-            <tr>
-              <th class="sortable-header text-center" data-column="0" data-type="number">Rank</th>
-              <th class="sortable-header" data-column="1" data-type="string">School Name</th>
-              <th class="sortable-header" data-column="2" data-type="string">School Type</th>
-              <th class="sortable-header" data-column="3" data-type="string">Articulation Area</th>
-              <th class="sortable-header" data-column="4" data-type="string">Strategy Group</th>
-              <th class="sortable-header" data-column="5" data-type="string">Project Type</th>
-            </tr>
-          </thead>
-        </table>
+        <div class="decision-by-school-toolbar" style="display:flex; justify-content:flex-end; padding:6px 8px; border-bottom:1px solid #e5e5e5; background:#fafafa;">
+          <button type="button" id="decisionBySchoolClearFiltersBtn" class="clear-filters-btn" style="padding:4px 10px; font-size:12px; border:1px solid #d1d5db; border-radius:6px; background:#fff; cursor:pointer; color:#374151;">Clear all filters</button>
+        </div>
         <div class="decision-by-school-scroll">
-          <table class="data-table decision-by-school-body">
+          <table class="data-table decision-by-school-table">
             <colgroup>
-              <col style="width:8%">
-              <col style="width:26%">
-              <col style="width:16%">
-              <col style="width:18%">
-              <col style="width:16%">
-              <col style="width:16%">
+              <col data-col="0" style="width:26%">
+              <col data-col="1" style="width:16%">
+              <col data-col="2" style="width:18%">
+              <col data-col="3" style="width:18%">
+              <col data-col="4" style="width:22%">
             </colgroup>
+            <thead>
+              <tr>
+                <th class="sortable-header filterable-header" data-column="0" data-type="string" title="School Name">
+                  <span class="th-inner"><span class="th-label">School Name</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>
+                  <div class="filter-dropdown" role="menu" aria-hidden="true"></div>
+                  <div class="col-resize-handle" data-col="0" title="Drag to resize column"></div>
+                </th>
+                <th class="sortable-header filterable-header" data-column="1" data-type="string" title="School Type">
+                  <span class="th-inner"><span class="th-label">School Type</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>
+                  <div class="filter-dropdown" role="menu" aria-hidden="true"></div>
+                  <div class="col-resize-handle" data-col="1" title="Drag to resize column"></div>
+                </th>
+                <th class="sortable-header filterable-header" data-column="2" data-type="string" title="Articulation Area">
+                  <span class="th-inner"><span class="th-label">Articulation Area</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>
+                  <div class="filter-dropdown" role="menu" aria-hidden="true"></div>
+                  <div class="col-resize-handle" data-col="2" title="Drag to resize column"></div>
+                </th>
+                <th class="sortable-header filterable-header" data-column="3" data-type="string" title="Strategy Group">
+                  <span class="th-inner"><span class="th-label">Strategy Group</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>
+                  <div class="filter-dropdown" role="menu" aria-hidden="true"></div>
+                  <div class="col-resize-handle" data-col="3" title="Drag to resize column"></div>
+                </th>
+                <th class="sortable-header filterable-header" data-column="4" data-type="string" title="Project Type">
+                  <span class="th-inner"><span class="th-label">Project Type</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>
+                  <div class="filter-dropdown" role="menu" aria-hidden="true"></div>
+                  <div class="col-resize-handle" data-col="4" title="Drag to resize column"></div>
+                </th>
+              </tr>
+            </thead>
             <tbody>${rows}</tbody>
           </table>
         </div>
       </div>`;
 
-    // Fixed header styling + header/body width sync
+    // Sticky header + filter styles
     injectDecisionBySchoolStickyStyles();
-    syncDecisionBySchoolHeaderWidth(resultsDiv);
+    setupDecisionBySchoolFilters(resultsDiv);
+    setupDecisionBySchoolResizableColumns(resultsDiv);
 
     // Export current "Decision by School" table to CSV (in current onscreen order)
     const exportBtn = document.getElementById('exportDecisionResultsCsvBtn');
     if (exportBtn) {
       exportBtn.onclick = function () {
         try {
-          const table = resultsDiv.querySelector('table.decision-by-school-body');
+          const table = resultsDiv.querySelector('table.decision-by-school-table');
           if (!table) return;
 
-          const headerCells = Array.from(resultsDiv.querySelectorAll('table.decision-by-school-head thead th'));
-          const headers = headerCells.length ? headerCells.map(th => (th.textContent || '').trim()) : [];
+          const headerCells = Array.from(table.querySelectorAll('thead th'));
+          const headers = headerCells.length ? headerCells.map(th => (th.querySelector('.th-label') || th).textContent.trim()) : [];
 
-          const bodyRows = Array.from(table.querySelectorAll('tbody tr'));
+          const bodyRows = Array.from(table.querySelectorAll('tbody tr')).filter(tr => !tr.classList.contains('filter-hidden'));
           const rowsOut = bodyRows.map(tr => {
             const cells = Array.from(tr.querySelectorAll('td')).map(td => (td.textContent || '').trim());
             return cells;
@@ -753,51 +826,378 @@ document.addEventListener("DOMContentLoaded", () => {
     style.id = 'decision-by-school-sticky-styles';
     style.textContent = `
       .decision-by-school-wrap {
-        --sbw: 0px;
-      }
-      .decision-by-school-head {
-        width: calc(100% - var(--sbw));
         border: 1px solid #e5e5e5;
-        border-bottom: 0;
-        border-radius: 6px 6px 0 0;
-        background: #f5f5f5;
-        table-layout: fixed;
-      }
-      .decision-by-school-head th {
-        background: #f5f5f5;
+        border-radius: 6px;
+        background: #fff;
+        overflow: hidden;
       }
       .decision-by-school-scroll {
         max-height: 420px;
         overflow: auto;
-        border: 1px solid #e5e5e5;
-        border-top: 0;
-        border-radius: 0 0 6px 6px;
-        background: #fff;
       }
-      .decision-by-school-body {
+      .decision-by-school-table {
         width: 100%;
         table-layout: fixed;
+        border-collapse: collapse;
       }
-      /* Prevent the body table from re-introducing a header */
-      .decision-by-school-body thead { display: none; }
+      .decision-by-school-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: #f5f5f5;
+        box-shadow: 0 1px 0 #e5e5e5;
+        padding: 6px 4px;
+        white-space: nowrap;
+      }
+      .decision-by-school-table thead th .th-inner {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        max-width: 100%;
+        overflow: hidden;
+      }
+      .decision-by-school-table .th-label {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .decision-by-school-table .filter-btn {
+        flex-shrink: 0;
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        border: 1px solid #d1d5db;
+        border-radius: 3px;
+        background: #fff;
+        color: #6b7280;
+        font-size: 9px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .decision-by-school-table .filter-btn:hover,
+      .decision-by-school-table .filter-btn.filter-active {
+        background: #007cbf;
+        color: #fff;
+        border-color: #007cbf;
+      }
+      .decision-by-school-table .filter-clear-col {
+        flex-shrink: 0;
+        width: 18px;
+        height: 18px;
+        padding: 0;
+        border: 1px solid #d1d5db;
+        border-radius: 3px;
+        background: #fff;
+        color: #6b7280;
+        font-size: 14px;
+        line-height: 1;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .decision-by-school-table .filter-clear-col:hover {
+        background: #fef2f2;
+        color: #b91c1c;
+        border-color: #b91c1c;
+      }
+      .decision-by-school-table .filter-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        min-width: 180px;
+        max-height: 220px;
+        background: #fff;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        padding: 4px 6px;
+        margin-top: 2px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+      }
+      .decision-by-school-table .filter-dropdown.is-open {
+        display: block;
+      }
+      .decision-by-school-table .filter-dropdown input[type="search"] {
+        width: 100%;
+        padding: 4px 6px;
+        margin-bottom: 4px;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        font-size: 12px;
+        box-sizing: border-box;
+      }
+      .decision-by-school-table .filter-dropdown label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0;
+        margin: 0;
+        font-size: 12px;
+        cursor: pointer;
+        line-height: 1.25;
+      }
+      .decision-by-school-table .filter-dropdown label:hover {
+        background: #f3f4f6;
+      }
+      .decision-by-school-table .filter-dropdown .filter-options {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+      .decision-by-school-table tr.filter-hidden {
+        display: none;
+      }
+      .decision-by-school-table .col-resize-handle {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 6px;
+        height: 100%;
+        cursor: col-resize;
+        z-index: 5;
+        background: transparent;
+      }
+      .decision-by-school-table .col-resize-handle:hover {
+        background: rgba(0, 124, 191, 0.15);
+      }
+      .decision-by-school-table .col-resize-handle.col-resizing {
+        background: rgba(0, 124, 191, 0.3);
+      }
     `;
     document.head.appendChild(style);
   }
 
-  function syncDecisionBySchoolHeaderWidth(resultsRoot) {
-    try {
-      const wrap = resultsRoot && resultsRoot.querySelector('.decision-by-school-wrap');
-      const scroller = resultsRoot && resultsRoot.querySelector('.decision-by-school-scroll');
-      if (!wrap || !scroller) return;
-      const syncOnce = () => {
-        const sbw = scroller.offsetWidth - scroller.clientWidth;
-        wrap.style.setProperty('--sbw', (sbw > 0 ? sbw : 0) + 'px');
+  function setupDecisionBySchoolResizableColumns(resultsRoot) {
+    const table = resultsRoot && resultsRoot.querySelector('table.decision-by-school-table');
+    if (!table) return;
+
+    const colgroup = table.querySelector('colgroup');
+    if (!colgroup) return;
+
+    const cols = Array.from(colgroup.querySelectorAll('col'));
+    const headers = Array.from(table.querySelectorAll('thead th'));
+
+    headers.forEach((th, colIndex) => {
+      const handle = th.querySelector('.col-resize-handle');
+      const col = cols[colIndex];
+      if (!handle || !col) return;
+
+      handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const startX = e.clientX;
+        const startWidth = th.offsetWidth;
+
+        const onMouseMove = (moveE) => {
+          const dx = moveE.clientX - startX;
+          const newWidth = Math.max(40, startWidth + dx);
+          col.style.width = newWidth + 'px';
+          col.style.minWidth = newWidth + 'px';
+          handle.classList.add('col-resizing');
+        };
+
+        const onMouseUp = () => {
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          handle.classList.remove('col-resizing');
+        };
+
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      });
+    });
+  }
+
+  function setupDecisionBySchoolFilters(resultsRoot) {
+    const table = resultsRoot && resultsRoot.querySelector('table.decision-by-school-table');
+    if (!table) return;
+
+    const tbody = table.querySelector('tbody');
+    const headers = Array.from(table.querySelectorAll('thead th.filterable-header'));
+    const cache = (window.__decisionBySchoolFilterValuesCache = window.__decisionBySchoolFilterValuesCache || {});
+
+    headers.forEach((th, colIndex) => {
+      const filterBtn = th.querySelector('.filter-btn');
+      const filterDropdown = th.querySelector('.filter-dropdown');
+      if (!filterBtn || !filterDropdown) return;
+
+      th.style.position = 'relative';
+
+      const getUniqueValues = () => {
+        const values = new Set();
+        tbody.querySelectorAll('tr[data-row]').forEach(tr => {
+          const cell = tr.querySelector(`td[data-filter="col-${colIndex}"]`);
+          if (cell) {
+            const v = (cell.textContent || '').trim();
+            values.add(v || '(blank)');
+          }
+        });
+        const arr = Array.from(values).sort((a, b) => String(a).localeCompare(String(b)));
+        if (arr.length > 0) cache[colIndex] = arr;
+        return arr;
       };
-      requestAnimationFrame(syncOnce);
-      setTimeout(syncOnce, 0);
-      window.addEventListener('resize', syncOnce, { passive: true });
-    } catch (e) {
-      // ignore
+      getUniqueValues();
+
+      const populateDropdown = () => {
+        let values = cache[colIndex];
+        if (!values || values.length === 0) {
+          values = getUniqueValues();
+        }
+        if (!values || values.length === 0) return;
+        filterDropdown.innerHTML = `
+          <div style="margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid #eee;">
+            <label class="filter-select-all-row" style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px;">
+              <input type="checkbox" class="filter-select-all-cb" checked>
+              <span>(Select All)</span>
+            </label>
+          </div>
+          <input type="search" placeholder="Search..." class="filter-search" aria-label="Search filter values" style="margin-bottom:4px;">
+          <div class="filter-options">
+            ${values.map(v => {
+              const escaped = String(v).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+              return `<label><input type="checkbox" value="${escaped}" class="filter-option"> ${escaped}</label>`;
+            }).join('')}
+          </div>
+        `;
+
+        const selected = (window.__decisionBySchoolFilters || {})[colIndex] ?? null;
+        const selectAllCb = filterDropdown.querySelector('.filter-select-all-cb');
+        const opts = filterDropdown.querySelectorAll('.filter-option');
+
+        opts.forEach(cb => {
+          if (selected === null || (Array.isArray(selected) && selected.includes(cb.value))) {
+            cb.checked = true;
+          }
+        });
+
+        const updateSelectAllState = () => {
+          const checked = Array.from(opts).filter(cb => cb.checked).length;
+          if (selectAllCb) {
+            selectAllCb.checked = checked === opts.length;
+            selectAllCb.indeterminate = checked > 0 && checked < opts.length;
+          }
+        };
+        updateSelectAllState();
+
+        selectAllCb?.addEventListener('change', () => {
+          const check = selectAllCb.checked;
+          opts.forEach(cb => { cb.checked = check; });
+          applyFilters();
+        });
+
+        const searchInput = filterDropdown.querySelector('.filter-search');
+        if (searchInput) {
+          searchInput.oninput = () => {
+            const q = searchInput.value.toLowerCase();
+            filterDropdown.querySelectorAll('.filter-options label').forEach(label => {
+              const text = (label.textContent || '').toLowerCase();
+              label.style.display = q && !text.includes(q) ? 'none' : 'flex';
+            });
+          };
+        }
+
+        opts.forEach(cb => {
+          cb.addEventListener('change', () => {
+            updateSelectAllState();
+            applyFilters();
+          });
+        });
+      };
+
+      filterDropdown.addEventListener('click', (e) => e.stopPropagation());
+
+      const clearColBtn = th.querySelector('.filter-clear-col');
+      if (clearColBtn) {
+        clearColBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const filterState = window.__decisionBySchoolFilters || (window.__decisionBySchoolFilters = {});
+          filterState[colIndex] = null;
+          const dd = th.querySelector('.filter-dropdown');
+          const opts = dd?.querySelectorAll('.filter-option');
+          const selectAllCb = dd?.querySelector('.filter-select-all-cb');
+          if (opts?.length) {
+            opts.forEach(cb => { cb.checked = true; });
+            if (selectAllCb) selectAllCb.checked = true;
+            if (selectAllCb) selectAllCb.indeterminate = false;
+          }
+          applyFilters();
+        });
+      }
+
+      const applyFilters = () => {
+        const filterState = window.__decisionBySchoolFilters || (window.__decisionBySchoolFilters = {});
+        const selectedByCol = {};
+        headers.forEach((h, i) => {
+          const dd = h.querySelector('.filter-dropdown');
+          if (!dd) return;
+          const opts = dd.querySelectorAll('.filter-option');
+          if (opts.length === 0) return;
+          const checked = Array.from(opts).filter(cb => cb.checked).map(cb => cb.value);
+          selectedByCol[i] = checked.length === opts.length ? null : checked;
+        });
+
+        Object.assign(filterState, selectedByCol);
+
+        tbody.querySelectorAll('tr[data-row]').forEach(tr => {
+          let show = true;
+          headers.forEach((h, i) => {
+            const sel = selectedByCol[i];
+            if (sel === null || sel === undefined) return;
+            if (sel.length === 0) { show = false; return; }
+            const cell = tr.querySelector(`td[data-filter="col-${i}"]`);
+            const raw = (cell ? cell.textContent : '').trim();
+            const val = raw || '(blank)';
+            if (!sel.includes(val)) show = false;
+          });
+          tr.classList.toggle('filter-hidden', !show);
+        });
+
+        const vals = getUniqueValues();
+        const sel = selectedByCol[colIndex];
+        filterBtn.classList.toggle('filter-active', !!(sel !== null && sel !== undefined && sel.length < vals.length));
+      };
+
+      filterBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const isOpen = filterDropdown.classList.contains('is-open');
+        table.querySelectorAll('.filter-dropdown.is-open').forEach(d => d.classList.remove('is-open'));
+        if (!isOpen) {
+          populateDropdown();
+          filterDropdown.classList.add('is-open');
+        }
+      });
+    });
+
+    if (!document._decisionBySchoolFilterClickOutside) {
+      document._decisionBySchoolFilterClickOutside = true;
+      document.addEventListener('click', (e) => {
+        if (e.target && e.target.closest && (e.target.closest('.filter-dropdown') || e.target.closest('.filter-btn') || e.target.closest('.filter-clear-col'))) return;
+        document.querySelectorAll('.filter-dropdown.is-open').forEach(d => d.classList.remove('is-open'));
+      });
+    }
+
+    const clearBtn = resultsRoot.querySelector('#decisionBySchoolClearFiltersBtn');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        window.__decisionBySchoolFilters = {};
+        table.querySelectorAll('.filter-dropdown.is-open').forEach(d => d.classList.remove('is-open'));
+        tbody.querySelectorAll('tr[data-row]').forEach(tr => tr.classList.remove('filter-hidden'));
+        headers.forEach((h) => {
+          const btn = h.querySelector('.filter-btn');
+          if (btn) btn.classList.remove('filter-active');
+        });
+      });
     }
   }
 
@@ -829,31 +1229,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function makeTablesSortable() {
     document.querySelectorAll('.sortable-header').forEach(header => {
-        header.addEventListener('click', () => {
+        header.addEventListener('click', (e) => {
+            if (e.target && (e.target.classList.contains('filter-btn') || e.target.closest('.filter-dropdown'))) return;
             const table = header.closest('table');
-            // Support the split Decision-by-School table (fixed header + scrolling body)
-            const tbody = table && table.classList.contains('decision-by-school-head')
-              ? (table.parentElement && table.parentElement.querySelector('.decision-by-school-body tbody'))
-              : table.querySelector('tbody');
+            const tbody = table ? table.querySelector('tbody') : null;
+            if (!tbody) return;
             const columnIndex = parseInt(header.dataset.column, 10);
             const dataType = header.dataset.type;
             const isAsc = header.classList.contains('sort-asc');
             const newDir = isAsc ? 'desc' : 'asc';
 
-            // Clear sort markers on both header + body header tables if present
-            if (table && table.classList.contains('decision-by-school-head')) {
-              table.parentElement.querySelectorAll('.sortable-header').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
-            } else {
-              table.querySelectorAll('.sortable-header').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
-            }
-
+            table.querySelectorAll('.sortable-header').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
             header.classList.add(newDir === 'asc' ? 'sort-asc' : 'sort-desc');
 
-            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const rows = Array.from(tbody.querySelectorAll('tr[data-row]'));
 
             rows.sort((rowA, rowB) => {
-                let valA = rowA.querySelectorAll('td')[columnIndex].textContent.trim();
-                let valB = rowB.querySelectorAll('td')[columnIndex].textContent.trim();
+                const cellA = rowA.querySelector(`td[data-filter="col-${columnIndex}"]`);
+                const cellB = rowB.querySelector(`td[data-filter="col-${columnIndex}"]`);
+                let valA = (cellA ? cellA.textContent : '').trim();
+                let valB = (cellB ? cellB.textContent : '').trim();
 
                 if (dataType === 'number') {
                     valA = parseFloat(valA) || 0;
@@ -902,8 +1297,21 @@ document.addEventListener("DOMContentLoaded", () => {
             row.BuildingScore = bs.toFixed(2);
           });
 
-          // Join in distance-to-welcoming values from SchooltoSchoolDistances.csv
-          loadDistanceToWelcomingMap().then((distanceMap) => {
+          // Load Articulation Area from Map_Export.csv and distance-to-welcoming, then apply both
+          Promise.all([
+            loadArticulationFromMapExport(),
+            loadDistanceToWelcomingMap()
+          ]).then(([articulationByKey, distanceMap]) => {
+            if (articulationByKey && typeof articulationByKey === "object") {
+              self.schoolData.forEach((row) => {
+                const uid = (row.UniqueID || row["UniqueID"] || row["Unique Id"] || "").toString().trim();
+                const name = (row["Building Name"] || "").toString().trim();
+                const val = articulationByKey[uid] ?? articulationByKey[name] ?? "";
+                row["Articulation Area"] = val;
+                row.ArticulationArea = val;
+              });
+              console.log("✅ Applied Articulation Area from Map_Export.csv");
+            }
             if (distanceMap && typeof distanceMap === "object") {
               self.schoolData.forEach((row) => {
                 const uniqueId = row.UniqueID || row["UniqueID"] || row["Unique Id"];

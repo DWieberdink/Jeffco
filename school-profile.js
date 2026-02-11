@@ -10,6 +10,7 @@
   const ASSETS_CSV_PATH = "JeffCoProjectListAllSchools.csv";
   const DECISION_CSV_PATH = "Decision Data Export.csv";
   const UNITCOST_LIBRARY_CSV_PATH = "UnitCostLibrary.csv";
+  const ROOM_SCHEDULE_CSV_PATH = "Jeffco Room Schedule.csv";
   // Bump this to force browsers to refetch CSV/JS.
   const CACHE_BUST = "20260127_23";
   const PRIORITY_OVERRIDES_STORAGE_KEY = "jeffco_priority_overrides_assetid_v1";
@@ -74,20 +75,22 @@
   let unitCostIndex = new Map();
   let unitCostByProjectKey = new Map();
   let libraryProjectOrder = []; // [{ proj, pk, sys }]
+  let roomScheduleByUid = new Map();
+  let roomScheduleByFacility = new Map();
 
   // Flowchart decision evaluation (mirrors DecisionLogic.js, but scoped to this page)
   const DECISION_THRESHOLDS = {
     enrollmentThreshold: 200,
     utilization: 0.60,
     utilizationHigh: 0.90,
-    enrollmentGrowth: 0,
+    enrollmentGrowth: 0.05,
     distanceUnderutilized: 3.5,
     siteCapacity: "Yes",
     buildingThreshold: 1.5,
     buildingThresholdAbove: 1.5,
     buildingThresholdBelow: 1.5,
     buildingThresholdFlow4: 1.5,
-    adequateProgramsMin: 50,
+    adequateProgramsMin: 80,
     attendanceAreaEnrollment: 80,
     distanceReceiving: 1.0,
     elementaryEnrollment: 220,
@@ -118,6 +121,27 @@
     return loadThresholdsFromStorage() || DECISION_THRESHOLDS;
   }
 
+  const PK_ENROLLMENT_KEY = "jeffco_include_pk_enrollment_v1";
+  function getIncludePKInEnrollment() {
+    try { return (window.localStorage && window.localStorage.getItem(PK_ENROLLMENT_KEY)) === "true"; } catch { return false; }
+  }
+  function setIncludePKInEnrollment(v) {
+    try { if (window.localStorage) window.localStorage.setItem(PK_ENROLLMENT_KEY, v ? "true" : "false"); } catch {}
+  }
+  function getEffectiveEnrollment(row) {
+    if (!row) return 0;
+    const inc = getIncludePKInEnrollment();
+    const e = parseFloat((row.Enrollment ?? row.enrollment ?? "").toString().replace(/,/g, "").trim()) || 0;
+    const pk = parseFloat((row.PKEnrollment ?? row["PKEnrollment"] ?? row["PK Enrollment"] ?? "").toString().replace(/,/g, "").trim()) || 0;
+    return inc ? e : Math.max(0, e - pk);
+  }
+  function getEffectiveUtilization(row) {
+    if (!row) return 0;
+    const cap = parseFloat((row.Capacity ?? row.capacity ?? "").toString().replace(/,/g, "").trim()) || 0;
+    if (!cap || cap <= 0) return parseFloat((row.Utilization ?? "").toString()) || 0;
+    return getEffectiveEnrollment(row) / cap;
+  }
+
   function coercePercent0to100(raw) {
     const n = parseFloat((raw ?? "").toString().trim());
     if (!Number.isFinite(n)) return 0;
@@ -143,8 +167,8 @@
   }
 
   function getEnrollmentDecision(row, t) {
-    const utilization = Number(row?.Utilization);
-    const enrollment = parseFloat((row?.Enrollment ?? "").toString().replace(/,/g, "").trim());
+    const utilization = getEffectiveUtilization(row);
+    const enrollment = getEffectiveEnrollment(row);
     const schoolLevelRaw = row?.["School Level"] ?? row?.SchoolLevel ?? "";
     let level = normalizeSchoolLevel(schoolLevelRaw);
     if (!level && (row?.["Building Name"] || row?.BuildingName)) {
@@ -166,7 +190,7 @@
 
   function evaluateSchoolDecision(row, t = DECISION_THRESHOLDS) {
     if (!row) return "Unknown";
-    const util = Number(row.Utilization);
+    const util = getEffectiveUtilization(row);
     const util2 = Number.isFinite(util) && util > t.utilizationHigh ? "Yes" : "No";
 
     // dist threshold depends on level (infer if needed)
@@ -344,6 +368,139 @@
     return normKeyLoose(s)
       .replace(/\s*\/\s*/g, "/")
       .replace(/_+\d+\b/g, "");
+  }
+
+  function normalizeFacilityName(raw) {
+    let s = norm(raw);
+    if (!s) return "";
+    // Split CamelCase (e.g., AdamsES -> Adams ES)
+    s = s.replace(/([a-z])([A-Z])/g, "$1 $2");
+    // Normalize common grade shorthand so "K8" -> "K 8", etc.
+    s = s.replace(/\b(K|PK)(\d)/gi, "$1 $2");
+    s = s.replace(/\b(K)-(\d)/gi, "$1 $2");
+    return normName(s);
+  }
+
+  function normalizeRoomCategory(raw) {
+    return normKeyLoose(raw).replace(/\s*\/\s*/g, "/").replace(/\s+/g, " ").trim().toLowerCase();
+  }
+
+  const ROOM_SCHEDULE_CATEGORY_BY_PROJECT_KEY = new Map([
+    [normProjectKey("Heavily modernize admin"), normalizeRoomCategory("modernize admin")],
+    [normProjectKey("Lightly modernize admin"), normalizeRoomCategory("modernize admin")],
+    [normProjectKey("Heavily modernize cafeteria"), normalizeRoomCategory("modernize cafeteria")],
+    [normProjectKey("Lightly modernize cafeteria"), normalizeRoomCategory("modernize cafeteria")],
+    [normProjectKey("Heavily modernize classrooms"), normalizeRoomCategory("modernize classrooms")],
+    [normProjectKey("Lightly modernize classrooms"), normalizeRoomCategory("modernize classrooms")],
+    [normProjectKey("Lightly modernize corridors"), normalizeRoomCategory("modernize corridors")],
+    [normProjectKey("Heavily modernize gym / assembly space"), normalizeRoomCategory("modernize gym / assembly space")],
+    [normProjectKey("Lightly modernize gym / assembly space"), normalizeRoomCategory("modernize gym / assembly space")],
+    [normProjectKey("Modernize kitchen"), normalizeRoomCategory("modernize kitchen")],
+    [normProjectKey("Heavily modernize MPR"), normalizeRoomCategory("modernize MPR")],
+    [normProjectKey("Lightly modernize MPR"), normalizeRoomCategory("modernize MPR")],
+    [normProjectKey("Lightly modernize library/media center"), normalizeRoomCategory("modernize library/media center")],
+    [normProjectKey("Heavily modernize restrooms"), normalizeRoomCategory("modernize restrooms")],
+    [
+      normProjectKey("Heavily modernize STEM / CTE / specialized labs (MS/HS)"),
+      normalizeRoomCategory("modernize STEM / CTE / specialized labs (MS/HS)"),
+    ],
+    [
+      normProjectKey("Heavily modernize STEM/specialized labs (ES)"),
+      normalizeRoomCategory("modernize STEM/specialized labs (ES)"),
+    ],
+  ]);
+
+  function findRoomScheduleKey(keys, matcher) {
+    return keys.find((k) => matcher.test(norm(k).toLowerCase())) || "";
+  }
+
+  function getRoomScheduleFieldValue(row, key) {
+    if (!row || !key) return "";
+    const direct = row[key];
+    if (direct !== undefined) return direct;
+    return getRowFieldInsensitive(row, key);
+  }
+
+  function buildRoomScheduleIndex(rows) {
+    const sample = (rows || []).find((r) => r && Object.keys(r).length) || {};
+    const keys = Object.keys(sample || {});
+    const facilityKey = findRoomScheduleKey(keys, /facility\s*name/i);
+    const campusKey = findRoomScheduleKey(keys, /campus\s*code/i);
+    const areaKey = findRoomScheduleKey(keys, /^area$/i) || findRoomScheduleKey(keys, /\barea\b/i);
+    const categoryKey =
+      findRoomScheduleKey(keys, /cost\s*estimate|costestimate|cost\s*link|category|project/i) ||
+      findRoomScheduleKey(keys, /costestimate/i);
+    return { facilityKey, campusKey, areaKey, categoryKey };
+  }
+
+  function buildRoomScheduleTotals(rows) {
+    const idx = buildRoomScheduleIndex(rows);
+    if (!idx.areaKey || !idx.categoryKey) {
+      console.warn("Room schedule CSV missing expected headers.", idx);
+      return { byUid: new Map(), byFacility: new Map() };
+    }
+
+    const byUid = new Map();
+    const byFacility = new Map();
+    (rows || []).forEach((r) => {
+      const categoryRaw = norm(getRoomScheduleFieldValue(r, idx.categoryKey));
+      if (!categoryRaw) return;
+      const area = parseNumberMaybe(getRoomScheduleFieldValue(r, idx.areaKey));
+      if (area === null) return;
+
+      const categoryKey = normalizeRoomCategory(categoryRaw);
+      if (!categoryKey) return;
+
+      const uid = idx.campusKey ? norm(getRoomScheduleFieldValue(r, idx.campusKey)) : "";
+      if (uid) {
+        let catMap = byUid.get(uid);
+        if (!catMap) {
+          catMap = new Map();
+          byUid.set(uid, catMap);
+        }
+        catMap.set(categoryKey, (catMap.get(categoryKey) || 0) + area);
+      }
+
+      const facilityRaw = idx.facilityKey ? norm(getRoomScheduleFieldValue(r, idx.facilityKey)) : "";
+      const facilityKey = normalizeFacilityName(facilityRaw);
+      if (facilityKey) {
+        let facMap = byFacility.get(facilityKey);
+        if (!facMap) {
+          facMap = new Map();
+          byFacility.set(facilityKey, facMap);
+        }
+        facMap.set(categoryKey, (facMap.get(categoryKey) || 0) + area);
+      }
+    });
+
+    return { byUid, byFacility };
+  }
+
+  function applyRoomScheduleUnitValues(rows, uid, pivotRow, decisionRow) {
+    if (!rows || !rows.length) return;
+    let catMap = uid ? roomScheduleByUid.get(uid) : null;
+    if (!catMap && pivotRow) {
+      const aeName = normalizeFacilityName(pivotRow?.AE_SchoolName ?? pivotRow?.["AE_SchoolName"]);
+      const schoolName = normalizeFacilityName(pivotRow?.SchoolName ?? pivotRow?.["SchoolName"]);
+      catMap = (aeName && roomScheduleByFacility.get(aeName)) || (schoolName && roomScheduleByFacility.get(schoolName)) || null;
+    }
+    if (!catMap && decisionRow) {
+      const buildingName = normalizeFacilityName(decisionRow?.["Building Name"] ?? decisionRow?.BuildingName ?? "");
+      catMap = buildingName ? roomScheduleByFacility.get(buildingName) : null;
+    }
+    if (!catMap) return;
+
+    rows.forEach((r) => {
+      const project = norm(r?.AssetType);
+      if (!project) return;
+      const pk = normProjectKey(project);
+      const categoryKey = ROOM_SCHEDULE_CATEGORY_BY_PROJECT_KEY.get(pk);
+      if (!categoryKey) return;
+      const sum = catMap.get(categoryKey);
+      if (sum == null) return;
+      const rounded = Math.round(sum);
+      r.UnitValue = Number.isFinite(rounded) ? rounded.toLocaleString() : r.UnitValue;
+    });
   }
 
   function buildPivotValueMaps(pivotRow) {
@@ -743,11 +900,11 @@
         const n = Number(s);
         return Number.isFinite(n) ? n : null;
       };
-      const availableSeats = parseNum(decision["Available Seats"] ?? decision.AvailableSeats);
-      const enrollment = parseNum(decision.Enrollment);
+      const enrollment = getEffectiveEnrollment(decision);
       const capacity = parseNum(decision.Capacity);
+      const availableSeats = capacity !== null && Number.isFinite(enrollment) ? capacity - enrollment : parseNum(decision["Available Seats"] ?? decision.AvailableSeats);
       const overBySeats = availableSeats !== null ? Math.max(0, -availableSeats) : null;
-      const overByCap = enrollment !== null && capacity !== null ? Math.max(0, enrollment - capacity) : null;
+      const overByCap = Number.isFinite(enrollment) && capacity !== null ? Math.max(0, enrollment - capacity) : null;
       const studentsOver = overBySeats !== null ? overBySeats : (overByCap !== null ? overByCap : 0);
 
       // Determine school type bucket for planning target
@@ -774,7 +931,8 @@
     if (status) metaBits.push(`Status: ${status}`);
     if (level) metaBits.push(`Level: ${level}`);
     if (cap) metaBits.push(`Capacity: ${cap}`);
-    if (enr) metaBits.push(`Enrollment: ${enr}`);
+    const enrEff = getEffectiveEnrollment(decision);
+    if (Number.isFinite(enrEff) || enr) metaBits.push(`Enrollment: ${Number.isFinite(enrEff) ? enrEff.toLocaleString() : enr}${!getIncludePKInEnrollment() && norm(decision?.PKEnrollment) ? ` (excl. PK: ${norm(decision.PKEnrollment)})` : ""}`);
     if (sqf) metaBits.push(`SQF: ${sqf}`);
     if (resolvedDecisionOutcome) metaBits.push(`Decision: ${resolvedDecisionOutcome}`);
     elSchoolMeta.textContent = metaBits.join(" • ");
@@ -782,6 +940,7 @@
     // Resolve the pivot row (one row per school), then rebuild per-project rows.
     const pivotRow = getPivotRowForSelection(resolvedUniqueId, resolvedSchoolName);
     schoolRows = buildRowsFromPivot(pivotRow);
+    applyRoomScheduleUnitValues(schoolRows, resolvedUniqueId, pivotRow, decision);
 
     // Derive UnitValue + ReplacementCost.
     // Rule:
@@ -1770,20 +1929,24 @@
     selectedSchoolNameFromQuery = school ? school : "";
     selectedUniqueIdFromQuery = uid ? uid : "";
 
-    elSchoolMeta.textContent = `Loading school summary (${DECISION_CSV_PATH}), projects (${ASSETS_CSV_PATH}), and unit cost library (${UNITCOST_LIBRARY_CSV_PATH})…`;
+    elSchoolMeta.textContent = `Loading school summary (${DECISION_CSV_PATH}), projects (${ASSETS_CSV_PATH}), unit cost library (${UNITCOST_LIBRARY_CSV_PATH}), and room schedule (${ROOM_SCHEDULE_CSV_PATH})…`;
     elDownload.disabled = true;
 
     Promise.all([
       parseCsv(DECISION_CSV_PATH),
       parseCsv(ASSETS_CSV_PATH),
       parseCsv(UNITCOST_LIBRARY_CSV_PATH).catch(() => []),
+      parseCsv(ROOM_SCHEDULE_CSV_PATH).catch(() => []),
     ])
-      .then(([decRows, assetRows, unitCostLibRows]) => {
+      .then(([decRows, assetRows, unitCostLibRows, roomScheduleRows]) => {
         decisionRows = decRows || [];
         buildDecisionIndexes(decisionRows);
 
         unitCostIndex = buildUnitCostLibraryIndex(unitCostLibRows || []);
         // In pivot mode, we don't mutate the assets file; we rebuild row-wise records per school using the library.
+        const roomTotals = buildRoomScheduleTotals(roomScheduleRows || []);
+        roomScheduleByUid = roomTotals.byUid || new Map();
+        roomScheduleByFacility = roomTotals.byFacility || new Map();
 
         const COLUMNS_TO_REMOVE = new Set([
           "AssetID",
@@ -1870,6 +2033,15 @@
             const r = selectedUid ? decisionByUid.get(selectedUid) : null;
             const nm = norm(r?.["Building Name"]) || "";
             if (selectedUid) setSelectedSchool(selectedUid, nm);
+          });
+        }
+
+        const pkToggle = document.getElementById("includePKInEnrollmentToggle");
+        if (pkToggle) {
+          pkToggle.checked = getIncludePKInEnrollment();
+          pkToggle.addEventListener("change", () => {
+            setIncludePKInEnrollment(pkToggle.checked);
+            if (resolvedUniqueId) setSelectedSchool(resolvedUniqueId, resolvedSchoolName);
           });
         }
 

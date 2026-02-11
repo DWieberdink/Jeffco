@@ -44,6 +44,7 @@ window.prioritizationUI = {
   },
 
   // Render main strategy group selector (multi-select dropdown with checkboxes, like School Type)
+  // Groups are now always shown combined; Strategy Group and School filter columns in the table are used to filter.
   renderStrategyGroupTabs: function () {
     const tabsContainer = document.getElementById("strategy-group-tabs");
     if (!tabsContainer) {
@@ -52,370 +53,22 @@ window.prioritizationUI = {
     }
 
     tabsContainer.innerHTML = "";
+    tabsContainer.style.display = "none";
 
     if (!window.prioritizationLogic || !window.prioritizationLogic.getAvailableStrategyGroups) {
       console.warn("⚠️ prioritizationLogic.getAvailableStrategyGroups not available");
       return;
     }
 
-    const rawGroups = window.prioritizationLogic.getAvailableStrategyGroups();
-    // "Other" should not be user-selectable in Step 2.
-    const availableGroups = Array.isArray(rawGroups)
-      ? rawGroups.filter((g) => g && g.name !== "Other" && (!g.config || g.config.id !== "other"))
-      : [];
-
-    if (!availableGroups || availableGroups.length === 0) {
-      tabsContainer.innerHTML =
-        '<p style="color: #888; padding: 1rem;">No strategy groups available. Please run the decision evaluation first.</p>';
-      return;
-    }
-
-    // Wrapper styled like School Type dropdown
-    const wrapper = document.createElement("div");
-    wrapper.className = "filter-dropdown";
-    wrapper.style.maxWidth = "260px";
-
-    const toggleBtn = document.createElement("button");
-    toggleBtn.id = "strategy-group-toggle";
-    toggleBtn.className = "compact-btn";
-    toggleBtn.type = "button";
-    toggleBtn.style.display = "flex";
-    toggleBtn.style.alignItems = "center";
-    toggleBtn.style.justifyContent = "space-between";
-    toggleBtn.style.width = "100%";
-
-    const labelSpan = document.createElement("span");
-    labelSpan.id = "strategy-group-label";
-    labelSpan.textContent = "Select groups";
-
-    const chevron = document.createElement("span");
-    chevron.className = "chevron";
-    chevron.textContent = "▾";
-
-    toggleBtn.appendChild(labelSpan);
-    toggleBtn.appendChild(chevron);
-
-    const menu = document.createElement("div");
-    menu.id = "strategy-group-menu";
-    menu.className = "filter-dropdown-menu";
-
-    const self = this;
-    const initialSelectionRaw =
-      Array.isArray(this.currentStrategyGroups) && this.currentStrategyGroups.length > 0
-        ? this.currentStrategyGroups
-        : ["__ALL_EXP_MAINT__"];
-    // Never show/select "Other" in the group selector
-    const initialSelection = initialSelectionRaw.filter((v) => v !== "Other");
-
-    // Keep dropdown open when interacting inside
-    menu.addEventListener("click", function (e) {
-      e.stopPropagation();
-    });
-
-    // Resolve group names for the combined selector
-    const resolveGroups = function (names) {
-      if (names.includes("__ALL_EXP_MAINT__")) {
-        return ["Expansion", "Maintenance/Investment"];
-      }
-      return names;
-    };
-
-    // Build an outcome list (with counts) for ONE group or a combined group.
-    const getOutcomeOptionsForGroupKey = function (groupKey) {
-      const groupsToUse = groupKey === "__ALL_EXP_MAINT__"
-        ? ["Expansion", "Maintenance/Investment"]
-        : [groupKey];
-
-      const countMap = {};
-      const ordered = [];
-      groupsToUse.forEach((gName) => {
-        const list =
-          (window.prioritizationLogic && window.prioritizationLogic.getOutcomeSummaryForStrategy)
-            ? (window.prioritizationLogic.getOutcomeSummaryForStrategy(gName) || [])
-            : [];
-        list.forEach((entry) => {
-          const o = entry && entry.outcome;
-          if (!o) return;
-          if (o === "Other / Unknown") return;
-          if (!countMap.hasOwnProperty(o)) ordered.push(o);
-          countMap[o] = (countMap[o] || 0) + (entry.count || 0);
-        });
-      });
-      return ordered.map((o) => ({ outcome: o, count: countMap[o] || 0 }));
-    };
-
-    // Cursor-style separate flyout panel (appended to body)
-    const isTouch = () => {
-      try {
-        return (
-          (window.matchMedia && window.matchMedia("(hover: none)").matches) ||
-          ("ontouchstart" in window)
-        );
-      } catch (e) {
-        return false;
-      }
-    };
-
-    const ensureFlyoutStyle = () => {
-      if (self._outcomeFlyoutStyleInjected) return;
-      const style = document.createElement("style");
-      style.id = "ps-group-outcome-flyout-style";
-      style.textContent =
-        ".ps-group-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}" +
-        ".ps-group-row .ps-group-left{display:flex;align-items:center;gap:8px;min-width:0;}" +
-        ".ps-group-row .ps-group-arrow{margin-left:auto;color:#6b7280;font-size:12px;cursor:pointer;padding:2px 4px;border-radius:4px;}" +
-        ".ps-group-row .ps-group-arrow:hover{background:#eef2f7;color:#111;}" +
-        ".ps-group-flyout{position:fixed;min-width:320px;max-width:420px;max-height:380px;overflow:auto;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 14px 36px rgba(0,0,0,0.22);padding:10px;z-index:5000;display:none;}" +
-        ".ps-group-flyout .title{font-size:13px;font-weight:800;color:#111827;margin:2px 0 6px 0;}" +
-        ".ps-group-flyout .hint{font-size:11px;color:#6b7280;margin:0 0 10px 0;line-height:1.3;}" +
-        ".ps-group-flyout label{display:flex;align-items:center;gap:8px;padding:6px 6px;border-radius:8px;cursor:pointer;font-size:13px;color:#111827;}" +
-        ".ps-group-flyout label:hover{background:#f3f4f6;}" +
-        ".ps-group-flyout input[type=checkbox]{width:14px;height:14px;}";
-      document.head.appendChild(style);
-      self._outcomeFlyoutStyleInjected = true;
-    };
-
-    const ensureFlyoutEl = () => {
-      ensureFlyoutStyle();
-      let el = document.getElementById("psGroupOutcomeFlyout");
-      if (el) return el;
-      el = document.createElement("div");
-      el.id = "psGroupOutcomeFlyout";
-      el.className = "ps-group-flyout";
-      el.addEventListener("click", (e) => e.stopPropagation());
-      document.body.appendChild(el);
-      return el;
-    };
-
-    let flyoutCloseTimer = null;
-    const closeFlyout = () => {
-      const el = document.getElementById("psGroupOutcomeFlyout");
-      if (!el) return;
-      el.style.display = "none";
-      el.dataset.groupKey = "";
-    };
-    const scheduleCloseFlyout = () => {
-      if (flyoutCloseTimer) clearTimeout(flyoutCloseTimer);
-      flyoutCloseTimer = setTimeout(() => closeFlyout(), 140);
-    };
-    const cancelCloseFlyout = () => {
-      if (flyoutCloseTimer) clearTimeout(flyoutCloseTimer);
-      flyoutCloseTimer = null;
-    };
-
-    const openFlyoutForGroup = (anchorEl, groupKey, groupLabel) => {
-      cancelCloseFlyout();
-      const flyout = ensureFlyoutEl();
-      flyout.innerHTML = "";
-
-      const title = document.createElement("div");
-      title.className = "title";
-      title.textContent = `${groupLabel}: Outcomes`;
-
-      const hint = document.createElement("div");
-      hint.className = "hint";
-      hint.textContent =
-        "Select outcomes to filter the prioritized list for this group. Leave all unchecked to include the whole group.";
-
-      flyout.appendChild(title);
-      flyout.appendChild(hint);
-
-      const options = getOutcomeOptionsForGroupKey(groupKey);
-      const selected = Array.isArray(self.outcomeFiltersByGroup[groupKey])
-        ? self.outcomeFiltersByGroup[groupKey]
-        : [];
-
-      options.forEach((entry) => {
-        const lbl = document.createElement("label");
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.value = entry.outcome;
-        cb.checked = selected.includes(entry.outcome);
-        cb.addEventListener("change", () => {
-          const checked = Array.from(flyout.querySelectorAll('input[type="checkbox"]:checked')).map(
-            (n) => n.value
-          );
-          self.outcomeFiltersByGroup[groupKey] = checked.length ? checked : null;
-          // Keep the main dropdown label explicit about the difference
-          updateLabel(self.currentStrategyGroups);
-          // Fluid interactivity
-          self.renderPrioritizedSchools(self.currentStrategyGroups);
-          self.updateMapVisualization(self.currentStrategyGroups);
-        });
-
-        lbl.appendChild(cb);
-        lbl.appendChild(
-          document.createTextNode(
-            typeof entry.count === "number" ? `${entry.outcome} (${entry.count})` : entry.outcome
-          )
-        );
-        flyout.appendChild(lbl);
-      });
-
-      // Position like Cursor: separate popup next to the dropdown
-      flyout.style.display = "block";
-      flyout.dataset.groupKey = groupKey;
-
-      const a = anchorEl.getBoundingClientRect();
-      const flyRect = flyout.getBoundingClientRect();
-
-      let left = a.right + 10;
-      let top = a.top - 8;
-      if (left + flyRect.width > window.innerWidth - 8) {
-        left = a.left - flyRect.width - 10;
-      }
-      left = Math.max(8, Math.min(left, window.innerWidth - flyRect.width - 8));
-      top = Math.max(8, Math.min(top, window.innerHeight - flyRect.height - 8));
-
-      flyout.style.left = left + "px";
-      flyout.style.top = top + "px";
-    };
-
-    const addOption = function (value, text) {
-      const lbl = document.createElement("label");
-      // Wrap content so we can place an arrow on the right (Cursor-style)
-      const row = document.createElement("div");
-      row.className = "ps-group-row";
-      const left = document.createElement("div");
-      left.className = "ps-group-left";
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.value = value;
-      cb.checked = initialSelection.includes(value);
-      cb.addEventListener("change", function () {
-        let selected = Array.from(menu.querySelectorAll("input[type=checkbox]:checked")).map((n) =>
-          n.value
-        );
-
-        if (this.value === "__ALL_EXP_MAINT__" && this.checked) {
-          // If "All" selected, turn off others
-          Array.from(menu.querySelectorAll('input[type=checkbox]')).forEach((n) => {
-            if (n.value !== "__ALL_EXP_MAINT__") n.checked = false;
-          });
-          selected = ["__ALL_EXP_MAINT__"];
-        } else if (this.value !== "__ALL_EXP_MAINT__") {
-          // If any specific selected, uncheck All
-          const allCb = menu.querySelector('input[value="__ALL_EXP_MAINT__"]');
-          if (allCb) allCb.checked = false;
-          selected = selected.filter((v) => v !== "__ALL_EXP_MAINT__");
-          if (selected.length === 0) {
-            // keep at least one by falling back to All
-            if (allCb) allCb.checked = true;
-            selected = ["__ALL_EXP_MAINT__"];
-          }
-        }
-
-        self.selectStrategyGroup(selected);
-        // When groups change, clear outcome filters for groups that are no longer selected.
-        // Special case: "__ALL_EXP_MAINT__" implies Expansion + Maintenance/Investment are in scope,
-        // so keep their filters too (even if their checkboxes are not selected).
-        const stillSelected = new Set(selected);
-        if (stillSelected.has("__ALL_EXP_MAINT__")) {
-          stillSelected.add("Expansion");
-          stillSelected.add("Maintenance/Investment");
-        }
-        Object.keys(self.outcomeFiltersByGroup || {}).forEach((k) => {
-          if (!stillSelected.has(k)) delete self.outcomeFiltersByGroup[k];
-        });
-        updateLabel(selected);
-      });
-      left.appendChild(cb);
-      left.appendChild(document.createTextNode(text));
-
-      const arrow = document.createElement("span");
-      arrow.className = "ps-group-arrow";
-      arrow.textContent = "▸";
-      arrow.title = "Filter outcomes…";
-      arrow.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        openFlyoutForGroup(arrow, value, text);
-      });
-      arrow.addEventListener("mouseenter", () => {
-        if (!isTouch()) openFlyoutForGroup(arrow, value, text);
-      });
-      arrow.addEventListener("mouseleave", () => {
-        if (!isTouch()) scheduleCloseFlyout();
-      });
-
-      row.appendChild(left);
-      row.appendChild(arrow);
-      lbl.appendChild(row);
-      menu.appendChild(lbl);
-    };
-
-    addOption("__ALL_EXP_MAINT__", "All Expansion + Maintenance");
-    availableGroups.forEach((group, index) => {
-      addOption(group.name, `${index + 1}: ${group.name}`);
-    });
-
-    const updateLabel = function (vals) {
-      const selected = vals && vals.length ? vals : ["__ALL_EXP_MAINT__"];
-      const activeGroups = selected;
-      let totalSelectedOutcomes = 0;
-      const groupsToCount = new Set(activeGroups || []);
-      if (groupsToCount.has("__ALL_EXP_MAINT__")) {
-        // Also count per-group filters applied while in combined view
-        groupsToCount.add("Expansion");
-        groupsToCount.add("Maintenance/Investment");
-      }
-      Array.from(groupsToCount).forEach((g) => {
-        const arr = self.outcomeFiltersByGroup ? self.outcomeFiltersByGroup[g] : null;
-        if (Array.isArray(arr)) totalSelectedOutcomes += arr.length;
-      });
-      const outcomeSuffix = totalSelectedOutcomes
-        ? ` (filtered: ${totalSelectedOutcomes} outcome${totalSelectedOutcomes === 1 ? "" : "s"})`
-        : "";
-
-      if (selected.length === 1) {
-        const val = selected[0];
-        if (val === "__ALL_EXP_MAINT__") {
-          labelSpan.textContent = "All Expansion + Maintenance" + outcomeSuffix;
-        } else {
-          labelSpan.textContent = val + outcomeSuffix;
-        }
-      } else {
-        labelSpan.textContent = `${selected.length} groups` + outcomeSuffix;
-      }
-    };
-    updateLabel(initialSelection);
-
-    toggleBtn.addEventListener("click", function (e) {
-      e.stopPropagation();
-      menu.style.display = menu.style.display === "block" ? "none" : "block";
-      if (menu.style.display !== "block") closeFlyout();
-    });
-    document.addEventListener("click", function (e) {
-      if (!menu || !toggleBtn) return;
-      const fly = document.getElementById("psGroupOutcomeFlyout");
-      const t = e && e.target;
-      if (menu.contains(t) || toggleBtn.contains(t) || (fly && fly.contains(t))) return;
-      menu.style.display = "none";
-      closeFlyout();
-    });
-
-    // Keep flyout open while hovering it (desktop)
-    const fly = ensureFlyoutEl();
-    fly.addEventListener("mouseenter", () => {
-      if (!isTouch()) cancelCloseFlyout();
-    });
-    fly.addEventListener("mouseleave", () => {
-      if (!isTouch()) scheduleCloseFlyout();
-    });
-
-    wrapper.appendChild(toggleBtn);
-    wrapper.appendChild(menu);
-    tabsContainer.appendChild(wrapper);
-
-    // Ensure some group is selected
-    this.selectStrategyGroup(initialSelection);
+    this.currentStrategyGroups = ["__ALL__"];
+    this.selectStrategyGroup(["__ALL__"]);
   },
 
   // Select strategy group(s)
   selectStrategyGroup: function (groupNames) {
     const namesArrayRaw = Array.isArray(groupNames) ? groupNames : [groupNames].filter(Boolean);
     const namesArray = namesArrayRaw.filter((n) => n !== "Other");
-    this.currentStrategyGroups = namesArray.length ? namesArray : ["__ALL_EXP_MAINT__"];
+    this.currentStrategyGroups = namesArray.length ? namesArray : ["__ALL__"];
     // NOTE: Do not always reset outcome filters here; the integrated dropdown controls them.
     // We only clear them when group selection changes (handled in renderStrategyGroupTabs).
 
@@ -528,9 +181,9 @@ window.prioritizationUI = {
       ? strategyGroupNames
       : [strategyGroupNames].filter(Boolean);
     const primaryGroup =
-      groupNames.find((g) => g !== "__ALL_EXP_MAINT__") || "Expansion";
+      groupNames.find((g) => g !== "__ALL_EXP_MAINT__" && g !== "__ALL__") || "Expansion";
     const isCombined =
-      groupNames.length > 1 || groupNames.includes("__ALL_EXP_MAINT__");
+      groupNames.length > 1 || groupNames.includes("__ALL_EXP_MAINT__") || groupNames.includes("__ALL__");
 
     // For the combined view, use Expansion as the base profile for
     // reading current/default weights, but we will WRITE to BOTH
@@ -615,10 +268,15 @@ window.prioritizationUI = {
     if (leftPanel) {
       // Optional context message when viewing the combined group
       if (isCombined) {
+        const showAll = groupNames.includes("__ALL__");
+        const msg = showAll
+          ? 'These weights apply to <strong>Expansion</strong> and <strong>Maintenance/Investment</strong>. ' +
+            '<strong>Closure/Consolidation</strong> schools use their own scoring criteria. Use the Strategy Group filter in the table to narrow the list.'
+          : 'These weights are shared between <strong>Expansion</strong> and <strong>Maintenance/Investment</strong>. ' +
+            'Adjusting a slider here (or in either individual tab) updates both strategy groups.';
         leftPanel.innerHTML =
           '<p style="text-align:left; color:#555; font-size:0.85em; line-height:1.4; padding:0.25rem 0 0.75rem 0;">' +
-          'These weights are shared between <strong>Expansion</strong> and <strong>Maintenance/Investment</strong>. ' +
-          'Adjusting a slider here (or in either individual tab) updates both strategy groups.' +
+          msg +
           "</p>" +
           slidersHTML;
       } else {
@@ -726,9 +384,8 @@ window.prioritizationUI = {
 
     const pl = window.prioritizationLogic;
     const resolveGroups = function (names) {
-      if (names.includes("__ALL_EXP_MAINT__")) {
-        return ["Expansion", "Maintenance/Investment"];
-      }
+      if (names.includes("__ALL__")) return ["Expansion", "Maintenance/Investment", "Closure/Consolidation"];
+      if (names.includes("__ALL_EXP_MAINT__")) return ["Expansion", "Maintenance/Investment"];
       return names;
     };
 
@@ -872,9 +529,8 @@ window.prioritizationUI = {
     const outcomeFiltersByGroup = this.outcomeFiltersByGroup || {};
 
     const resolveGroups = function (names) {
-      if (names.includes("__ALL_EXP_MAINT__")) {
-        return ["Expansion", "Maintenance/Investment"];
-      }
+      if (names.includes("__ALL__")) return ["Expansion", "Maintenance/Investment", "Closure/Consolidation"];
+      if (names.includes("__ALL_EXP_MAINT__")) return ["Expansion", "Maintenance/Investment"];
       return names;
     };
 
@@ -887,20 +543,21 @@ window.prioritizationUI = {
       : window.prioritizationLogic.rankSchools(baseGroupName, null);
 
     // Apply per-group outcome filters (Cursor-style ▸ flyouts).
+    const allGroupsForCombined = ["Expansion", "Maintenance/Investment", "Closure/Consolidation"];
     if (rankedSchools && rankedSchools.length) {
       rankedSchools = rankedSchools.filter((s) => {
         const outcomeName = s.decision || s.outcome || s.strategyOutcome;
         const sg = s.strategyGroup || baseGroupName;
 
-        // If using the combined pseudo-group, allow it to filter both Expansion + Maintenance.
-        const combinedSelected = Array.isArray(outcomeFiltersByGroup["__ALL_EXP_MAINT__"])
-          ? outcomeFiltersByGroup["__ALL_EXP_MAINT__"]
+        const combinedKey = groupNames.includes("__ALL__") ? "__ALL__" : "__ALL_EXP_MAINT__";
+        const combinedSelected = Array.isArray(outcomeFiltersByGroup[combinedKey])
+          ? outcomeFiltersByGroup[combinedKey]
           : null;
         const specificSelected = Array.isArray(outcomeFiltersByGroup[sg])
           ? outcomeFiltersByGroup[sg]
           : null;
-
-        const selected = specificSelected || (combinedSelected && (sg === "Expansion" || sg === "Maintenance/Investment") ? combinedSelected : null);
+        const groupsInCombined = groupNames.includes("__ALL__") ? allGroupsForCombined : ["Expansion", "Maintenance/Investment"];
+        const selected = specificSelected || (combinedSelected && groupsInCombined.includes(sg) ? combinedSelected : null);
         if (!selected || !selected.length) return true;
         return selected.includes(outcomeName);
       });
@@ -925,21 +582,18 @@ window.prioritizationUI = {
     });
     let html = "";
 
-    const headerTableId = tableId + "-header";
-    const bodyTableId = tableId + "-body";
-
-    // Build column width model so header/body stay perfectly aligned.
+    // Build column width model (match Decision by School look: % or px)
     const colWidths = [];
-    colWidths.push("40px"); // Rank
-    if (isCombined) colWidths.push("110px"); // Strategy Group
-    colWidths.push("120px"); // School
-    colWidths.push("70px"); // Score
+    colWidths.push("8%"); // Rank
+    if (isCombined) colWidths.push("14%"); // Strategy Group
+    colWidths.push("22%"); // School
+    colWidths.push("10%"); // Score
     sliderConfigs.forEach(() => colWidths.push("80px")); // enabled metrics only
 
     const buildColGroupHTML = function () {
       return (
         "<colgroup>" +
-        colWidths.map((w) => '<col style="width:' + w + '">').join("") +
+        colWidths.map((w, i) => '<col data-col="' + i + '" style="width:' + w + '">').join("") +
         "</colgroup>"
       );
     };
@@ -948,41 +602,46 @@ window.prioritizationUI = {
 
     html +=
       "<style>" +
-      // The container in index.html has its own max-height/overflow.
-      // Disable that so we don't get double scrollbars and can control scrolling here.
       "#prioritized-schools-table-container { max-height: none !important; overflow: visible !important; }" +
-      ".ps-prioritized-table-wrap { border: 1px solid #e5e5e5; border-radius: 6px; overflow: hidden; background: #fff; }" +
-      ".ps-prioritized-table-body-scroll { max-height: 400px; overflow-y: auto; overflow-x: hidden; }" +
+      ".ps-prioritized-table-wrap { border: 1px solid #e5e5e5; border-radius: 6px; background: #fff; overflow: hidden; }" +
+      ".ps-prioritized-table-scroll { max-height: 420px; overflow: auto; }" +
+      ".ps-prioritized-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }" +
+      ".ps-prioritized-table thead th { position: sticky; top: 0; z-index: 10; background: #f5f5f5; box-shadow: 0 1px 0 #e5e5e5; padding: 8px 6px; text-align: left; border: 1px solid #e5e5e5; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }" +
+      ".ps-prioritized-table tbody td { padding: 8px 6px; text-align: left; border: 1px solid #e5e5e5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }" +
+      ".ps-prioritized-table tbody tr:hover { background: #f9f9f9; }" +
+      ".ps-greyed td { color: inherit; }" +
+      ".ps-prioritized-table a { color: #007cbf !important; text-decoration: underline !important; font-weight: 600; }" +
       ".ps-metric-toggle { display:inline-flex; border:1px solid #d1d5db; border-radius:8px; overflow:hidden; background:#fff; }" +
       ".ps-metric-toggle button { border:0; background:transparent; padding:4px 10px; font-size:12px; cursor:pointer; color:#111; }" +
       ".ps-metric-toggle button.active { background:#007cbf; color:#fff; }" +
-      "#" +
-      headerTableId +
-      ", #" +
-      bodyTableId +
-      " { width: 100%; font-size: 0.75em; border-collapse: separate; border-spacing: 0; table-layout: fixed; }" +
-      "#" +
-      headerTableId +
-      " th, #" +
-      bodyTableId +
-      " td { padding: 4px 6px; text-align: left; border: 1px solid #e5e5e5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }" +
-      "#" +
-      headerTableId +
-      " th { background: #f5f5f5; font-weight: 600; position: relative; user-select: none; }" +
-      "#" +
-      bodyTableId +
-      " tbody tr:hover { background: #f9f9f9; }" +
-      // NOTE: Do not grey out any rows in this table.
-      ".ps-greyed td { color: inherit; }" +
-      ".ps-greyed a { color: #007cbf !important; text-decoration: underline !important; font-weight: 600; }" +
-      ".column-resizer { position: absolute; top: 0; right: 0; width: 4px; height: 100%; cursor: col-resize; background: transparent; z-index: 10; }" +
-      ".column-resizer:hover { background: #007cbf; }" +
-      ".column-resizer.dragging { background: #007cbf; }" +
+      ".ps-prioritized-table th { position: relative; }" +
+      ".ps-prioritized-table .column-resizer { position: absolute; top: 0; right: 0; width: 6px; height: 100%; cursor: col-resize; background: transparent; z-index: 5; }" +
+      ".ps-prioritized-table .column-resizer:hover { background: rgba(0, 124, 191, 0.15); }" +
+      ".ps-prioritized-table .column-resizer.dragging { background: rgba(0, 124, 191, 0.3); }" +
+      /* Filter + Sort (match Decision by School) */
+      ".ps-prioritized-table .filterable-header .th-inner { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; overflow: hidden; }" +
+      ".ps-prioritized-table .th-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }" +
+      ".ps-prioritized-table .filter-btn { flex-shrink: 0; width: 18px; height: 18px; padding: 0; border: 1px solid #d1d5db; border-radius: 3px; background: #fff; color: #6b7280; font-size: 9px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }" +
+      ".ps-prioritized-table .filter-btn:hover, .ps-prioritized-table .filter-btn.filter-active { background: #007cbf; color: #fff; border-color: #007cbf; }" +
+      ".ps-prioritized-table .filter-clear-col { flex-shrink: 0; width: 18px; height: 18px; padding: 0; border: 1px solid #d1d5db; border-radius: 3px; background: #fff; color: #6b7280; font-size: 14px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }" +
+      ".ps-prioritized-table .filter-clear-col:hover { background: #fef2f2; color: #b91c1c; border-color: #b91c1c; }" +
+      ".ps-prioritized-table th.filterable-header { overflow: visible; }" +
+      ".ps-prioritized-table .filter-dropdown { position: absolute; top: 100%; left: 0; min-width: 180px; max-height: 220px; background: #fff; border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 4px 6px; margin-top: 2px; overflow-y: auto; z-index: 10000; display: none; }" +
+      ".ps-prioritized-table .filter-dropdown.is-open { display: block; }" +
+      ".ps-prioritized-table .filter-dropdown input[type='search'] { width: 100%; padding: 4px 6px; margin-bottom: 4px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 12px; box-sizing: border-box; }" +
+      ".ps-prioritized-table .filter-dropdown label { display: flex; align-items: center; gap: 6px; padding: 0; margin: 0; font-size: 12px; cursor: pointer; line-height: 1.25; }" +
+      ".ps-prioritized-table .filter-dropdown .filter-options { display: flex; flex-direction: column; gap: 0; }" +
+      ".ps-prioritized-table tr.filter-hidden { display: none; }" +
+      ".ps-prioritized-table th.sortable-header { cursor: pointer; }" +
+      ".ps-prioritized-table th.sortable-header:hover { background: #eef2f7; }" +
+      ".ps-prioritized-table th.sortable-header::after { content: ''; position: absolute; right: 24px; top: 50%; margin-top: -4px; border: 6px solid transparent; border-bottom-color: #9ca3af; border-top: none; opacity: 0.5; }" +
+      ".ps-prioritized-table th.sortable-header.sort-asc::after { border-bottom: 6px solid #007cbf; border-top: none; opacity: 1; }" +
+      ".ps-prioritized-table th.sortable-header.sort-desc::after { border-top: 6px solid #007cbf; border-bottom: none; margin-top: -10px; opacity: 1; }" +
       "</style>";
 
-    // Small toggle to switch metric columns between raw values and normalized scores
+    // Small toggle to switch metric columns between raw values and normalized scores + Clear all filters
     html +=
-      '<div style="display:flex; justify-content:flex-end; margin: 0 0 6px 0;">' +
+      '<div style="display:flex; justify-content:flex-end; align-items:center; gap:6px; margin: 0 0 6px 0;">' +
       '<div class="ps-metric-toggle" role="group" aria-label="Metric columns display">' +
       '<button type="button" id="psMetricModeValues" data-mode="values"' +
       (displayMode === "values" ? ' class="active"' : "") +
@@ -990,49 +649,47 @@ window.prioritizationUI = {
       '<button type="button" id="psMetricModeScores" data-mode="scores"' +
       (displayMode === "scores" ? ' class="active"' : "") +
       ">Show scores</button>" +
-      "</div></div>";
+      "</div>" +
+      '<button type="button" id="psClearAllFiltersBtn" style="padding:4px 10px; font-size:12px; border:1px solid #d1d5db; border-radius:6px; background:#fff; cursor:pointer; color:#374151;">Clear all filters</button>' +
+      "</div>";
 
-    // Header table (no body; stays visible)
+    // Single table with sticky header (match Decision by School look)
     html +=
       '<div class="ps-prioritized-table-wrap">' +
-      '<table id="' +
-      headerTableId +
-      '">' +
+      '<div class="ps-prioritized-table-scroll">' +
+      '<table id="' + tableId + '" class="ps-prioritized-table">' +
       buildColGroupHTML() +
       "<thead><tr>" +
-      '<th><span>Rank</span><div class="column-resizer" data-col="0"></div></th>' +
+      '<th class="sortable-header filterable-header text-center" data-column="0" data-type="number" title="Rank">' +
+      '<span class="th-inner"><span class="th-label">Rank</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>' +
+      '<div class="filter-dropdown" role="menu" aria-hidden="true"></div>' +
+      '<div class="column-resizer" data-col="0"></div></th>' +
       (isCombined
-        ? '<th><span>Strategy Group</span><div class="column-resizer" data-col="1"></div></th>'
+        ? '<th class="sortable-header filterable-header" data-column="1" data-type="string" title="Strategy Group">' +
+          '<span class="th-inner"><span class="th-label">Strategy Group</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>' +
+          '<div class="filter-dropdown" role="menu" aria-hidden="true"></div>' +
+          '<div class="column-resizer" data-col="1"></div></th>'
         : "") +
-      '<th><span>School</span><div class="column-resizer" data-col="' +
-      (isCombined ? "2" : "1") +
-      '"></div></th>' +
-      '<th><span>Score</span><div class="column-resizer" data-col="' +
-      (isCombined ? "3" : "2") +
-      '"></div></th>';
+      '<th class="sortable-header filterable-header" data-column="' + (isCombined ? "2" : "1") + '" data-type="string" title="School">' +
+      '<span class="th-inner"><span class="th-label">School</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>' +
+      '<div class="filter-dropdown" role="menu" aria-hidden="true"></div>' +
+      '<div class="column-resizer" data-col="' + (isCombined ? "2" : "1") + '"></div></th>' +
+      '<th class="sortable-header filterable-header text-center" data-column="' + (isCombined ? "3" : "2") + '" data-type="number" title="Score">' +
+      '<span class="th-inner"><span class="th-label">Score</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>' +
+      '<div class="filter-dropdown" role="menu" aria-hidden="true"></div>' +
+      '<div class="column-resizer" data-col="' + (isCombined ? "3" : "2") + '"></div></th>';
 
-    // Dynamic metric columns aligned with prioritization weights
     let metricStartColIndex = isCombined ? 4 : 3;
     sliderConfigs.forEach(function (config, idx) {
       const colIndex = metricStartColIndex + idx;
-      html +=
-        '<th><span>' +
-        config.label +
-        '</span><div class="column-resizer" data-col="' +
-        colIndex +
-        '"></div></th>';
+      const labelEscaped = config.label.replace(/"/g, "&quot;");
+      html += '<th class="sortable-header filterable-header text-center" data-column="' + colIndex + '" data-type="number" title="' + labelEscaped + '">' +
+        '<span class="th-inner"><span class="th-label">' + config.label + '</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>' +
+        '<div class="filter-dropdown" role="menu" aria-hidden="true"></div>' +
+        '<div class="column-resizer" data-col="' + colIndex + '"></div></th>';
     });
 
-    html += "</tr></thead></table>";
-
-    // Body table (scrolls)
-    html +=
-      '<div class="ps-prioritized-table-body-scroll">' +
-      '<table id="' +
-      bodyTableId +
-      '">' +
-      buildColGroupHTML() +
-      "<tbody>";
+    html += "</tr></thead><tbody>";
 
     // Helper to format either raw values or normalized scores, depending on toggle.
     const formatValue = function (uiKey, school) {
@@ -1086,15 +743,18 @@ window.prioritizationUI = {
         encodeURIComponent((buildingName || "").toString()) +
         (uid ? "&uid=" + encodeURIComponent(uid) : "");
 
-      html += "<tr>";
-      html += "<td>" + (index + 1) + "</td>";
+      let colIdx = 0;
+      html += "<tr data-row>";
+      html += '<td data-filter="col-' + colIdx + '">' + (index + 1) + "</td>";
+      colIdx++;
 
       if (isCombined) {
-        html += "<td>" + (strategyLabel || "Unknown") + "</td>";
+        html += '<td data-filter="col-' + colIdx + '">' + (strategyLabel || "Unknown") + "</td>";
+        colIdx++;
       }
 
       html +=
-        '<td title="' +
+        '<td data-filter="col-' + colIdx + '" title="' +
         buildingName +
         (decisionOutcome ? " — " + decisionOutcome : "") +
         '">' +
@@ -1105,14 +765,17 @@ window.prioritizationUI = {
         'onclick="event.stopPropagation();">' +
         buildingName +
         "</a>" +
-        "</td>" +
-        '<td style="font-weight:600;">' +
+        "</td>";
+      colIdx++;
+      html += '<td data-filter="col-' + colIdx + '" style="font-weight:600;">' +
         school.priorityScore.toFixed(1) +
         "</td>";
+      colIdx++;
 
       // Metric cells in the same order as sliderConfigs (normalized 0–100)
       sliderConfigs.forEach(function (config) {
-        html += "<td>" + formatValue(config.key, school) + "</td>";
+        html += '<td data-filter="col-' + colIdx + '">' + formatValue(config.key, school) + "</td>";
+        colIdx++;
       });
 
       html += "</tr>";
@@ -1136,9 +799,253 @@ window.prioritizationUI = {
     if (btnScores) btnScores.addEventListener("click", () => applyMode("scores"));
 
     this.setupColumnResizing(tableId);
-    this.syncPrioritizedTableHeaderToBody(tableId);
+    this.setupPrioritizedSchoolsFilters(container);
+    this.setupPrioritizedSchoolsSortable(container);
 
     // Equity overview intentionally suppressed per latest requirements.
+  },
+
+  setupPrioritizedSchoolsFilters: function (container) {
+    const table = container && container.querySelector("table.ps-prioritized-table");
+    if (!table) return;
+
+    const self = this;
+    const tbody = table.querySelector("tbody");
+    const headers = Array.from(table.querySelectorAll("thead th.filterable-header"));
+    const cache = (window.__prioritizedSchoolsFilterValuesCache = window.__prioritizedSchoolsFilterValuesCache || {});
+
+    headers.forEach(function (th, colIndex) {
+      const filterBtn = th.querySelector(".filter-btn");
+      const filterDropdown = th.querySelector(".filter-dropdown");
+      if (!filterBtn || !filterDropdown) return;
+
+      th.style.position = "relative";
+
+      const getUniqueValues = function () {
+        const values = new Set();
+        tbody.querySelectorAll("tr[data-row]").forEach(function (tr) {
+          const cell = tr.querySelector("td[data-filter=\"col-" + colIndex + "\"]");
+          if (cell) {
+            const v = (cell.textContent || "").trim();
+            values.add(v || "(blank)");
+          }
+        });
+        const arr = Array.from(values).sort(function (a, b) { return String(a).localeCompare(String(b)); });
+        if (arr.length > 0) cache[colIndex] = arr;
+        return arr;
+      };
+      getUniqueValues();
+
+      const populateDropdown = function () {
+        let values = cache[colIndex];
+        if (!values || values.length === 0) {
+          values = getUniqueValues();
+        }
+        if (!values || values.length === 0) return;
+        filterDropdown.innerHTML =
+          "<div style=\"margin-bottom:6px; padding-bottom:6px; border-bottom:1px solid #eee;\">" +
+          "<label class=\"filter-select-all-row\" style=\"display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px;\">" +
+          "<input type=\"checkbox\" class=\"filter-select-all-cb\" checked>" +
+          "<span>(Select All)</span></label>" +
+          "</div>" +
+          "<input type=\"search\" placeholder=\"Search...\" class=\"filter-search\" aria-label=\"Search filter values\" style=\"margin-bottom:4px;\">" +
+          "<div class=\"filter-options\">" +
+          values.map(function (v) {
+            const escaped = String(v).replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            return "<label><input type=\"checkbox\" value=\"" + escaped + "\" class=\"filter-option\"> " + escaped + "</label>";
+          }).join("") +
+          "</div>";
+
+        const filterState = window.__prioritizedSchoolsFilters || (window.__prioritizedSchoolsFilters = {});
+        const selected = filterState[colIndex] != null ? filterState[colIndex] : null;
+        const selectAllCb = filterDropdown.querySelector(".filter-select-all-cb");
+        const opts = filterDropdown.querySelectorAll(".filter-option");
+
+        opts.forEach(function (cb) {
+          if (selected === null || (Array.isArray(selected) && selected.indexOf(cb.value) >= 0)) {
+            cb.checked = true;
+          }
+        });
+
+        const updateSelectAllState = function () {
+          const checked = Array.from(opts).filter(function (cb) { return cb.checked; }).length;
+          if (selectAllCb) {
+            selectAllCb.checked = checked === opts.length;
+            selectAllCb.indeterminate = checked > 0 && checked < opts.length;
+          }
+        };
+        updateSelectAllState();
+
+        selectAllCb?.addEventListener("change", function () {
+          const check = selectAllCb.checked;
+          opts.forEach(function (cb) { cb.checked = check; });
+          applyFilters();
+        });
+
+        const searchInput = filterDropdown.querySelector(".filter-search");
+        if (searchInput) {
+          searchInput.oninput = function () {
+            const q = searchInput.value.toLowerCase();
+            filterDropdown.querySelectorAll(".filter-options label").forEach(function (label) {
+              const text = (label.textContent || "").toLowerCase();
+              label.style.display = q && text.indexOf(q) < 0 ? "none" : "flex";
+            });
+          };
+        }
+
+        opts.forEach(function (cb) {
+          cb.addEventListener("change", function () {
+            updateSelectAllState();
+            applyFilters();
+          });
+        });
+      };
+
+      filterDropdown.addEventListener("click", function (e) {
+        e.stopPropagation();
+      });
+
+      const clearColBtn = th.querySelector(".filter-clear-col");
+      if (clearColBtn) {
+        clearColBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          const filterState = window.__prioritizedSchoolsFilters || (window.__prioritizedSchoolsFilters = {});
+          filterState[colIndex] = null;
+          const dd = th.querySelector(".filter-dropdown");
+          const opts = dd ? dd.querySelectorAll(".filter-option") : [];
+          const selectAllCb = dd ? dd.querySelector(".filter-select-all-cb") : null;
+          if (opts && opts.length) {
+            opts.forEach(function (cb) { cb.checked = true; });
+            if (selectAllCb) selectAllCb.checked = true;
+            if (selectAllCb) selectAllCb.indeterminate = false;
+          }
+          applyFilters();
+        });
+      }
+
+      const applyFilters = () => {
+        const filterState = window.__prioritizedSchoolsFilters || (window.__prioritizedSchoolsFilters = {});
+        const selectedByCol = {};
+        headers.forEach(function (h, i) {
+          const dd = h.querySelector(".filter-dropdown");
+          if (!dd) return;
+          const opts = dd.querySelectorAll(".filter-option");
+          if (opts.length === 0) return;
+          const checked = Array.from(opts).filter(function (cb) {
+            return cb.checked;
+          }).map(function (cb) {
+            return cb.value;
+          });
+          selectedByCol[i] = checked.length === opts.length ? null : checked;
+        });
+
+        Object.assign(filterState, selectedByCol);
+
+        tbody.querySelectorAll("tr[data-row]").forEach(function (tr) {
+          let show = true;
+          headers.forEach(function (h, i) {
+            const sel = selectedByCol[i];
+            if (sel === null || sel === undefined) return;
+            if (sel.length === 0) { show = false; return; }
+            const cell = tr.querySelector("td[data-filter=\"col-" + i + "\"]");
+            const raw = (cell ? cell.textContent : "").trim();
+            const val = raw || "(blank)";
+            if (sel.indexOf(val) < 0) show = false;
+          });
+          tr.classList.toggle("filter-hidden", !show);
+        });
+
+        const vals = getUniqueValues();
+        const sel = selectedByCol[colIndex];
+        filterBtn.classList.toggle("filter-active", !!(sel !== null && sel !== undefined && sel.length < vals.length));
+      };
+
+      filterBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        e.preventDefault();
+        const isOpen = filterDropdown.classList.contains("is-open");
+        table.querySelectorAll(".filter-dropdown.is-open").forEach(function (d) {
+          d.classList.remove("is-open");
+        });
+        if (!isOpen) {
+          populateDropdown();
+          filterDropdown.classList.add("is-open");
+        }
+      });
+    });
+
+    if (!document._prioritizedSchoolsFilterClickOutside) {
+      document._prioritizedSchoolsFilterClickOutside = true;
+      document.addEventListener("click", function (e) {
+        if (e.target && e.target.closest && e.target.closest(".ps-prioritized-table .filter-dropdown")) return;
+        if (e.target && e.target.closest && (e.target.closest(".ps-prioritized-table .filter-btn") || e.target.closest(".ps-prioritized-table .filter-clear-col"))) return;
+        document.querySelectorAll(".ps-prioritized-table .filter-dropdown.is-open").forEach(function (d) {
+          d.classList.remove("is-open");
+        });
+      });
+    }
+
+    const clearBtn = container.querySelector("#psClearAllFiltersBtn");
+    if (clearBtn) {
+      clearBtn.addEventListener("click", function () {
+        window.__prioritizedSchoolsFilters = {};
+        table.querySelectorAll(".filter-dropdown.is-open").forEach(function (d) {
+          d.classList.remove("is-open");
+        });
+        tbody.querySelectorAll("tr[data-row]").forEach(function (tr) {
+          tr.classList.remove("filter-hidden");
+        });
+        headers.forEach(function (h) {
+          const btn = h.querySelector(".filter-btn");
+          if (btn) btn.classList.remove("filter-active");
+        });
+      });
+    }
+  },
+
+  setupPrioritizedSchoolsSortable: function (container) {
+    const table = container && container.querySelector("table.ps-prioritized-table");
+    if (!table) return;
+
+    const self = this;
+    table.querySelectorAll("th.sortable-header").forEach(function (header) {
+      header.addEventListener("click", function (e) {
+        if (e.target && (e.target.classList.contains("filter-btn") || e.target.closest(".filter-dropdown"))) return;
+        const tbody = table.querySelector("tbody");
+        if (!tbody) return;
+        const columnIndex = parseInt(header.dataset.column, 10);
+        const dataType = header.dataset.type || "string";
+        const isAsc = header.classList.contains("sort-asc");
+        const newDir = isAsc ? "desc" : "asc";
+
+        table.querySelectorAll("th.sortable-header").forEach(function (h) {
+          h.classList.remove("sort-asc", "sort-desc");
+        });
+        header.classList.add(newDir === "asc" ? "sort-asc" : "sort-desc");
+
+        const rows = Array.from(tbody.querySelectorAll("tr[data-row]"));
+
+        rows.sort(function (rowA, rowB) {
+          const cellA = rowA.querySelector("td[data-filter=\"col-" + columnIndex + "\"]");
+          const cellB = rowB.querySelector("td[data-filter=\"col-" + columnIndex + "\"]");
+          let valA = (cellA ? cellA.textContent : "").trim();
+          let valB = (cellB ? cellB.textContent : "").trim();
+
+          if (dataType === "number") {
+            valA = parseFloat(String(valA).replace(/[^0-9.-]/g, "")) || 0;
+            valB = parseFloat(String(valB).replace(/[^0-9.-]/g, "")) || 0;
+          }
+
+          if (valA < valB) return newDir === "asc" ? -1 : 1;
+          if (valA > valB) return newDir === "asc" ? 1 : -1;
+          return 0;
+        });
+
+        rows.forEach(function (row) {
+          tbody.appendChild(row);
+        });
+      });
+    });
   },
 
   // Keep the fixed header table perfectly aligned with the scrolling body table.
@@ -1172,16 +1079,12 @@ window.prioritizationUI = {
     window.addEventListener("resize", this._prioritizedTableSyncHandler);
   },
 
-  // Setup column resizing functionality
+  // Setup column resizing functionality (single table with sticky header)
   setupColumnResizing: function (tableId) {
-    // Supports both the legacy single-table layout and the new 2-table layout:
-    // - `${tableId}-header` contains the resizable header
-    // - `${tableId}-body` contains the scrolling body
-    const headerTable = document.getElementById(tableId + "-header") || document.getElementById(tableId);
-    const bodyTable = document.getElementById(tableId + "-body") || headerTable;
-    if (!headerTable || !bodyTable) return;
+    const table = document.getElementById(tableId);
+    if (!table) return;
 
-    const resizers = headerTable.querySelectorAll(".column-resizer");
+    const resizers = table.querySelectorAll(".column-resizer");
     let currentResizer = null;
     let startX = 0;
     let startWidth = 0;
@@ -1195,8 +1098,8 @@ window.prioritizationUI = {
         currentResizer = resizer;
         startX = e.clientX;
         currentIndex = index;
-        currentCol = headerTable.querySelectorAll("th")[index];
-        startWidth = currentCol.offsetWidth;
+        currentCol = table.querySelectorAll("thead th")[index];
+        startWidth = currentCol ? currentCol.offsetWidth : 80;
         resizer.classList.add("dragging");
         document.body.style.cursor = "col-resize";
         document.body.style.userSelect = "none";
@@ -1206,17 +1109,12 @@ window.prioritizationUI = {
     document.addEventListener("mousemove", function (e) {
       if (!currentResizer || !currentCol || currentIndex < 0) return;
       const diff = e.clientX - startX;
-      const newWidth = Math.max(30, startWidth + diff);
-      // Update colgroup widths so both header and body stay aligned.
-      const headerCols = headerTable.querySelectorAll("colgroup col");
-      const bodyCols = bodyTable.querySelectorAll("colgroup col");
-      if (headerCols && headerCols[currentIndex]) {
-        headerCols[currentIndex].style.width = newWidth + "px";
+      const newWidth = Math.max(40, startWidth + diff);
+      const cols = table.querySelectorAll("colgroup col");
+      if (cols && cols[currentIndex]) {
+        cols[currentIndex].style.width = newWidth + "px";
+        cols[currentIndex].style.minWidth = newWidth + "px";
       }
-      if (bodyCols && bodyCols[currentIndex]) {
-        bodyCols[currentIndex].style.width = newWidth + "px";
-      }
-      // Also reflect on the <th> for immediate feedback.
       currentCol.style.width = newWidth + "px";
     });
 
@@ -1286,9 +1184,8 @@ window.prioritizationUI = {
     const outcomeFiltersByGroup = this.outcomeFiltersByGroup || {};
 
     const resolveGroups = function (names) {
-      if (names.includes("__ALL_EXP_MAINT__")) {
-        return ["Expansion", "Maintenance/Investment"];
-      }
+      if (names.includes("__ALL__")) return ["Expansion", "Maintenance/Investment", "Closure/Consolidation"];
+      if (names.includes("__ALL_EXP_MAINT__")) return ["Expansion", "Maintenance/Investment"];
       return names;
     };
 
@@ -1298,18 +1195,20 @@ window.prioritizationUI = {
         ? window.prioritizationLogic.rankSchoolsAcrossStrategies(groupsToUse, null)
         : window.prioritizationLogic.rankSchools(groupsToUse[0], null);
 
-    // Apply per-group outcome filters to map visualization too
+    const allGroupsForCombined = ["Expansion", "Maintenance/Investment", "Closure/Consolidation"];
     if (rankedSchools && rankedSchools.length) {
       rankedSchools = rankedSchools.filter((s) => {
         const outcomeName = s.decision || s.outcome || s.strategyOutcome;
         const sg = s.strategyGroup || groupsToUse[0];
-        const combinedSelected = Array.isArray(outcomeFiltersByGroup["__ALL_EXP_MAINT__"])
-          ? outcomeFiltersByGroup["__ALL_EXP_MAINT__"]
+        const combinedKey = groupNames.includes("__ALL__") ? "__ALL__" : "__ALL_EXP_MAINT__";
+        const combinedSelected = Array.isArray(outcomeFiltersByGroup[combinedKey])
+          ? outcomeFiltersByGroup[combinedKey]
           : null;
         const specificSelected = Array.isArray(outcomeFiltersByGroup[sg])
           ? outcomeFiltersByGroup[sg]
           : null;
-        const selected = specificSelected || (combinedSelected && (sg === "Expansion" || sg === "Maintenance/Investment") ? combinedSelected : null);
+        const groupsInCombined = groupNames.includes("__ALL__") ? allGroupsForCombined : ["Expansion", "Maintenance/Investment"];
+        const selected = specificSelected || (combinedSelected && groupsInCombined.includes(sg) ? combinedSelected : null);
         if (!selected || !selected.length) return true;
         return selected.includes(outcomeName);
       });
