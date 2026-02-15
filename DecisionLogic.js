@@ -94,71 +94,108 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Load distance to welcoming schools from SchooltoSchoolDistances.csv,
-  // keyed by Origin CDE Prefix (e.g., "CO-1420-8276").
+  // Load distance to welcoming schools from OD_Draft.csv (origin -> min distance to any destination).
+  // Keyed by CurrentSchoolCode (UniqueID format, e.g., "CO-1420-8276").
   function loadDistanceToWelcomingMap() {
     return new Promise((resolve) => {
-      // Cache on window to avoid re-parsing if called again
-      if (window.distanceToWelcomingMap && typeof window.distanceToWelcomingMap === "object") {
-        resolve(window.distanceToWelcomingMap);
+      const cached = window.distanceToWelcomingMap;
+      if (cached && typeof cached === "object" && Object.keys(cached).length > 0) {
+        resolve(cached);
         return;
       }
 
-      Papa.parse("./SchooltoSchoolDistances.csv", {
+      Papa.parse("./OD_Draft.csv", {
         download: true,
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
           try {
-            const map = {};
-            const rowsByOrigin = {};
-            results.data.forEach((row) => {
-              const originPrefix =
-                row["Origin CDE Prefix"] ||
-                row["Origin CDE Prefix "] ||
-                row["OriginCDEPrefix"];
+            // OD_Draft is student-level: each row = one student's home-to-destination distance.
+            // Raw MIN is skewed by students who live next to another school → near 0 for most schools.
+            // Use MEDIAN per (origin,dest) pair, then MIN over destinations for each origin.
+            const pairDistances = {}; // "(originKey|destKey)" -> [dist1, dist2, ...]
+            const pairMeta = {}; // "(originKey|destKey)" -> { destCode, destName, destGrades } (from last row)
+            const norm = s => (s || "").toString().trim().toLowerCase();
+            const normName = s => norm((s || "").toString().trim().replace(/\s+/g, " "));
+            const median = (arr) => {
+              if (!arr.length) return NaN;
+              const s = [...arr].sort((a, b) => a - b);
+              const m = Math.floor(s.length / 2);
+              return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+            };
 
-              if (!originPrefix) return;
+            (results.data || []).forEach((row) => {
+              const originCode = (row["CurrentSchoolCode"] || row.CurrentSchoolCode || "").toString().trim();
+              const originName = (row["CurrentSchoolName"] || row.CurrentSchoolName || "").toString().trim();
+              if (!originCode) return;
 
-              // Always use Network Distance (Miles); fall back to nearby variants if renamed.
-              const distRaw =
-                row["Network Distance (Miles)"] ||
-                row["Network Distance"] ||
-                row["NetworkDistanceMiles"];
-              const dist = parseFloat((distRaw || "").toString().trim());
+              const destCode = (row["DestinationSchoolCode"] || row.DestinationSchoolCode || "").toString().trim();
+              if (norm(originCode) === norm(destCode)) return; // exclude same-school
+
+              const dist = parseFloat((row["LinearDistance_Miles"] || row.LinearDistance_Miles || "").toString().trim());
               if (!isFinite(dist)) return;
 
-              // Keep the minimum network distance for each origin
-              if (map[originPrefix] === undefined || dist < map[originPrefix]) {
-                map[originPrefix] = dist;
-              }
-
-              // Preserve full rows per origin for downstream detailed listings
-              if (!rowsByOrigin[originPrefix]) {
-                rowsByOrigin[originPrefix] = [];
-              }
-              rowsByOrigin[originPrefix].push(row);
+              const originKey = norm(originCode);
+              const destKey = norm(destCode);
+              const pairKey = `${originKey}|${destKey}`;
+              if (!pairDistances[pairKey]) pairDistances[pairKey] = [];
+              pairDistances[pairKey].push(dist);
+              pairMeta[pairKey] = {
+                destCode,
+                destName: row["DestinationSchoolName"] || row.DestinationSchoolName || "",
+                destGrades: row["DestinationSchoolGrades"] || row.DestinationSchoolGrades || ""
+              };
             });
 
-            console.log(
-              "✅ Loaded distance-to-welcoming map (Network Distance, miles) for",
-              Object.keys(map).length,
-              "schools"
-            );
+            // Build map: for each origin, min of (median dist to each dest)
+            const map = {};
+            const mapByName = {};
+            const rowsByOrigin = {};
+            Object.keys(pairDistances).forEach((pairKey) => {
+              const [originKey, destKey] = pairKey.split("|");
+              const med = median(pairDistances[pairKey]);
+              if (!Number.isFinite(med)) return;
+              if (map[originKey] === undefined || med < map[originKey]) map[originKey] = med;
+              const meta = pairMeta[pairKey];
+              if (meta && meta.destCode) {
+                if (!rowsByOrigin[originKey]) rowsByOrigin[originKey] = [];
+                rowsByOrigin[originKey].push({
+                  "Network Distance (Miles)": med,
+                  "NetworkDistanceMiles": med,
+                  "Destination CDE Prefix": meta.destCode,
+                  "DestinationCDEPrefix": meta.destCode,
+                  "Destination Facility Name": meta.destName,
+                  "Destination Grades": meta.destGrades
+                });
+              }
+            });
+            // mapByName: use first-seen originName per originKey (build reverse lookup from a pass)
+            const originKeyToName = {};
+            (results.data || []).forEach((row) => {
+              const oc = (row["CurrentSchoolCode"] || row.CurrentSchoolCode || "").toString().trim();
+              const on = (row["CurrentSchoolName"] || row.CurrentSchoolName || "").toString().trim();
+              if (!oc || !on) return;
+              const key = norm(oc);
+              if (!originKeyToName[key]) originKeyToName[key] = normName(on);
+            });
+            Object.keys(map).forEach((k) => {
+              const n = originKeyToName[k];
+              if (n) mapByName[n] = map[k];
+            });
+
+            console.log("✅ Loaded distance-to-welcoming map from OD_Draft.csv (median per origin-dest) for", Object.keys(map).length, "schools");
             window.distanceToWelcomingMap = map;
+            window.distanceToWelcomingMapByName = mapByName;
             window.distanceToWelcomingRowsByOrigin = rowsByOrigin;
             resolve(map);
           } catch (e) {
-            console.error(
-              "❌ Error processing SchooltoSchoolDistances.csv:",
-              e
-            );
-            resolve({}); // Fail soft – fall back to existing DistanceUnderutilizedschools values
+            console.error("❌ Error processing OD_Draft.csv:", e);
+            resolve({});
           }
         },
         error: (err) => {
-          console.error("❌ Failed to load SchooltoSchoolDistances.csv:", err);
-          resolve({}); // Fail soft
+          console.error("❌ Failed to load OD_Draft.csv:", err);
+          resolve({});
         },
       });
     });
@@ -214,7 +251,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function getEffectiveUtilizationLocal(row) {
     if (window.getEffectiveUtilization) return window.getEffectiveUtilization(row);
     const cap = parseFloat((row.Capacity || '').toString().replace(/,/g, '').trim()) || 0;
-    if (!cap || cap <= 0) return +row.Utilization || 0;
+    if (!cap || cap <= 0) return 0;
     return getEffectiveEnrollmentLocal(row) / cap;
   }
 
@@ -305,7 +342,7 @@ document.addEventListener("DOMContentLoaded", () => {
       })(),
       growth: (() => {
         const g = window.getEffectiveEnrollmentGrowth ? window.getEffectiveEnrollmentGrowth(row) : null;
-        const val = (g != null && Number.isFinite(g)) ? g : parseFloat(row["Future_EnrollmentGrowth"] ?? row["K+EnrollmentGrowth"] ?? 0);
+        const val = (g != null && Number.isFinite(g)) ? g : 0;
         return val > t.enrollmentGrowth ? "Yes" : "No";
       })(),
       
@@ -326,12 +363,10 @@ document.addEventListener("DOMContentLoaded", () => {
       fac3_below: coerceBuildingScore0to10(row.BuildingScore) <= t.buildingThresholdBelow ? "Yes" : "No",
       edu3: (+row.EducationalAdequacy * 100) >= t.adequateProgramsMin ? "Yes" : "No",
       edu3_2: (() => {
-        // OR function: Below 50% percentile EA category OR safety/security issues
+        // Safety/security check: use Below50PCTL_EA_Cat (Yes = below 50% percentile EA or safety/security issues)
         const hasBelow50PercentileCategory = row["Below50PCTL_EA_Cat"];
         const isBelow50Percentile = hasBelow50PercentileCategory === "Yes" || hasBelow50PercentileCategory === "yes" || hasBelow50PercentileCategory === "YES";
-        const hasSafetyIssues = (row.DepartmentalDeficiency && row.DepartmentalDeficiency.toLowerCase().includes('safety')) || 
-                               (row.DepartmentalDeficiency && row.DepartmentalDeficiency.toLowerCase().includes('security'));
-        return (isBelow50Percentile || hasSafetyIssues) ? "Yes" : "No";
+        return isBelow50Percentile ? "Yes" : "No";
       })(),
       // Node label: "Composite Building Score above?"
       fac3_above: coerceBuildingScore0to10(row.BuildingScore) >= t.buildingThresholdAbove ? "Yes" : "No",
@@ -365,7 +400,7 @@ document.addEventListener("DOMContentLoaded", () => {
     
     console.log("📊 Decisions for", row["Building Name"], ":", decisions);
     console.log("📊 Raw data - Utilization:", row.Utilization, "BuildingScore:", row.BuildingScore, "EducationalAdequacy:", row.EducationalAdequacy);
-    console.log("📊 Raw data - DistanceUnderutilizedschools:", row.DistanceUnderutilizedschools, "Growth:", row["Future_EnrollmentGrowth"]);
+    console.log("📊 Raw data - DistanceUnderutilizedschools:", row.DistanceUnderutilizedschools, "Growth:", window.getEffectiveEnrollmentGrowth ? window.getEffectiveEnrollmentGrowth(row) : null);
 
     const enrollment = getEffectiveEnrollmentLocal(row);
     const enrollmentLow = Number.isFinite(enrollment) && enrollment <= 300;
@@ -1313,11 +1348,20 @@ document.addEventListener("DOMContentLoaded", () => {
               console.log("✅ Applied Articulation Area from Map_Export.csv");
             }
             if (distanceMap && typeof distanceMap === "object") {
+              const normId = (s) => (s || "").toString().trim().toLowerCase();
+              const normName = (s) => normId((s || "").toString().trim().replace(/\s+/g, " "));
+              const mapByName = window.distanceToWelcomingMapByName || {};
               self.schoolData.forEach((row) => {
                 const uniqueId = row.UniqueID || row["UniqueID"] || row["Unique Id"];
-                const key = uniqueId && uniqueId.toString().trim();
-                if (key && distanceMap[key] !== undefined) {
-                  row.DistanceUnderutilizedschools = distanceMap[key];
+                const key = normId(uniqueId);
+                let dist = key ? distanceMap[key] : undefined;
+                if (dist === undefined) {
+                  const name = row["Building Name"] || row.BuildingName || "";
+                  const nameKey = normName(name);
+                  dist = nameKey ? mapByName[nameKey] : undefined;
+                }
+                if (dist !== undefined) {
+                  row.DistanceUnderutilizedschools = dist;
                 }
               });
               console.log("✅ Applied distance-to-welcoming values to decision data");

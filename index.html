@@ -1758,40 +1758,40 @@
     }
     .step1-section-title {
       margin: 0;
-      font-size: 14px;
+      font-size: 12px;
       font-weight: 1000;
       letter-spacing: .02em;
       color: #111827;
       text-transform: uppercase;
     }
     .step1-section-subtitle {
-      margin-top: 6px;
-      font-size: 12px;
+      margin-top: 4px;
+      font-size: 11px;
       color: #6b7280;
       font-style: italic;
-      line-height: 1.3;
+      line-height: 1.2;
     }
     .step1-section-grid {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 14px;
+      gap: 8px;
     }
     .step1-section-row {
       display: grid;
       grid-template-columns: 1.2fr 2fr;
-      gap: 12px;
+      gap: 8px;
       align-items: start;
     }
     @media (max-width: 900px) {
       .step1-section-row { grid-template-columns: 1fr; }
     }
     .step1-kpi-tile {
-      border-radius: 10px;
+      border-radius: 8px;
       color: #fff;
-      box-shadow: 0 6px 14px rgba(0,0,0,0.14);
-      padding: 10px 12px 10px 12px;
-      min-height: 72px;
-      height: 96px; /* allow room for label + value + sub-line without cutoff */
+      box-shadow: 0 4px 10px rgba(0,0,0,0.12);
+      padding: 6px 8px;
+      min-height: 52px;
+      height: 64px;
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -1799,7 +1799,7 @@
       text-align: center;
     }
     .step1-kpi-tile .label {
-      font-size: 12px;
+      font-size: 10px;
       font-weight: 900;
       letter-spacing: .02em;
       opacity: 0.98;
@@ -1809,17 +1809,17 @@
       max-width: 100%;
     }
     .step1-kpi-tile .value {
-      margin-top: 4px;
-      font-size: 32px;
+      margin-top: 2px;
+      font-size: 22px;
     }
     .step1-kpi-tile .value.util-long {
-      font-size: 14px;
-      line-height: 1.25;
+      font-size: 12px;
+      line-height: 1.2;
       font-weight: 800;
     }
     .step1-kpi-tile .sub {
-      margin-top: 2px;
-      font-size: 12px;
+      margin-top: 1px;
+      font-size: 10px;
       font-weight: 900;
       line-height: 1.1;
       opacity: 0.95;
@@ -1833,11 +1833,11 @@
     .step1-tile-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
+      gap: 8px;
     }
     @media (max-width: 780px) {
       .step1-tile-grid { grid-template-columns: 1fr; }
-      .step1-kpi-tile { min-height: 70px; height: 96px; }
+      .step1-kpi-tile { min-height: 50px; height: 60px; }
     }
     .step1-footnote {
       font-size: 12px;
@@ -1850,12 +1850,12 @@
     .step1-badge {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 3px 10px;
+      gap: 4px;
+      padding: 2px 8px;
       border-radius: 999px;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 800;
-      line-height: 1.6;
+      line-height: 1.4;
       border: 1px solid #e5e7eb;
       background: #f9fafb;
       color: #111827;
@@ -1867,26 +1867,26 @@
     .step1-kpi-grid {
       display: grid;
       grid-template-columns: repeat(12, 1fr);
-      gap: 12px;
+      gap: 8px;
     }
     .step1-kpi {
       grid-column: span 3;
-      padding: 12px 12px 10px 12px;
-      border-radius: 12px;
+      padding: 8px 10px;
+      border-radius: 8px;
       border: 1px solid #e5e7eb;
       background: #fff;
-      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
       min-width: 0;
     }
     @media (max-width: 1100px) { .step1-kpi { grid-column: span 4; } }
     @media (max-width: 780px)  { .step1-kpi { grid-column: span 6; } }
     @media (max-width: 520px)  { .step1-kpi { grid-column: span 12; } }
-    .step1-kpi-label { font-size: 12px; color:#6b7280; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; }
-    .step1-kpi-value { margin-top: 6px; font-size: 22px; font-weight: 900; color:#111827; line-height: 1.05; }
-    .step1-kpi-sub   { margin-top: 4px; font-size: 12px; color:#6b7280; }
+    .step1-kpi-label { font-size: 10px; color:#6b7280; font-weight: 800; letter-spacing: .02em; text-transform: uppercase; }
+    .step1-kpi-value { margin-top: 4px; font-size: 16px; font-weight: 900; color:#111827; line-height: 1.05; }
+    .step1-kpi-sub   { margin-top: 2px; font-size: 10px; color:#6b7280; }
     .step1-bar {
-      margin-top: 10px;
-      height: 10px;
+      margin-top: 4px;
+      height: 6px;
       background: #f3f4f6;
       border-radius: 999px;
       overflow: hidden;
@@ -1912,9 +1912,10 @@
     .step1-table th,
     .step1-table td {
       text-align: left;
-      padding: 10px 12px;
+      padding: 6px 8px;
       border-bottom: 1px solid #f1f5f9;
       vertical-align: top;
+      font-size: 13px;
     }
     .step1-table td:first-child { color:#111827; font-weight: 800; width: 38%; }
     .step1-table td:last-child { color:#111827; word-break: break-word; }
@@ -1968,32 +1969,36 @@
     .step1-compare-grid {
       display: grid;
       grid-template-columns: repeat(12, 1fr);
-      gap: 12px;
+      gap: 8px;
     }
     .step1-compare-card {
       grid-column: span 4;
-      padding: 12px 12px 10px 12px;
+      padding: 8px 10px;
     }
     @media (max-width: 1100px) { .step1-compare-card { grid-column: span 6; } }
     @media (max-width: 720px)  { .step1-compare-card { grid-column: span 12; } }
     .step1-compare-title {
-      font-size: 15px;
+      font-size: 13px;
       font-weight: 900;
       color: #111827;
       line-height: 1.2;
     }
     .step1-compare-meta {
-      margin-top: 8px;
+      margin-top: 4px;
       display: flex;
-      gap: 8px;
+      gap: 6px;
       flex-wrap: wrap;
       align-items: center;
     }
     /* Keep metrics aligned across compare cards even when badge rows wrap */
     .step1-compare-top { display: block; }
+    .step1-compare-card .step1-badge {
+      padding: 2px 6px;
+      font-size: 10px;
+    }
     .step1-metric {
-      margin-top: 10px;
-      padding-top: 10px;
+      margin-top: 6px;
+      padding-top: 6px;
       border-top: 1px solid #f1f5f9;
     }
     .step1-metric:first-child {
@@ -2005,22 +2010,22 @@
       display: flex;
       align-items: baseline;
       justify-content: space-between;
-      gap: 10px;
+      gap: 6px;
     }
     .step1-metric-label {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 900;
       color: #111827;
     }
     .step1-metric-value {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 900;
       color: #111827;
       white-space: nowrap;
     }
     .step1-metric-sub {
-      margin-top: 2px;
-      font-size: 12px;
+      margin-top: 1px;
+      font-size: 10px;
       color: #6b7280;
     }
     /* Keep as a single horizontal stripe on all screen sizes (scrolls when needed) */
@@ -2982,7 +2987,9 @@
   </button>
   <button class="process-step" type="button" data-step="2">
     <span class="process-step-num">Step 2</span>
-    <span class="process-step-title">Explore the Interactive Map</span>
+    <span class="process-step-title">Explore the Interactive Map
+      
+    </span>
   </button>
   <button class="process-step" type="button" data-step="3">
     <span class="process-step-num">Step 3</span>
@@ -3184,7 +3191,7 @@
         </summary>
         <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
           <details class="flow-section" style="margin-bottom: 15px;">
-            <summary style="color: black; font-weight: bold; cursor: pointer;">Enrollment Thresholds by School Level</summary>
+            <summary style="color: black; font-weight: bold; cursor: pointer;">Enrollment Thresholds by School Level (2025)</summary>
             <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
               <label>Elementary School: <span id="elementaryEnrollmentOut">220</span> students
                 <input type="range" id="elementaryEnrollmentSlider" min="100" max="500" step="10" value="220" oninput="document.getElementById('elementaryEnrollmentOut').textContent = this.value">
@@ -3204,10 +3211,10 @@
             </div>
           </details>
           
-          <label>Current Utilization Threshold: <span id="utilOut">60</span>%
+          <label>Current Utilization Threshold (25-26): <span id="utilOut">60</span>%
             <input type="range" id="utilSlider" min="0" max="100" step="1" value="60" oninput="document.getElementById('utilOut').textContent = this.value">
           </label>
-          <label>High Utilization Threshold: <span id="utilHighOut">90</span>%
+          <label>High Utilization Threshold (25-26): <span id="utilHighOut">90</span>%
             <input type="range" id="utilHighSlider" min="0" max="120" step="1" value="90" oninput="document.getElementById('utilHighOut').textContent = this.value">
           </label>
           <label>Enrollment Growth Threshold: <span id="growthOut">5</span>%
@@ -3248,7 +3255,7 @@
           <span style="display: inline-block; margin-right: 8px;">▶</span>Flow 2: Expansion
         </summary>
         <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
-          <label style="display: block; margin-bottom: 16px; font-weight: 500; color: #374151;">Attendance Area Enrollment: <span id="attendanceAreaEnrollmentOut" style="font-weight: 600;">80</span>%
+          <label style="display: block; margin-bottom: 16px; font-weight: 500; color: #374151;">Attendance Area Enrollment (2024): <span id="attendanceAreaEnrollmentOut" style="font-weight: 600;">80</span>%
             <input type="range" id="attendanceAreaEnrollmentSlider" min="60" max="100" step="1" value="80">
           </label>
           <label style="display: block; margin-bottom: 16px; font-weight: 500; color: #374151;">Composite Building Score: <span id="buildOut" style="font-weight: 600;">5</span>
@@ -3369,80 +3376,77 @@
   
     <!-- Step 1: School-level Data View (no map / no sidebars) -->
     <div id="step1-school-view" style="display:none; height:100%; overflow:auto; background:#f8fafc;">
-      <div style="max-width: 1100px; margin: 0 auto; padding: 20px 18px 28px 18px;">
-        <div class="step1-card" style="padding: 14px 16px; display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+      <div style="max-width: 1100px; margin: 0 auto; padding: 10px 14px 56px 14px;">
+        <div class="step1-card" style="padding: 10px 12px; display:flex; align-items:flex-end; justify-content:space-between; gap:8px; flex-wrap:wrap;">
           <div>
-            <h2 style="margin: 0; font-size: 20px; font-weight: 900; color:#111827;">School-level Data</h2>
-            <div style="margin-top:4px; font-size: 13px; color:#4b5563;">
-              Select a school to view key indicators and (optionally) compare to other schools (source: Decision Data Export).
+            <h2 style="margin: 0; font-size: 16px; font-weight: 900; color:#111827;">School-level Data</h2>
+            <div style="margin-top:2px; font-size: 12px; color:#4b5563;">
+              Select a school to view key indicators and (optionally) compare to other schools.
             </div>
           </div>
-          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-            <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#111827;">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#111827;">
               <span style="font-weight:800;">School</span>
-              <select id="step1SchoolSelect" style="min-width: 320px; max-width: 520px; padding: 9px 10px; border:1px solid #d1d5db; border-radius:10px; background:#fff;">
+              <select id="step1SchoolSelect" style="min-width: 280px; max-width: 440px; padding: 6px 8px; border:1px solid #d1d5db; border-radius:8px; background:#fff; font-size:13px;">
                 <option value="">-- Select School --</option>
               </select>
             </label>
             <button id="step1OpenSchoolProfileBtn" type="button"
-                    style="padding:9px 12px; border:1px solid #d1d5db; border-radius:10px; background:#fff; cursor:pointer; font-size:13px; font-weight:900; color:#111827;">
+                    style="padding:6px 10px; border:1px solid #d1d5db; border-radius:8px; background:#fff; cursor:pointer; font-size:12px; font-weight:800; color:#111827;">
               Open School Project List
             </button>
           </div>
         </div>
 
         <div id="step1SchoolDataEmptyState" class="step1-card"
-             style="margin-top: 14px; padding: 18px; color:#4b5563; font-size:13px;">
+             style="margin-top: 8px; padding: 12px; color:#4b5563; font-size:12px;">
           Select a school to view its school-level data.
         </div>
 
-        <div id="step1SchoolDataCard" class="step1-card" style="display:none; margin-top: 14px; overflow:hidden;">
-          <div style="padding: 14px 16px; border-bottom: 1px solid #e5e7eb; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-            <div style="min-width: 280px;">
-              <div style="font-size: 20px; font-weight: 900; color:#111827; line-height: 1.1;">
+        <div id="step1SchoolDataCard" class="step1-card" style="display:none; margin-top: 8px; overflow:hidden;">
+          <div style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; display:flex; align-items:flex-start; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+            <div style="min-width: 240px;">
+              <div style="font-size: 16px; font-weight: 900; color:#111827; line-height: 1.1;">
                 <span id="step1SchoolNameHeading">Selected school</span>
               </div>
-              <div id="step1SchoolBadges" style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+              <div id="step1SchoolBadges" style="margin-top:4px; display:flex; gap:6px; flex-wrap:wrap;">
                 <!-- badges injected -->
               </div>
             </div>
-            <div style="font-size: 12px; color:#6b7280; text-align:right;">
-              Key metrics (Decision Data Export).
-            </div>
           </div>
 
-          <div id="step1CompareControls" style="padding: 12px 16px; border-bottom: 1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-            <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
-              <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#111827; font-weight:800;">
+          <div id="step1CompareControls" style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+              <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#111827; font-weight:800;">
                 <input id="step1CompareMode" type="checkbox" />
                 <span>Compare schools</span>
               </label>
-              <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#111827; font-weight:500;">
+              <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#111827; font-weight:500;">
                 <input type="checkbox" id="step1IncludePKToggle" title="Include Pre-K in enrollment, utilization, and available seats">
                 <span>Include PK</span>
               </label>
             </div>
-            <div id="step1CompareSelects" style="display:none; gap:10px; align-items:center; flex-wrap:wrap;">
-              <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#111827;">
+            <div id="step1CompareSelects" style="display:none; gap:8px; align-items:center; flex-wrap:wrap;">
+              <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#111827;">
                 <span style="font-weight:800;">Compare to</span>
-                <select id="step1CompareSchoolSelect1" style="min-width: 260px; max-width: 440px; padding: 9px 10px; border:1px solid #d1d5db; border-radius:10px; background:#fff;">
+                <select id="step1CompareSchoolSelect1" style="min-width: 220px; max-width: 360px; padding: 6px 8px; border:1px solid #d1d5db; border-radius:8px; background:#fff; font-size:12px;">
                   <option value="">-- Select School --</option>
                 </select>
               </label>
-              <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:#111827;">
+              <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#111827;">
                 <span style="font-weight:800;">And</span>
-                <select id="step1CompareSchoolSelect2" style="min-width: 260px; max-width: 440px; padding: 9px 10px; border:1px solid #d1d5db; border-radius:10px; background:#fff;">
+                <select id="step1CompareSchoolSelect2" style="min-width: 220px; max-width: 360px; padding: 6px 8px; border:1px solid #d1d5db; border-radius:8px; background:#fff; font-size:12px;">
                   <option value="">-- Select School --</option>
                 </select>
               </label>
             </div>
           </div>
 
-          <div id="step1SingleSection" style="padding: 14px 16px;">
+          <div id="step1SingleSection" style="padding: 10px 12px;">
             <div class="step1-section-grid">
-              <div class="step1-card" style="padding: 14px 16px;">
+              <div class="step1-card" style="padding: 10px 12px;">
                 <div class="step1-section-title">BUILDING INFORMATION</div>
-                <div class="step1-section-row" style="margin-top: 10px;">
+                <div class="step1-section-row" style="margin-top: 6px;">
                   <div>
                     <table class="step1-table" aria-label="Building information details">
                       <tbody id="step1BuildingInfoDetails">
@@ -3454,22 +3458,19 @@
                     <div id="step1BuildingInfoTiles" class="step1-tile-grid" aria-label="Building information KPIs">
                       <!-- purple tiles injected -->
                     </div>
-                    <div class="step1-footnote" id="step1BuildingInfoFootnote">
-                      *Utilization includes PK when applicable. Does not include temporary buildings.
-                    </div>
                   </div>
                 </div>
               </div>
 
-              <div class="step1-card" style="padding: 14px 16px;">
+              <div class="step1-card" style="padding: 10px 12px;">
                 <div class="step1-section-row" style="grid-template-columns: 1fr;">
-                  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px; flex-wrap:wrap;">
                     <div>
-                      <div class="step1-section-title">ENROLLMENT</div>
+                      <div class="step1-section-title">ENROLLMENT (2025)</div>
                       <div class="step1-section-subtitle" id="step1EnrollmentSubtitle"></div>
                     </div>
                   </div>
-                  <div style="margin-top: 10px;">
+                  <div style="margin-top: 6px;">
                     <div id="step1EnrollmentTiles" class="step1-tile-grid" aria-label="Enrollment KPIs">
                       <!-- green tiles injected -->
                     </div>
@@ -3481,7 +3482,7 @@
             </div>
           </div>
 
-          <div id="step1CompareSection" style="display:none; padding: 14px 16px;">
+          <div id="step1CompareSection" style="display:none; padding: 10px 12px;">
             <div id="step1CompareGrid" class="step1-compare-grid">
               <!-- compare cards injected -->
             </div>
@@ -3635,6 +3636,10 @@
               <label style="display:flex; align-items:center; gap:6px;">
                 <input type="checkbox" id="toggleUtilizationPie" style="width:14px; height:14px;">
                 <span>Show utilization pie charts</span>
+              </label>
+              <label style="display:flex; align-items:center; gap:6px; margin-left:20px;" title="When checked, utilization includes Pre-K; when unchecked, utilization = (Enrollment - PK) / Capacity">
+                <input type="checkbox" id="toggleIncludePKInUtilization" style="width:14px; height:14px;">
+                <span>Include PK in utilization</span>
               </label>
               <label style="display:flex; align-items:center; gap:6px;">
                 <input type="checkbox" id="toggleIncludeNonEval" style="width:14px; height:14px;">
@@ -4178,11 +4183,11 @@ document.addEventListener('DOMContentLoaded', function() {
   The flowchart allows you to visualize the decision logic dynamically by school.<br><br>
   <strong>Flow 1: Decision Routing</strong><br>
             <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
-              <li><strong>Enrollment Thresholds by School Level</strong><br>
+              <li><strong>Enrollment Thresholds by School Level (2025)</strong><br>
                 Minimum enrollment thresholds for Elementary, K-8, Middle, High, and 6-12 schools (driven by Decision Data Export enrollment)</li>
-              <li><strong>Current Utilization Threshold</strong><br>
+              <li><strong>Current Utilization Threshold (25-26)</strong><br>
                 Minimum percentage of capacity used before a school is considered underutilized (0-100%, default: 60%)</li>
-              <li><strong>High Utilization Threshold</strong><br>
+              <li><strong>High Utilization Threshold (25-26)</strong><br>
                 Percentage threshold for identifying highly utilized or overcrowded schools (0-120%, default: 90%)</li>
               <li><strong>Enrollment Growth Threshold</strong><br>
                 Minimum expected change in student enrollment (-50% to +50%, default: 0%)</li>
@@ -4191,7 +4196,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </ul>
   <strong>Flow 2: Expansion</strong><br>
   <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
-    <li><strong>Attendance Area Enrollment</strong><br>
+    <li><strong>Attendance Area Enrollment (2024)</strong><br>
       Percentage threshold for attendance area enrollment (60-100%, default: 80%)</li>
     <li><strong>Composite Building Score</strong><br>
       Building condition score threshold (1-10 scale, default: 5)</li>

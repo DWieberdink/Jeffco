@@ -331,10 +331,11 @@
         .data-table th {
             background: #f3f4f6;
             font-weight: 600;
-            color: var(--text);
-            font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+            cursor: grab;
+        }
+        .data-table th.drag-over {
+            background: #dbeafe;
+            outline: 2px solid #3b82f6;
         }
 
         .data-table tr:hover {
@@ -343,6 +344,46 @@
 
         .data-table tr:last-child td {
             border-bottom: none;
+        }
+
+        /* School Data table: single-line text, borders between headers */
+        .data-table.school-data-sortable th,
+        .data-table.school-data-sortable td {
+            white-space: nowrap;
+        }
+        .data-table.school-data-sortable thead tr th,
+        .data-table.school-data-sortable tbody tr td {
+            height: 36px;
+            padding: 8px 12px;
+            box-sizing: border-box;
+            vertical-align: middle;
+        }
+        .data-table.school-data-sortable th {
+            border-right: 1px solid #9ca3af;
+        }
+        .data-table.school-data-sortable th:last-child {
+            border-right: none;
+        }
+        .data-table.school-data-sortable td {
+            border-right: 1px solid #e5e7eb;
+        }
+        .data-table.school-data-sortable td:last-child {
+            border-right: none;
+        }
+        .data-table.school-data-sortable th.col-calculated {
+            background: #dbeafe;
+            position: relative;
+        }
+        .data-table.school-data-sortable th.col-calculated::after {
+            content: '∑';
+            font-size: 10px;
+            font-weight: 700;
+            color: #1d4ed8;
+            margin-left: 4px;
+            opacity: 0.85;
+        }
+        .data-table.school-data-sortable th.col-source {
+            background: #f3f4f6;
         }
 
         /* Dropdown + "needs confirmation" highlight */
@@ -502,6 +543,7 @@
             }
         }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 </head>
 <body>
     <div id="top-brand-bar">
@@ -818,10 +860,10 @@
                             <td><strong>Two threshold checks in Flow 1</strong></td>
                         </tr>
                         <tr>
-                            <td><strong>Future_EnrollmentGrowth</strong></td>
+                            <td><strong>Enrollment growth</strong> (computed)</td>
                             <td><strong>-0.58</strong></td>
                             <td><strong>✅ Yes</strong></td>
-                            <td><strong>Growth threshold check</strong></td>
+                            <td><strong>Growth threshold check (from 2030_PK, 2030_K+, 2030_Total, Enrollment)</strong></td>
                         </tr>
                         <tr>
                             <td><strong>DistanceUnderutilizedschools</strong></td>
@@ -852,12 +894,6 @@
                             <td><strong>0</strong></td>
                             <td><strong>✅ Yes</strong></td>
                             <td><strong>Expansion feasibility check (Flow 2)</strong></td>
-                        </tr>
-                        <tr>
-                            <td><strong>Scorecard</strong></td>
-                            <td>3</td>
-                            <td>❌ No</td>
-                            <td>Map display and filtering</td>
                         </tr>
                         <tr>
                             <td><strong>SquareFt</strong></td>
@@ -920,8 +956,8 @@
                             <td>util1: > threshold, util2: > high threshold</td>
                         </tr>
                         <tr>
-                            <td><strong>Future_EnrollmentGrowth</strong></td>
-                            <td>Enrollment growth rate over 10 years</td>
+                            <td><strong>Enrollment growth</strong> (computed)</td>
+                            <td>Enrollment growth rate over 10 years (from 2030 projections)</td>
                             <td>Growth threshold check</td>
                             <td>Growth > threshold ← "Yes/No"</td>
                         </tr>
@@ -3332,23 +3368,16 @@
             <!-- Prioritization (Step 2) is documented under Decision Categories (dropdown). -->
             <!-- School Profile Tab -->
             <div id="school-profile-logic" class="tab-content">
-                <h2>🏫 School Profile</h2>
-                <p>The School Profile page summarizes project items and costs for a selected school. It uses the unit cost library to categorize projects and the school project list to populate per-school values.</p>
-
-                <h3>What it outputs</h3>
-                <ul>
-                    <li><strong>Project list table</strong> with category, priority, unit cost/measure, and computed costs.</li>
-                    <li><strong>Total cost rollup</strong> plus <strong>Total Low / Total Medium / Total High</strong> priority subtotals.</li>
-                    <li><strong>Condition score status</strong> as <strong>Good</strong>, <strong>Poor</strong>, or <strong>N/A</strong> when not relevant.</li>
-                </ul>
-
-                <h3>Key rules</h3>
-                <ul>
-                    <li><strong>Category + measure + unit cost</strong> come from <span class="code-chip">UnitCostLibrary.csv</span>.</li>
-                    <li><strong>UnitValue + score values</strong> come from <span class="code-chip">JeffCoProjectListAllSchools.csv</span>.</li>
-                    <li><strong>Condition score</strong> compares the school’s numeric score to the library threshold value to determine Good/Poor (with a few category-specific direction rules).</li>
-                    <li><strong>Relevance</strong>: some rows (e.g., Gut Renovation / New Construction) are only relevant for certain Step 1 outcomes.</li>
-                </ul>
+                <div style="display:flex; align-items:center; gap:12px; margin:12px 0; flex-wrap:wrap;">
+                    <button type="button" id="schoolDataLoadBtn" class="btn" style="padding:8px 16px;">Load School Data</button>
+                    <button type="button" id="schoolDataExportBtn" class="btn" style="padding:8px 16px;" disabled>Export to CSV</button>
+                    <button type="button" id="schoolDataCopyOrderBtn" class="btn" style="padding:8px 16px;" disabled title="Copy current column order (drag headers to reorder)">Copy column order</button>
+                    <span style="font-size:12px; color:var(--muted); margin-left:16px;">
+                        <span style="background:#f3f4f6; padding:2px 6px; border-radius:4px;">Source</span>
+                        <span style="background:#dbeafe; padding:2px 6px; border-radius:4px; margin-left:4px;">∑ Calculated</span>
+                    </span>
+                </div>
+                <div id="schoolDataTableWrap" style="overflow-x:auto; max-height:500px; border:1px solid var(--border); border-radius:8px; background:var(--surface);"></div>
             </div>
 
             <!-- Closure Scenarios Tab -->
@@ -3435,6 +3464,10 @@
                 // Initialize data sources dropdown
                 if (tabName === 'data-sources') {
                     initDataSourcesTab();
+                }
+                // Auto-load school data table when School Profile tab is first shown
+                if (tabName === 'school-profile-logic') {
+                    showTabSchoolProfileInit(tabName);
                 }
             }
 
@@ -3832,7 +3865,315 @@
                 .replace(/'/g, '&#039;');
         }
 
-        // Formulas tab removed (content is now documented per-feature in the tabs above).
+        // -----------------------------
+        // School Profile: Complete School Data Table (with computed fields)
+        // -----------------------------
+        let schoolDataTableRows = null; // { rows, columns } for CSV export
+        const DEFAULT_COLUMN_ORDER = [
+            'UniqueID', 'Building Name', 'Articulation Area', 'Status', 'School Level', 'Capacity',
+            'PKEnrollment', 'K+Enrollment', 'Enrollment',
+            'AvailableSeats_inclPK', 'AvailableSeats_KPlusOnly', 'Utilization_KPlusOnly', 'Utilization_inclPK',
+            'NonPKAttendanceAreaEnrollment', 'AttendanceAreaEnrollment', 'DistanceToUnderutilizedSchools',
+            '2030_PK', '2030_K+', '2030_Total',
+            'AvailableSeats_2030_inclPK', 'AvailableSeats_2030_KPlusOnly',
+            'PK_EnrollmentGrowth', 'Utilization_2030_KPlusOnly', 'Utilization_2030_inclPK', 'K+EnrollmentGrowth', 'Future_EnrollmentGrowth',
+            ' SquareFt ', 'BuildingScore', 'EducationalAdequacy', 'Below50PCTL_EA_Cat', 'SiteCapacity', 'RecentInvestments', 'Include_Flow_Chart'
+        ];
+
+        const DISPLAY_HEADERS = {
+            'UniqueID': 'Unique ID', 'Building Name': 'Building Name', 'Articulation Area': 'Articulation Area',
+            'Status': 'Status', 'School Level': 'School Level', 'Capacity': 'Capacity', 'PKEnrollment': 'PK Enrollment',
+            'K+Enrollment': 'K+ Enrollment', 'Enrollment': 'Enrollment', '2030_PK': '2030 PK', '2030_Total': '2030 Total',
+            'PK_EnrollmentGrowth': 'PK Enrollment Growth', 'K+EnrollmentGrowth': 'K+ Enrollment Growth',
+            '2030_K+': '2030 K+ Enrollment',
+            'AvailableSeats_2030_inclPK': '2030 Available Seats Incl PK', 'AvailableSeats_2030_KPlusOnly': '2030 Available Seats K+ Only',
+            'Utilization_2030_inclPK': '2030 Utilization Incl PK', 'Utilization_2030_KPlusOnly': '2030 Utilization K+ Only',
+            'Future_EnrollmentGrowth': 'Future Enrollment Growth', 'AvailableSeats_inclPK': 'Available Seats Incl PK',
+            'AvailableSeats_KPlusOnly': 'Available Seats K+ Only', 'Utilization_KPlusOnly': 'Utilization K+ Only',
+            'Utilization_inclPK': 'Utilization Incl PK', 'NonPKAttendanceAreaEnrollment': 'Non PK Attendance Area Enrollment',
+            'AttendanceAreaEnrollment': 'Attendance Area Enrollment', 'DistanceToUnderutilizedSchools': 'Distance To Underutilized Schools',
+            ' SquareFt ': 'Square Ft', 'BuildingScore': 'Building Score', 'EducationalAdequacy': 'Educational Adequacy',
+            'Below50PCTL_EA_Cat': 'Below 50 PCTL EA Cat', 'SiteCapacity': 'Site Capacity', 'RecentInvestments': 'Recent Investments',
+            'Include_Flow_Chart': 'Include Flow Chart'
+        };
+
+        const ROLLUP_GROUPS = [
+            { label: 'School Data', cols: ['UniqueID', 'Building Name', 'Articulation Area', 'Status', 'School Level', 'Capacity'] },
+            { label: 'Seats & Utilization (2025)', cols: ['PKEnrollment', 'K+Enrollment', 'Enrollment', 'AvailableSeats_inclPK', 'AvailableSeats_KPlusOnly', 'Utilization_KPlusOnly', 'Utilization_inclPK', 'NonPKAttendanceAreaEnrollment', 'AttendanceAreaEnrollment', 'DistanceToUnderutilizedSchools'] },
+            { label: 'Projected 2030', cols: ['2030_PK', '2030_K+', '2030_Total', 'AvailableSeats_2030_inclPK', 'AvailableSeats_2030_KPlusOnly', 'PK_EnrollmentGrowth', 'Utilization_2030_KPlusOnly', 'Utilization_2030_inclPK', 'K+EnrollmentGrowth', 'Future_EnrollmentGrowth'] },
+            { label: 'Facility Data', cols: [' SquareFt ', 'BuildingScore', 'EducationalAdequacy', 'Below50PCTL_EA_Cat', 'SiteCapacity', 'RecentInvestments', 'Include_Flow_Chart'] }
+        ];
+
+        const CALCULATED_COLS = new Set([
+            'K+Enrollment', '2030_K+', 'AvailableSeats_inclPK', 'AvailableSeats_KPlusOnly',
+            'Utilization_inclPK', 'Utilization_KPlusOnly', 'AvailableSeats_2030_inclPK', 'AvailableSeats_2030_KPlusOnly',
+            'Utilization_2030_inclPK', 'Utilization_2030_KPlusOnly', 'PK_EnrollmentGrowth', 'K+EnrollmentGrowth',
+            'Future_EnrollmentGrowth'
+        ]);
+
+        async function loadODDistanceMap() {
+            const res = await fetch('OD_Draft.csv', { cache: 'no-store' });
+            const text = await res.text();
+            const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+            const pairDistances = {};
+            const norm = s => (s || '').toString().trim().toLowerCase();
+            const normName = s => norm((s || '').toString().trim().replace(/\s+/g, ' '));
+            const median = (arr) => {
+                if (!arr.length) return NaN;
+                const s = [...arr].sort((a, b) => a - b);
+                const m = Math.floor(s.length / 2);
+                return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+            };
+            (parsed.data || []).forEach((row) => {
+                const oc = (row.CurrentSchoolCode || row['CurrentSchoolCode'] || '').toString().trim();
+                const dc = (row.DestinationSchoolCode || row['DestinationSchoolCode'] || '').toString().trim();
+                if (!oc || norm(oc) === norm(dc)) return;
+                const d = parseFloat((row.LinearDistance_Miles || row['LinearDistance_Miles'] || '').toString().trim());
+                if (!isFinite(d)) return;
+                const pk = `${norm(oc)}|${norm(dc)}`;
+                if (!pairDistances[pk]) pairDistances[pk] = [];
+                pairDistances[pk].push(d);
+            });
+            const map = {};
+            const originKeyToName = {};
+            Object.keys(pairDistances).forEach((pk) => {
+                const [ok] = pk.split('|');
+                const med = median(pairDistances[pk]);
+                if (!Number.isFinite(med)) return;
+                if (map[ok] === undefined || med < map[ok]) map[ok] = med;
+            });
+            (parsed.data || []).forEach((row) => {
+                const oc = (row.CurrentSchoolCode || row['CurrentSchoolCode'] || '').toString().trim();
+                const on = (row.CurrentSchoolName || row['CurrentSchoolName'] || '').toString().trim();
+                if (!oc || !on) return;
+                const key = norm(oc);
+                if (!originKeyToName[key]) originKeyToName[key] = normName(on);
+            });
+            const mapByName = {};
+            Object.keys(map).forEach((k) => { const n = originKeyToName[k]; if (n) mapByName[n] = map[k]; });
+            return { byId: map, byName: mapByName };
+        }
+
+        function loadAndRenderSchoolDataTable() {
+            const wrap = document.getElementById('schoolDataTableWrap');
+            const loadBtn = document.getElementById('schoolDataLoadBtn');
+            const exportBtn = document.getElementById('schoolDataExportBtn');
+            if (!wrap || !loadBtn) return;
+            loadBtn.disabled = true;
+            loadBtn.textContent = 'Loading...';
+            wrap.innerHTML = '<p style="padding:16px;color:var(--muted);">Loading Decision Data Export, Map_Export, and OD_Draft...</p>';
+            (async () => {
+                try {
+                    const [decRes, mapRes, distMap] = await Promise.all([
+                        fetch('Decision Data Export.csv', { cache: 'no-store' }).then(r => r.text()),
+                        fetch('Map_Export.csv', { cache: 'no-store' }).then(r => r.text()),
+                        loadODDistanceMap()
+                    ]);
+                    const mapParsed = Papa.parse(mapRes, { header: true, skipEmptyLines: true });
+                    const norm = s => (s || '').toString().trim().toLowerCase();
+                    const artByKey = {};
+                    (mapParsed.data || []).forEach((r) => {
+                        const code = (r['Building Code'] || r.BuildingCode || '').toString().trim();
+                        const name = (r['Building Name'] || r.BuildingName || '').toString().trim();
+                        const art = (r['Articulation'] || r.Articulation || '').toString().trim();
+                        if (code) artByKey[norm(code)] = art;
+                        if (name) artByKey[norm(name)] = art;
+                    });
+                    const decParsed = Papa.parse(decRes, { header: true, skipEmptyLines: true });
+                    const rows = (decParsed.data || []).filter(r => {
+                        const inc = (r.Include_Flow_Chart || '').toString().trim().toLowerCase();
+                        return inc && inc !== 'no';
+                    });
+                    const parseNum = (v) => { const n = parseFloat((v ?? '').toString().replace(/,/g, '').trim()); return Number.isFinite(n) ? n : null; };
+                    rows.forEach((row) => {
+                        const uid = (row.UniqueID || row['UniqueID'] || '').toString().trim();
+                        const key = norm(uid);
+                        let dist = distMap && distMap.byId && distMap.byId[key];
+                        if (dist == null && distMap && distMap.byName) {
+                            const name = (row['Building Name'] || row.BuildingName || '').toString().trim();
+                            const nameKey = name ? norm(name.replace(/\s+/g, ' ')) : '';
+                            dist = nameKey ? distMap.byName[nameKey] : null;
+                        }
+                        row.DistanceToUnderutilizedSchools = dist != null ? dist : null;
+                        const bldName = (row['Building Name'] || row.BuildingName || '').toString().trim();
+                        const nameKeyNorm = bldName ? norm(bldName.replace(/\s+/g, ' ')) : '';
+                        row['Articulation Area'] = artByKey[key] ?? artByKey[nameKeyNorm] ?? '';
+                        const cap = parseNum(row.Capacity || row['Capacity']) || 0;
+                        const pkEnr = parseNum(row.PKEnrollment || row['PKEnrollment']) ?? 0;
+                        const enr = parseNum(row.Enrollment || row['Enrollment']) ?? 0;
+                        const kPlus = Math.max(0, enr - pkEnr);
+                        row['K+Enrollment'] = kPlus;
+                        row['AvailableSeats_inclPK'] = cap > 0 ? Math.round(cap - enr) : null;
+                        row['AvailableSeats_KPlusOnly'] = cap > 0 ? Math.round(cap - kPlus) : null;
+                        row['Utilization_inclPK'] = cap > 0 && Number.isFinite(enr) ? enr / cap : null;
+                        row['Utilization_KPlusOnly'] = cap > 0 && Number.isFinite(kPlus) ? kPlus / cap : null;
+                        const projPK = parseNum(row['2030_PK'] || row['2030 PK']);
+                        const projKPlusFromCsv = parseNum(row['2030_K+'] || row['2030 K+']);
+                        const projTotal = parseNum(row['2030_Total'] || row['2030 Total']);
+                        let projKPlus;
+                        if (projKPlusFromCsv != null && Number.isFinite(projKPlusFromCsv)) {
+                            projKPlus = projKPlusFromCsv;
+                        } else if (projTotal != null && projPK != null && Number.isFinite(projTotal) && Number.isFinite(projPK)) {
+                            projKPlus = Math.max(0, projTotal - projPK);
+                        } else if (projTotal != null && Number.isFinite(projTotal)) {
+                            projKPlus = projTotal;
+                        } else {
+                            projKPlus = null;
+                        }
+                        row['2030_K+'] = projKPlus;
+                        row.PK_EnrollmentGrowth = pkEnr > 0 && projPK != null && Number.isFinite(projPK) ? (projPK - pkEnr) / pkEnr : null;
+                        const futureGrowth = enr > 0 && projTotal != null && Number.isFinite(projTotal) ? (projTotal - enr) / enr : null;
+                        row.Future_EnrollmentGrowth = futureGrowth;
+                        row['K+EnrollmentGrowth'] = kPlus > 0
+                            ? (pkEnr === 0 ? futureGrowth : (projKPlus != null && Number.isFinite(projKPlus) ? (projKPlus - kPlus) / kPlus : null))
+                            : null;
+                        row['AvailableSeats_2030_inclPK'] = cap > 0 && projTotal != null && Number.isFinite(projTotal) ? Math.round(cap - projTotal) : null;
+                        row['AvailableSeats_2030_KPlusOnly'] = cap > 0 && projKPlus != null && Number.isFinite(projKPlus) ? Math.round(cap - projKPlus) : null;
+                        row['Utilization_2030_inclPK'] = cap > 0 && projTotal != null && Number.isFinite(projTotal) ? projTotal / cap : null;
+                        row['Utilization_2030_KPlusOnly'] = cap > 0 && projKPlus != null && Number.isFinite(projKPlus) ? projKPlus / cap : null;
+                    });
+                    const rawCols = decParsed.meta && decParsed.meta.fields ? decParsed.meta.fields : [];
+                    if (!rawCols.length) rows.forEach(r => Object.keys(r).forEach(k => { if (!rawCols.includes(k)) rawCols.push(k); }));
+                    const computedCols = ['Articulation Area', 'K+Enrollment', '2030_K+', 'AvailableSeats_inclPK', 'AvailableSeats_KPlusOnly', 'Utilization_inclPK', 'Utilization_KPlusOnly', 'AvailableSeats_2030_inclPK', 'AvailableSeats_2030_KPlusOnly', 'Utilization_2030_inclPK', 'Utilization_2030_KPlusOnly', 'PK_EnrollmentGrowth', 'K+EnrollmentGrowth', 'Future_EnrollmentGrowth', 'DistanceToUnderutilizedSchools'];
+                    const skipRaw = new Set(['PK_EnrollmentGrowth', 'K+EnrollmentGrowth', 'Future_EnrollmentGrowth', 'DistanceUnderutilizedschools', 'BuildingTreshhold']);
+                    const percentCols = new Set(['Utilization_inclPK', 'Utilization_KPlusOnly', 'Utilization_2030_inclPK', 'Utilization_2030_KPlusOnly', 'PK_EnrollmentGrowth', 'K+EnrollmentGrowth', 'Future_EnrollmentGrowth']);
+                    const attendancePercentCols = new Set(['NonPKAttendanceAreaEnrollment', 'AttendanceAreaEnrollment']);
+                    const scale1to10Cols = new Set(['BuildingScore', 'EducationalAdequacy']);
+                    const allCols = ['UniqueID', 'Building Name'];
+                    rawCols.forEach(c => { if (c && c !== 'UniqueID' && c !== 'Building Name' && !skipRaw.has(c)) allCols.push(c); });
+                    computedCols.forEach(c => { if (!allCols.includes(c)) allCols.push(c); });
+                    const cols = [];
+                    DEFAULT_COLUMN_ORDER.forEach(c => { if (allCols.includes(c)) cols.push(c); });
+                    allCols.forEach(c => { if (!cols.includes(c)) cols.push(c); });
+                    schoolDataTableRows = { rows, columns: cols };
+                    const getDisplayHeader = (h) => DISPLAY_HEADERS[h] || h;
+                    const groupByCol = {};
+                    ROLLUP_GROUPS.forEach(g => { g.cols.forEach(c => { groupByCol[c] = g.label; }); });
+                    let html = '<table class="data-table school-data-sortable" style="font-size:12px;"><thead>';
+                    const rollupCells = [];
+                    let ri = 0;
+                    while (ri < cols.length) {
+                        const label = groupByCol[cols[ri]] || 'Other';
+                        let span = 0;
+                        while (ri + span < cols.length && (groupByCol[cols[ri + span]] || 'Other') === label) span++;
+                        rollupCells.push(`<th colspan="${span}" style="text-align:center;font-weight:700;background:#e5e7eb;">${escapeHtml(label)}</th>`);
+                        ri += span;
+                    }
+                    const thClass = (col) => CALCULATED_COLS.has(col) ? 'col-calculated' : 'col-source';
+                    const thTitle = (col) => CALCULATED_COLS.has(col) ? 'Calculated field' : 'From source data';
+                    html += '<tr>' + rollupCells.join('') + '</tr><tr>';
+                    cols.forEach((h, i) => html += `<th data-col-idx="${i}" draggable="true" class="${thClass(h)}" title="${escapeHtml(thTitle(h))}">${escapeHtml(getDisplayHeader(h))}</th>`);
+                    html += '</tr></thead><tbody>';
+                    const formatCell = (v, col) => {
+                        if (v === undefined || v === null || v === '') return '';
+                        if (percentCols.has(col) && typeof v === 'number' && Number.isFinite(v)) return (v * 100).toFixed(2) + '%';
+                        if (attendancePercentCols.has(col)) {
+                            const n = parseFloat(String(v).replace(/,/g, ''));
+                            return Number.isFinite(n) ? n.toFixed(2) + '%' : String(v);
+                        }
+                        if (scale1to10Cols.has(col)) {
+                            const n = parseFloat(String(v).replace(/,/g, ''));
+                            if (Number.isFinite(n) && n >= 0 && n <= 1) return (n * 10).toFixed(2);
+                        }
+                        if (typeof v === 'number' && Number.isFinite(v)) return Number.isInteger(v) ? String(v) : v.toFixed(2);
+                        return String(v);
+                    };
+                    rows.forEach((r) => {
+                        html += '<tr>';
+                        cols.forEach(col => {
+                            const v = r[col];
+                            html += `<td>${escapeHtml(formatCell(v, col))}</td>`;
+                        });
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table>';
+                    wrap.innerHTML = html;
+                    if (exportBtn) exportBtn.disabled = false;
+                    const copyOrderBtn = document.getElementById('schoolDataCopyOrderBtn');
+                    if (copyOrderBtn) copyOrderBtn.disabled = false;
+                    const table = wrap.querySelector('.school-data-sortable');
+                    if (table) {
+                        const theadEl = table.querySelector('thead');
+                        const tbody = table.querySelector('tbody');
+                        let currentCols = [...cols];
+                        const renderTable = () => {
+                            const rollupCells2 = [];
+                            let ri2 = 0;
+                            while (ri2 < currentCols.length) {
+                                const label2 = groupByCol[currentCols[ri2]] || 'Other';
+                                let span2 = 0;
+                                while (ri2 + span2 < currentCols.length && (groupByCol[currentCols[ri2 + span2]] || 'Other') === label2) span2++;
+                                rollupCells2.push(`<th colspan="${span2}" style="text-align:center;font-weight:700;background:#e5e7eb;">${escapeHtml(label2)}</th>`);
+                                ri2 += span2;
+                            }
+                            theadEl.innerHTML = '<tr>' + rollupCells2.join('') + '</tr><tr>' + currentCols.map((h, i) => `<th data-col-idx="${i}" draggable="true" class="${thClass(h)}" title="${escapeHtml(thTitle(h))}">${escapeHtml(getDisplayHeader(h))}</th>`).join('') + '</tr>';
+                            tbody.innerHTML = rows.map(r => '<tr>' + currentCols.map(col => {
+                                const v = r[col];
+                                return `<td>${escapeHtml(formatCell(v, col))}</td>`;
+                            }).join('') + '</tr>').join('');
+                            schoolDataTableRows.columns = currentCols;
+                            const headerRows = theadEl.querySelectorAll('tr');
+                            setupColDrag(headerRows[headerRows.length - 1]);
+                        };
+                        const setupColDrag = (tr) => {
+                            const headers = tr.querySelectorAll('th');
+                            headers.forEach((th, i) => {
+                                th.ondragstart = (e) => { e.dataTransfer.setData('text/plain', String(i)); e.dataTransfer.effectAllowed = 'move'; };
+                                th.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; th.classList.add('drag-over'); };
+                                th.ondragleave = () => th.classList.remove('drag-over');
+                                th.ondrop = (e) => {
+                                    e.preventDefault();
+                                    th.classList.remove('drag-over');
+                                    const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                                    if (from === i) return;
+                                    const arr = [...currentCols];
+                                    const [rem] = arr.splice(from, 1);
+                                    arr.splice(i, 0, rem);
+                                    currentCols = arr;
+                                    renderTable();
+                                };
+                            });
+                        };
+                        const initialHeaderRows = theadEl.querySelectorAll('tr');
+                        setupColDrag(initialHeaderRows[initialHeaderRows.length - 1]);
+                    }
+                    if (copyOrderBtn) copyOrderBtn.onclick = () => {
+                        if (!schoolDataTableRows || !schoolDataTableRows.columns.length) return;
+                        const order = schoolDataTableRows.columns.join(',');
+                        navigator.clipboard.writeText(order).then(() => { copyOrderBtn.textContent = 'Copied!'; setTimeout(() => { copyOrderBtn.textContent = 'Copy column order'; }, 1500); });
+                    };
+                } catch (e) {
+                    wrap.innerHTML = '<p style="padding:16px;color:#dc2626;">Error: ' + escapeHtml(e.message) + '</p>';
+                }
+                loadBtn.disabled = false;
+                loadBtn.textContent = 'Load School Data';
+            })();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const loadBtn = document.getElementById('schoolDataLoadBtn');
+            const exportBtn = document.getElementById('schoolDataExportBtn');
+            if (loadBtn) loadBtn.addEventListener('click', loadAndRenderSchoolDataTable);
+            if (exportBtn) exportBtn.addEventListener('click', () => {
+                if (!schoolDataTableRows || !schoolDataTableRows.rows.length) return;
+                const { rows, columns } = schoolDataTableRows;
+                const escapeCsv = (v) => { const s = String(v ?? ''); return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s; };
+                const typeRow = columns.map(c => escapeCsv(CALCULATED_COLS.has(c) ? 'Calculated' : 'Source'));
+                const csv = [typeRow.join(','), columns.map(escapeCsv).join(',')].concat(rows.map(r => columns.map(c => escapeCsv(r[c])).join(','))).join('\n');
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'School_Data_Export.csv';
+                a.click();
+                URL.revokeObjectURL(a.href);
+            });
+        });
+
+        function showTabSchoolProfileInit(tabName) {
+            if (tabName === 'school-profile-logic' && document.getElementById('schoolDataLoadBtn') && !schoolDataTableRows) {
+                loadAndRenderSchoolDataTable();
+            }
+        }
     </script>
 </body>
 </html>

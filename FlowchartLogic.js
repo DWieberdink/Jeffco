@@ -1637,7 +1637,7 @@ function getEffectiveEnrollmentFlow(row) {
 function getEffectiveUtilizationFlow(row) {
   if (window.getEffectiveUtilization) return window.getEffectiveUtilization(row);
   const cap = parseFloat((row.Capacity || '').toString().replace(/,/g, '').trim()) || 0;
-  if (!cap || cap <= 0) return +row.Utilization || 0;
+  if (!cap || cap <= 0) return 0;
   return getEffectiveEnrollmentFlow(row) / cap;
 }
 
@@ -1730,7 +1730,7 @@ function evaluatePath(row, t) {
     })(),
     growth: (() => {
       const g = window.getEffectiveEnrollmentGrowth ? window.getEffectiveEnrollmentGrowth(row) : null;
-      const val = (g != null && Number.isFinite(g)) ? g : parseFloat(row["Future_EnrollmentGrowth"] ?? row["K+EnrollmentGrowth"] ?? 0);
+      const val = (g != null && Number.isFinite(g)) ? g : 0;
       return val > t.enrollmentGrowth ? "Yes" : "No";
     })(),
     
@@ -1751,12 +1751,10 @@ function evaluatePath(row, t) {
     fac3_below: coerceBuildingScore0to10(row.BuildingScore) <= t.buildingThresholdBelow ? "Yes" : "No",
     edu3: (+row.EducationalAdequacy * 100) >= t.adequateProgramsMin ? "Yes" : "No",
     edu3_2: (() => {
-      // OR function: Below 50% percentile EA category OR safety/security issues
+      // Safety/security check: use Below50PCTL_EA_Cat (Yes = below 50% percentile EA or safety/security issues)
       const hasBelow50PercentileCategory = row["Below50PCTL_EA_Cat"];
       const isBelow50Percentile = hasBelow50PercentileCategory === "Yes" || hasBelow50PercentileCategory === "yes" || hasBelow50PercentileCategory === "YES";
-      const hasSafetyIssues = (row.DepartmentalDeficiency && row.DepartmentalDeficiency.toLowerCase().includes('safety')) || 
-                             (row.DepartmentalDeficiency && row.DepartmentalDeficiency.toLowerCase().includes('security'));
-      return (isBelow50Percentile || hasSafetyIssues) ? "Yes" : "No";
+      return isBelow50Percentile ? "Yes" : "No";
     })(),
     // Node label: "Composite Building Score above?"
     fac3_above: coerceBuildingScore0to10(row.BuildingScore) >= t.buildingThresholdAbove ? "Yes" : "No",
@@ -2979,16 +2977,16 @@ function showNearbyWelcomingSchools(originName) {
     return;
   }
 
-  // Build a lookup for destination schools by UniqueID from decision data
-  const decisionRows = (window.decisionLogic && Array.isArray(window.decisionLogic.schoolData))
-    ? window.decisionLogic.schoolData
-    : schoolData;
-  const destById = new Map(
-    (decisionRows || []).map(r => {
-      const uid = (r.UniqueID || r["UniqueID"] || r["Unique Id"] || "").toString().trim().toLowerCase();
-      return [uid, r];
-    })
-  );
+  // Build a lookup for destination schools by UniqueID - use full export (decisionAllById) so we can
+  // resolve names for ALL schools including excluded/closed ones; fall back to filtered schoolData
+  const destById = window.decisionAllById && window.decisionAllById.size > 0
+    ? window.decisionAllById
+    : new Map(
+        ((window.decisionLogic && window.decisionLogic.schoolData) || schoolData || []).map(r => {
+          const uid = (r.UniqueID || r["UniqueID"] || r["Unique Id"] || "").toString().trim().toLowerCase();
+          return [uid, r];
+        })
+      );
 
   const cleanText = (val) => {
     const str = (val || "").toString().trim();
@@ -3011,11 +3009,14 @@ function showNearbyWelcomingSchools(originName) {
         r["Destination CDE Prefix "] ||
         r["DestinationCDEPrefix"] ||
         r.destId;
-      const destRow = destPrefix ? destById.get(destPrefix.toString().trim().toLowerCase()) : null;
-      const destName = (destRow && destRow["Building Name"]) || r["Destination Facility Name"] || "Unknown";
+      const destKey = destPrefix ? destPrefix.toString().trim().toLowerCase() : "";
+      const destRow = destKey ? destById.get(destKey) : null;
+      const destName = (destRow && destRow["Building Name"]) || r["Destination Facility Name"] || (destKey ? `School (${destPrefix})` : "Unknown");
       const destGrades = r["Destination Grades"] || (destRow && destRow["School Level"]) || "N/A";
       const capacity = destRow ? (destRow["Capacity"] || destRow.Capacity) : null;
-      const available = destRow ? (destRow["Available Seats"] || destRow["AvailableSeats"] || destRow.AvailableSeats) : null;
+      const available = destRow && window.getEffectiveAvailableSeats
+        ? window.getEffectiveAvailableSeats(destRow)
+        : (destRow ? (destRow["Available Seats"] || destRow["AvailableSeats"] || destRow.AvailableSeats) : null);
       const availableNum = available !== undefined && available !== null && available !== ""
         ? Math.max(0, parseFloat(available.toString().replace(/,/g, "")) || 0)
         : null;

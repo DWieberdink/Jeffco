@@ -373,10 +373,11 @@
       const name = norm(r["Building Name"] ?? r.BuildingName ?? r["BuildingName"]);
       const status = norm(r.Status);
       const articulationArea = norm(r["Articulation Area"] ?? r["ArticulationArea"] ?? "");
-      const seatsRaw = r["Available Seats"] ?? r.AvailableSeats ?? r["AvailableSeats"];
-      const seats = Math.max(0, parseNumberMaybe(seatsRaw) ?? 0);
-      const enrRaw = r.Enrollment ?? r["Enrollment"];
-      const enrollment = Math.max(0, parseNumberMaybe(enrRaw) ?? 0);
+      const cap = parseNumberMaybe(r.Capacity ?? r["Capacity"]) ?? 0;
+      const enrollment = Math.max(0, parseNumberMaybe(r.Enrollment ?? r["Enrollment"]) ?? 0);
+      const pk = Math.max(0, parseNumberMaybe(r.PKEnrollment ?? r["PKEnrollment"] ?? r["PK Enrollment"]) ?? 0);
+      const effEnr = Math.max(0, enrollment - pk);
+      const seats = cap > 0 ? Math.max(0, Math.round(cap - effEnr)) : 0;
       schoolMetaByCode.set(code, { code, name, status, seats, enrollment, articulationArea });
     });
 

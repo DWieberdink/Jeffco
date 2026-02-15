@@ -15,10 +15,10 @@ if (!DEBUG) {
 const ASSET_VERSION = '2026-02-05-1';
 
 // --- PK Enrollment: exclude by default (Enrollment - PKEnrollment) -------------------
-const PK_ENROLLMENT_STORAGE_KEY = 'jeffco_include_pk_enrollment_v1';
+const PK_ENROLLMENT_STORAGE_KEY = 'jeffco_include_pk_enrollment_v2';
 window.getIncludePKInEnrollment = function () {
   try {
-    // Default: exclude PK (return false when no preference stored)
+    // Default: exclude PK / unchecked (return false when no preference stored)
     const v = window.localStorage && window.localStorage.getItem(PK_ENROLLMENT_STORAGE_KEY);
     return v === 'true';
   } catch (_) { return false; }
@@ -38,18 +38,35 @@ window.getEffectiveEnrollment = function (row) {
 window.getEffectiveUtilization = function (row) {
   if (!row) return 0;
   const cap = parseFloat((row.Capacity ?? row.capacity ?? row['Capacity'] ?? '').toString().replace(/,/g, '').trim()) || 0;
-  if (!cap || cap <= 0) return parseFloat((row.Utilization ?? row.utilization ?? '').toString()) || 0;
+  if (!cap || cap <= 0) return 0;
   return window.getEffectiveEnrollment(row) / cap;
+};
+window.getEffectiveAvailableSeats = function (row) {
+  if (!row) return null;
+  const cap = parseFloat((row.Capacity ?? row.capacity ?? row['Capacity'] ?? '').toString().replace(/,/g, '').trim()) || 0;
+  if (!cap || cap <= 0) return null;
+  const effEnr = window.getEffectiveEnrollment ? window.getEffectiveEnrollment(row) : 0;
+  return Math.round(cap - effEnr);
 };
 window.getEffectiveEnrollmentGrowth = function (row) {
   if (!row) return null;
-  const inc = window.getIncludePKInEnrollment && window.getIncludePKInEnrollment();
   const parse = (v) => {
     const n = parseFloat((v ?? '').toString().replace(/,/g, '').trim());
     return Number.isFinite(n) ? n : null;
   };
-  if (inc) return parse(row['Future_EnrollmentGrowth'] ?? row['Future Enrollment Growth']) ?? null;
-  return parse(row['K+EnrollmentGrowth'] ?? row['K+ Enrollment Growth']) ?? parse(row['Future_EnrollmentGrowth']) ?? null;
+  const inc = window.getIncludePKInEnrollment && window.getIncludePKInEnrollment();
+  let current, projected;
+  if (inc) {
+    current = parse(row.Enrollment ?? row['Enrollment']) ?? 0;
+    projected = parse(row['2030_Total'] ?? row['2030 Total']) ?? null;
+  } else {
+    const pk = parse(row.PKEnrollment ?? row['PKEnrollment']) ?? 0;
+    const total = parse(row.Enrollment ?? row['Enrollment']) ?? 0;
+    current = Math.max(0, total - pk);
+    projected = parse(row['2030_K+'] ?? row['2030 K+']) ?? parse(row['2030_Total']) ?? null;
+  }
+  if (projected == null || !(current > 0)) return null;
+  return (projected - current) / current;
 };
 window.getEffectiveAttendanceAreaEnrollment = function (row) {
   if (!row) return null;
@@ -3966,6 +3983,8 @@ map.on('load', () => {
           .map(r => [normalizeId(r.UniqueID || r["UniqueID"] || r["Unique Id"]), r])
           .filter(([k]) => !!k)
       );
+      window.decisionAllById = decisionAllById;
+      window.decisionAllByName = decisionAllByName;
 
       // Build building condition model (BuildingScore from Decision Data Export)
       try {
@@ -5851,7 +5870,7 @@ map.on('load', () => {
           return;
         }
         
-        const originKey = originUniqueId.toString().trim();
+        const originKey = (originUniqueId.toString().trim() || "").toLowerCase();
         const rowsByOrigin = window.distanceToWelcomingRowsByOrigin || {};
         const candidatesRaw = rowsByOrigin[originKey];
         if (!Array.isArray(candidatesRaw)) {
@@ -5863,7 +5882,7 @@ map.on('load', () => {
         
         const decisionRows = window.decisionLogic.schoolData || [];
         const thresholds = window.thresholds || window.decisionLogic.thresholds || {};
-        const originRow = decisionRows.find(r => (r.UniqueID || r["UniqueID"] || r["Unique Id"]) === originKey);
+        const originRow = decisionRows.find(r => ((r.UniqueID || r["UniqueID"] || r["Unique Id"]) || "").toString().trim().toLowerCase() === originKey);
         const levelStr = (originRow && (originRow["School Level"] || "") || "").toLowerCase();
         let distanceThreshold;
         if (levelStr.includes("elementary")) {
@@ -6400,8 +6419,9 @@ map.on('load', () => {
       return;
     }
 
+    const getSeats = (r) => (window.getEffectiveAvailableSeats && window.getEffectiveAvailableSeats(r)) ?? NaN;
     const seatValues = data
-      .map(r => parseFloat(r["Available Seats"] ?? r["AvailableSeats"] ?? r.AvailableSeats ?? 0))
+      .map(r => getSeats(r))
       .filter(v => Number.isFinite(v));
     if (!seatValues.length) {
       return;
@@ -7390,14 +7410,14 @@ function injectDecisionsIntoGeoJSON(geojson, decisions, options = {}) {
   };
 
   const decisionMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), row["decision"] || "Unknown"]));
-  const scorecardMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["Scorecard"])]));
-  const buildingQualityMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["BuildingTreshhold"])]));
+  const buildingQualityMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["BuildingScore"] ?? row["Building Score"])]));
   // Add a map for Utilization
   const getEff = window.getEffectiveEnrollment || (r => num(r["Enrollment"] ?? r[" Total Enrollment"] ?? r["Total Enrollment"]));
-  const getEffUtil = window.getEffectiveUtilization || (r => num(r["Utilization"]));
+  const getEffUtil = window.getEffectiveUtilization || ((r) => { const c = num(r.Capacity); const e = (window.getEffectiveEnrollment && window.getEffectiveEnrollment(r)) ?? num(r.Enrollment); return (c > 0 && Number.isFinite(e)) ? e / c : 0; });
   const utilizationMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), getEffUtil(row)]));
   const capacityMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["Capacity"])]));
-  const availableSeatsMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["Available Seats"] ?? row["AvailableSeats"])]));
+  const getEffSeats = (r) => (window.getEffectiveAvailableSeats && window.getEffectiveAvailableSeats(r)) ?? 0;
+  const availableSeatsMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), getEffSeats(row)]));
   const enrollmentMap = new Map(decisions.map(row => [
     normalizeName(row["Building Name"]),
     getEff(row)
@@ -7483,7 +7503,6 @@ function injectDecisionsIntoGeoJSON(geojson, decisions, options = {}) {
     }
 
     f.properties["Decision Type"] = decisionMap.get(name) || "Unknown";
-    f.properties["Scorecard"] = scorecardMap.get(name) || 0;
     f.properties["Building Quality"] = buildingQualityMap.get(name) || 0;
     // Normalize utilization to a ratio (0..1+) when possible.
     const utilRaw = utilizationMap.get(name);
@@ -7660,8 +7679,6 @@ document.addEventListener('DOMContentLoaded', function() {
   const enrollmentWeightLabel = document.getElementById('enrollmentWeightLabel');
   const buildingWeightSlider = document.getElementById('buildingWeightSlider');
   const buildingWeightLabel = document.getElementById('buildingWeightLabel');
-  const scorecardWeightSlider = document.getElementById('scorecardWeightSlider');
-  const scorecardWeightLabel = document.getElementById('scorecardWeightLabel');
 
   if (distanceWeightSlider && distanceWeightLabel) {
     distanceWeightSlider.addEventListener('input', () => {
@@ -7676,11 +7693,6 @@ document.addEventListener('DOMContentLoaded', function() {
   if (buildingWeightSlider && buildingWeightLabel) {
     buildingWeightSlider.addEventListener('input', () => {
       buildingWeightLabel.textContent = buildingWeightSlider.value;
-    });
-  }
-  if (scorecardWeightSlider && scorecardWeightLabel) {
-    scorecardWeightSlider.addEventListener('input', () => {
-      scorecardWeightLabel.textContent = scorecardWeightSlider.value;
     });
   }
 
@@ -7915,17 +7927,14 @@ document.addEventListener('DOMContentLoaded', function() {
         };
 
         // ✅ Get slider values directly from DOM elements
-        const weightDistance = parseFloat(document.getElementById('distanceWeightSlider').value);
-        const weightEnrollment = parseFloat(document.getElementById('enrollmentWeightSlider').value);
-        const weightBuilding = parseFloat(document.getElementById('buildingWeightSlider').value);
-        const weightScorecard = parseFloat(document.getElementById('scorecardWeightSlider').value);
-        console.log("⚖️ Weights - Distance:", weightDistance, "Enrollment:", weightEnrollment, "Building:", weightBuilding, "Scorecard:", weightScorecard);
+        const weightDistance = parseFloat(document.getElementById('distanceWeightSlider')?.value || 1);
+        const weightEnrollment = parseFloat(document.getElementById('enrollmentWeightSlider')?.value || 1);
+        const weightBuilding = parseFloat(document.getElementById('buildingWeightSlider')?.value || 1);
+        console.log("⚖️ Weights - Distance:", weightDistance, "Enrollment:", weightEnrollment, "Building:", weightBuilding);
         
         // ✅ Calculate normalization factors for better scoring
         let maxDistance = 0;
         let maxQuality = 0;
-        let maxScorecard = 0;
-        let minScorecard = Infinity;
         let maxUtilization = 0;
         
         // Find max distance for normalization (student home -> candidate school)
@@ -7948,17 +7957,14 @@ document.addEventListener('DOMContentLoaded', function() {
         for (const feature of geojsonData.features) {
           const enrollment = parseInt(feature.properties["Enrollment"]) || 0;
           const quality = parseFloat(feature.properties["Building Quality"]) || 0;
-          const scorecard = parseFloat(feature.properties["Scorecard"]) || 0;
           const utilization = parseFloat(feature.properties["Utilization"]) || 0;
           
           maxEnrollment = Math.max(maxEnrollment, enrollment);
           maxQuality = Math.max(maxQuality, quality);
-          maxScorecard = Math.max(maxScorecard, scorecard);
-          minScorecard = Math.min(minScorecard, scorecard);
           maxUtilization = Math.max(maxUtilization, utilization);
         }
         
-        console.log("📊 Normalization factors - Max Distance:", maxDistance, "Max Enrollment:", maxEnrollment, "Max Quality:", maxQuality, "Max Scorecard:", maxScorecard, "Min Scorecard:", minScorecard, "Max Utilization:", maxUtilization);
+        console.log("📊 Normalization factors - Max Distance:", maxDistance, "Max Enrollment:", maxEnrollment, "Max Quality:", maxQuality, "Max Utilization:", maxUtilization);
         
         const finalAssignments = {};
         console.log("🔄 Starting assignment algorithm...");
@@ -8001,30 +8007,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 const quality = parseFloat(destProperties["Building Quality"]) || 0;
-                const scorecard = parseFloat(destProperties["Scorecard"]) || 0;
                 const utilization = parseFloat(destProperties["Utilization"]) || 0;
 
                 // Lower Building Quality (BuildingTreshhold) is better
                 const qualityScore = maxQuality > 0 ? (1 - (quality / maxQuality)) : 0; // Lower is better
                 const distanceScore = maxDistance > 0 ? (1 - (distance / maxDistance)) : 0; // Closer is better
                 const enrollmentScore = maxUtilization > 0 ? (utilization / maxUtilization) : 0; // Higher utilization is better
-                // Lower scorecard is better, but 1 is best and 5 is worst
-                // Normalize so that 1 gets highest score, 5 gets lowest
-                let scorecardScore = 0;
-                if (maxScorecard > minScorecard) {
-                  scorecardScore = (maxScorecard - scorecard) / (maxScorecard - minScorecard);
-                } else {
-                  scorecardScore = 1; // If all scorecards are the same
-                }
 
                 const score =
                   (weightDistance * distanceScore) +
                   (weightEnrollment * enrollmentScore) +
-                  (weightBuilding * qualityScore) +
-                  (weightScorecard * scorecardScore);
+                  (weightBuilding * qualityScore);
 
                 // Debug logging for first few choices
-                console.log(`🏫 ${destName}: Student=${student.studentId}, Distance=${distance.toFixed(2)}(${distanceScore.toFixed(3)}), Utilization=${(utilization * 100).toFixed(1)}%(${enrollmentScore.toFixed(3)}), Quality=${quality}(${qualityScore.toFixed(3)}), Scorecard=${scorecard}(${scorecardScore.toFixed(3)}), Total=${score.toFixed(3)}`);
+                console.log(`🏫 ${destName}: Student=${student.studentId}, Distance=${distance.toFixed(2)}(${distanceScore.toFixed(3)}), Utilization=${(utilization * 100).toFixed(1)}%(${enrollmentScore.toFixed(3)}), Quality=${quality}(${qualityScore.toFixed(3)}), Total=${score.toFixed(3)}`);
 
                 if (score > bestScore) {
                   bestScore = score;
@@ -8798,7 +8794,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
     function syncPKToggleFromStorage() {
       const inc = window.getIncludePKInEnrollment && window.getIncludePKInEnrollment();
-      [document.getElementById("includePKInEnrollmentToggle"), document.getElementById("step1IncludePKToggle")].forEach(el => {
+      [document.getElementById("includePKInEnrollmentToggle"), document.getElementById("step1IncludePKToggle"), document.getElementById("toggleIncludePKInUtilization")].forEach(el => {
         if (el) el.checked = !!inc;
       });
       // Sync flowchart PK checkbox if it exists (dynamically created when school selected)
@@ -8813,7 +8809,7 @@ document.addEventListener("DOMContentLoaded", function() {
       if (typeof window.step1Rerender === "function") window.step1Rerender();
     }
     syncPKToggleFromStorage();
-    ["includePKInEnrollmentToggle", "step1IncludePKToggle"].forEach(id => {
+    ["includePKInEnrollmentToggle", "step1IncludePKToggle", "toggleIncludePKInUtilization"].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener("change", () => onPKToggleChange(el.checked));
     });
@@ -10834,9 +10830,8 @@ if (typeof window.switchToMap !== 'function') {
       pickFirstNonEmpty(row, ['BuildingScore', 'Building Score']);
 
     const capRaw = pickFirstNonEmpty(row, ['K-5 Capacity', 'K5 Capacity', 'Capacity']) || '';
-    const utilRaw = pickFirstNonEmpty(row, ['24-25 Utilization', '24-25 Utilization %', 'Utilization']) || '';
     const enrollmentRaw = pickFirstNonEmpty(row, ['Enrollment']) || '';
-    const seatsRaw = pickFirstNonEmpty(row, ['Available Seats', 'AvailableSeats']) || '';
+    const seatsComputedFromRow = (window.getEffectiveAvailableSeats && window.getEffectiveAvailableSeats(row)) ?? null;
     const buildingScoreRaw = pickFirstNonEmpty(row, ['BuildingScore', 'Building Score']) || '';
     const eduAdeqRaw = pickFirstNonEmpty(row, ['EducationalAdequacy', 'Educational Adequacy']) || '';
     const distanceRaw = pickFirstNonEmpty(row, ['DistanceUnderutilizedschools', 'Distance Underutilized Schools', 'Distance to Underutilized']) || '';
@@ -10845,9 +10840,7 @@ if (typeof window.switchToMap !== 'function') {
     const siteCapRaw = pickFirstNonEmpty(row, ['SiteCapacity', 'Site Capacity']) || '';
 
     const cap = parseNumber(capRaw);
-    const util = parseNumber(utilRaw);
     const enrollment = parseNumber(enrollmentRaw);
-    const seats = parseNumber(seatsRaw);
     const buildingScore0to10 = coerceBuildingScore0to10(buildingScoreRaw);
     const eduAdeq = parseNumber(eduAdeqRaw);
     const distance = parseNumber(distanceRaw);
@@ -10897,13 +10890,10 @@ if (typeof window.switchToMap !== 'function') {
     // Render building tiles
     if (buildingTiles) {
       const capStr = Number.isFinite(cap) ? fmtInt(cap) : (capRaw ? capRaw.toString().trim() : '—');
-      const effUtil = window.getEffectiveUtilization ? window.getEffectiveUtilization(row) : (Number.isFinite(util) ? util : null);
-      const utilStr = Number.isFinite(effUtil) ? formatPctSmart(effUtil, { assumeUnitIfSmall: true, decimals: 1 }) : (Number.isFinite(util) ? formatPctSmart(util, { assumeUnitIfSmall: true, decimals: 1 }) : '—');
-      const effEnrForSeats = window.getEffectiveEnrollment ? window.getEffectiveEnrollment(row) : enrollment;
-      const seatsComputed = Number.isFinite(cap) && Number.isFinite(effEnrForSeats)
-        ? Math.round(cap - effEnrForSeats)
-        : NaN;
-      const seatsStr = Number.isFinite(seatsComputed) ? fmtInt(seatsComputed) : (Number.isFinite(seats) ? fmtInt(seats) : (seatsRaw ? seatsRaw.toString().trim() : '—'));
+      const effUtil = window.getEffectiveUtilization ? window.getEffectiveUtilization(row) : 0;
+      const utilStr = Number.isFinite(effUtil) ? formatPctSmart(effUtil, { assumeUnitIfSmall: true, decimals: 1 }) : '—';
+      const seatsComputed = seatsComputedFromRow;
+      const seatsStr = Number.isFinite(seatsComputed) ? fmtInt(seatsComputed) : '—';
       const bldgScoreStr = Number.isFinite(buildingScore0to10) ? `${buildingScore0to10.toFixed(2)}/10` : (buildingScoreRaw ? buildingScoreRaw.toString().trim() : '—');
       const eduAdeqStr = Number.isFinite(eduAdeq) ? formatPctSmart(eduAdeq, { assumeUnitIfSmall: true, decimals: 0 }) : (eduAdeqRaw ? eduAdeqRaw.toString().trim() : '—');
       const distStr = Number.isFinite(distance) ? `${distance.toFixed(1)} mi` : (distanceRaw ? distanceRaw.toString().trim() : '—');
@@ -10912,7 +10902,7 @@ if (typeof window.switchToMap !== 'function') {
 
       buildingTiles.innerHTML = [
         kpiTileHtml({ theme: 'purple', label: capacityLabel, value: capStr }),
-        kpiTileHtml({ theme: 'purple', label: '24-25 Utilization %', value: utilStr }),
+        kpiTileHtml({ theme: 'purple', label: '25-26 Utilization %', value: utilStr }),
         kpiTileHtml({ theme: 'purple', label: 'Available Seats', value: seatsStr }),
         kpiTileHtml({ theme: 'purple', label: 'Building Score', value: bldgScoreStr }),
         kpiTileHtml({ theme: 'purple', label: 'Educational Adequacy', value: eduAdeqStr }),
@@ -10933,8 +10923,8 @@ if (typeof window.switchToMap !== 'function') {
       const growthSub = (projEnr != null && Number.isFinite(projEnr)) ? `Proj. 2030: ${fmtInt(projEnr)}` : '';
 
       enrollmentTiles.innerHTML = [
-        kpiTileHtml({ theme: 'green', label: 'Enrollment', value: enrStr, sub: pkStr ? `${pkStr} • Total: ${totalStr || enrStr}` : (totalStr ? `Total: ${totalStr}` : '') }),
-        kpiTileHtml({ theme: 'green', label: 'Attendance Area Enrollment', value: attAreaStr }),
+        kpiTileHtml({ theme: 'green', label: 'Enrollment (2025)', value: enrStr, sub: pkStr ? `${pkStr} • Total: ${totalStr || enrStr}` : (totalStr ? `Total: ${totalStr}` : '') }),
+        kpiTileHtml({ theme: 'green', label: 'Attendance Area Enrollment (2024)', value: attAreaStr }),
         kpiTileHtml({ theme: 'green', label: 'Future Enrollment Growth (2030)', value: growthStr, sub: growthSub })
       ].join('');
     }
@@ -11041,7 +11031,7 @@ if (typeof window.switchToMap !== 'function') {
       const capacity = parseNumber(pickFirstNonEmpty(r, ['K-5 Capacity', 'K5 Capacity', 'Capacity']) || r['Capacity']);
       const pk = parseNumber(pickFirstNonEmpty(r, ['PKEnrollment', 'PK Enrollment', 'PK Enrollment ']));
       const effEnr = window.getEffectiveEnrollment ? window.getEffectiveEnrollment(r) : enrollment;
-      const util = parseNumber(r['Utilization']);
+      const effUtil = window.getEffectiveUtilization ? window.getEffectiveUtilization(r) : null;
       const buildingScore = coerceBuildingScore0to10(r['BuildingScore']);
       const eduAdeq = parseNumber(r['EducationalAdequacy']);
       const effAttArea = window.getEffectiveAttendanceAreaEnrollment ? window.getEffectiveAttendanceAreaEnrollment(r) : null;
@@ -11049,10 +11039,8 @@ if (typeof window.switchToMap !== 'function') {
       const effProjEnr = window.getEffectiveProjectedEnrollment ? window.getEffectiveProjectedEnrollment(r) : null;
       const distance = parseNumber(r['DistanceUnderutilizedschools']);
 
-      const utilPct = Number.isFinite(effEnr) && Number.isFinite(capacity) && capacity > 0
-        ? (effEnr / capacity) * 100 : (Number.isFinite(util) ? util * 100 : null);
-      const seatsComputed = Number.isFinite(capacity) && Number.isFinite(effEnr)
-        ? Math.round(capacity - effEnr) : parseNumber(r['Available Seats']);
+      const utilPct = Number.isFinite(effUtil) ? effUtil * 100 : null;
+      const seatsComputed = (window.getEffectiveAvailableSeats && window.getEffectiveAvailableSeats(r)) ?? null;
       const totalEnr = Number.isFinite(enrollment) ? enrollment : (Number.isFinite(effEnr) && Number.isFinite(pk) ? effEnr + pk : NaN);
       const enrSub = Number.isFinite(pk) ? `${fmtInt(pk)} PK${Number.isFinite(totalEnr) ? ` • Total: ${fmtInt(totalEnr)}` : ''}` : 'Students';
 
@@ -11060,11 +11048,11 @@ if (typeof window.switchToMap !== 'function') {
       if (Number.isFinite(utilPct)) {
         const color = utilPct >= 95 ? '#dc2626' : (utilPct >= 85 ? '#f59e0b' : '#16a34a');
         const utilSubText = (Number.isFinite(effEnr) && Number.isFinite(capacity) && capacity > 0) ? `${fmtInt(effEnr)} / ${fmtInt(capacity)} students` : '';
-        metrics.push(metricRow({ label: 'Utilization', value: fmtPct(utilPct), sub: utilSubText, barW: utilPct, barC: color }));
+        metrics.push(metricRow({ label: 'Utilization (25-26)', value: fmtPct(utilPct), sub: utilSubText, barW: utilPct, barC: color }));
       } else {
-        metrics.push(metricRow({ label: 'Utilization', value: '', sub: '', barW: null, barC: null }));
+        metrics.push(metricRow({ label: 'Utilization (25-26)', value: '', sub: '', barW: null, barC: null }));
       }
-      metrics.push(metricRow({ label: 'Enrollment', value: Number.isFinite(effEnr) ? fmtInt(effEnr) : '', sub: enrSub, barW: null }));
+      metrics.push(metricRow({ label: 'Enrollment (2025)', value: Number.isFinite(effEnr) ? fmtInt(effEnr) : '', sub: enrSub, barW: null }));
       metrics.push(metricRow({ label: 'Capacity', value: Number.isFinite(capacity) ? fmtInt(capacity) : '', sub: 'Seats', barW: null }));
       metrics.push(metricRow({ label: 'Available Seats', value: Number.isFinite(seatsComputed) ? fmtInt(seatsComputed) : '', sub: '', barW: null }));
       if (Number.isFinite(buildingScore)) {
@@ -11084,9 +11072,9 @@ if (typeof window.switchToMap !== 'function') {
       if (effAttArea != null && Number.isFinite(effAttArea)) {
         const pct = clamp((effAttArea <= 1.5 ? effAttArea * 100 : effAttArea), 0, 100);
         const color = pct >= 90 ? '#dc2626' : (pct >= 80 ? '#f59e0b' : '#16a34a');
-        metrics.push(metricRow({ label: 'Attendance Area Enroll.', value: fmtPct(pct), sub: '', barW: pct, barC: color }));
+        metrics.push(metricRow({ label: 'Attendance Area Enroll. (2024)', value: fmtPct(pct), sub: '', barW: pct, barC: color }));
       } else {
-        metrics.push(metricRow({ label: 'Attendance Area Enroll.', value: '', sub: '', barW: null }));
+        metrics.push(metricRow({ label: 'Attendance Area Enroll. (2024)', value: '', sub: '', barW: null }));
       }
       if (effGrowth != null && Number.isFinite(effGrowth)) {
         const pct = (effGrowth >= -1 && effGrowth <= 1) ? effGrowth * 100 : effGrowth;
@@ -11104,7 +11092,7 @@ if (typeof window.switchToMap !== 'function') {
           <div class="step1-compare-title">${htmlEscape(schoolName)}</div>
           <div class="step1-compare-meta">${buildBadges(r)}</div>
         </div>
-        <div class="step1-compare-body" style="margin-top:10px;">${metrics.filter(Boolean).join('')}</div>
+        <div class="step1-compare-body" style="margin-top:6px;">${metrics.filter(Boolean).join('')}</div>
       </div>`;
     }
 

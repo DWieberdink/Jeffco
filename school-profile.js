@@ -138,7 +138,7 @@
   function getEffectiveUtilization(row) {
     if (!row) return 0;
     const cap = parseFloat((row.Capacity ?? row.capacity ?? "").toString().replace(/,/g, "").trim()) || 0;
-    if (!cap || cap <= 0) return parseFloat((row.Utilization ?? "").toString()) || 0;
+    if (!cap || cap <= 0) return 0;
     return getEffectiveEnrollment(row) / cap;
   }
 
@@ -205,8 +205,8 @@
 
     const distVal = Number(row.DistanceUnderutilizedschools);
     const dist = Number.isFinite(distVal) && distVal <= distanceThreshold ? "Yes" : "No";
-    const growthVal = Number(row["Future_EnrollmentGrowth"]);
-    const growth = Number.isFinite(growthVal) && growthVal > t.enrollmentGrowth ? "Yes" : "No";
+    const growthVal = window.getEffectiveEnrollmentGrowth ? window.getEffectiveEnrollmentGrowth(row) : null;
+    const growth = (growthVal != null && Number.isFinite(growthVal)) && growthVal > t.enrollmentGrowth ? "Yes" : "No";
 
     const attendancePct = coercePercent0to100(row.AttendanceAreaEnrollment);
     const attendance = attendancePct >= t.attendanceAreaEnrollment ? "Yes" : "No";
@@ -218,9 +218,7 @@
     const fac3_below = coerceBuildingScore0to10(row.BuildingScore) <= t.buildingThresholdBelow ? "Yes" : "No";
     const edu3 = edu2;
     const below50 = (row["Below50PCTL_EA_Cat"] || "").toString().toLowerCase() === "yes";
-    const def = (row.DepartmentalDeficiency || "").toString().toLowerCase();
-    const hasSafetyIssues = def.includes("safety") || def.includes("security");
-    const edu3_2 = below50 || hasSafetyIssues ? "Yes" : "No";
+    const edu3_2 = below50 ? "Yes" : "No";
     const fac3_above = coerceBuildingScore0to10(row.BuildingScore) >= t.buildingThresholdAbove ? "Yes" : "No";
 
     const edu4 = edu2;
@@ -902,7 +900,7 @@
       };
       const enrollment = getEffectiveEnrollment(decision);
       const capacity = parseNum(decision.Capacity);
-      const availableSeats = capacity !== null && Number.isFinite(enrollment) ? capacity - enrollment : parseNum(decision["Available Seats"] ?? decision.AvailableSeats);
+      const availableSeats = capacity !== null && Number.isFinite(enrollment) ? Math.round(capacity - enrollment) : null;
       const overBySeats = availableSeats !== null ? Math.max(0, -availableSeats) : null;
       const overByCap = Number.isFinite(enrollment) && capacity !== null ? Math.max(0, enrollment - capacity) : null;
       const studentsOver = overBySeats !== null ? overBySeats : (overByCap !== null ? overByCap : 0);

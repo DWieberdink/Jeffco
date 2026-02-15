@@ -280,10 +280,18 @@ window.prioritizationLogic = {
   getRawMetricValue: function(school, metricKey) {
     switch (metricKey) {
       case "utilizationRate": {
-        // Stored as ratio in most CSVs (0–1.3), but some exports may already be percent.
-        const raw = parseFloat(school.Utilization || 0);
-        const util = isFinite(raw) ? raw : 0;
-        return util <= 1.5 ? util * 100 : util;
+        // Compute from Enrollment/Capacity (PK-aware when window.getEffectiveUtilization exists).
+        let util;
+        if (typeof window !== 'undefined' && window.getEffectiveUtilization) {
+          util = window.getEffectiveUtilization(school);
+        } else {
+          const cap = parseFloat(school.Capacity || 0);
+          const enr = parseFloat(school.Enrollment || 0) || 0;
+          const pk = parseFloat(school.PKEnrollment || school['PK Enrollment'] || 0) || 0;
+          util = (cap > 0) ? Math.max(0, (enr - pk)) / cap : 0;
+        }
+        const pct = isFinite(util) ? util : 0;
+        return pct <= 1.5 ? pct * 100 : pct;
       }
       case "enrollment":
         return parseInt(school.Enrollment || 0, 10);
