@@ -709,9 +709,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
     resultsDiv.innerHTML = `
       <div class="decision-by-school-wrap">
-        <div class="decision-by-school-toolbar" style="display:flex; justify-content:flex-end; padding:6px 8px; border-bottom:1px solid #e5e5e5; background:#fafafa;">
-          <button type="button" id="decisionBySchoolClearFiltersBtn" class="clear-filters-btn" style="padding:4px 10px; font-size:12px; border:1px solid #d1d5db; border-radius:6px; background:#fff; cursor:pointer; color:#374151;">Clear all filters</button>
-        </div>
+        <button type="button" id="decisionBySchoolClearFiltersBtn" class="clear-filters-btn" style="display:none;"></button>
         <div class="decision-by-school-scroll">
           <table class="data-table decision-by-school-table">
             <colgroup>
@@ -864,16 +862,19 @@ document.addEventListener("DOMContentLoaded", () => {
         border: 1px solid #e5e5e5;
         border-radius: 6px;
         background: #fff;
-        overflow: hidden;
+        overflow: visible;
+      }
+      .decision-by-school-table tbody td {
+        padding: 3px 4px;
       }
       .decision-by-school-scroll {
-        max-height: 420px;
-        overflow: auto;
+        overflow: visible;
       }
       .decision-by-school-table {
         width: 100%;
         table-layout: fixed;
         border-collapse: collapse;
+        font-size: 12px;
       }
       .decision-by-school-table thead th {
         position: sticky;
@@ -881,7 +882,7 @@ document.addEventListener("DOMContentLoaded", () => {
         z-index: 10;
         background: #f5f5f5;
         box-shadow: 0 1px 0 #e5e5e5;
-        padding: 6px 4px;
+        padding: 4px 3px;
         white-space: nowrap;
       }
       .decision-by-school-table thead th .th-inner {
@@ -919,25 +920,7 @@ document.addEventListener("DOMContentLoaded", () => {
         border-color: #007cbf;
       }
       .decision-by-school-table .filter-clear-col {
-        flex-shrink: 0;
-        width: 18px;
-        height: 18px;
-        padding: 0;
-        border: 1px solid #d1d5db;
-        border-radius: 3px;
-        background: #fff;
-        color: #6b7280;
-        font-size: 14px;
-        line-height: 1;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .decision-by-school-table .filter-clear-col:hover {
-        background: #fef2f2;
-        color: #b91c1c;
-        border-color: #b91c1c;
+        display: none;
       }
       .decision-by-school-table .filter-dropdown {
         position: absolute;
@@ -1377,6 +1360,12 @@ document.addEventListener("DOMContentLoaded", () => {
             }
           
             resolve(self.schoolData);   // Resolve the promise with the processed data
+
+            // Register school names for global search
+            if (typeof window.globalSearchRegisterSchools === "function") {
+              var names = self.schoolData.map(function (r) { return r["Building Name"] || ""; }).filter(Boolean);
+              window.globalSearchRegisterSchools(names);
+            }
           });
         },
         error: (err) => {

@@ -142,6 +142,24 @@
       font-weight: 900;
       margin: 0;
     }
+    .temp-stamp {
+      background: #fef3c7;
+      border: 2px dashed #d97706;
+      color: #92400e;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 6px;
+      transform: rotate(1deg);
+      max-width: 320px;
+      margin-left: auto;
+      margin-top: 4px;
+      margin-bottom: 4px;
+      text-align: center;
+      line-height: 1.3;
+      letter-spacing: 0.3px;
+      box-shadow: 0 2px 6px rgba(217, 119, 6, 0.15);
+    }
     .summary-total {
       position: absolute;
       top: 14px;
@@ -324,7 +342,7 @@
 
     .controls {
       display: grid;
-      grid-template-columns: 1.5fr 1fr 1fr 1fr auto;
+      grid-template-columns: 1.5fr 0.7fr 1fr 1.3fr 1fr auto;
       gap: 10px;
       align-items: end;
       margin-top: 10px;
@@ -347,6 +365,64 @@
       background: #fff;
       color: var(--text);
     }
+    .multi-select-wrap { position: relative; }
+    .multi-select-btn {
+      width: 100%;
+      text-align: left;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      font-family: inherit;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .multi-select-btn span:first-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .multi-select-dropdown {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      min-width: 220px;
+      max-height: 300px;
+      overflow-y: auto;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 0 0 8px 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      z-index: 100;
+      padding: 4px 0;
+    }
+    .multi-select-dropdown label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 12px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 400;
+      white-space: nowrap;
+    }
+    .multi-select-dropdown label.ms-select-all {
+      font-weight: 600;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 6px 12px;
+    }
+    .multi-select-dropdown input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+    }
 
     @media (max-width: 900px) {
       .controls {
@@ -362,6 +438,7 @@
 
     table {
       width: 100%;
+      table-layout: fixed;
       border-collapse: collapse;
       font-size: 13px;
       margin-top: 10px;
@@ -388,43 +465,137 @@
       background: #eef2f7;
       font-weight: 900;
       color: #0f172a;
+      cursor: pointer;
+      user-select: none;
+    }
+    .group-row td .group-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .group-row td .group-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .group-row td .group-arrow {
+      display: inline-block;
+      font-size: 10px;
+      transition: transform 0.15s;
+    }
+    .group-row.collapsed td .group-arrow {
+      transform: rotate(-90deg);
+    }
+    .group-row td .group-subtotal {
+      font-weight: 600;
+      font-size: 13px;
+      color: #374151;
+    }
+    .group-row.fci-child td {
+      background: #faf3e6;
+    }
+    .group-row.fci-child td .group-subtotal {
+      color: #7c5e24;
+    }
+    tr.fci-rollup-row td {
+      background: #f5e6c8;
+      font-weight: 700;
+      border-top: 1.5px solid #c9a96e;
+      color: #4a3a14;
+      font-size: 12px;
+      padding: 3px 8px;
+      line-height: 1.2;
+    }
+    tr.fci-rollup-row.collapsed td .group-arrow {
+      transform: rotate(-90deg);
+    }
+    .super-group-row td {
+      background: #d1d8e3;
+      font-weight: 900;
+      font-size: 15px;
+      color: #0f172a;
+      cursor: pointer;
+      user-select: none;
+      border-top: 2px solid #94a3b8;
+    }
+    .super-group-row.fci-deficiency td {
+      background: #f5e6c8;
+      border-top-color: #c9a96e;
+    }
+    .super-group-row.fci-deficiency td .group-subtotal {
+      color: #7c5e24;
+    }
+    .super-group-row td .group-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .super-group-row td .group-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .super-group-row td .group-arrow {
+      display: inline-block;
+      font-size: 11px;
+      transition: transform 0.15s;
+    }
+    .super-group-row.collapsed td .group-arrow {
+      transform: rotate(-90deg);
+    }
+    .super-group-row td .group-subtotal {
+      font-weight: 700;
+      font-size: 14px;
+      color: #1e293b;
     }
     .priority-segment {
       display: inline-flex;
       border: 1px solid var(--border);
-      border-radius: 6px;
+      border-radius: 3px;
       overflow: hidden;
       background: #fff;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
     }
     .priority-segment-btn {
       appearance: none;
       border: 0;
       background: transparent;
-      /* ~50% narrower, ~25% less tall */
-      /* ~60% height of previous */
-      padding: 4px 10px;
+      padding: 2px 5px;
+      min-width: 0;
       font-family: inherit;
       font-weight: inherit;
-      font-size: inherit;
-      color: #9ca3af;
+      font-size: 13px;
+      line-height: 1.4;
+      color: #111827;
       cursor: pointer;
-      min-width: 55px;
     }
     .priority-segment-btn + .priority-segment-btn {
       border-left: 1px solid var(--border);
     }
     .priority-segment-btn[aria-pressed="true"] {
-      background: #d1d5db; /* darker selected state */
-      color: #0f172a;
+      background: #f5e6c8;
+      color: #111827;
+    }
+    .priority-external .priority-segment-btn[aria-pressed="true"] {
+      background: #111827;
+      color: #fff;
+    }
+    .priority-rollup .priority-segment-btn[aria-pressed="true"] {
+      background: #2563eb;
+      color: #fff;
+    }
+    .priority-rollup .priority-segment-btn[aria-pressed="true"]:hover {
+      background: #1d4ed8;
+      color: #fff;
     }
     .priority-segment-btn:hover {
       background: #f9fafb;
       color: #111827;
     }
     .priority-segment-btn[aria-pressed="true"]:hover {
-      background: #cbd5e1;
-      color: #0f172a;
+      background: #eddbb5;
+      color: #111827;
     }
     .priority-segment-btn:focus-visible {
       outline: 2px solid var(--blue);
@@ -434,8 +605,8 @@
     /* Keep the row control compact on smaller screens */
     @media (max-width: 720px) {
       .priority-segment-btn {
-        padding: 3px 8px;
-        min-width: 48px;
+        padding: 2px 4px;
+        min-width: 20px;
       }
     }
     .muted {
@@ -445,6 +616,12 @@
     .excluded-row td {
       color: #cbd5e1; /* noticeably greyer than .muted */
     }
+    th:nth-child(1), td:nth-child(1) { width: 7%; padding: 2px 4px; }
+    th:nth-child(2), td:nth-child(2) { width: 33%; }
+    th:nth-child(3), td:nth-child(3) { width: 12%; }
+    th:nth-child(4), td:nth-child(4) { width: 14%; }
+    th:nth-child(5), td:nth-child(5) { width: 14%; }
+    th:nth-child(6), td:nth-child(6) { width: 20%; }
     /* Keep Project Type readable even when excluded */
     .excluded-row td.project-type-cell {
       color: var(--text);
@@ -480,7 +657,7 @@
       font-style: italic;
     }
     .excluded-row .priority-segment-btn {
-      opacity: 0.45;
+      opacity: 1;
     }
     .empty {
       padding: 14px;
@@ -522,25 +699,65 @@
         <span id="totalReplacementCost">—</span>
       </div>
       <div class="summary-subtotals" aria-label="Total cost by priority">
-        <div class="summary-subtotal"><span class="k">Low</span><span id="totalLowCost">—</span></div>
-        <div class="summary-subtotal"><span class="k">Medium</span><span id="totalMediumCost">—</span></div>
-        <div class="summary-subtotal"><span class="k">High</span><span id="totalHighCost">—</span></div>
+        <div class="summary-subtotal">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="checkbox" class="priority-include-cb" data-priority="1" checked style="width:13px;height:13px;">
+            <span class="k">P1</span>
+          </label>
+          <span id="totalP1Cost">—</span>
+        </div>
+        <div class="summary-subtotal">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="checkbox" class="priority-include-cb" data-priority="2" checked style="width:13px;height:13px;">
+            <span class="k">P2</span>
+          </label>
+          <span id="totalP2Cost">—</span>
+        </div>
+        <div class="summary-subtotal">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="checkbox" class="priority-include-cb" data-priority="3" checked style="width:13px;height:13px;">
+            <span class="k">P3</span>
+          </label>
+          <span id="totalP3Cost">—</span>
+        </div>
+        <div class="summary-subtotal">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+            <input type="checkbox" class="priority-include-cb" data-priority="4" checked style="width:13px;height:13px;">
+            <span class="k">P4</span>
+          </label>
+          <span id="totalP4Cost">—</span>
+        </div>
       </div>
       <div class="control" style="max-width: 520px; margin-bottom: 8px;">
-        <label for="schoolSelect">School</label>
-        <select id="schoolSelect">
-          <option value="">— Select a school —</option>
-        </select>
+        <label for="schoolSelect">Schools</label>
+        <div id="schoolMultiSelect" style="position:relative;">
+          <button type="button" id="schoolSelectBtn" style="width:100%;text-align:left;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;font-family:inherit;font-size:inherit;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
+            <span id="schoolSelectLabel">— Select schools —</span>
+            <span style="font-size:10px;">&#9660;</span>
+          </button>
+          <div id="schoolSelectDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:300px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:0 0 8px 8px;box-shadow:0 4px 12px rgba(0,0,0,0.12);z-index:100;padding:4px 0;">
+          </div>
+        </div>
       </div>
       <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px;">
+        <input type="checkbox" id="deficiencyOnlyToggle" title="Include all facilities from the Master Deficiency File">
+        Include All Master Deficiency File Facilities
+      </label>
+      <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px;">
+        <input type="checkbox" id="includeFciToggle" title="Include FCI deficiency data even when school is slated for new construction or gut reno">
+        Include FCI for gut reno / new construction schools
+      </label>
+      <p class="summary-name" id="schoolNameHeader">—</p>
+      <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 13px;">
         <input type="checkbox" id="includePKInEnrollmentToggle" title="Include Pre-K in enrollment numbers">
         Include PK in enrollment
       </label>
-      <p class="summary-name" id="schoolNameHeader">—</p>
       <div class="meta" id="schoolMeta"></div>
     </div>
 
-    <div style="height: 12px;"></div>
+    <div class="temp-stamp">
+      TEMP: Unknown FCI link for Shop Facility for Zones 1 &amp; 2 (Temps at NAMS)
+    </div>
 
     <div class="card">
       <h2 class="section-title">Assets / Projects</h2>
@@ -551,22 +768,61 @@
           <input id="searchInput" type="text" placeholder="Filter rows by text…" />
         </div>
         <div class="control">
-          <label for="priorityFilter">Priority</label>
-          <select id="priorityFilter">
-            <option value="">All</option>
-          </select>
+          <label>Priority</label>
+          <div id="priorityMultiSelect" style="position:relative;">
+            <button type="button" id="priorityFilterBtn" style="width:100%;text-align:left;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;font-family:inherit;font-size:13px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
+              <span id="priorityFilterLabel">All</span>
+              <span style="font-size:10px;">&#9660;</span>
+            </button>
+            <div id="priorityFilterDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:0 0 8px 8px;box-shadow:0 4px 12px rgba(0,0,0,0.12);z-index:100;padding:4px 0;">
+              <label style="display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;font-weight:600;border-bottom:1px solid #e5e7eb;">
+                <input type="checkbox" id="prioritySelectAll" checked style="width:14px;height:14px;">
+                Select All
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;">
+                <input type="checkbox" class="priority-filter-cb" value="1" checked style="width:14px;height:14px;"> 1
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;">
+                <input type="checkbox" class="priority-filter-cb" value="2" checked style="width:14px;height:14px;"> 2
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;">
+                <input type="checkbox" class="priority-filter-cb" value="3" checked style="width:14px;height:14px;"> 3
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;">
+                <input type="checkbox" class="priority-filter-cb" value="4" checked style="width:14px;height:14px;"> 4
+              </label>
+            </div>
+          </div>
         </div>
         <div class="control">
-          <label for="systemCategoryFilter">SystemCategory</label>
-          <select id="systemCategoryFilter">
-            <option value="">All</option>
-          </select>
+          <label>System Category</label>
+          <div id="systemMultiSelect" class="multi-select-wrap">
+            <button type="button" id="systemFilterBtn" class="multi-select-btn">
+              <span id="systemFilterLabel">All</span>
+              <span style="font-size:10px;">&#9660;</span>
+            </button>
+            <div id="systemFilterDropdown" class="multi-select-dropdown"></div>
+          </div>
         </div>
         <div class="control">
-          <label for="assetTypeFilter">Project Type</label>
-          <select id="assetTypeFilter">
-            <option value="">All</option>
-          </select>
+          <label>Project Type</label>
+          <div id="assetMultiSelect" class="multi-select-wrap">
+            <button type="button" id="assetFilterBtn" class="multi-select-btn">
+              <span id="assetFilterLabel">All</span>
+              <span style="font-size:10px;">&#9660;</span>
+            </button>
+            <div id="assetFilterDropdown" class="multi-select-dropdown"></div>
+          </div>
+        </div>
+        <div class="control">
+          <label>Condition Source</label>
+          <div id="sourceMultiSelect" class="multi-select-wrap">
+            <button type="button" id="sourceFilterBtn" class="multi-select-btn">
+              <span id="sourceFilterLabel">All</span>
+              <span style="font-size:10px;">&#9660;</span>
+            </button>
+            <div id="sourceFilterDropdown" class="multi-select-dropdown"></div>
+          </div>
         </div>
         <div>
           <button class="btn" id="clearFiltersBtn" type="button">Clear filters</button>
@@ -578,6 +834,7 @@
   </div>
 
   <script src="school-profile.js?v=20260210_1" defer></script>
+  <script src="global-search.js" defer></script>
 </body>
 </html>
 

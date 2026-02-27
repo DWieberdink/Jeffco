@@ -1,5 +1,5 @@
 /* school-profile.js
-   - Loads JeffCoProjectDataTemplate*.csv (assets/projects)
+   - Loads JeffCoProjectListAllSchools.csv (one row per school+asset)
    - Filters rows by SchoolName == selected school (string match with trim)
    - Renders ONE table grouped by SystemCategory
    - Allows sorting (click header) + filtering (search + dropdowns)
@@ -15,10 +15,8 @@
   const CACHE_BUST = "20260127_23";
   const PRIORITY_OVERRIDES_STORAGE_KEY = "jeffco_priority_overrides_assetid_v1";
 
-  // The dashboard-facing assets CSV is pivoted:
-  // one row per school, with columns like "<AssetType> UnitValue".
-  // We only require identifiers here; per-row project details are rebuilt using UnitCostLibrary.csv.
-  const REQUIRED_COLS = ["SchoolName"];
+  // The assets CSV is row-wise: one row per school + asset type.
+  const REQUIRED_COLS = ["SchoolName", "AssetType"];
   const OPTIONAL_COLS = ["RemainingUsefulLife", "UnitCost", "UnitValue", "ReplacementCost"];
   // Add computed Priority column (derived from SystemCategory) as the left-most column.
   const DISPLAY_COLS = [
@@ -29,13 +27,20 @@
     "UnitValue",
     "ReplacementCost",
   ];
+  const COL_DISPLAY_NAMES = {
+    "ConditionScore": "Condition Score",
+    "UnitCost": "Unit Cost",
+    "UnitValue": "Unit Value",
+    "ReplacementCost": "Replacement Cost",
+  };
 
   const elSchoolNameHeader = document.getElementById("schoolNameHeader");
   const elSchoolMeta = document.getElementById("schoolMeta");
   const elTotalReplacementCost = document.getElementById("totalReplacementCost");
-  const elTotalLowCost = document.getElementById("totalLowCost");
-  const elTotalMediumCost = document.getElementById("totalMediumCost");
-  const elTotalHighCost = document.getElementById("totalHighCost");
+  const elTotalP1Cost = document.getElementById("totalP1Cost");
+  const elTotalP2Cost = document.getElementById("totalP2Cost");
+  const elTotalP3Cost = document.getElementById("totalP3Cost");
+  const elTotalP4Cost = document.getElementById("totalP4Cost");
   const additionPlanningState = {
     show: false,
     studentsOver: null,
@@ -45,22 +50,38 @@
     collapsed: false,
   };
   const ADDITION_STORY_COST = { 1: 500, 2: 600, 3: 700 }; // $/SF
-  const elSchoolSelect = document.getElementById("schoolSelect");
+  const elSchoolSelectBtn = document.getElementById("schoolSelectBtn");
+  const elSchoolSelectLabel = document.getElementById("schoolSelectLabel");
+  const elSchoolSelectDropdown = document.getElementById("schoolSelectDropdown");
+  let selectedSchoolUids = new Set();
   const elSearch = document.getElementById("searchInput");
-  const elPriorityFilter = document.getElementById("priorityFilter");
-  const elSystemFilter = document.getElementById("systemCategoryFilter");
-  const elAssetFilter = document.getElementById("assetTypeFilter");
+  const elPriorityFilterBtn = document.getElementById("priorityFilterBtn");
+  const elPriorityFilterLabel = document.getElementById("priorityFilterLabel");
+  const elPriorityFilterDropdown = document.getElementById("priorityFilterDropdown");
+  const elPrioritySelectAll = document.getElementById("prioritySelectAll");
+  const elSystemBtn = document.getElementById("systemFilterBtn");
+  const elSystemLabel = document.getElementById("systemFilterLabel");
+  const elSystemDropdown = document.getElementById("systemFilterDropdown");
+  const elAssetBtn = document.getElementById("assetFilterBtn");
+  const elAssetLabel = document.getElementById("assetFilterLabel");
+  const elAssetDropdown = document.getElementById("assetFilterDropdown");
+  const elSourceBtn = document.getElementById("sourceFilterBtn");
+  const elSourceLabel = document.getElementById("sourceFilterLabel");
+  const elSourceDropdown = document.getElementById("sourceFilterDropdown");
   const elClearFilters = document.getElementById("clearFiltersBtn");
   const elTableMount = document.getElementById("tableMount");
   const elDownload = document.getElementById("downloadCsvBtn");
 
   let allRows = [];
-  let assetsPivotRows = [];
-  let assetsByUid = new Map();
-  let assetsByNameKey = new Map();
+  let rowwiseByUid = new Map();
+  let rowwiseByNameKey = new Map();
   let schoolRows = [];
   let viewRows = [];
   let sortState = { key: "SystemCategory", dir: "asc" };
+  const collapsedGroups = new Set();
+  const collapsedSuperGroups = new Set();
+  const expandedFciAssets = new Set();
+  let groupsInitialized = false;
   let selectedSchoolNameFromQuery = "";
   let selectedUniqueIdFromQuery = "";
   let resolvedSchoolName = "";
@@ -127,6 +148,10 @@
   }
   function setIncludePKInEnrollment(v) {
     try { if (window.localStorage) window.localStorage.setItem(PK_ENROLLMENT_KEY, v ? "true" : "false"); } catch {}
+  }
+
+  function getIncludeFciForMajor() {
+    try { return !!(window.localStorage && window.localStorage.getItem("includeFciForMajor")); } catch { return false; }
   }
   function getEffectiveEnrollment(row) {
     if (!row) return 0;
@@ -350,7 +375,7 @@
 
   // Unit cost library integration
   function normKeyLoose(s) {
-    // Normalize NBSP and common Unicode dashes to improve matching with UnitCostLibrary/pivot headers.
+    // Normalize NBSP and common Unicode dashes to improve matching with UnitCostLibrary headers.
     return norm(s)
       .replace(/\u00A0/g, " ")
       .replace(/[\u2010-\u2015\u2212]/g, "-")
@@ -361,7 +386,7 @@
 
   function normProjectKey(s) {
     // normalize whitespace + slash spacing so "A/B" and "A / B" match
-    // Also strip PapaParse duplicate-header suffixes like "_1", "_2" that can appear in pivot headers.
+    // Also strip PapaParse duplicate-header suffixes like "_1", "_2".
     // Example: "Front of school branding_1, landscape upgrades" -> "Front of school branding, landscape upgrades"
     return normKeyLoose(s)
       .replace(/\s*\/\s*/g, "/")
@@ -474,13 +499,12 @@
     return { byUid, byFacility };
   }
 
-  function applyRoomScheduleUnitValues(rows, uid, pivotRow, decisionRow) {
+  function applyRoomScheduleUnitValues(rows, uid, schoolName, decisionRow) {
     if (!rows || !rows.length) return;
     let catMap = uid ? roomScheduleByUid.get(uid) : null;
-    if (!catMap && pivotRow) {
-      const aeName = normalizeFacilityName(pivotRow?.AE_SchoolName ?? pivotRow?.["AE_SchoolName"]);
-      const schoolName = normalizeFacilityName(pivotRow?.SchoolName ?? pivotRow?.["SchoolName"]);
-      catMap = (aeName && roomScheduleByFacility.get(aeName)) || (schoolName && roomScheduleByFacility.get(schoolName)) || null;
+    if (!catMap && schoolName) {
+      const facName = normalizeFacilityName(schoolName);
+      catMap = facName ? roomScheduleByFacility.get(facName) : null;
     }
     if (!catMap && decisionRow) {
       const buildingName = normalizeFacilityName(decisionRow?.["Building Name"] ?? decisionRow?.BuildingName ?? "");
@@ -501,36 +525,55 @@
     });
   }
 
-  function buildPivotValueMaps(pivotRow) {
-    const scoreByPk = new Map();
-    const unitValueByPk = new Map();
-    if (!pivotRow) return { scoreByPk, unitValueByPk };
-
-    const keys = Object.keys(pivotRow || {});
-    keys.forEach((k) => {
-      if (!k || typeof k !== "string") return;
-      // Extremely tolerant header parsing (handles trailing CR/spaces, UnitValue vs Unit Value)
-      const kt = k.trim();
-      const mScore = kt.match(/^(.*)\s+score\s*$/i);
-      const mUv = kt.match(/^(.*)\s+unit\s*value\s*$/i) || kt.match(/^(.*)\s+unitvalue\s*$/i);
-      if (!mScore && !mUv) return;
-
-      const base = (mScore ? mScore[1] : mUv[1]) || "";
-      const pk = normProjectKey(base);
-      if (!pk) return;
-
-      if (mScore) {
-        if (!scoreByPk.has(pk) || !norm(scoreByPk.get(pk))) scoreByPk.set(pk, pivotRow[k]);
-      } else {
-        if (!unitValueByPk.has(pk) || !norm(unitValueByPk.get(pk))) unitValueByPk.set(pk, pivotRow[k]);
+  function buildRowwiseIndex(rows) {
+    rowwiseByUid = new Map();
+    rowwiseByNameKey = new Map();
+    const nameToUid = new Map();
+    (rows || []).forEach((r) => {
+      const uid = norm(r["UniqueID"] ?? r.UniqueID);
+      const name = norm(r["SchoolName"] ?? r.SchoolName);
+      if (uid) {
+        if (!rowwiseByUid.has(uid)) rowwiseByUid.set(uid, []);
+        rowwiseByUid.get(uid).push(r);
+        if (name && !nameToUid.has(name)) nameToUid.set(name, uid);
+      }
+      const nk = normName(name);
+      if (nk) {
+        if (!rowwiseByNameKey.has(nk)) rowwiseByNameKey.set(nk, []);
+        rowwiseByNameKey.get(nk).push(r);
       }
     });
+    // Merge empty-UID rows into their school's UID bucket so that
+    // a UID-based lookup returns the school's full data (all categories).
+    (rows || []).forEach((r) => {
+      const uid = norm(r["UniqueID"] ?? r.UniqueID);
+      if (uid) return;
+      const name = norm(r["SchoolName"] ?? r.SchoolName);
+      const linked = name ? nameToUid.get(name) : null;
+      if (linked && rowwiseByUid.has(linked)) {
+        rowwiseByUid.get(linked).push(r);
+      }
+    });
+  }
 
-    return { scoreByPk, unitValueByPk };
+  function getRowwiseRowsForSelection(uid, name) {
+    const u = norm(uid);
+    const n = norm(name);
+    if (u && rowwiseByUid.has(u)) return rowwiseByUid.get(u);
+    if (n) return rowwiseByNameKey.get(normName(n)) || [];
+    return [];
   }
 
   function makeUnitCostKey(systemCategory, projectOrAssetType) {
     return `${normKeyLoose(systemCategory)}||${normProjectKey(projectOrAssetType)}`;
+  }
+
+  function formatCsvCost(raw) {
+    const n = parseNumberMaybe(raw);
+    if (n !== null && Number.isFinite(n)) {
+      return Number.isInteger(n) ? `$${n.toLocaleString()}` : `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    return norm(raw);
   }
 
   function formatUnitCost(unitCostRaw, unitRaw) {
@@ -613,7 +656,7 @@
       );
     }
 
-    // Also build a fast lookup by Project name (AssetType), used to reconstruct rows from pivot file.
+    // Also build a fast lookup by Project name (AssetType).
     unitCostByProjectKey = new Map();
     for (const rec of map.values()) {
       const pk = normProjectKey(rec?.proj);
@@ -623,14 +666,11 @@
     // Preserve the library's project ordering (this is what drives the profile table rows).
     libraryProjectOrder = order;
 
-    // Validate library shape (informational)
     const catSet = new Set(libraryProjectOrder.map((p) => norm(p.sys)).filter(Boolean));
-    if (libraryProjectOrder.length !== 54 || catSet.size !== 7) {
-      console.warn(
-        `⚠️ UnitCostLibrary.csv counts: projects=${libraryProjectOrder.length}, categories=${catSet.size}. Categories:`,
-        Array.from(catSet).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }))
-      );
-    }
+    console.info(
+      `UnitCostLibrary.csv: projects=${libraryProjectOrder.length}, categories=${catSet.size}. Categories:`,
+      Array.from(catSet).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }))
+    );
 
     // Diagnostics: if any records ended up with no SystemCategory, log them.
     const missingSys = [];
@@ -647,24 +687,13 @@
     return map;
   }
 
-  function buildPivotIndexes(rows) {
-    assetsByUid = new Map();
-    assetsByNameKey = new Map();
+  function getUniqueSchoolUids(rows) {
+    const set = new Set();
     (rows || []).forEach((r) => {
       const uid = norm(r["UniqueID"] ?? r.UniqueID);
-      const name = norm(r["SchoolName"] ?? r.SchoolName);
-      if (uid && !assetsByUid.has(uid)) assetsByUid.set(uid, r);
-      const nk = normName(name);
-      if (nk && !assetsByNameKey.has(nk)) assetsByNameKey.set(nk, r);
+      if (uid) set.add(uid);
     });
-  }
-
-  function getPivotRowForSelection(uid, name) {
-    const u = norm(uid);
-    const n = norm(name);
-    if (u && assetsByUid.has(u)) return assetsByUid.get(u);
-    if (n) return assetsByNameKey.get(normName(n)) || null;
-    return null;
+    return set;
   }
 
   function isAdditionStoryProject(project) {
@@ -675,76 +704,109 @@
     );
   }
 
-  function buildRowsFromPivot(pivotRow) {
-    if (!pivotRow) return [];
-    const uid = norm(pivotRow["UniqueID"] ?? pivotRow.UniqueID);
-    const school = norm(pivotRow["SchoolName"] ?? pivotRow.SchoolName);
+  function buildRowsFromRowwise(rawSchoolRows) {
+    if (!rawSchoolRows || !rawSchoolRows.length) return [];
+    const uid = norm(rawSchoolRows[0]["UniqueID"] ?? rawSchoolRows[0].UniqueID);
+    const school = norm(rawSchoolRows[0]["SchoolName"] ?? rawSchoolRows[0].SchoolName);
+
+    // Index the raw rows by normalized project key. Multiple rows per key
+    // are possible when the same project has entries for different priorities.
+    const byPk = new Map();
+    rawSchoolRows.forEach((r) => {
+      const pk = normProjectKey(norm(r.AssetType ?? r["AssetType"]));
+      if (!pk) return;
+      if (!byPk.has(pk)) byPk.set(pk, []);
+      byPk.get(pk).push(r);
+    });
 
     const out = [];
     let rowId = 0;
-    const { scoreByPk, unitValueByPk } = buildPivotValueMaps(pivotRow);
 
-    // Build rows in the exact order defined by UnitCostLibrary.csv.
+    const consumedPks = new Set();
+
+    // Pass 1: Build rows in the exact order defined by UnitCostLibrary.csv.
     (libraryProjectOrder || []).forEach((p) => {
       const project = norm(p?.proj);
       const pk = norm(p?.pk);
       if (!project || !pk) return;
 
-      let pv = norm(unitValueByPk.get(pk));
-      const scoreVal = norm(scoreByPk.get(pk)); // numeric (from pivot) when present
       const lib = unitCostByProjectKey.get(pk) || null;
       if (!lib) return;
       const sys = norm(lib?.sys);
 
-      // Fallback: if we couldn't map by pk, try direct/loose header matching.
-      if (!pv) {
-        const direct = pivotRow[`${project} UnitValue`];
-        if (direct !== undefined) pv = norm(direct);
-        if (!pv) {
-          const canonProject = normKeyLoose(project);
-          const candidateKey = Object.keys(pivotRow || {}).find((k) => {
-            const ck = normKeyLoose(k);
-            return ck.endsWith(" unitvalue") && ck.includes(canonProject);
-          });
-          if (candidateKey) pv = norm(pivotRow[candidateKey]);
-        }
-      }
+      consumedPks.add(pk);
+      const matches = byPk.get(pk) || [null];
 
-      // Debug (targeted): only log for the one row you care about, to avoid console spam.
-      if (school === "Bear Creek HS" && project === "Front of school branding, landscape upgrades" && scoreVal && !pv) {
-        const candidates = Object.keys(pivotRow || {})
-          .filter((kk) => normKeyLoose(kk).includes(normKeyLoose(project)))
-          .slice(0, 10);
-        console.warn("Missing UnitValue for Bear Creek HS front-of-school row", { candidates });
-      }
+      matches.forEach((match) => {
+        const scoreVal = match ? norm(match.ConditionScore ?? match["ConditionScore"]) : "";
+        const pv = match ? norm(match.UnitValue ?? match["UnitValue"]) : "";
+        const source = match ? norm(match.ConditionSource ?? match["ConditionSource"]) : "";
+        const csvPriority = match ? norm(match.PriorityScore ?? match["PriorityScore"]) : "";
+        const csvReplacementCost = match ? norm(match.ReplacementCost ?? match["ReplacementCost"]) : "";
 
-      // Mirror prior profile rules:
-      // - Under 03_addition, only story buildings + cafeteria/kitchen pull Unit+UnitCost from library
-      // - everything else can pull Unit+UnitCost from library if present
-      const isAddition = sys === "03_addition";
-      const isCafKitchen = project === "New cafeteria and kitchen";
-      const allowLibraryForAddition = isAdditionStoryProject(project) || isCafKitchen;
+        const isAddition = sys === "03_addition";
+        const isCafKitchen = project === "New cafeteria and kitchen";
+        const allowLibraryForAddition = isAdditionStoryProject(project) || isCafKitchen;
 
-      const unit = (isAddition && !allowLibraryForAddition) ? "" : norm(lib?.unit);
-      const unitCost = (isAddition && !allowLibraryForAddition) ? "" : norm(lib?.unitCost);
-      const libScore = norm(lib?.score);
+        const unit = (isAddition && !allowLibraryForAddition) ? "" : norm(lib?.unit);
+        const unitCost = (isAddition && !allowLibraryForAddition) ? "" : norm(lib?.unitCost);
+        const libScore = norm(lib?.score);
 
-      out.push({
-        UniqueID: uid,
-        SchoolName: school,
-        SystemCategory: sys, // used for grouping/filtering
-        AssetType: project, // internal field; displayed as "Project Type"
-        // Display the library Score ("Good"/"Poor") in the ConditionScore column.
-        ConditionScore: libScore || scoreVal,
-        Unit: unit,
-        UnitCost: unitCost,
-        UnitValue: pv,
-        ReplacementCost: "",
-        __libraryScore: libScore,
-        __pivotConditionScore: scoreVal,
-        __rowId: rowId++,
+        const validCsvPriority = (csvPriority === "1" || csvPriority === "2" || csvPriority === "3" || csvPriority === "4") ? csvPriority : "";
+
+        out.push({
+          UniqueID: uid,
+          SchoolName: school,
+          SystemCategory: sys,
+          AssetType: project,
+          ConditionScore: libScore || scoreVal,
+          ConditionSource: source,
+          Unit: unit,
+          UnitCost: unitCost,
+          UnitValue: pv,
+          ReplacementCost: csvReplacementCost ? formatCsvCost(csvReplacementCost) : "",
+          __libraryScore: libScore,
+          __pivotConditionScore: scoreVal,
+          __csvPriority: validCsvPriority,
+          __rowId: rowId++,
+        });
       });
     });
+
+    // Pass 2: Emit CSV rows whose AssetType is NOT in the UnitCostLibrary.
+    // These carry SystemCategory and AssetType directly from the CSV.
+    for (const [pk, rows] of byPk) {
+      if (consumedPks.has(pk)) continue;
+      rows.forEach((match) => {
+        const project = norm(match.AssetType ?? match["AssetType"]);
+        const sys = norm(match.SystemCategory ?? match["SystemCategory"]);
+        const scoreVal = norm(match.ConditionScore ?? match["ConditionScore"]);
+        const pv = norm(match.UnitValue ?? match["UnitValue"]);
+        const source = norm(match.ConditionSource ?? match["ConditionSource"]);
+        const csvPriority = norm(match.PriorityScore ?? match["PriorityScore"]);
+        const csvReplacementCost = norm(match.ReplacementCost ?? match["ReplacementCost"]);
+        const csvUnit = norm(match.Unit ?? match["Unit"]);
+
+        const validCsvPriority = (csvPriority === "1" || csvPriority === "2" || csvPriority === "3" || csvPriority === "4") ? csvPriority : "";
+
+        out.push({
+          UniqueID: uid,
+          SchoolName: school,
+          SystemCategory: sys || "(Uncategorized)",
+          AssetType: project,
+          ConditionScore: scoreVal,
+          ConditionSource: source,
+          Unit: csvUnit,
+          UnitCost: "",
+          UnitValue: pv,
+          ReplacementCost: csvReplacementCost ? formatCsvCost(csvReplacementCost) : "",
+          __libraryScore: "",
+          __pivotConditionScore: scoreVal,
+          __csvPriority: validCsvPriority,
+          __rowId: rowId++,
+        });
+      });
+    }
 
     return out;
   }
@@ -823,14 +885,7 @@
     keepBlackForCosts = false;
     keepBlackForDemolitionCost = false;
 
-    if (elSchoolSelect) {
-      // Value is UniqueID if available, else fall back to normalized name key.
-      if (resolvedUniqueId && Array.from(elSchoolSelect.options).some((o) => o.value === resolvedUniqueId)) {
-        elSchoolSelect.value = resolvedUniqueId;
-      } else {
-        elSchoolSelect.value = "";
-      }
-    }
+    // Multi-select is managed externally; no need to set a single select value.
 
     // Update query string without a reload
     try {
@@ -846,6 +901,13 @@
     const decision = resolvedUniqueId ? decisionByUid.get(resolvedUniqueId) : decisionByNameKey.get(normName(resolvedSchoolName));
     const buildingName = norm(decision?.["Building Name"] ?? resolvedSchoolName) || "—";
     elSchoolNameHeader.textContent = buildingName;
+    const pkVal = parseFloat((decision?.PKEnrollment ?? decision?.["PKEnrollment"] ?? decision?.["PK Enrollment"] ?? "").toString().replace(/,/g, "").trim()) || 0;
+    if (getIncludePKInEnrollment() && pkVal > 0) {
+      const badge = document.createElement("span");
+      badge.textContent = " (incl. PK)";
+      badge.style.cssText = "font-size:0.65em;color:#2563eb;font-weight:400;vertical-align:middle;";
+      elSchoolNameHeader.appendChild(badge);
+    }
 
     const status = norm(decision?.Status);
     const level = norm(decision?.["School Level"]);
@@ -935,15 +997,15 @@
     if (resolvedDecisionOutcome) metaBits.push(`Decision: ${resolvedDecisionOutcome}`);
     elSchoolMeta.textContent = metaBits.join(" • ");
 
-    // Resolve the pivot row (one row per school), then rebuild per-project rows.
-    const pivotRow = getPivotRowForSelection(resolvedUniqueId, resolvedSchoolName);
-    schoolRows = buildRowsFromPivot(pivotRow);
-    applyRoomScheduleUnitValues(schoolRows, resolvedUniqueId, pivotRow, decision);
+    // Get all rowwise records for this school, then build profile rows.
+    const rawSchoolRows = getRowwiseRowsForSelection(resolvedUniqueId, resolvedSchoolName);
+    schoolRows = buildRowsFromRowwise(rawSchoolRows);
+    applyRoomScheduleUnitValues(schoolRows, resolvedUniqueId, resolvedSchoolName, decision);
 
     // Derive UnitValue + ReplacementCost.
     // Rule:
     // - 01_new construction + 02_gut & renovation: UnitValue is derived from the school's GSF
-    // - everything else: UnitValue comes from JeffCoProjectDataTemplate.csv (do not overwrite)
+    // - everything else: UnitValue comes from the rowwise CSV (do not overwrite)
     (schoolRows || []).forEach((r) => {
       const systemCategory = norm(r?.SystemCategory);
 
@@ -965,6 +1027,16 @@
         return;
       }
 
+      const MAJOR_CATEGORIES = new Set(["01_new construction", "02_gut & renovation", "03_addition"]);
+      const isFciCategory = systemCategory.startsWith("08");
+      if ((needsGutReno || needsNewConstruction) && !MAJOR_CATEGORIES.has(systemCategory)) {
+        if (!(isFciCategory && getIncludeFciForMajor())) {
+          r.__excludedFromTotals = true;
+          r.__excludedReason = "decision";
+          return;
+        }
+      }
+
       // For gut renovation, only compute/carry the level-relevant row.
       // This prevents totals from summing ES+MS+HS+K-8 all together.
       if (!isRelevantGutRenovationRow(r, decision)) {
@@ -984,7 +1056,7 @@
         return;
       }
 
-      // Compute Good/Poor from Value threshold (per-school pivot score first, then UnitValue).
+      // Compute Good/Poor from Value threshold (per-school ConditionScore first, then UnitValue).
       const lib = unitCostIndex ? unitCostIndex.get(makeUnitCostKey(r.SystemCategory, r.AssetType)) : null;
       const computed = computeConditionScoreFromValue(r, lib);
       if (computed) {
@@ -1012,8 +1084,6 @@
         r.ReplacementCost = `$${Math.round(rc).toLocaleString()}`;
       }
     });
-
-    updateTotalReplacementCostDisplay();
 
     populateFilters();
     applyFilters();
@@ -1065,17 +1135,14 @@
     const system = normLoose(row?.SystemCategory);
     const asset = normLoose(row?.AssetType);
 
-    // Keep original intent, but work with the new project taxonomy.
-    if (system === "ada" || asset.includes("ada")) {
-      return "High";
-    }
-    if (asset.includes("playground") || asset.includes("site hardscape")) {
-      return "Low";
-    }
-    return "Medium";
+    if (system === "ada" || asset.includes("ada")) return "1";
+    if (asset.includes("playground") || asset.includes("site hardscape")) return "3";
+    return "2";
   }
 
   function getPriorityForRow(row) {
+    if (row?.__isRollup && row?.__rollupPriority) return row.__rollupPriority;
+    if (row?.__csvPriority) return row.__csvPriority;
     const key = getRowKey(row);
     const override = key ? priorityOverrides?.[key] : null;
     return override || defaultPriorityForRow(row);
@@ -1088,10 +1155,11 @@
   }
 
   function priorityCycleNext(current) {
-    const c = normLoose(current);
-    if (c === "low") return "Medium";
-    if (c === "medium") return "High";
-    return "Low";
+    const c = norm(current);
+    if (c === "1") return "2";
+    if (c === "2") return "3";
+    if (c === "3") return "4";
+    return "1";
   }
 
   function prioritiesInOrder(values) {
@@ -1100,7 +1168,7 @@
       const n = norm(v);
       if (n) seen.add(n);
     });
-    const order = ["Low", "Medium", "High"];
+    const order = ["1", "2", "3", "4"];
     const out = [];
     order.forEach((p) => {
       if (seen.has(p)) out.push(p);
@@ -1183,8 +1251,6 @@
   }
 
   function getUnitValueNumber(row) {
-    // UnitValue is the per-school quantity that aligns with UnitCostLibrary.
-    // Example: Maple Grove "Campus landscaping upgrade" UnitValue=15 (Acres).
     const unit = normalizeUnit(row?.Unit, row?.UnitCost);
     const raw = getRawUnitValue(row);
     if (unit === "PERCENT" || unit === "PERCENTAGE" || unit === "%") {
@@ -1210,7 +1276,7 @@
 
   function computeConditionScoreFromValue(row, lib) {
     // Compare per-school value to UnitCostLibrary.Value threshold.
-    // Primary source: pivot "<Project> score" (stored on the row as __pivotConditionScore).
+    // Primary source: ConditionScore from the rowwise CSV (stored as __pivotConditionScore).
     // Fallback: UnitValue (quantity) if score is missing.
     //
     // If (metric) > Value => return UnitCostLibrary.Score (if present)
@@ -1343,7 +1409,7 @@
       return getSchoolSqf(decision);
     }
 
-    // Everything else should come from UnitValue in JeffCoProjectDataTemplate.csv
+    // Everything else should come from UnitValue in the rowwise CSV
     const uv = getUnitValueNumber(row);
     if (uv !== null) return uv;
 
@@ -1373,14 +1439,25 @@
   }
 
   function computeReplacementTotalsByPriority(rows) {
-    const totals = { Low: 0, Medium: 0, High: 0 };
+    const totals = { "1": 0, "2": 0, "3": 0, "4": 0 };
     (rows || []).forEach((r) => {
       if (r && r.__excludedFromTotals) return;
+      if (r && r.__isRollup && r.__rollupRows) {
+        r.__rollupRows.forEach((sub) => {
+          if (sub && sub.__excludedFromTotals) return;
+          const subRc = parseNumberMaybe(sub?.ReplacementCost);
+          if (subRc === null) return;
+          const p = norm(getPriorityForRow(sub));
+          if (totals.hasOwnProperty(p)) totals[p] += subRc;
+          else totals["2"] += subRc;
+        });
+        return;
+      }
       const rc = parseNumberMaybe(r?.ReplacementCost);
       if (rc === null) return;
       const p = norm(getPriorityForRow(r));
-      if (p === "Low" || p === "Medium" || p === "High") totals[p] += rc;
-      else totals.Medium += rc;
+      if (totals.hasOwnProperty(p)) totals[p] += rc;
+      else totals["2"] += rc;
     });
     return totals;
   }
@@ -1439,35 +1516,155 @@
     return Math.round(Number(additionPlanningState.gsfTarget) * rate);
   }
 
+  function getFilteredPriorities() {
+    const selected = new Set();
+    document.querySelectorAll(".priority-filter-cb").forEach((cb) => {
+      if (cb.checked) selected.add(cb.value);
+    });
+    return selected;
+  }
+
+  function updatePriorityFilterLabel() {
+    const selected = getFilteredPriorities();
+    const total = document.querySelectorAll(".priority-filter-cb").length;
+    if (selected.size === 0 || selected.size === total) {
+      if (elPriorityFilterLabel) elPriorityFilterLabel.textContent = "All";
+    } else {
+      if (elPriorityFilterLabel) elPriorityFilterLabel.textContent = Array.from(selected).sort().join(", ");
+    }
+    if (elPrioritySelectAll) {
+      elPrioritySelectAll.checked = selected.size === total;
+      elPrioritySelectAll.indeterminate = selected.size > 0 && selected.size < total;
+    }
+  }
+
+  // --- Generic multi-select filter helpers ---
+  function buildMultiSelectDropdown(dropdown, values, cbClass) {
+    dropdown.innerHTML = "";
+    const allLabel = document.createElement("label");
+    allLabel.className = "ms-select-all";
+    const allCb = document.createElement("input");
+    allCb.type = "checkbox";
+    allCb.checked = true;
+    allCb.dataset.selectAll = "1";
+    allLabel.appendChild(allCb);
+    allLabel.append(" Select All");
+    dropdown.appendChild(allLabel);
+
+    values.forEach((v) => {
+      const lbl = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.className = cbClass;
+      cb.value = v;
+      cb.checked = true;
+      lbl.appendChild(cb);
+      lbl.append(" " + v);
+      dropdown.appendChild(lbl);
+    });
+  }
+
+  function getMultiSelectValues(dropdown, cbClass) {
+    const selected = new Set();
+    dropdown.querySelectorAll("." + cbClass).forEach((cb) => {
+      if (cb.checked) selected.add(cb.value);
+    });
+    return selected;
+  }
+
+  function updateMultiSelectLabel(dropdown, cbClass, labelEl) {
+    const cbs = dropdown.querySelectorAll("." + cbClass);
+    const selected = getMultiSelectValues(dropdown, cbClass);
+    const allCb = dropdown.querySelector("[data-select-all]");
+    if (selected.size === 0 || selected.size === cbs.length) {
+      labelEl.textContent = "All";
+    } else if (selected.size <= 2) {
+      labelEl.textContent = Array.from(selected).join(", ");
+    } else {
+      labelEl.textContent = selected.size + " selected";
+    }
+    if (allCb) {
+      allCb.checked = selected.size === cbs.length;
+      allCb.indeterminate = selected.size > 0 && selected.size < cbs.length;
+    }
+  }
+
+  function wireMultiSelect(wrapId, btn, dropdown, cbClass, labelEl, onChange) {
+    btn.addEventListener("click", () => {
+      dropdown.style.display = dropdown.style.display === "none" ? "block" : "none";
+    });
+    document.addEventListener("click", (e) => {
+      const wrap = document.getElementById(wrapId);
+      if (wrap && !wrap.contains(e.target)) dropdown.style.display = "none";
+    });
+    dropdown.addEventListener("change", (e) => {
+      const allCb = dropdown.querySelector("[data-select-all]");
+      if (e.target === allCb) {
+        dropdown.querySelectorAll("." + cbClass).forEach((cb) => { cb.checked = allCb.checked; });
+      }
+      updateMultiSelectLabel(dropdown, cbClass, labelEl);
+      onChange();
+    });
+  }
+
+  function clearMultiSelect(dropdown, cbClass, labelEl) {
+    const allCb = dropdown.querySelector("[data-select-all]");
+    if (allCb) allCb.checked = true;
+    dropdown.querySelectorAll("." + cbClass).forEach((cb) => { cb.checked = true; });
+    labelEl.textContent = "All";
+  }
+
+  function getIncludedPriorities() {
+    const included = new Set();
+    document.querySelectorAll(".priority-include-cb").forEach((cb) => {
+      if (cb.checked) included.add(cb.getAttribute("data-priority"));
+    });
+    return included;
+  }
+
+  function getFilteredFlatRows() {
+    const flat = [];
+    (viewRows || []).forEach((g) => {
+      (g.__rows || []).forEach((r) => flat.push(r));
+    });
+    return flat;
+  }
+
   function updateTotalReplacementCostDisplay() {
     if (!elTotalReplacementCost) return;
-    const base = computeBlackReplacementTotal(schoolRows);
-    const add = computeAdditionCost();
-    const total = Math.round((base || 0) + (add || 0));
-    elTotalReplacementCost.textContent = total ? `$${total.toLocaleString()}` : "—";
 
-    // Priority subtotals (include addition cost in the selected story's priority bucket).
-    const t = computeReplacementTotalsByPriority(schoolRows);
+    const filteredRows = getFilteredFlatRows();
+    const t = computeReplacementTotalsByPriority(filteredRows);
+
     const storyProject =
       additionPlanningState.stories === 2
         ? "New 2-story building"
         : additionPlanningState.stories === 3
           ? "New 3-story building"
           : "New 1-story building (addition)";
-    const storyRow =
-      (schoolRows || []).find(
+    const additionVisible = filteredRows.some(
+      (r) => norm(r?.SystemCategory) === "03_addition" && norm(r?.AssetType) === storyProject
+    );
+    if (additionVisible && computeAdditionCost()) {
+      const storyRow = filteredRows.find(
         (r) => norm(r?.SystemCategory) === "03_addition" && norm(r?.AssetType) === storyProject
       ) || null;
-    const addPriority = storyRow ? norm(getPriorityForRow(storyRow)) : "Medium";
-    if (add) {
-      if (addPriority === "Low") t.Low += add;
-      else if (addPriority === "High") t.High += add;
-      else t.Medium += add;
+      const addPriority = storyRow ? norm(getPriorityForRow(storyRow)) : "2";
+      const add = computeAdditionCost();
+      if (t.hasOwnProperty(addPriority)) t[addPriority] += add;
+      else t["2"] += add;
     }
 
-    if (elTotalLowCost) elTotalLowCost.textContent = t.Low ? `$${Math.round(t.Low).toLocaleString()}` : "—";
-    if (elTotalMediumCost) elTotalMediumCost.textContent = t.Medium ? `$${Math.round(t.Medium).toLocaleString()}` : "—";
-    if (elTotalHighCost) elTotalHighCost.textContent = t.High ? `$${Math.round(t.High).toLocaleString()}` : "—";
+    if (elTotalP1Cost) elTotalP1Cost.textContent = t["1"] ? `$${Math.round(t["1"]).toLocaleString()}` : "—";
+    if (elTotalP2Cost) elTotalP2Cost.textContent = t["2"] ? `$${Math.round(t["2"]).toLocaleString()}` : "—";
+    if (elTotalP3Cost) elTotalP3Cost.textContent = t["3"] ? `$${Math.round(t["3"]).toLocaleString()}` : "—";
+    if (elTotalP4Cost) elTotalP4Cost.textContent = t["4"] ? `$${Math.round(t["4"]).toLocaleString()}` : "—";
+
+    const included = getIncludedPriorities();
+    let total = 0;
+    ["1", "2", "3", "4"].forEach((p) => { if (included.has(p)) total += (t[p] || 0); });
+    total = Math.round(total);
+    elTotalReplacementCost.textContent = total ? `$${total.toLocaleString()}` : "—";
   }
 
   function compareValues(a, b, dir) {
@@ -1475,7 +1672,7 @@
     // Priority compare when both are priority labels
     const ap = normLoose(a);
     const bp = normLoose(b);
-    const priorityOrder = { low: 0, medium: 1, high: 2 };
+    const priorityOrder = { "1": 0, "2": 1, "3": 2, "4": 3 };
     const ahas = Object.prototype.hasOwnProperty.call(priorityOrder, ap);
     const bhas = Object.prototype.hasOwnProperty.call(priorityOrder, bp);
     if (ahas && bhas) return (priorityOrder[ap] - priorityOrder[bp]) * mult;
@@ -1489,14 +1686,33 @@
 
   function applyFilters() {
     const q = norm(elSearch.value).toLowerCase();
-    const prioritySel = norm(elPriorityFilter.value);
-    const systemSel = norm(elSystemFilter.value);
-    const assetSel = norm(elAssetFilter.value);
+    const prioritySelected = getFilteredPriorities();
+    const totalPriorityCbs = document.querySelectorAll(".priority-filter-cb").length;
+    const filterByPriority = prioritySelected.size > 0 && prioritySelected.size < totalPriorityCbs;
+    const systemSel = elSystemDropdown ? getMultiSelectValues(elSystemDropdown, "system-filter-cb") : new Set();
+    const systemTotal = elSystemDropdown ? elSystemDropdown.querySelectorAll(".system-filter-cb").length : 0;
+    const filterBySystem = systemSel.size > 0 && systemSel.size < systemTotal;
+
+    const assetSel = elAssetDropdown ? getMultiSelectValues(elAssetDropdown, "asset-filter-cb") : new Set();
+    const assetTotal = elAssetDropdown ? elAssetDropdown.querySelectorAll(".asset-filter-cb").length : 0;
+    const filterByAsset = assetSel.size > 0 && assetSel.size < assetTotal;
+
+    const sourceSel = elSourceDropdown ? getMultiSelectValues(elSourceDropdown, "source-filter-cb") : new Set();
+    const sourceTotal = elSourceDropdown ? elSourceDropdown.querySelectorAll(".source-filter-cb").length : 0;
+    const filterBySource = sourceSel.size > 0 && sourceSel.size < sourceTotal;
 
     const filtered = schoolRows.filter((r) => {
-      if (prioritySel && norm(getPriorityForRow(r)) !== prioritySel) return false;
-      if (systemSel && norm(r.SystemCategory) !== systemSel) return false;
-      if (assetSel && norm(r.AssetType) !== assetSel) return false;
+      if (filterByPriority) {
+        if (r.__isRollup && r.__rollupPriority === "(Multiple)" && r.__rollupRows) {
+          const anyMatch = r.__rollupRows.some((sub) => prioritySelected.has(norm(getPriorityForRow(sub))));
+          if (!anyMatch) return false;
+        } else if (!prioritySelected.has(norm(getPriorityForRow(r)))) {
+          return false;
+        }
+      }
+      if (filterBySystem && !systemSel.has(norm(r.SystemCategory))) return false;
+      if (filterByAsset && !assetSel.has(norm(r.AssetType))) return false;
+      if (filterBySource && !sourceSel.has(norm(r.ConditionSource))) return false;
       if (q) {
         const hay = DISPLAY_COLS.map((c) => norm(getCellValue(r, c))).join(" | ").toLowerCase();
         if (!hay.includes(q)) return false;
@@ -1535,6 +1751,7 @@
 
     if (!viewRows.length) {
       elTableMount.innerHTML = '<div class="empty">No assets/projects match the current filters.</div>';
+      updateTotalReplacementCostDisplay();
       return;
     }
 
@@ -1544,8 +1761,9 @@
 
     DISPLAY_COLS.forEach((col) => {
       const th = document.createElement("th");
-      th.textContent = col + (sortState.key === col ? (sortState.dir === "asc" ? " ▲" : " ▼") : "");
-      th.title = "Sort by " + col;
+      const displayName = COL_DISPLAY_NAMES[col] || col;
+      th.textContent = displayName + (sortState.key === col ? (sortState.dir === "asc" ? " ▲" : " ▼") : "");
+      th.title = "Sort by " + displayName;
       th.addEventListener("click", () => {
         if (sortState.key === col) {
           sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
@@ -1564,14 +1782,147 @@
 
     const tbody = document.createElement("tbody");
 
+    function getSuperGroupKey(groupName) {
+      const g = norm(groupName).toLowerCase();
+      if (g.startsWith("00") || g.startsWith("01") || g.startsWith("02") || g.startsWith("03") || g.startsWith("04") || g.startsWith("05") || g.startsWith("06")) return "Projects";
+      if (g.startsWith("08")) return "FCI Deficiency";
+      return null;
+    }
+
+    function computeGroupByP(rows) {
+      const byP = { "1": 0, "2": 0, "3": 0, "4": 0 };
+      (rows || []).forEach((r) => {
+        if (r && r.__excludedFromTotals) return;
+        if (r && r.__isRollup && r.__rollupRows) {
+          r.__rollupRows.forEach((sub) => {
+            if (sub && sub.__excludedFromTotals) return;
+            const rc = parseNumberMaybe(sub?.ReplacementCost);
+            if (rc === null) return;
+            const p = norm(getPriorityForRow(sub));
+            if (byP.hasOwnProperty(p)) byP[p] += rc;
+            else byP["2"] += rc;
+          });
+        } else {
+          const rc = parseNumberMaybe(r?.ReplacementCost);
+          if (rc === null) return;
+          const p = norm(getPriorityForRow(r));
+          if (byP.hasOwnProperty(p)) byP[p] += rc;
+          else byP["2"] += rc;
+        }
+      });
+      return byP;
+    }
+
+    if (!groupsInitialized) {
+      viewRows.forEach((g) => collapsedGroups.add(g.__group));
+      groupsInitialized = true;
+    }
+
+    const superGroupOrder = [];
+    const superGroupMap = new Map();
     viewRows.forEach((g) => {
+      const sgKey = getSuperGroupKey(g.__group) || g.__group;
+      if (!superGroupMap.has(sgKey)) {
+        superGroupMap.set(sgKey, []);
+        superGroupOrder.push(sgKey);
+      }
+      superGroupMap.get(sgKey).push(g);
+    });
+
+    superGroupOrder.forEach((sgKey) => {
+      const groups = superGroupMap.get(sgKey);
+      const isSuperGroup = groups.length > 1 || (getSuperGroupKey(groups[0].__group) !== null && groups[0].__group !== sgKey);
+      const isSuperCollapsed = collapsedSuperGroups.has(sgKey);
+
+      if (isSuperGroup) {
+        const superByP = { "1": 0, "2": 0, "3": 0, "4": 0 };
+        groups.forEach((g) => {
+          const gp = computeGroupByP(g.__rows);
+          ["1", "2", "3", "4"].forEach((p) => { superByP[p] += gp[p]; });
+        });
+        const superTotal = superByP["1"] + superByP["2"] + superByP["3"] + superByP["4"];
+
+        const sgTr = document.createElement("tr");
+        sgTr.className = "super-group-row" + (isSuperCollapsed ? " collapsed" : "") + (sgKey === "FCI Deficiency" ? " fci-deficiency" : "");
+        const sgTd = document.createElement("td");
+        sgTd.colSpan = DISPLAY_COLS.length;
+        const sgHeader = document.createElement("div");
+        sgHeader.className = "group-header";
+        const sgLabel = document.createElement("div");
+        sgLabel.className = "group-label";
+        const sgArrow = document.createElement("span");
+        sgArrow.className = "group-arrow";
+        sgArrow.textContent = "▼";
+        sgLabel.appendChild(sgArrow);
+        sgLabel.appendChild(document.createTextNode(sgKey));
+        sgHeader.appendChild(sgLabel);
+        const sgSub = document.createElement("span");
+        sgSub.className = "group-subtotal";
+        sgSub.textContent = superTotal ? `$${Math.round(superTotal).toLocaleString()}` : "";
+        if (superTotal) {
+          sgSub.title = ["P1: $" + Math.round(superByP["1"]).toLocaleString(),
+            "P2: $" + Math.round(superByP["2"]).toLocaleString(),
+            "P3: $" + Math.round(superByP["3"]).toLocaleString(),
+            "P4: $" + Math.round(superByP["4"]).toLocaleString()].join("\n");
+        }
+        sgHeader.appendChild(sgSub);
+        sgTd.appendChild(sgHeader);
+        sgTr.appendChild(sgTd);
+        sgTr.addEventListener("click", () => {
+          if (collapsedSuperGroups.has(sgKey)) collapsedSuperGroups.delete(sgKey);
+          else collapsedSuperGroups.add(sgKey);
+          render();
+        });
+        tbody.appendChild(sgTr);
+
+        if (isSuperCollapsed) return;
+      }
+
+      const isFciParent = sgKey === "FCI Deficiency";
+
+      groups.forEach((g) => {
+
+      const groupKey = g.__group;
+      const isCollapsed = collapsedGroups.has(groupKey);
+
+      const groupByP = computeGroupByP(g.__rows);
+      const groupSubtotal = groupByP["1"] + groupByP["2"] + groupByP["3"] + groupByP["4"];
+
       const groupTr = document.createElement("tr");
-      groupTr.className = "group-row";
+      groupTr.className = "group-row" + (isCollapsed ? " collapsed" : "") + (isFciParent ? " fci-child" : "");
       const td = document.createElement("td");
       td.colSpan = DISPLAY_COLS.length;
-      td.textContent = g.__group;
+      const header = document.createElement("div");
+      header.className = "group-header";
+      const labelDiv = document.createElement("div");
+      labelDiv.className = "group-label";
+      const arrow = document.createElement("span");
+      arrow.className = "group-arrow";
+      arrow.textContent = "▼";
+      labelDiv.appendChild(arrow);
+      labelDiv.appendChild(document.createTextNode(groupKey));
+      header.appendChild(labelDiv);
+      const subtotalSpan = document.createElement("span");
+      subtotalSpan.className = "group-subtotal";
+      subtotalSpan.textContent = groupSubtotal ? `$${Math.round(groupSubtotal).toLocaleString()}` : "";
+      if (groupSubtotal) {
+        const lines = ["P1: $" + Math.round(groupByP["1"]).toLocaleString(),
+          "P2: $" + Math.round(groupByP["2"]).toLocaleString(),
+          "P3: $" + Math.round(groupByP["3"]).toLocaleString(),
+          "P4: $" + Math.round(groupByP["4"]).toLocaleString()];
+        subtotalSpan.title = lines.join("\n");
+      }
+      header.appendChild(subtotalSpan);
+      td.appendChild(header);
       groupTr.appendChild(td);
+      groupTr.addEventListener("click", () => {
+        if (collapsedGroups.has(groupKey)) collapsedGroups.delete(groupKey);
+        else collapsedGroups.add(groupKey);
+        render();
+      });
       tbody.appendChild(groupTr);
+
+      if (isCollapsed) return;
 
       // Insert Building Addition planning block directly under the 03_addition group header
       if (additionPlanningState.show && norm(g.__group).toLowerCase() === "03_addition") {
@@ -1667,7 +2018,84 @@
         }
       }
 
-      g.__rows.forEach((r) => {
+      if (isFciParent) {
+        const fciAssetGroups = new Map();
+        g.__rows.forEach((r) => {
+          const at = norm(r?.AssetType) || "(Unknown)";
+          if (!fciAssetGroups.has(at)) fciAssetGroups.set(at, []);
+          fciAssetGroups.get(at).push(r);
+        });
+
+
+        const filteredPriorities = getFilteredPriorities();
+        const totalPriorityCbs = document.querySelectorAll(".priority-filter-cb").length;
+        const allPrioritiesSelected = filteredPriorities.size === 0 || filteredPriorities.size === totalPriorityCbs;
+        const priorityLabel = allPrioritiesSelected
+          ? "P1–P4"
+          : "P" + Array.from(filteredPriorities).sort().join(", P");
+
+        fciAssetGroups.forEach((assetRows, at) => {
+          if (assetRows.length > 1) {
+            const collapseKey = groupKey + "||" + at;
+            const isAssetCollapsed = !expandedFciAssets.has(collapseKey);
+
+            const byP = { "1": 0, "2": 0, "3": 0, "4": 0 };
+            assetRows.forEach((ar) => {
+              if (ar && ar.__excludedFromTotals) return;
+              const rc = parseNumberMaybe(ar?.ReplacementCost);
+              if (rc === null) return;
+              const p = norm(getPriorityForRow(ar));
+              if (byP.hasOwnProperty(p)) byP[p] += rc;
+              else byP["2"] += rc;
+            });
+            const sum = byP["1"] + byP["2"] + byP["3"] + byP["4"];
+
+            const rollupTr = document.createElement("tr");
+            rollupTr.className = "fci-rollup-row" + (isAssetCollapsed ? " collapsed" : "");
+            rollupTr.style.cursor = "pointer";
+            DISPLAY_COLS.forEach((col) => {
+              const cell = document.createElement("td");
+              if (col === "Project Type") {
+                const arrow = document.createElement("span");
+                arrow.className = "group-arrow";
+                arrow.textContent = "▼";
+                cell.appendChild(arrow);
+                cell.appendChild(document.createTextNode(at));
+              } else if (col === "Priority") {
+                cell.textContent = priorityLabel;
+                cell.style.textAlign = "center";
+                cell.style.fontSize = "11px";
+              } else if (col === "ReplacementCost") {
+                cell.textContent = sum ? `$${Math.round(sum).toLocaleString()}` : "";
+                const tooltip = ["P1: $" + Math.round(byP["1"]).toLocaleString(),
+                  "P2: $" + Math.round(byP["2"]).toLocaleString(),
+                  "P3: $" + Math.round(byP["3"]).toLocaleString(),
+                  "P4: $" + Math.round(byP["4"]).toLocaleString()];
+                cell.title = tooltip.join("\n");
+              } else {
+                cell.textContent = "";
+              }
+              rollupTr.appendChild(cell);
+            });
+            rollupTr.addEventListener("click", () => {
+              if (expandedFciAssets.has(collapseKey)) expandedFciAssets.delete(collapseKey);
+              else expandedFciAssets.add(collapseKey);
+              render();
+            });
+            tbody.appendChild(rollupTr);
+
+            if (!isAssetCollapsed) {
+              assetRows.forEach((r) => renderSingleRow(r));
+            }
+          } else {
+            assetRows.forEach((r) => renderSingleRow(r));
+          }
+        });
+      } else {
+        g.__rows.forEach((r) => renderSingleRow(r));
+      }
+
+      function renderSingleRow(r) {
         const tr = document.createElement("tr");
         if (r && r.__excludedFromTotals) {
           tr.classList.add("excluded-row");
@@ -1680,33 +2108,78 @@
           if (col === "ConditionScore") cell.classList.add("condition-score-cell");
           if (col === "Priority") {
             const current = getPriorityForRow(r);
+            if (r.__isRollup) {
+              const rollupSys = norm(r.SystemCategory).toLowerCase();
+              const isSiteInfraRollup = rollupSys === "08_site infrastructure" || rollupSys === "08_site infrastructure_new";
+              const seg = document.createElement("div");
+              const isCommon = r.__rollupPriority !== "(Multiple)";
+              seg.className = "priority-segment" + (isSiteInfraRollup ? " priority-external" : isCommon ? " priority-rollup" : "");
+              seg.setAttribute("role", "group");
+              seg.setAttribute("aria-label", "Priority");
+              ["1", "2", "3", "4"].forEach((p) => {
+                const b = document.createElement("button");
+                b.type = "button";
+                b.className = "priority-segment-btn";
+                b.textContent = p;
+                b.setAttribute("aria-pressed", String(isCommon && normLoose(current) === normLoose(p)));
+                if (isSiteInfraRollup) {
+                  b.title = `Priority ${p} (hardcoded)`;
+                  b.style.cursor = "default";
+                } else {
+                  b.title = `Set rollup priority to ${p}`;
+                  b.addEventListener("click", () => {
+                    (r.__rollupRows || []).forEach((sub) => {
+                      if (sub.__csvPriority) return;
+                      const key = getRowKey(sub);
+                      if (key) {
+                        priorityOverrides[key] = p;
+                      }
+                    });
+                    savePriorityOverrides();
+                    r.__rollupPriority = p;
+                    updateTotalReplacementCostDisplay();
+                    populateFilters();
+                    applyFilters();
+                    render();
+                  });
+                }
+                seg.appendChild(b);
+              });
+              cell.appendChild(seg);
+            } else {
+            const isExternal = !!r.__csvPriority;
             const seg = document.createElement("div");
-            seg.className = "priority-segment";
+            seg.className = "priority-segment" + (isExternal ? " priority-external" : "");
             seg.setAttribute("role", "group");
             seg.setAttribute("aria-label", "Priority");
 
-            ["Low", "Medium", "High"].forEach((p) => {
+            ["1", "2", "3", "4"].forEach((p) => {
               const b = document.createElement("button");
               b.type = "button";
               b.className = "priority-segment-btn";
               b.textContent = p;
               b.setAttribute("aria-pressed", String(normLoose(current) === normLoose(p)));
-              b.title = `Set priority to ${p}`;
-              b.addEventListener("click", () => {
-                const key = getRowKey(r);
-                if (key) {
-                  priorityOverrides[key] = p;
-                  savePriorityOverrides();
-                }
-                updateTotalReplacementCostDisplay();
-                populateFilters();
-                applyFilters();
-                render();
-              });
+              b.title = isExternal ? `Priority ${p} (set in CSV)` : `Set priority to ${p}`;
+              if (!isExternal) {
+                b.addEventListener("click", () => {
+                  const key = getRowKey(r);
+                  if (key) {
+                    priorityOverrides[key] = p;
+                    savePriorityOverrides();
+                  }
+                  updateTotalReplacementCostDisplay();
+                  populateFilters();
+                  applyFilters();
+                  render();
+                });
+              } else {
+                b.style.cursor = "default";
+              }
               seg.appendChild(b);
             });
 
             cell.appendChild(seg);
+            }
           } else {
             const systemCategory = norm(r?.SystemCategory);
             const assetTypeRaw = norm(r?.AssetType);
@@ -1773,10 +2246,12 @@
               const text = display ? display : "—";
               cell.textContent = text;
               cell.title = text;
-              const k = text.toLowerCase();
-              if (k === "good") cell.classList.add("score-good");
-              else if (k === "poor") cell.classList.add("score-poor");
-              else if (k === "n/a" || k === "na") cell.classList.add("score-na");
+              if (!isFciParent) {
+                const k = text.toLowerCase();
+                if (k === "good") cell.classList.add("score-good");
+                else if (k === "poor") cell.classList.add("score-poor");
+                else if (k === "n/a" || k === "na") cell.classList.add("score-na");
+              }
             } else {
               v = getCellValue(r, col);
               cell.textContent = norm(v) ? norm(v) : "—";
@@ -1794,41 +2269,74 @@
             // Grey out dollar totals (ReplacementCost) for non-target decision outcomes,
             // but allow Demolition-related values to stay black for replacement cases.
             if (col === "ReplacementCost" && norm(v)) {
-              if (isDemolition) {
+              if (isFciParent) {
+                cell.style.color = "#111827";
+              } else if (isDemolition) {
                 if (!keepBlackForDemolitionCost) cell.classList.add("muted");
               } else {
                 if (!keepBlackForCosts) cell.classList.add("muted");
               }
             }
+
+            // FCI Deficiency: grey out ConditionScore, UnitCost, UnitValue
+            if (isFciParent && (col === "ConditionScore" || col === "UnitCost" || col === "UnitValue")) {
+              cell.style.color = "var(--muted)";
+            }
           }
           tr.appendChild(cell);
         });
         tbody.appendChild(tr);
-      });
-    });
+      }
+
+      }); // end groups.forEach
+    }); // end superGroupOrder.forEach
 
     table.appendChild(tbody);
     elTableMount.appendChild(table);
+
+    const hasExternal = schoolRows.some((r) => !!r.__csvPriority);
+    if (hasExternal) {
+      const note = document.createElement("div");
+      note.style.cssText = "margin-top:8px;font-size:12px;color:#6b7280;display:flex;align-items:center;gap:6px;";
+      note.innerHTML = '<span style="display:inline-block;width:12px;height:12px;background:#111827;border-radius:2px;"></span> Priority assigned from project data';
+      elTableMount.appendChild(note);
+    }
+
+    updateTotalReplacementCostDisplay();
   }
 
   function populateFilters() {
-    const prevPriority = norm(elPriorityFilter.value);
-    const prevSystem = norm(elSystemFilter.value);
-    const prevAsset = norm(elAssetFilter.value);
+    const prevSystems = elSystemDropdown ? getMultiSelectValues(elSystemDropdown, "system-filter-cb") : new Set();
+    const prevAssets = elAssetDropdown ? getMultiSelectValues(elAssetDropdown, "asset-filter-cb") : new Set();
+    const prevSources = elSourceDropdown ? getMultiSelectValues(elSourceDropdown, "source-filter-cb") : new Set();
 
-    const priorities = prioritiesInOrder(schoolRows.map((r) => getPriorityForRow(r)));
     const systems = uniqueSorted(schoolRows.map((r) => r.SystemCategory));
     const assets = uniqueSorted(schoolRows.map((r) => r.AssetType));
+    const sources = uniqueSorted(schoolRows.map((r) => r.ConditionSource));
 
-    elPriorityFilter.innerHTML =
-      '<option value="">All</option>' +
-      priorities.map((v) => `<option value="${escapeHtmlAttr(v)}">${escapeHtmlText(v)}</option>`).join("");
-    elSystemFilter.innerHTML = '<option value="">All</option>' + systems.map((v) => `<option value="${escapeHtmlAttr(v)}">${escapeHtmlText(v)}</option>`).join("");
-    elAssetFilter.innerHTML = '<option value="">All</option>' + assets.map((v) => `<option value="${escapeHtmlAttr(v)}">${escapeHtmlText(v)}</option>`).join("");
+    if (elSystemDropdown) {
+      buildMultiSelectDropdown(elSystemDropdown, systems, "system-filter-cb");
+      if (prevSystems.size) restoreMultiSelectState(elSystemDropdown, "system-filter-cb", prevSystems, elSystemLabel);
+    }
+    if (elAssetDropdown) {
+      buildMultiSelectDropdown(elAssetDropdown, assets, "asset-filter-cb");
+      if (prevAssets.size) restoreMultiSelectState(elAssetDropdown, "asset-filter-cb", prevAssets, elAssetLabel);
+    }
+    if (elSourceDropdown) {
+      buildMultiSelectDropdown(elSourceDropdown, sources, "source-filter-cb");
+      if (prevSources.size) restoreMultiSelectState(elSourceDropdown, "source-filter-cb", prevSources, elSourceLabel);
+    }
+  }
 
-    if (prevPriority && Array.from(elPriorityFilter.options).some((o) => o.value === prevPriority)) elPriorityFilter.value = prevPriority;
-    if (prevSystem && Array.from(elSystemFilter.options).some((o) => o.value === prevSystem)) elSystemFilter.value = prevSystem;
-    if (prevAsset && Array.from(elAssetFilter.options).some((o) => o.value === prevAsset)) elAssetFilter.value = prevAsset;
+  function restoreMultiSelectState(dropdown, cbClass, prevSelected, labelEl) {
+    const cbs = dropdown.querySelectorAll("." + cbClass);
+    const allValues = new Set();
+    cbs.forEach((cb) => allValues.add(cb.value));
+    const stillValid = new Set([...prevSelected].filter((v) => allValues.has(v)));
+    if (stillValid.size && stillValid.size < allValues.size) {
+      cbs.forEach((cb) => { cb.checked = stillValid.has(cb.value); });
+      updateMultiSelectLabel(dropdown, cbClass, labelEl);
+    }
   }
 
   function renderNoMatchChooser(uniqueSchoolNames) {
@@ -1898,6 +2406,242 @@
     return escapeHtmlText(s).replace(/"/g, "&quot;");
   }
 
+  function applyMultiSchoolSelection() {
+    if (!selectedSchoolUids.size) {
+      schoolRows = [];
+      resolvedUniqueId = "";
+      resolvedSchoolName = "";
+      resolvedDecisionOutcome = "";
+      keepBlackForCosts = false;
+      keepBlackForDemolitionCost = false;
+      elSchoolNameHeader.textContent = "—";
+      elSchoolMeta.textContent = "Select one or more schools above to view summary and projects.";
+      if (elTotalReplacementCost) elTotalReplacementCost.textContent = "—";
+      if (elTotalP1Cost) elTotalP1Cost.textContent = "—";
+      if (elTotalP2Cost) elTotalP2Cost.textContent = "—";
+      if (elTotalP3Cost) elTotalP3Cost.textContent = "—";
+      if (elTotalP4Cost) elTotalP4Cost.textContent = "—";
+      elTableMount.innerHTML = '<div class="empty">No school selected.</div>';
+      elDownload.disabled = true;
+      return;
+    }
+
+    if (selectedSchoolUids.size === 1) {
+      const uid = Array.from(selectedSchoolUids)[0];
+      if (uid.startsWith("name:")) {
+        const nm = uid.slice(5);
+        setSelectedSchool("", nm);
+      } else {
+        const r = decisionByUid.get(uid);
+        const nm = norm(r?.["Building Name"]) || "";
+        setSelectedSchool(uid, nm);
+      }
+      return;
+    }
+
+    // Multi-school: combine rows from all selected schools
+    keepBlackForCosts = true;
+    keepBlackForDemolitionCost = true;
+    resolvedDecisionOutcome = "";
+    resolvedUniqueId = "";
+    resolvedSchoolName = "";
+
+    const names = [];
+    const combined = [];
+    let rowId = 0;
+    selectedSchoolUids.forEach((id) => {
+      const isNameOnly = id.startsWith("name:");
+      const uid = isNameOnly ? "" : id;
+      const nm = isNameOnly ? id.slice(5) : (norm(decisionByUid.get(id)?.["Building Name"]) || id);
+      const decision = uid ? decisionByUid.get(uid) : null;
+      names.push(nm);
+      const rawSchoolRows = getRowwiseRowsForSelection(uid, nm);
+      const rows = buildRowsFromRowwise(rawSchoolRows);
+      applyRoomScheduleUnitValues(rows, uid, nm, decision);
+
+      const schoolDecision = decision ? evaluateSchoolDecision(decision, getActiveThresholds()) : "";
+      const schoolOutcome = (schoolDecision || "").trim();
+      const keepBlackOutcomes = [
+        "Major Capital Investment",
+        "Welcoming School with Capital Investment",
+        "Building Addition with Capital Investment",
+      ];
+      const schoolNeedsGutReno = keepBlackOutcomes.includes(schoolOutcome);
+      const schoolNeedsNewConstruction =
+        ["Building Replacement", "Welcoming School with Building Replacement"].includes(schoolOutcome) ||
+        schoolOutcome.toLowerCase().includes("demolition");
+      const MAJOR_CATEGORIES = new Set(["01_new construction", "02_gut & renovation", "03_addition"]);
+
+      rows.forEach((r) => {
+        r.__schoolLabel = nm;
+        r.__rowId = rowId++;
+        const systemCategory = norm(r?.SystemCategory);
+
+        const lib = unitCostIndex ? unitCostIndex.get(makeUnitCostKey(r.SystemCategory, r.AssetType)) : null;
+        const computed = computeConditionScoreFromValue(r, lib);
+        if (computed) {
+          r.ConditionScore = computed;
+          r.__libraryScore = computed;
+        }
+
+        if (systemCategory === "02_gut & renovation" && !schoolNeedsGutReno) {
+          r.__excludedFromTotals = true;
+          r.__excludedReason = "decision";
+          r.UnitValue = "";
+          r.ReplacementCost = "Not included";
+          return;
+        }
+        if (systemCategory === "01_new construction" && !schoolNeedsNewConstruction) {
+          r.__excludedFromTotals = true;
+          r.__excludedReason = "decision";
+          r.UnitValue = "";
+          r.ReplacementCost = "Not included";
+          return;
+        }
+
+        const isFciCat = systemCategory.startsWith("08");
+        if ((schoolNeedsGutReno || schoolNeedsNewConstruction) && !MAJOR_CATEGORIES.has(systemCategory)) {
+          if (!(isFciCat && getIncludeFciForMajor())) {
+            r.__excludedFromTotals = true;
+            r.__excludedReason = "decision";
+          }
+        }
+
+        if (!isRelevantGutRenovationRow(r, decision)) {
+          r.__excludedFromTotals = true;
+          r.__excludedReason = "level";
+          r.UnitValue = "";
+          r.ReplacementCost = "Not included";
+          return;
+        }
+        if (!isRelevantNewConstructionRow(r, decision)) {
+          r.__excludedFromTotals = true;
+          r.__excludedReason = "level";
+          r.UnitValue = "";
+          r.ReplacementCost = "Not included";
+          return;
+        }
+
+        const s = norm(r?.ConditionScore || r?.__libraryScore).toLowerCase();
+        const excludedByScore = s === "good";
+        if (!r.__excludedFromTotals) {
+          r.__excludedFromTotals = excludedByScore;
+          r.__excludedReason = excludedByScore ? "good" : "";
+        }
+
+        const unit = normalizeUnit(r?.Unit, r?.UnitCost);
+        if (!unit) return;
+
+        const derivedQ = computeDerivedQuantity(r, decision);
+        if (derivedQ !== null && shouldUseSchoolSqfForRow(r)) {
+          r.UnitValue = Number.isFinite(derivedQ) ? Math.round(derivedQ).toString() : String(derivedQ);
+        }
+
+        const rc = computeReplacementCost(r, decision);
+        if (rc !== null && Number.isFinite(rc)) {
+          r.ReplacementCost = `$${Math.round(rc).toLocaleString()}`;
+        }
+      });
+
+      combined.push(...rows);
+    });
+
+    const SITE_INFRA_CATS = new Set(["08_site infrastructure", "08_site infrastructure_new"]);
+    const rollupMap = new Map();
+    combined.forEach((r) => {
+      const sys = norm(r.SystemCategory).toLowerCase();
+      const isSiteInfra = SITE_INFRA_CATS.has(sys);
+      const key = isSiteInfra
+        ? `${norm(r.SystemCategory)}||${norm(r.AssetType)}||${norm(getPriorityForRow(r))}`
+        : `${norm(r.SystemCategory)}||${norm(r.AssetType)}`;
+      if (!rollupMap.has(key)) rollupMap.set(key, []);
+      rollupMap.get(key).push(r);
+    });
+
+    const SCORE_NUM = { "good": 3, "fair": 2, "poor": 1 };
+    const NUM_SCORE = { 3: "Good", 2: "Fair", 1: "Poor" };
+
+    const rollupRows = [];
+    let rollupId = 0;
+    rollupMap.forEach((rows) => {
+      const first = rows[0];
+
+      const priorities = rows.map((r) => norm(getPriorityForRow(r)));
+      const uniquePriorities = new Set(priorities);
+      const rollupPriority = uniquePriorities.size === 1 ? priorities[0] : "(Multiple)";
+
+      const numericScores = rows
+        .map((r) => SCORE_NUM[norm(r.ConditionScore || "").toLowerCase()])
+        .filter((n) => n != null);
+      let avgScoreLabel = norm(first.ConditionScore);
+      if (numericScores.length > 0) {
+        const avg = numericScores.reduce((a, b) => a + b, 0) / numericScores.length;
+        avgScoreLabel = avg >= 2.5 ? "Good" : avg >= 1.5 ? "Fair" : "Poor";
+      }
+
+      let totalCost = 0;
+      let allExcludedByDecision = true;
+      rows.forEach((r) => {
+        if (!r.__excludedFromTotals || r.__excludedReason !== "decision") allExcludedByDecision = false;
+        if (r.__excludedFromTotals) return;
+        const rc = parseNumberMaybe(r.ReplacementCost);
+        if (rc !== null) totalCost += rc;
+      });
+
+      const excludedByDecision = allExcludedByDecision && rows.length > 0;
+      const excludedByScore = !excludedByDecision && avgScoreLabel.toLowerCase() === "good";
+
+      const rollupUnitValue = shouldUseSchoolSqfForRow(first) ? "" : first.UnitValue;
+
+      rollupRows.push({
+        UniqueID: "",
+        SchoolName: "",
+        SystemCategory: first.SystemCategory,
+        AssetType: first.AssetType,
+        ConditionScore: avgScoreLabel,
+        ConditionSource: first.ConditionSource,
+        Unit: first.Unit,
+        UnitCost: first.UnitCost,
+        UnitValue: rollupUnitValue,
+        ReplacementCost: totalCost ? `$${Math.round(totalCost).toLocaleString()}` : "",
+        __libraryScore: first.__libraryScore,
+        __pivotConditionScore: first.__pivotConditionScore,
+        __csvPriority: "",
+        __rollupPriority: rollupPriority,
+        __isRollup: true,
+        __rollupRows: rows,
+        __rowId: rollupId++,
+        __excludedFromTotals: excludedByDecision || excludedByScore,
+        __excludedReason: excludedByDecision ? "decision" : (excludedByScore ? "good" : ""),
+      });
+    });
+
+    schoolRows = rollupRows;
+    elSchoolNameHeader.textContent = names.length <= 3 ? names.join(", ") : `${names.length} schools`;
+    if (getIncludePKInEnrollment()) {
+      let anyPK = false;
+      selectedSchoolUids.forEach((id) => {
+        if (anyPK) return;
+        const uid = id.startsWith("name:") ? "" : id;
+        const dec = uid ? decisionByUid.get(uid) : null;
+        const pk = parseFloat((dec?.PKEnrollment ?? dec?.["PKEnrollment"] ?? dec?.["PK Enrollment"] ?? "").toString().replace(/,/g, "").trim()) || 0;
+        if (pk > 0) anyPK = true;
+      });
+      if (anyPK) {
+        const badge = document.createElement("span");
+        badge.textContent = " (incl. PK)";
+        badge.style.cssText = "font-size:0.65em;color:#2563eb;font-weight:400;vertical-align:middle;";
+        elSchoolNameHeader.appendChild(badge);
+      }
+    }
+    elSchoolMeta.textContent = `${names.length} schools selected • ${rollupRows.length} rollup project rows`;
+
+    populateFilters();
+    applyFilters();
+    render();
+    elDownload.disabled = !schoolRows.length;
+  }
+
   function downloadFilteredCsv() {
     // Flatten viewRows into rows with DISPLAY_COLS only
     const flat = [];
@@ -1941,64 +2685,14 @@
         buildDecisionIndexes(decisionRows);
 
         unitCostIndex = buildUnitCostLibraryIndex(unitCostLibRows || []);
-        // In pivot mode, we don't mutate the assets file; we rebuild row-wise records per school using the library.
         const roomTotals = buildRoomScheduleTotals(roomScheduleRows || []);
         roomScheduleByUid = roomTotals.byUid || new Map();
         roomScheduleByFacility = roomTotals.byFacility || new Map();
 
-        const COLUMNS_TO_REMOVE = new Set([
-          "AssetID",
-          "InstallYear",
-          "ExpectedUsefulLife",
-          "OverrideEOLYear",
-          "OverrideReason",
-          "Quantity",
-          "Criticality",
-        ]);
+        allRows = Array.isArray(assetRows) ? assetRows : [];
+        buildRowwiseIndex(allRows);
 
-        assetsPivotRows = Array.isArray(assetRows) ? assetRows : [];
-        buildPivotIndexes(assetsPivotRows);
-        // Preserve legacy variable name used in a couple UI messages
-        allRows = assetsPivotRows;
-
-      // Debug: confirm the loaded pivot CSV actually has the Bear Creek HS unit value.
-        try {
-          const bc = (assetsPivotRows || []).find((r) => norm(r?.SchoolName) === "Bear Creek HS");
-          if (bc) {
-            const keys = Object.keys(bc || {});
-            const brandingNeedle = normKeyLoose("Front of school branding, landscape upgrades");
-            const brandingKeys = keys.filter((k) => normKeyLoose(k).includes(brandingNeedle));
-            const unitValueKeys = keys.filter((k) => /unit\s*value/i.test(k));
-            const brandingUnitValueKeys = unitValueKeys.filter((k) => /branding|landscape/i.test(k));
-
-            const directUv = bc["Front of school branding, landscape upgrades UnitValue"];
-            const directScore = bc["Front of school branding, landscape upgrades score"];
-
-            const out = {
-              totalKeys: keys.length,
-              brandingKeys,
-              unitValueKeyCount: unitValueKeys.length,
-              sampleUnitValueKeys: unitValueKeys.slice(0, 10),
-              brandingUnitValueKeys,
-              direct: {
-                scoreKeyExists: Object.prototype.hasOwnProperty.call(bc, "Front of school branding, landscape upgrades score"),
-                unitValueKeyExists: Object.prototype.hasOwnProperty.call(bc, "Front of school branding, landscape upgrades UnitValue"),
-                score: directScore,
-                unitValue: directUv,
-              },
-              brandingKeyValues: {},
-            };
-            brandingKeys.slice(0, 10).forEach((k) => {
-              out.brandingKeyValues[k] = bc[k];
-            });
-
-            console.log("Bear Creek HS pivot check (detailed):\n" + JSON.stringify(out, null, 2));
-          }
-        } catch {
-          // ignore
-        }
-
-        const linkedUids = new Set(allRows.map((r) => norm(r.UniqueID)).filter(Boolean));
+        const linkedUids = getUniqueSchoolUids(allRows);
 
         const colCheck = hasAllRequiredColumns(allRows);
         if (!colCheck.ok) {
@@ -2007,31 +2701,215 @@
           return;
         }
 
-        // Populate school selector from Decision Data Export,
-        // but only include schools that exist in the Projects (pivot) CSV.
-        if (elSchoolSelect) {
-          const opts = (decisionRows || [])
-            .map((r) => ({
-              uid: norm(r["UniqueID"] ?? r.UniqueID),
-              name: norm(r["Building Name"] ?? r.BuildingName ?? r["BuildingName"]),
-            }))
-            .filter((o) => o.uid && o.name && linkedUids.has(o.uid))
-            .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true }));
+        // Populate multi-select school dropdown from Decision Data Export
+        // plus any CSV-only schools (those with SchoolName but no UniqueID).
+        const decisionOpts = (decisionRows || [])
+          .map((r) => ({
+            uid: norm(r["UniqueID"] ?? r.UniqueID),
+            name: norm(r["Building Name"] ?? r.BuildingName ?? r["BuildingName"]),
+            deficiency: true,
+            status: norm(r["Status"] ?? r.Status),
+            schoolLevel: norm(r["School Level"]),
+          }))
+          .filter((o) => o.uid && o.name && linkedUids.has(o.uid));
 
-          elSchoolSelect.innerHTML =
-            '<option value="">— Select a school —</option>' +
-            opts
-              .map((o) => {
-                return `<option value="${escapeHtmlAttr(o.uid)}">${escapeHtmlText(o.name)}</option>`;
-              })
-              .join("");
+        const decisionUidSet = new Set(decisionOpts.map((o) => o.uid));
+        const schoolNamesCoveredByDecision = new Set();
+        (allRows || []).forEach((r) => {
+          const uid = norm(r["UniqueID"] ?? r.UniqueID);
+          const name = norm(r["SchoolName"] ?? r.SchoolName);
+          if (uid && name && decisionUidSet.has(uid)) schoolNamesCoveredByDecision.add(name);
+        });
+        const csvOnlyNames = new Set();
+        (allRows || []).forEach((r) => {
+          const name = norm(r["SchoolName"] ?? r.SchoolName);
+          if (name && !schoolNamesCoveredByDecision.has(name)) csvOnlyNames.add(name);
+        });
+        const csvOnlyOpts = Array.from(csvOnlyNames).map((name) => ({
+          uid: "name:" + name,
+          name: name,
+          deficiency: false,
+          status: "",
+          schoolLevel: "",
+        }));
 
-          elSchoolSelect.addEventListener("change", () => {
-            const selectedUid = norm(elSchoolSelect.value);
-            const r = selectedUid ? decisionByUid.get(selectedUid) : null;
-            const nm = norm(r?.["Building Name"]) || "";
-            if (selectedUid) setSelectedSchool(selectedUid, nm);
+        const schoolOpts = [...decisionOpts, ...csvOnlyOpts]
+          .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true }));
+
+        // Register school names for global search
+        if (typeof window.globalSearchRegisterSchools === "function") {
+          window.globalSearchRegisterSchools(schoolOpts.map(function (o) { return o.name; }));
+        }
+
+        const elDeficiencyToggle = document.getElementById("deficiencyOnlyToggle");
+
+        if (elSchoolSelectDropdown) {
+          const searchWrap = document.createElement("div");
+          searchWrap.style.cssText = "padding:6px 10px;border-bottom:1px solid #e5e7eb;position:sticky;top:0;background:#fff;z-index:1;";
+          const searchInput = document.createElement("input");
+          searchInput.type = "text";
+          searchInput.placeholder = "Search schools\u2026";
+          searchInput.style.cssText = "width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;outline:none;";
+          searchWrap.appendChild(searchInput);
+          elSchoolSelectDropdown.appendChild(searchWrap);
+
+          const allLabel = document.createElement("label");
+          allLabel.style.cssText = "display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;font-weight:600;border-bottom:1px solid #e5e7eb;";
+          const allCb = document.createElement("input");
+          allCb.type = "checkbox";
+          allCb.id = "schoolSelectAll";
+          allCb.style.cssText = "width:14px;height:14px;";
+          const originalReportCount = schoolOpts.filter((o) => o.deficiency && o.status === "Active" && o.schoolLevel !== "Alternative").length;
+          const allLabelText = document.createElement("span");
+          allLabelText.textContent = `Select All (${originalReportCount})`;
+          allLabel.appendChild(allCb);
+          allLabel.appendChild(allLabelText);
+          elSchoolSelectDropdown.appendChild(allLabel);
+
+          function updateSelectAllLabel() {
+            const targets = getSelectAllTargets();
+            allLabelText.textContent = `Select All (${targets.length})`;
+          }
+
+          schoolOpts.forEach((o) => {
+            const label = document.createElement("label");
+            label.style.cssText = "display:flex;align-items:center;gap:8px;padding:4px 12px;cursor:pointer;";
+            if (!o.deficiency) label.classList.add("non-deficiency-school");
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            cb.className = "school-cb";
+            cb.value = o.uid;
+            cb.dataset.name = o.name;
+            cb.dataset.deficiency = o.deficiency ? "1" : "0";
+            const isOriginalReport = o.deficiency && o.status === "Active" && o.schoolLevel !== "Alternative";
+            cb.dataset.originalReport = isOriginalReport ? "1" : "0";
+            cb.style.cssText = "width:14px;height:14px;";
+            label.appendChild(cb);
+            label.appendChild(document.createTextNode(o.name));
+            elSchoolSelectDropdown.appendChild(label);
           });
+
+          const schoolCbs = elSchoolSelectDropdown.querySelectorAll(".school-cb");
+
+          function getVisibleSchoolCbs() {
+            const includeAll = elDeficiencyToggle && elDeficiencyToggle.checked;
+            const cbs = [];
+            schoolCbs.forEach((cb) => {
+              if (!includeAll && cb.dataset.deficiency === "0") return;
+              cbs.push(cb);
+            });
+            return cbs;
+          }
+
+          function getSelectAllTargets() {
+            const includeAll = elDeficiencyToggle && elDeficiencyToggle.checked;
+            const visible = getVisibleSchoolCbs();
+            return includeAll ? visible : visible.filter((cb) => cb.dataset.originalReport === "1");
+          }
+
+          function onSchoolSelectionChanged() {
+            selectedSchoolUids = new Set();
+            schoolCbs.forEach((cb) => { if (cb.checked) selectedSchoolUids.add(cb.value); });
+            const targets = getSelectAllTargets();
+            const checkedTargets = targets.filter((cb) => cb.checked);
+            const count = selectedSchoolUids.size;
+            if (count === 0) {
+              elSchoolSelectLabel.textContent = "— Select schools —";
+            } else if (checkedTargets.length === targets.length && targets.length > 0 && count === checkedTargets.length) {
+              elSchoolSelectLabel.textContent = `All schools (${count})`;
+            } else if (count <= 2) {
+              const names = [];
+              schoolCbs.forEach((cb) => { if (cb.checked) names.push(cb.dataset.name); });
+              elSchoolSelectLabel.textContent = names.join(", ");
+            } else {
+              elSchoolSelectLabel.textContent = `${count} schools selected`;
+            }
+            allCb.checked = checkedTargets.length === targets.length && targets.length > 0;
+            allCb.indeterminate = checkedTargets.length > 0 && checkedTargets.length < targets.length;
+            applyMultiSchoolSelection();
+          }
+
+          function applyDeficiencyFilter() {
+            const includeAll = elDeficiencyToggle && elDeficiencyToggle.checked;
+            elSchoolSelectDropdown.querySelectorAll(".non-deficiency-school").forEach((lbl) => {
+              lbl.style.display = includeAll ? "" : "none";
+            });
+            if (!includeAll) {
+              const wasAllChecked = allCb.checked;
+              schoolCbs.forEach((cb) => {
+                if (cb.dataset.deficiency === "0" && cb.checked) {
+                  cb.checked = false;
+                }
+                if (wasAllChecked && cb.dataset.originalReport === "0" && cb.checked) {
+                  cb.checked = false;
+                }
+              });
+            } else {
+              const wasAllChecked = allCb.checked;
+              if (wasAllChecked) {
+                const targets = getSelectAllTargets();
+                targets.forEach((cb) => { cb.checked = true; });
+              }
+            }
+            updateSelectAllLabel();
+            onSchoolSelectionChanged();
+          }
+
+          schoolCbs.forEach((cb) => cb.addEventListener("change", onSchoolSelectionChanged));
+
+          allCb.addEventListener("change", () => {
+            const targets = getSelectAllTargets();
+            if (allCb.checked) {
+              targets.forEach((cb) => { cb.checked = true; });
+            } else {
+              schoolCbs.forEach((cb) => { cb.checked = false; });
+            }
+            onSchoolSelectionChanged();
+          });
+
+          if (elDeficiencyToggle) {
+            elDeficiencyToggle.addEventListener("change", applyDeficiencyFilter);
+            applyDeficiencyFilter();
+          }
+
+          searchInput.addEventListener("input", () => {
+            const q = searchInput.value.trim().toLowerCase();
+            const includeAll = elDeficiencyToggle && elDeficiencyToggle.checked;
+            schoolCbs.forEach((cb) => {
+              const lbl = cb.closest("label");
+              if (!lbl) return;
+              const isNonDef = cb.dataset.deficiency === "0";
+              if (!includeAll && isNonDef) { lbl.style.display = "none"; return; }
+              if (!q) { lbl.style.display = ""; return; }
+              const name = (cb.dataset.name || "").toLowerCase();
+              lbl.style.display = name.includes(q) ? "" : "none";
+            });
+            if (q) { allLabel.style.display = "none"; }
+            else { allLabel.style.display = ""; }
+          });
+          searchInput.addEventListener("click", (e) => e.stopPropagation());
+          searchInput.addEventListener("keydown", (e) => e.stopPropagation());
+
+          if (elSchoolSelectBtn) {
+            elSchoolSelectBtn.addEventListener("click", () => {
+              const isOpen = elSchoolSelectDropdown.style.display !== "none";
+              elSchoolSelectDropdown.style.display = isOpen ? "none" : "block";
+              if (!isOpen) {
+                searchInput.value = "";
+                searchInput.dispatchEvent(new Event("input"));
+                setTimeout(() => searchInput.focus(), 0);
+              }
+            });
+            document.addEventListener("click", (e) => {
+              const container = document.getElementById("schoolMultiSelect");
+              if (container && !container.contains(e.target)) {
+                elSchoolSelectDropdown.style.display = "none";
+              }
+            });
+          }
+
+          window.__schoolCbs = schoolCbs;
+          window.__onSchoolSelectionChanged = onSchoolSelectionChanged;
         }
 
         const pkToggle = document.getElementById("includePKInEnrollmentToggle");
@@ -2039,11 +2917,21 @@
           pkToggle.checked = getIncludePKInEnrollment();
           pkToggle.addEventListener("change", () => {
             setIncludePKInEnrollment(pkToggle.checked);
-            if (resolvedUniqueId) setSelectedSchool(resolvedUniqueId, resolvedSchoolName);
+            applyMultiSchoolSelection();
           });
         }
 
-        // Resolve selection (uid first, then name)
+        const fciToggle = document.getElementById("includeFciToggle");
+        if (fciToggle) {
+          fciToggle.checked = !!localStorage.getItem("includeFciForMajor");
+          fciToggle.addEventListener("change", () => {
+            if (fciToggle.checked) localStorage.setItem("includeFciForMajor", "1");
+            else localStorage.removeItem("includeFciForMajor");
+            applyMultiSchoolSelection();
+          });
+        }
+
+        // If URL has a school/uid param, pre-check that school
         let resolvedUid = norm(selectedUniqueIdFromQuery);
         let resolvedName = norm(selectedSchoolNameFromQuery);
 
@@ -2056,14 +2944,14 @@
           resolvedName = norm(r?.["Building Name"]) || resolvedName;
         }
 
-        if (!resolvedUid && !resolvedName) {
+        if (resolvedUid && window.__schoolCbs) {
+          window.__schoolCbs.forEach((cb) => { if (cb.value === resolvedUid) cb.checked = true; });
+          if (window.__onSchoolSelectionChanged) window.__onSchoolSelectionChanged();
+        } else {
           elSchoolNameHeader.textContent = "—";
-          elSchoolMeta.textContent = "Select a school above to view summary and projects.";
+          elSchoolMeta.textContent = "Select one or more schools above to view summary and projects.";
           elTableMount.innerHTML = '<div class="empty">No school selected.</div>';
-          return;
         }
-
-        setSelectedSchool(resolvedUid, resolvedName);
       })
       .catch((err) => {
         console.error("Failed to load CSVs:", err);
@@ -2076,28 +2964,61 @@
       applyFilters();
       render();
     });
-    elPriorityFilter.addEventListener("change", () => {
+    // Priority multi-select dropdown
+    const priorityFilterCbs = document.querySelectorAll(".priority-filter-cb");
+    function onPriorityFilterChanged() {
+      updatePriorityFilterLabel();
       applyFilters();
       render();
-    });
-    elSystemFilter.addEventListener("change", () => {
-      applyFilters();
-      render();
-    });
-    elAssetFilter.addEventListener("change", () => {
-      applyFilters();
-      render();
-    });
+    }
+    priorityFilterCbs.forEach((cb) => cb.addEventListener("change", onPriorityFilterChanged));
+    if (elPrioritySelectAll) {
+      elPrioritySelectAll.addEventListener("change", () => {
+        priorityFilterCbs.forEach((cb) => { cb.checked = elPrioritySelectAll.checked; });
+        onPriorityFilterChanged();
+      });
+    }
+    if (elPriorityFilterBtn) {
+      elPriorityFilterBtn.addEventListener("click", () => {
+        const isOpen = elPriorityFilterDropdown.style.display !== "none";
+        elPriorityFilterDropdown.style.display = isOpen ? "none" : "block";
+      });
+      document.addEventListener("click", (e) => {
+        const container = document.getElementById("priorityMultiSelect");
+        if (container && !container.contains(e.target)) {
+          elPriorityFilterDropdown.style.display = "none";
+        }
+      });
+    }
+
+    function onFilterChanged() { applyFilters(); render(); }
+    if (elSystemBtn && elSystemDropdown && elSystemLabel) {
+      wireMultiSelect("systemMultiSelect", elSystemBtn, elSystemDropdown, "system-filter-cb", elSystemLabel, onFilterChanged);
+    }
+    if (elAssetBtn && elAssetDropdown && elAssetLabel) {
+      wireMultiSelect("assetMultiSelect", elAssetBtn, elAssetDropdown, "asset-filter-cb", elAssetLabel, onFilterChanged);
+    }
+    if (elSourceBtn && elSourceDropdown && elSourceLabel) {
+      wireMultiSelect("sourceMultiSelect", elSourceBtn, elSourceDropdown, "source-filter-cb", elSourceLabel, onFilterChanged);
+    }
+
     elClearFilters.addEventListener("click", () => {
       elSearch.value = "";
-      elPriorityFilter.value = "";
-      elSystemFilter.value = "";
-      elAssetFilter.value = "";
+      priorityFilterCbs.forEach((cb) => { cb.checked = true; });
+      if (elPrioritySelectAll) elPrioritySelectAll.checked = true;
+      updatePriorityFilterLabel();
+      if (elSystemDropdown && elSystemLabel) clearMultiSelect(elSystemDropdown, "system-filter-cb", elSystemLabel);
+      if (elAssetDropdown && elAssetLabel) clearMultiSelect(elAssetDropdown, "asset-filter-cb", elAssetLabel);
+      if (elSourceDropdown && elSourceLabel) clearMultiSelect(elSourceDropdown, "source-filter-cb", elSourceLabel);
       sortState = { key: "SystemCategory", dir: "asc" };
       applyFilters();
       render();
     });
     elDownload.addEventListener("click", downloadFilteredCsv);
+
+    document.querySelectorAll(".priority-include-cb").forEach((cb) => {
+      cb.addEventListener("change", () => updateTotalReplacementCostDisplay());
+    });
   }
 
   document.addEventListener("DOMContentLoaded", init);

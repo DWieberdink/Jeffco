@@ -232,7 +232,7 @@ window.prioritizationUI = {
         "</span></span>" +
         '<span id="' +
         config.key +
-        '-value" style="font-weight: 600; color: #007cbf; min-width: 3rem; text-align: right;">' +
+        '-value" style="font-weight: 600; color: #dc2626; min-width: 3rem; text-align: right;">' +
         displayValue +
         "</span>" +
         "</label>" +
@@ -603,17 +603,17 @@ window.prioritizationUI = {
     html +=
       "<style>" +
       "#prioritized-schools-table-container { max-height: none !important; overflow: visible !important; }" +
-      ".ps-prioritized-table-wrap { border: 1px solid #e5e5e5; border-radius: 6px; background: #fff; overflow: hidden; }" +
-      ".ps-prioritized-table-scroll { max-height: 420px; overflow: auto; }" +
-      ".ps-prioritized-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }" +
-      ".ps-prioritized-table thead th { position: sticky; top: 0; z-index: 10; background: #f5f5f5; box-shadow: 0 1px 0 #e5e5e5; padding: 8px 6px; text-align: left; border: 1px solid #e5e5e5; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }" +
-      ".ps-prioritized-table tbody td { padding: 8px 6px; text-align: left; border: 1px solid #e5e5e5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }" +
+      ".ps-prioritized-table-wrap { border: 1px solid #e5e5e5; border-radius: 6px; background: #fff; overflow: visible; }" +
+      ".ps-prioritized-table-scroll { overflow: visible; }" +
+      ".ps-prioritized-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; }" +
+      ".ps-prioritized-table thead th { position: sticky; top: 0; z-index: 10; background: #fef2f2; box-shadow: 0 1px 0 #e5e5e5; padding: 4px 4px; text-align: left; border: 1px solid #e5e5e5; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }" +
+      ".ps-prioritized-table tbody td { padding: 3px 4px; text-align: left; border: 1px solid #e5e5e5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }" +
       ".ps-prioritized-table tbody tr:hover { background: #f9f9f9; }" +
       ".ps-greyed td { color: inherit; }" +
-      ".ps-prioritized-table a { color: #007cbf !important; text-decoration: underline !important; font-weight: 600; }" +
+      ".ps-prioritized-table a { color: #dc2626 !important; text-decoration: underline !important; font-weight: 600; }" +
       ".ps-metric-toggle { display:inline-flex; border:1px solid #d1d5db; border-radius:8px; overflow:hidden; background:#fff; }" +
       ".ps-metric-toggle button { border:0; background:transparent; padding:4px 10px; font-size:12px; cursor:pointer; color:#111; }" +
-      ".ps-metric-toggle button.active { background:#007cbf; color:#fff; }" +
+      ".ps-metric-toggle button.active { background:#dc2626; color:#fff; }" +
       ".ps-prioritized-table th { position: relative; }" +
       ".ps-prioritized-table .column-resizer { position: absolute; top: 0; right: 0; width: 6px; height: 100%; cursor: col-resize; background: transparent; z-index: 5; }" +
       ".ps-prioritized-table .column-resizer:hover { background: rgba(0, 124, 191, 0.15); }" +
@@ -622,9 +622,8 @@ window.prioritizationUI = {
       ".ps-prioritized-table .filterable-header .th-inner { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; overflow: hidden; }" +
       ".ps-prioritized-table .th-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }" +
       ".ps-prioritized-table .filter-btn { flex-shrink: 0; width: 18px; height: 18px; padding: 0; border: 1px solid #d1d5db; border-radius: 3px; background: #fff; color: #6b7280; font-size: 9px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }" +
-      ".ps-prioritized-table .filter-btn:hover, .ps-prioritized-table .filter-btn.filter-active { background: #007cbf; color: #fff; border-color: #007cbf; }" +
-      ".ps-prioritized-table .filter-clear-col { flex-shrink: 0; width: 18px; height: 18px; padding: 0; border: 1px solid #d1d5db; border-radius: 3px; background: #fff; color: #6b7280; font-size: 14px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }" +
-      ".ps-prioritized-table .filter-clear-col:hover { background: #fef2f2; color: #b91c1c; border-color: #b91c1c; }" +
+      ".ps-prioritized-table .filter-btn:hover, .ps-prioritized-table .filter-btn.filter-active { background: #dc2626; color: #fff; border-color: #dc2626; }" +
+      ".ps-prioritized-table .filter-clear-col { display: none; }" +
       ".ps-prioritized-table th.filterable-header { overflow: visible; }" +
       ".ps-prioritized-table .filter-dropdown { position: absolute; top: 100%; left: 0; min-width: 180px; max-height: 220px; background: #fff; border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 4px 6px; margin-top: 2px; overflow-y: auto; z-index: 10000; display: none; }" +
       ".ps-prioritized-table .filter-dropdown.is-open { display: block; }" +
@@ -635,22 +634,20 @@ window.prioritizationUI = {
       ".ps-prioritized-table th.sortable-header { cursor: pointer; }" +
       ".ps-prioritized-table th.sortable-header:hover { background: #eef2f7; }" +
       ".ps-prioritized-table th.sortable-header::after { content: ''; position: absolute; right: 24px; top: 50%; margin-top: -4px; border: 6px solid transparent; border-bottom-color: #9ca3af; border-top: none; opacity: 0.5; }" +
-      ".ps-prioritized-table th.sortable-header.sort-asc::after { border-bottom: 6px solid #007cbf; border-top: none; opacity: 1; }" +
-      ".ps-prioritized-table th.sortable-header.sort-desc::after { border-top: 6px solid #007cbf; border-bottom: none; margin-top: -10px; opacity: 1; }" +
+      ".ps-prioritized-table th.sortable-header.sort-asc::after { border-bottom: 6px solid #dc2626; border-top: none; opacity: 1; }" +
+      ".ps-prioritized-table th.sortable-header.sort-desc::after { border-top: 6px solid #dc2626; border-bottom: none; margin-top: -10px; opacity: 1; }" +
       "</style>";
 
-    // Small toggle to switch metric columns between raw values and normalized scores + Clear all filters
+    // Hidden buttons for tab-bar delegation (metric toggle + clear filters)
     html +=
-      '<div style="display:flex; justify-content:flex-end; align-items:center; gap:6px; margin: 0 0 6px 0;">' +
-      '<div class="ps-metric-toggle" role="group" aria-label="Metric columns display">' +
+      '<div style="display:none;">' +
       '<button type="button" id="psMetricModeValues" data-mode="values"' +
       (displayMode === "values" ? ' class="active"' : "") +
       ">Show values</button>" +
       '<button type="button" id="psMetricModeScores" data-mode="scores"' +
       (displayMode === "scores" ? ' class="active"' : "") +
       ">Show scores</button>" +
-      "</div>" +
-      '<button type="button" id="psClearAllFiltersBtn" style="padding:4px 10px; font-size:12px; border:1px solid #d1d5db; border-radius:6px; background:#fff; cursor:pointer; color:#374151;">Clear all filters</button>' +
+      '<button type="button" id="psClearAllFiltersBtn">Clear all filters</button>' +
       "</div>";
 
     // Single table with sticky header (match Decision by School look)
@@ -761,7 +758,7 @@ window.prioritizationUI = {
         '<a href="' +
         schoolProfileHref +
         '" target="_blank" rel="noopener noreferrer" ' +
-        'style="color:#007cbf; text-decoration:underline; font-weight:600;" ' +
+        'style="color:#dc2626; text-decoration:underline; font-weight:600;" ' +
         'onclick="event.stopPropagation();">' +
         buildingName +
         "</a>" +

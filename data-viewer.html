@@ -385,6 +385,15 @@
         .data-table.school-data-sortable th.col-source {
             background: #f3f4f6;
         }
+        .data-table.school-data-sortable th.sort-active {
+            color: #1d4ed8;
+        }
+        .data-table.school-data-sortable th.sort-active.col-source {
+            background: #e8edf4;
+        }
+        .data-table.school-data-sortable th.sort-active.col-calculated {
+            background: #bfdbfe;
+        }
 
         /* Dropdown + "needs confirmation" highlight */
         .control-row {
@@ -544,6 +553,7 @@
         }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="global-search.js" defer></script>
 </head>
 <body>
     <div id="top-brand-bar">
@@ -3583,7 +3593,7 @@
                 label: 'JeffCoProjectListAllSchools.csv',
                 url: 'JeffCoProjectListAllSchools.csv',
                 type: 'csv',
-                usedBy: 'School Profile project list (scores + UnitValues per school)',
+                usedBy: 'School Profile project list (one row per school + asset type)',
                 notes: []
             },
             {
@@ -4096,6 +4106,29 @@
                         const theadEl = table.querySelector('thead');
                         const tbody = table.querySelector('tbody');
                         let currentCols = [...cols];
+                        let sortCol = null;
+                        let sortDir = 'asc';
+                        const getSortedRows = () => {
+                            if (!sortCol) return rows;
+                            const sorted = [...rows];
+                            sorted.sort((a, b) => {
+                                let va = a[sortCol], vb = b[sortCol];
+                                if (va === null || va === undefined || va === '') va = null;
+                                if (vb === null || vb === undefined || vb === '') vb = null;
+                                if (va === null && vb === null) return 0;
+                                if (va === null) return 1;
+                                if (vb === null) return -1;
+                                const na = typeof va === 'number' ? va : parseFloat(String(va).replace(/[$,%]/g, '').replace(/,/g, ''));
+                                const nb = typeof vb === 'number' ? vb : parseFloat(String(vb).replace(/[$,%]/g, '').replace(/,/g, ''));
+                                if (Number.isFinite(na) && Number.isFinite(nb)) {
+                                    return sortDir === 'asc' ? na - nb : nb - na;
+                                }
+                                const sa = String(va).toLowerCase(), sb = String(vb).toLowerCase();
+                                const cmp = sa.localeCompare(sb, undefined, { sensitivity: 'base', numeric: true });
+                                return sortDir === 'asc' ? cmp : -cmp;
+                            });
+                            return sorted;
+                        };
                         const renderTable = () => {
                             const rollupCells2 = [];
                             let ri2 = 0;
@@ -4106,8 +4139,13 @@
                                 rollupCells2.push(`<th colspan="${span2}" style="text-align:center;font-weight:700;background:#e5e7eb;">${escapeHtml(label2)}</th>`);
                                 ri2 += span2;
                             }
-                            theadEl.innerHTML = '<tr>' + rollupCells2.join('') + '</tr><tr>' + currentCols.map((h, i) => `<th data-col-idx="${i}" draggable="true" class="${thClass(h)}" title="${escapeHtml(thTitle(h))}">${escapeHtml(getDisplayHeader(h))}</th>`).join('') + '</tr>';
-                            tbody.innerHTML = rows.map(r => '<tr>' + currentCols.map(col => {
+                            theadEl.innerHTML = '<tr>' + rollupCells2.join('') + '</tr><tr>' + currentCols.map((h, i) => {
+                                const arrow = sortCol === h ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+                                const activeClass = sortCol === h ? ' sort-active' : '';
+                                return `<th data-col-idx="${i}" data-col-key="${escapeHtml(h)}" draggable="true" class="${thClass(h)}${activeClass}" title="${escapeHtml(thTitle(h))}" style="cursor:pointer;">${escapeHtml(getDisplayHeader(h))}${arrow}</th>`;
+                            }).join('') + '</tr>';
+                            const displayRows = getSortedRows();
+                            tbody.innerHTML = displayRows.map(r => '<tr>' + currentCols.map(col => {
                                 const v = r[col];
                                 return `<td>${escapeHtml(formatCell(v, col))}</td>`;
                             }).join('') + '</tr>').join('');
@@ -4117,8 +4155,9 @@
                         };
                         const setupColDrag = (tr) => {
                             const headers = tr.querySelectorAll('th');
+                            let didDrag = false;
                             headers.forEach((th, i) => {
-                                th.ondragstart = (e) => { e.dataTransfer.setData('text/plain', String(i)); e.dataTransfer.effectAllowed = 'move'; };
+                                th.ondragstart = (e) => { didDrag = true; e.dataTransfer.setData('text/plain', String(i)); e.dataTransfer.effectAllowed = 'move'; };
                                 th.ondragover = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; th.classList.add('drag-over'); };
                                 th.ondragleave = () => th.classList.remove('drag-over');
                                 th.ondrop = (e) => {
@@ -4132,6 +4171,19 @@
                                     currentCols = arr;
                                     renderTable();
                                 };
+                                th.onclick = (e) => {
+                                    if (didDrag) { didDrag = false; return; }
+                                    const colKey = th.getAttribute('data-col-key');
+                                    if (!colKey) return;
+                                    if (sortCol === colKey) {
+                                        sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+                                    } else {
+                                        sortCol = colKey;
+                                        sortDir = 'asc';
+                                    }
+                                    renderTable();
+                                };
+                                th.ondragend = () => { setTimeout(() => { didDrag = false; }, 0); };
                             });
                         };
                         const initialHeaderRows = theadEl.querySelectorAll('tr');

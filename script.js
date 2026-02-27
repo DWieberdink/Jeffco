@@ -132,6 +132,8 @@ const FCI_STATUS_COLORS = {
   deficient: '#dc2626',
   nodata: '#16a34a'
 };
+// Historic bond spending by articulation (links to Map_Export Articulation)
+const BOND_SPENDING_CSV_PATH = 'HistoricBondSpendingbyArticulation.csv';
 // EA classroom condition
 const EA_CLASSROOMS_CSV_PATH = 'EAClassrooms.csv';
 const EA_CONDITION_COLORS = {
@@ -150,6 +152,8 @@ const BUILDING_CONDITION_COLORS = {
 };
 let articulationAreasGeojson4326 = null;
 let articulationAreasLoaded = false;
+// articulation name -> { totalSpending, pctOfTotal } from HistoricBondSpendingbyArticulation.csv
+let bondSpendingByArticulation = new Map();
 let fciRows = [];
 let fciBySchoolId = new Map(); // id -> { squareFt, overallFci, bySystem: Map }
 let fciSystems = [];
@@ -428,6 +432,25 @@ function getArticulationColorExpression() {
   return expr;
 }
 
+// Color scale: low % = light green, high % = dark green (0–15% of total bond spending)
+function getArticulationBondSpendingColorExpression() {
+  return [
+    'interpolate', ['linear'], ['coalesce', ['get', '__bondSpendingPct'], 0],
+    0, '#dcfce7',      // 0% – very light green
+    3, '#86efac',
+    6, '#4ade80',
+    9, '#22c55e',
+    12, '#16a34a',
+    15, '#14532d'      // 15%+ – dark green
+  ];
+}
+
+function getArticulationFillColorExpression() {
+  const bondCb = document.getElementById('toggleBondSpendingColors');
+  if (bondCb && bondCb.checked) return getArticulationBondSpendingColorExpression();
+  return getArticulationColorExpression();
+}
+
 async function loadArticulationAreas4326() {
   if (articulationAreasLoaded) return articulationAreasGeojson4326;
   const res = await fetch(withCacheBust(ARTICULATION_AREAS_GEOJSON_PATH));
@@ -472,9 +495,52 @@ async function loadArticulationAreas4326() {
     });
   }
 
+  // Link historic bond spending % to each articulation area (from HistoricBondSpendingbyArticulation.csv)
+  // Use case-insensitive lookup since CSV/GeoJSON may differ in casing
+  const getBondEntry = (name) => {
+    if (!name) return null;
+    const exact = bondSpendingByArticulation.get(name);
+    if (exact) return exact;
+    const nameLower = name.toLowerCase();
+    for (const [k, v] of bondSpendingByArticulation) {
+      if (k.toLowerCase() === nameLower) return v;
+    }
+    return null;
+  };
+  (gj.features || []).forEach((f) => {
+    if (!f || !f.properties) return;
+    const aaName = (f.properties.__aaName || '').toString().trim();
+    const entry = getBondEntry(aaName);
+    f.properties.__bondSpendingPct = entry ? entry.pctOfTotal : null;
+    if (entry) f.properties.__bondSpendingTotal = entry.totalSpending;
+  });
+
   articulationAreasGeojson4326 = gj;
   articulationAreasLoaded = true;
   return articulationAreasGeojson4326;
+}
+
+// Re-apply bond spending to cached GeoJSON when source is set (handles late bond data load)
+function ensureBondDataInArticulationGeoJSON(gj) {
+  if (!gj || !gj.features) return gj;
+  const getBondEntry = (name) => {
+    if (!name) return null;
+    const exact = bondSpendingByArticulation.get(name);
+    if (exact) return exact;
+    const nameLower = name.toLowerCase();
+    for (const [k, v] of bondSpendingByArticulation) {
+      if (k.toLowerCase() === nameLower) return v;
+    }
+    return null;
+  };
+  (gj.features || []).forEach((f) => {
+    if (!f || !f.properties) return;
+    const aaName = (f.properties.__aaName || '').toString().trim();
+    const entry = getBondEntry(aaName);
+    f.properties.__bondSpendingPct = entry ? entry.pctOfTotal : null;
+    if (entry) f.properties.__bondSpendingTotal = entry.totalSpending;
+  });
+  return gj;
 }
 
 function buildArticulationSchoolsIndexFromMapExport(mapExportRows, decisionRows) {
@@ -1840,15 +1906,44 @@ document.addEventListener('DOMContentLoaded', function() {
     if (placeCb) placeCb.addEventListener('change', onLabelChange);
     if (poiCb) poiCb.addEventListener('change', onLabelChange);
     if (aaCb) {
-      aaCb.addEventListener('change', () => {
+      const updateArticulationVisibility = () => {
         try {
           const m = window.map;
           if (!m) return;
           const vis = aaCb.checked ? 'visible' : 'none';
           if (m.getLayer('articulation-areas-fill')) m.setLayoutProperty('articulation-areas-fill', 'visibility', vis);
           if (m.getLayer('articulation-areas-outline')) m.setLayoutProperty('articulation-areas-outline', 'visibility', vis);
+          const labelsCb = document.getElementById('toggleArticulationLabels');
+          const labelsVis = (aaCb.checked && labelsCb && labelsCb.checked) ? 'visible' : 'none';
+          if (m.getLayer('articulation-areas-labels')) m.setLayoutProperty('articulation-areas-labels', 'visibility', labelsVis);
+        } catch (e) {}
+      };
+      aaCb.addEventListener('change', updateArticulationVisibility);
+      const labelsCb = document.getElementById('toggleArticulationLabels');
+      if (labelsCb) labelsCb.addEventListener('change', updateArticulationVisibility);
+    }
+    const bondCb = document.getElementById('toggleBondSpendingColors');
+    const bondLegendCb = document.getElementById('toggleBondSpendingLegend');
+    if (bondCb) {
+      const updateBondMapLegend = () => {
+        const leg = document.getElementById('bond-spending-map-legend');
+        const show = bondCb && bondCb.checked && (!bondLegendCb || bondLegendCb.checked);
+        if (leg) leg.style.display = show ? 'block' : 'none';
+      };
+      bondCb.addEventListener('change', () => {
+        try {
+          const m = window.map;
+          if (m) {
+            const expr = getArticulationFillColorExpression();
+            if (m.getLayer('articulation-areas-fill')) m.setPaintProperty('articulation-areas-fill', 'fill-color', expr);
+            if (m.getLayer('articulation-areas-outline')) m.setPaintProperty('articulation-areas-outline', 'line-color', expr);
+          }
+          updateBondMapLegend();
         } catch (e) {}
       });
+      if (bondLegendCb) bondLegendCb.addEventListener('change', updateBondMapLegend);
+      updateBondMapLegend(); // initial state
+      window.__updateBondMapLegend = updateBondMapLegend; // expose for deferred refresh
     }
     const savedStyle = getSavedMapStyle();
     styleRadios.forEach(r => { r.checked = r.value === savedStyle; });
@@ -2658,7 +2753,7 @@ function ensureBaseSourcesLayers() {
       try {
         const src = m.getSource('articulation-areas');
         if (src && typeof src.setData === 'function' && articulationAreasGeojson4326) {
-          src.setData(articulationAreasGeojson4326);
+          src.setData(ensureBondDataInArticulationGeoJSON(articulationAreasGeojson4326));
         }
       } catch {}
     }
@@ -2672,8 +2767,8 @@ function ensureBaseSourcesLayers() {
         source: 'articulation-areas',
         layout: { visibility: aaVis },
         paint: {
-          'fill-color': getArticulationColorExpression(),
-          'fill-opacity': 0.16
+          'fill-color': getArticulationFillColorExpression(),
+          'fill-opacity': 0.82
         }
       };
       if (insertBefore) m.addLayer(layerDef, insertBefore);
@@ -2689,7 +2784,7 @@ function ensureBaseSourcesLayers() {
         source: 'articulation-areas',
         layout: { visibility: aaVis },
         paint: {
-          'line-color': getArticulationColorExpression(),
+          'line-color': getArticulationFillColorExpression(),
           'line-opacity': 0.45,
           'line-width': 1.5
         }
@@ -2700,13 +2795,39 @@ function ensureBaseSourcesLayers() {
       try { m.setLayoutProperty('articulation-areas-outline', 'visibility', aaVis); } catch {}
     }
 
+    const labelsCb = document.getElementById('toggleArticulationLabels');
+    const labelsVis = (aaCb && aaCb.checked && labelsCb && labelsCb.checked) ? 'visible' : 'none';
+    if (!m.getLayer('articulation-areas-labels')) {
+      m.addLayer({
+        id: 'articulation-areas-labels',
+        type: 'symbol',
+        source: 'articulation-areas',
+        filter: ['!=', ['coalesce', ['get', '__aaName'], ''], ''],
+        layout: {
+          'text-field': ['get', '__aaName'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 8, 10, 10, 12, 12, 14, 14, 16, 16, 18, 18, 20],
+          'text-anchor': 'center',
+          'text-allow-overlap': false,
+          'text-ignore-placement': false,
+          visibility: labelsVis
+        },
+        paint: {
+          'text-color': '#1f2937',
+          'text-halo-color': '#ffffff',
+          'text-halo-width': 1.5
+        }
+      }, insertBefore);
+    } else {
+      try { m.setLayoutProperty('articulation-areas-labels', 'visibility', labelsVis); } catch {}
+    }
+
     // Ensure data is (re)loaded after style changes; safe no-op if already cached.
     try {
       loadArticulationAreas4326()
         .then((gj) => {
           try {
             const src = m.getSource('articulation-areas');
-            if (src && typeof src.setData === 'function') src.setData(gj || emptyFc);
+            if (src && typeof src.setData === 'function') src.setData(ensureBondDataInArticulationGeoJSON(gj || emptyFc));
           } catch {}
         })
         .catch(() => {});
@@ -2963,7 +3084,7 @@ function updateLayer() {
 
     const matchesEnrollment = enrollment >= minEnrollment && enrollment <= maxEnrollment;
     const matchesSeats = availableSeats >= minSeats && availableSeats <= maxSeats;
-    const matchesType = selectedTypes.length === 0 || selectedTypes.includes(level);
+    const matchesType = selectedTypes.length > 0 && selectedTypes.includes(level);
     const matchesFlow = matchesFlowFilter(decisionType, flowNumber);
     const matchesNearby = !nearbyFilterIds || nearbyFilterIds.length === 0
       ? true
@@ -3951,9 +4072,39 @@ map.on('load', () => {
       return [];
     });
 
-  Promise.all([geojsonPromise, decisionDataPromise, decisionAllPromise, eaPromise, fciPromise, distancesPromise, mapExportPromise])
-    .then(([geojson, decisionData, decisionAll, eaRowsData, fciRowsData, _distances, mapExportRows]) => {
-      void _distances; // preloaded for side-effects; not otherwise referenced
+  const bondSpendingPromise = fetch(withCacheBust(BOND_SPENDING_CSV_PATH))
+    .then(res => res.text())
+    .then(text => new Promise(resolve => {
+      Papa.parse(text, {
+        header: true,
+        skipEmptyLines: true,
+        complete: results => resolve(results.data || [])
+      });
+    }))
+    .then(rows => {
+      const total = (rows || []).reduce((sum, r) => {
+        const v = parseNumberLoose(r.TotalSpending);
+        return sum + (Number.isFinite(v) ? v : 0);
+      }, 0);
+      bondSpendingByArticulation = new Map();
+      (rows || []).forEach(r => {
+        const name = (r.Articulation ?? '').toString().trim();
+        if (!name) return;
+        const spending = parseNumberLoose(r.TotalSpending) || 0;
+        const pct = total > 0 ? (spending / total) * 100 : 0;
+        bondSpendingByArticulation.set(name, { totalSpending: spending, pctOfTotal: pct });
+      });
+      return bondSpendingByArticulation;
+    })
+    .catch(err => {
+      console.warn("⚠️ Failed to load HistoricBondSpendingbyArticulation.csv:", err);
+      bondSpendingByArticulation = new Map();
+      return bondSpendingByArticulation;
+    });
+
+  Promise.all([geojsonPromise, decisionDataPromise, decisionAllPromise, eaPromise, fciPromise, distancesPromise, mapExportPromise, bondSpendingPromise])
+    .then(([geojson, decisionData, decisionAll, eaRowsData, fciRowsData, _distances, mapExportRows, _bondSpending]) => {
+      void _distances; void _bondSpending; // preloaded for side-effects; bondSpendingByArticulation populated
       console.log("✅ GeoJSON, Decision Data, full Decision export, and Map Export are loaded.");
 
       mapExportRowsData = Array.isArray(mapExportRows) ? mapExportRows : [];
@@ -4334,8 +4485,8 @@ map.on('load', () => {
           source: 'articulation-areas',
           layout: { visibility: aaVis },
           paint: {
-            'fill-color': getArticulationColorExpression(),
-            'fill-opacity': 0.16
+            'fill-color': getArticulationFillColorExpression(),
+            'fill-opacity': 0.82
           }
         });
         map.addLayer({
@@ -4344,9 +4495,31 @@ map.on('load', () => {
           source: 'articulation-areas',
           layout: { visibility: aaVis },
           paint: {
-            'line-color': getArticulationColorExpression(),
+            'line-color': getArticulationFillColorExpression(),
             'line-opacity': 0.45,
             'line-width': 1.5
+          }
+        });
+
+        const labelsCbInit = document.getElementById('toggleArticulationLabels');
+        const labelsVisInit = (aaCb && aaCb.checked && labelsCbInit && labelsCbInit.checked) ? 'visible' : 'none';
+        map.addLayer({
+          id: 'articulation-areas-labels',
+          type: 'symbol',
+          source: 'articulation-areas',
+          filter: ['!=', ['coalesce', ['get', '__aaName'], ''], ''],
+          layout: {
+            'text-field': ['get', '__aaName'],
+            'text-size': ['interpolate', ['linear'], ['zoom'], 8, 10, 10, 12, 12, 14, 14, 16, 16, 18, 18, 20],
+            'text-anchor': 'center',
+            'text-allow-overlap': false,
+            'text-ignore-placement': false,
+            visibility: labelsVisInit
+          },
+          paint: {
+            'text-color': '#1f2937',
+            'text-halo-color': '#ffffff',
+            'text-halo-width': 1.5
           }
         });
 
@@ -4354,7 +4527,8 @@ map.on('load', () => {
         loadArticulationAreas4326()
           .then((gj) => {
             const src = map.getSource('articulation-areas');
-            if (src) src.setData(gj || { type: 'FeatureCollection', features: [] });
+            if (src) src.setData(ensureBondDataInArticulationGeoJSON(gj || { type: 'FeatureCollection', features: [] }));
+            try { if (typeof window.__updateBondMapLegend === 'function') window.__updateBondMapLegend(); } catch {}
           })
           .catch((e) => console.warn('Failed to load articulation areas', e));
 
@@ -5028,6 +5202,10 @@ map.on('load', () => {
             );
           }).join('');
 
+          const bondEntry = bondSpendingByArticulation.get(areaName);
+          const bondLine = bondEntry
+            ? `<div style="font-size:12px; color:#0369a1; font-weight:600; margin:0 0 6px 0;">Historic bond spending: ${fmtCurrency(bondEntry.totalSpending)} (${bondEntry.pctOfTotal.toFixed(1)}% of total)</div>`
+            : '';
           const emptyHtml = `<div style="color:#6b7280; font-size:12px;">No schools found for this area.</div>`;
           return (
             `<div class="aa-popup-header aa-popup-drag" style="display:flex; align-items:center; gap:10px; font-weight:900; margin-bottom:2px; cursor:move; user-select:none;">` +
@@ -5035,6 +5213,7 @@ map.on('load', () => {
               `<div style="flex:1; min-width:0;">${escapeHtml(areaName)} Area</div>` +
             `</div>` +
             `<div class="aa-popup-meta" style="font-size:12px; color:#6b7280; font-weight:600; margin:0 0 8px 0;">${total} total schools</div>` +
+            `${bondLine}` +
             `<div class="aa-popup-body" style="border-top:1px solid #e5e7eb; padding-top:6px;">` +
             `<div style="font-size:11px; color:#6b7280; margin:0 0 6px 0;">${selectedCategoryLine}${selectedSystemsLine ? `<br>${selectedSystemsLine}` : ''}</div>` +
             `${buildAveragesHtml()}` +
@@ -10288,13 +10467,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Load saved widths from localStorage
     const savedLeftWidth = localStorage.getItem('leftSidebarWidth');
-    const savedRightWidth = localStorage.getItem('rightSidebarWidth');
+    const savedBottomHeight = localStorage.getItem('bottomPanelHeight');
     
     if (savedLeftWidth) {
       leftSidebar.style.flex = `0 0 ${savedLeftWidth}px`;
     }
-    if (savedRightWidth) {
-      rightSidebar.style.flex = `0 0 ${savedRightWidth}px`;
+    if (savedBottomHeight) {
+      rightSidebar.style.flex = `0 0 ${savedBottomHeight}px`;
     }
 
     // Left sidebar resizer (between left sidebar and map container)
@@ -10313,17 +10492,17 @@ document.addEventListener('DOMContentLoaded', function() {
       e.stopPropagation();
     });
 
-    // Right sidebar resizer (between map container and right sidebar)
+    // Bottom panel resizer (between top-row and bottom panel, vertical)
     let isResizingRight = false;
-    let startXRight = 0;
-    let startWidthRight = 0;
+    let startYRight = 0;
+    let startHeightRight = 0;
 
     rightResizer.addEventListener('mousedown', (e) => {
       isResizingRight = true;
-      startXRight = e.clientX;
-      startWidthRight = rightSidebar.offsetWidth;
+      startYRight = e.clientY;
+      startHeightRight = rightSidebar.offsetHeight;
       rightResizer.classList.add('dragging');
-      document.body.style.cursor = 'col-resize';
+      document.body.style.cursor = 'row-resize';
       document.body.style.userSelect = 'none';
       e.preventDefault();
       e.stopPropagation();
@@ -10385,63 +10564,36 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       
       if (isResizingRight) {
-        const diff = startXRight - e.clientX; // Positive when dragging left (shrinking right sidebar)
-        const newWidth = Math.max(250, Math.min(window.innerWidth * 0.85, startWidthRight + diff));
+        const diff = startYRight - e.clientY; // Positive when dragging up (growing bottom panel)
+        const newHeight = Math.max(100, Math.min(window.innerHeight * 0.7, startHeightRight + diff));
         
-        // Store current map state before resize (only once at start)
         if (!isResizingRight._mapState) {
           isResizingRight._mapState = {
             bounds: window.map ? window.map.getBounds() : null,
-            containerWidth: mapContainer.offsetWidth
+            containerHeight: mapContainer.offsetHeight
           };
         }
         
-        // Force layout update by reading offsetWidth first
-        rightSidebar.offsetWidth;
-        
-        // Update flex property
-        rightSidebar.style.flex = `0 0 ${newWidth}px`;
+        rightSidebar.style.flex = `0 0 ${newHeight}px`;
         rightSidebar.style.flexShrink = '0';
         rightSidebar.style.flexGrow = '0';
         
-        // Force reflow to ensure layout updates
-        mapContainer.offsetWidth;
-        
-        // Trigger map resize during drag with zoom adjustment
         if (window.map && window.map.resize && isResizingRight._mapState && isResizingRight._mapState.bounds) {
-          // Use a throttled approach - only update every few frames
           if (!isResizingRight._updatePending) {
             isResizingRight._updatePending = true;
             requestAnimationFrame(() => {
-              const containerWidthAfter = mapContainer.offsetWidth;
-              const containerWidthBefore = isResizingRight._mapState.containerWidth;
-              
-              if (containerWidthBefore > 0 && Math.abs(containerWidthAfter - containerWidthBefore) > 1) {
-                // Get bounds as array format for fitBounds
-                const bounds = isResizingRight._mapState.bounds;
-                const boundsArray = [
-                  [bounds.getWest(), bounds.getSouth()],
-                  [bounds.getEast(), bounds.getNorth()]
-                ];
-                
-                // Resize first
-                window.map.resize();
-                
-                // Then fit to same bounds to maintain geographic extent
-                // Use a small timeout to ensure resize has taken effect
-                setTimeout(() => {
-                  if (window.map) {
-                    window.map.fitBounds(boundsArray, {
-                      padding: 0,
-                      duration: 0 // Instant during drag
-                    });
-                  }
-                  isResizingRight._updatePending = false;
-                }, 10);
-              } else {
-                window.map.resize();
+              const bounds = isResizingRight._mapState.bounds;
+              const boundsArray = [
+                [bounds.getWest(), bounds.getSouth()],
+                [bounds.getEast(), bounds.getNorth()]
+              ];
+              window.map.resize();
+              setTimeout(() => {
+                if (window.map) {
+                  window.map.fitBounds(boundsArray, { padding: 0, duration: 0 });
+                }
                 isResizingRight._updatePending = false;
-              }
+              }, 10);
             });
           }
         }
@@ -10466,7 +10618,6 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       
       if (isResizingRight) {
-        // Clean up any stored drag state
         if (isResizingRight._mapState) {
           delete isResizingRight._mapState;
           delete isResizingRight._updatePending;
@@ -10474,8 +10625,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         isResizingRight = false;
         rightResizer.classList.remove('dragging');
-        const currentWidth = rightSidebar.offsetWidth;
-        localStorage.setItem('rightSidebarWidth', currentWidth);
+        const currentHeight = rightSidebar.offsetHeight;
+        localStorage.setItem('bottomPanelHeight', currentHeight);
       }
       
       // After either sidebar resize is completed, automatically refit the map
@@ -10645,6 +10796,7 @@ if (typeof window.switchToMap !== 'function') {
     }
   }
 
+  window._goToStep = goToStep;
   function goToStep(stepNum) {
     setStepPanelsVisibility(stepNum);
     switch (Number(stepNum)) {

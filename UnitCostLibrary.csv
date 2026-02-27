@@ -47,8 +47,3 @@ SystemCategory,Project,Unit,UnitCost,Value
 06_light modernization,Lightly modernize library/media center,SF,50,0.7
 06_light modernization,Lightly modernize gym / assembly space,SF,50,0.7
 06_light modernization,Lightly modernize MPR,SF,50,0.5
-08_site infrastructure,Site infrastructure Electrical Upgrades,SF,100,0.5
-08_site infrastructure,Site infrastructure Mechanical Upgrades,SF,100,0.5
-08_site infrastructure,Site infrastructure Plumbing Upgrades,SF,100,0.5
-08_site infrastructure,Site infrastructure Roof Upgrades,SF,100,0.5
-08_site infrastructure,Site infrastructure Sanitary Sewer Upgrades,SF,100,0.5
