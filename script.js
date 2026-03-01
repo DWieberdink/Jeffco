@@ -1220,20 +1220,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Decision outcome colors (keep consistent with map circle coloring)
 const DECISION_COLORS = {
-  // Expansion: use a blue family (keep green reserved for Standard Maintenance)
+  // Expansion: blue family
   "Building Addition": "#1D4ED8",
   "Policy Solution for Overcrowding": "#3B82F6",
   "Building Addition with Capital Investment": "#1E3A8A",
   "Building Replacement": "#5B21B6",
-  // Make "Targeted" vs "Major" clearly distinct (gold vs deep orange)
   "Targeted Capital Investment": "#FBBF24", // Gold
-  // Standard Maintenance should read as "baseline / good" (green), not "investment" (amber).
-  "Standard Maintenance": "#1B9E77",
-  "Major Capital Investment": "#F97316", // Deep orange
-  "Welcoming School": "#C62828",
-  "Welcoming School with Capital Investment": "#E53935",
-  "Closure (Goes to Welcoming School)": "#B71C1C",
-  "Welcoming School with Building Replacement": "#8B0000",
+  "Standard Maintenance": "#E5D9C8",      // Light warm beige (subtle)
+  "Major Capital Investment": "#F97316",  // Deep orange
+  // Welcoming school: green palette
+  "Welcoming School": "#22c55e",
+  "Welcoming School with Capital Investment": "#16a34a",
+  "Welcoming School with Building Replacement": "#15803d",
+  "Closure (Goes to Welcoming School)": "#E8A0A0",  // Light red (soft, not aggressive)
   "Other / Unknown": "#2F4F4F",
   "Unknown": "#7f8c8d"
 };
@@ -2388,12 +2387,8 @@ function setNearbySchoolsSectionVisibility(selectedId) {
     section.open = false;
     const list = document.getElementById('nearbySchoolsList');
     if (list) list.textContent = 'Select a school to see matches.';
-    const btn = document.getElementById('showNearbySchoolsBtn');
-    if (btn) {
-      btn.dataset.lastRequested = 'false';
-      btn.dataset.mode = 'all';
-      btn.textContent = 'Show Overlapping Grades Schools';
-    }
+    const cb = document.getElementById('showOverlappingGradesCb');
+    if (cb) cb.checked = true;
   }
 }
 
@@ -2721,12 +2716,12 @@ function ensureBaseSourcesLayers() {
           "Building Addition with Capital Investment", '#1E3A8A',
           "Building Replacement", '#5B21B6',
           "Targeted Capital Investment", '#FBBF24',
-          "Standard Maintenance", '#1B9E77',
+          "Standard Maintenance", '#E5D9C8',
           "Major Capital Investment", '#F97316',
-          "Welcoming School", '#C62828',
-          "Welcoming School with Capital Investment", '#E53935',
-          "Closure (Goes to Welcoming School)", '#B71C1C',
-          "Welcoming School with Building Replacement", '#8B0000',
+          "Welcoming School", '#22c55e',
+          "Welcoming School with Capital Investment", '#16a34a',
+          "Welcoming School with Building Replacement", '#15803d',
+          "Closure (Goes to Welcoming School)", '#E8A0A0',
           "Other / Unknown", '#2F4F4F',
           '#7f8c8d'
         ],
@@ -2850,12 +2845,12 @@ function ensureBaseSourcesLayers() {
           "Building Addition with Capital Investment", '#1E3A8A',
           "Building Replacement", '#5B21B6',
           "Targeted Capital Investment", '#FBBF24',
-          "Standard Maintenance", '#1B9E77',
+          "Standard Maintenance", '#E5D9C8',
           "Major Capital Investment", '#F97316',
-          "Welcoming School", '#C62828',
-          "Welcoming School with Capital Investment", '#E53935',
-          "Closure (Goes to Welcoming School)", '#B71C1C',
-          "Welcoming School with Building Replacement", '#8B0000',
+          "Welcoming School", '#22c55e',
+          "Welcoming School with Capital Investment", '#16a34a',
+          "Welcoming School with Building Replacement", '#15803d',
+          "Closure (Goes to Welcoming School)", '#E8A0A0',
           "Other / Unknown", '#2F4F4F',
           '#7f8c8d'
         ]
@@ -3582,14 +3577,14 @@ function updateLegend() {
     },
     "Maintenance/Investment": {
       "Targeted Capital Investment": '#FBBF24',   // Gold
-      "Standard Maintenance": '#1B9E77',        // Green (baseline maintenance)
+      "Standard Maintenance": '#E5D9C8',        // Light warm beige
       "Major Capital Investment": '#F97316'     // Deep orange
     },
     "Closure/Consolidation": {
-      "Welcoming School": '#C62828',   // Crimson
-      "Welcoming School with Capital Investment": '#E53935',  // Vermilion
-      "Closure (Goes to Welcoming School)": '#B71C1C', // Firebrick
-      "Welcoming School with Building Replacement": '#8B0000'        // Deep Red Brown
+      "Welcoming School": '#22c55e',             // Green
+      "Welcoming School with Capital Investment": '#16a34a',
+      "Welcoming School with Building Replacement": '#15803d',
+      "Closure (Goes to Welcoming School)": '#E8A0A0'  // Light red (soft)
     }
   };
 
@@ -3795,15 +3790,15 @@ function updateLegend() {
 
     for (const [groupName, items] of Object.entries(decisionLegendGroups)) {
       const groupColorMap = {
-        'Expansion': '#1D4ED8',                // Blue (matches Expansion palette)
-        'Maintenance/Investment': '#F97316',   // Deep orange
-        'Closure/Consolidation': '#DC2626',    // Red
+        'Expansion': '#1D4ED8',                // Blue
+        'Maintenance/Investment': '#C4B5A0',    // Soft warm beige (subtle)
+        'Closure/Consolidation': '#16a34a',    // Green (Welcoming palette)
         'Other': '#6B7280'                     // Gray
       };
       const groupBgMap = {
         'Expansion': '#EFF6FF',               // Light blue
-        'Maintenance/Investment': '#FFFBEB',  // Light amber
-        'Closure/Consolidation': '#FEF2F2',   // Light red
+        'Maintenance/Investment': '#F8F4EC',  // Very light warm beige
+        'Closure/Consolidation': '#ECFDF5',   // Light green
         'Other': '#F3F4F6'                    // Light gray
       };
 
@@ -4270,40 +4265,26 @@ map.on('load', () => {
       
       initializeDropdownFilters(decisionData);
       try { setFciSelectedSystem(fciSelectedSystem); } catch {}
-      // Wire up "Show Overlapping Grades Schools" toggle button
-      const nearbyBtn = document.getElementById('showNearbySchoolsBtn');
-      if (nearbyBtn) {
-        nearbyBtn.addEventListener('click', () => {
-          nearbyBtn.dataset.lastRequested = 'true';
-          const currentMode = nearbyBtn.dataset.mode || 'all'; // 'all' or 'overlap'
-          const nextMode = currentMode === 'overlap' ? 'all' : 'overlap';
-          nearbyBtn.dataset.mode = nextMode;
-          const overlapOnly = nextMode === 'overlap';
-          const showAllSchools = nextMode === 'all';
-          nearbyBtn.textContent = overlapOnly ? 'Show All Schools' : 'Show Overlapping Grades Schools';
-          const mapSelect = document.getElementById('mapOriginSchoolSelect');
-          const selectedId = mapSelect ? mapSelect.value : '';
-          if (!selectedId && !showAllSchools) {
-            alert("Please select a school first.");
-            return;
-          }
-          // Build nearby filter set: origin + destinations from distances CSV or all schools
-          applyNearbyFilter(selectedId, '', overlapOnly, showAllSchools);
-
-          let selectedName = '';
-          if (selectedId && window.decisionLogic && Array.isArray(window.decisionLogic.schoolData)) {
-            const row = window.decisionLogic.schoolData.find(r => {
-              const uid = (r.UniqueID || r["UniqueID"] || r["Unique Id"] || '').toString().trim();
-              return uid === selectedId;
-            });
-            selectedName = row ? row["Building Name"] : '';
-          }
-          updateNearbySchoolsPanel(
-            selectedId,
-            selectedName,
-            { overlapOnly, showAllSchools }
-          );
-        });
+      // Wire up "Show overlapping grade schools" checkbox (default: checked)
+      const showOverlappingCb = document.getElementById('showOverlappingGradesCb');
+      function applyNearbyFromCheckbox() {
+        const mapSelect = document.getElementById('mapOriginSchoolSelect');
+        const selectedId = mapSelect ? mapSelect.value : '';
+        const overlapOnly = showOverlappingCb ? showOverlappingCb.checked : true;
+        const showAllSchools = !overlapOnly;
+        let selectedName = '';
+        if (selectedId && window.decisionLogic && Array.isArray(window.decisionLogic.schoolData)) {
+          const row = window.decisionLogic.schoolData.find(r => {
+            const uid = (r.UniqueID || r["UniqueID"] || r["Unique Id"] || '').toString().trim();
+            return uid === selectedId;
+          });
+          selectedName = row ? row["Building Name"] : '';
+        }
+        applyNearbyFilter(selectedId, selectedName, overlapOnly, showAllSchools);
+        updateNearbySchoolsPanel(selectedId, selectedName, { overlapOnly, showAllSchools });
+      }
+      if (showOverlappingCb) {
+        showOverlappingCb.addEventListener('change', applyNearbyFromCheckbox);
       }
 
       // Populate and sync the origin dropdown that appears on the map
@@ -4383,14 +4364,11 @@ map.on('load', () => {
               localStorage.setItem('mapSelectedOriginName', selectedName);
             }
 
-            // Only update the panel after user explicitly clicks the nearby toggle
-            const nearbyBtn = document.getElementById('showNearbySchoolsBtn');
-            if (nearbyBtn && nearbyBtn.dataset.lastRequested === 'true') {
-              const mode = nearbyBtn.dataset.mode || 'all';
-              const overlapOnly = mode === 'overlap';
-              const showAllSchools = mode === 'all';
-              applyNearbyFilter(selectedId, selectedName, overlapOnly, showAllSchools);
-            }
+            // Update School Matches panel using checkbox state (default: overlapping only)
+            const showOverlappingCb = document.getElementById('showOverlappingGradesCb');
+            const overlapOnly = showOverlappingCb ? showOverlappingCb.checked : true;
+            const showAllSchools = !overlapOnly;
+            applyNearbyFilter(selectedId, selectedName, overlapOnly, showAllSchools);
 
             if (flowchartSelect && selectedName) {
               mapSelectSyncing = true;
@@ -5489,12 +5467,12 @@ map.on('load', () => {
             "Building Addition with Capital Investment", '#1E3A8A',
             "Building Replacement", '#5B21B6',
             "Targeted Capital Investment", '#FBBF24',
-            "Standard Maintenance", '#1B9E77',
+            "Standard Maintenance", '#E5D9C8',
             "Major Capital Investment", '#F97316',
-            "Welcoming School", '#C62828',
-            "Welcoming School with Capital Investment", '#E53935',
-            "Closure (Goes to Welcoming School)", '#B71C1C',
-            "Welcoming School with Building Replacement", '#8B0000',
+            "Welcoming School", '#22c55e',
+            "Welcoming School with Capital Investment", '#16a34a',
+            "Welcoming School with Building Replacement", '#15803d',
+            "Closure (Goes to Welcoming School)", '#E8A0A0',
             "Other / Unknown", '#2F4F4F',
             '#7f8c8d'
           ],
@@ -5518,12 +5496,12 @@ map.on('load', () => {
             "Building Addition with Capital Investment", '#1E3A8A',
             "Building Replacement", '#5B21B6',
             "Targeted Capital Investment", '#FBBF24',
-            "Standard Maintenance", '#1B9E77',
+            "Standard Maintenance", '#E5D9C8',
             "Major Capital Investment", '#F97316',
-            "Welcoming School", '#C62828',
-            "Welcoming School with Capital Investment", '#E53935',
-            "Closure (Goes to Welcoming School)", '#B71C1C',
-            "Welcoming School with Building Replacement", '#8B0000',
+            "Welcoming School", '#22c55e',
+            "Welcoming School with Capital Investment", '#16a34a',
+            "Welcoming School with Building Replacement", '#15803d',
+            "Closure (Goes to Welcoming School)", '#E8A0A0',
             "Other / Unknown", '#2F4F4F',
             '#7f8c8d'
           ]
@@ -5862,13 +5840,10 @@ map.on('load', () => {
         }
 
         // Only update the panel after user explicitly clicks the nearby toggle
-        const nearbyBtn = document.getElementById('showNearbySchoolsBtn');
-        if (nearbyBtn && nearbyBtn.dataset.lastRequested === 'true') {
-          const mode = nearbyBtn.dataset.mode || 'all';
-          const overlapOnly = mode === 'overlap';
-          const showAllSchools = mode === 'all';
-          applyNearbyFilter(originUniqueId || getOriginIdForName(schoolName), schoolName, overlapOnly, showAllSchools);
-        }
+        const showOverlappingCb = document.getElementById('showOverlappingGradesCb');
+        const overlapOnly = showOverlappingCb ? showOverlappingCb.checked : true;
+        const showAllSchools = !overlapOnly;
+        applyNearbyFilter(originUniqueId || getOriginIdForName(schoolName), schoolName, overlapOnly, showAllSchools);
 
         // Update nearby-destination highlight rings based on the newly selected
         // origin school.
@@ -8968,6 +8943,25 @@ document.addEventListener("DOMContentLoaded", function() {
         });
       } else {
         console.warn("⚠️ Slider not found:", sliderIds[sliders.indexOf(slider)]);
+      }
+    });
+
+    // Flow 4: Closure/Consolidation distance sliders — update flowchart F4_DIST node when these change
+    const flow4DistanceSliderIds = [
+      "elementaryDistanceSliderFlow4", "k8DistanceSliderFlow4", "middleDistanceSliderFlow4",
+      "highDistanceSliderFlow4", "k12DistanceSliderFlow4"
+    ];
+    flow4DistanceSliderIds.forEach(function (id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener("input", function () {
+          const outId = id.replace("Slider", "Out");
+          const outSpan = document.getElementById(outId);
+          if (outSpan) outSpan.textContent = el.value;
+          if (typeof window.FlowUtils !== "undefined" && typeof window.FlowUtils.updateNodeLabels === "function") {
+            window.FlowUtils.updateNodeLabels();
+          }
+        });
       }
     });
 

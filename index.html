@@ -320,15 +320,20 @@
       flex: 0 0 clamp(260px, 26vw, 340px);
       min-width: 240px;
       max-width: 44%;
-      padding: 10px 12px; 
+      max-height: calc(100vh - var(--brand-bar-height) * 2); /* never extend behind top/bottom bars */
+      padding: 10px 12px;
+      padding-bottom: calc(12px + var(--brand-bar-height)); /* extra bottom space so scroll clears the fixed Process Steps bar */
       background: #fafafa; 
       border-right: 1px solid #e5e5e5; 
       overflow-y: auto; 
+      overflow-x: hidden;
       box-sizing: border-box; 
       display: flex;
       flex-direction: column;
       resize: none; /* Prevent browser resize */
       position: relative;
+      z-index: 2000; /* above #process-steps (1999) so left panel scroll and bottom controls stay visible */
+      isolation: isolate; /* force stacking context so z-index applies reliably */
     }
 
     /* Close "×" buttons live inside the green summary bars */
@@ -1441,7 +1446,7 @@
         display: none !important;
       }
 
-      /* Left sidebar (Controls) becomes left drawer */
+      /* Left sidebar (Controls) becomes left drawer - above bottom panel so it can scroll to bottom */
       #sidebar {
         position: fixed !important;
         top: var(--brand-bar-height);
@@ -1449,7 +1454,7 @@
         bottom: 0;
         width: min(92vw, 380px);
         max-width: 92vw;
-        z-index: 2100;
+        z-index: 2102;
         box-shadow: 0 12px 36px rgba(0,0,0,0.25);
         transform: translateX(0);
         transition: transform 0.18s ease;
@@ -1766,7 +1771,7 @@
       left: 0;
       right: 0;
       bottom: 0;
-      z-index: 1999;
+      z-index: 500; /* below #sidebar (2000) so left panel can scroll to bottom on top of this bar */
       height: var(--brand-bar-height);
       background: rgba(255,255,255,0.92);
       backdrop-filter: blur(8px);
@@ -3694,19 +3699,22 @@
                 <div style="display:flex; flex-direction:column; gap:6px;">
                   <label style="font-size:11px; color:#6b7280;">FCI Systems (compare)</label>
                   <details id="compareFciSystemsDropdown" class="compare-fci-dropdown">
-                    <summary id="compareFciSystemsSummary">Select systems</summary>
+                    <summary id="compareFciSystemsSummary" style="font-weight:400; font-size:13px; cursor:pointer; padding:4px 2px;">Select systems</summary>
                     <div id="compareFciSystemList" class="compare-fci-panel"></div>
                   </details>
                 </div>
               </div>
             </div>
             <details id="nearbySchoolsSection" style="display:none; margin: 0 0 10px 0;">
-              <summary style="font-weight:700; font-size:13px; cursor:pointer; padding:4px 2px; display:flex; align-items:center; gap:8px;">
+              <summary style="font-weight:400; font-size:13px; cursor:pointer; padding:4px 2px; display:flex; align-items:center; gap:8px;">
                 <span>School Matches</span>
-                <button id="showNearbySchoolsBtn" style="padding:4px 8px; font-size:11px; border:1px solid #007cbf; background:#fff; color:#007cbf; border-radius:6px; cursor:pointer;">Show Overlapping Grades Schools</button>
+                <label style="display:flex; align-items:center; gap:6px; font-weight:600; font-size:12px; cursor:pointer; margin:0;" onclick="event.stopPropagation();">
+                  <input type="checkbox" id="showOverlappingGradesCb" checked style="width:14px; height:14px;">
+                  Show overlapping grade schools
+                </label>
               </summary>
               <div id="nearbySchoolsContainer" style="padding:8px 10px; border:1px solid #e5e7eb; border-radius:10px; background:#fff; max-height:220px; overflow:auto;">
-                <div id="nearbySchoolsList" style="font-size:12px; color:#444;">Click “Show Overlapping Grades Schools” after selecting a school.</div>
+                <div id="nearbySchoolsList" style="font-size:12px; color:#444;">Select a school to see matches.</div>
               </div>
             </details>
             <!-- Map Base Layers moved to floating control -->

@@ -93,6 +93,9 @@
       font-size: 13px;
       white-space: nowrap;
     }
+    #exportDropdown button:hover {
+      background: #f3f4f6;
+    }
     .btn.primary {
       border-color: var(--blue);
       color: var(--blue);
@@ -129,6 +132,7 @@
       position: sticky;
       top: 12px;
       z-index: 30;
+      padding-right: 200px;
     }
 
     .section-title {
@@ -181,12 +185,13 @@
       position: absolute;
       top: 62px;
       right: 14px;
+      width: 180px;
       display: grid;
-      grid-template-columns: auto auto;
-      gap: 4px 10px;
+      grid-template-columns: auto 1fr;
+      gap: 5px 10px;
+      align-items: center;
       font-size: 12px;
       font-weight: 800;
-      text-align: right;
       color: var(--text);
       white-space: nowrap;
     }
@@ -196,6 +201,9 @@
     .summary-subtotals .k {
       color: var(--muted);
       font-weight: 800;
+    }
+    .summary-subtotals .summary-cost {
+      text-align: right;
     }
     .addition-info {
       margin-top: 10px;
@@ -687,7 +695,13 @@
 
     <div class="topbar-right">
       <a class="btn top-back-button" href="index.html">Back to Dashboard</a>
-      <button class="btn primary" id="downloadCsvBtn" type="button">Download filtered CSV</button>
+      <div id="exportDropdownWrap" style="position:relative;">
+        <button class="btn primary" id="exportBtn" type="button" style="display:flex;align-items:center;gap:6px;">Export <span style="font-size:10px;">&#9660;</span></button>
+        <div id="exportDropdown" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;min-width:160px;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.12);z-index:100;padding:4px 0;">
+          <button type="button" id="exportCsvOption" style="display:block;width:100%;text-align:left;padding:8px 14px;border:none;background:transparent;font-family:inherit;font-size:13px;cursor:pointer;color:var(--text);">CSV</button>
+          <button type="button" id="exportPdfOption" style="display:block;width:100%;text-align:left;padding:8px 14px;border:none;background:transparent;font-family:inherit;font-size:13px;cursor:pointer;color:var(--text);">PDF</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -704,28 +718,28 @@
             <input type="checkbox" class="priority-include-cb" data-priority="1" checked style="width:13px;height:13px;">
             <span class="k">P1</span>
           </label>
-          <span id="totalP1Cost">—</span>
+          <span id="totalP1Cost" class="summary-cost">—</span>
         </div>
         <div class="summary-subtotal">
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
             <input type="checkbox" class="priority-include-cb" data-priority="2" checked style="width:13px;height:13px;">
             <span class="k">P2</span>
           </label>
-          <span id="totalP2Cost">—</span>
+          <span id="totalP2Cost" class="summary-cost">—</span>
         </div>
         <div class="summary-subtotal">
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
             <input type="checkbox" class="priority-include-cb" data-priority="3" checked style="width:13px;height:13px;">
             <span class="k">P3</span>
           </label>
-          <span id="totalP3Cost">—</span>
+          <span id="totalP3Cost" class="summary-cost">—</span>
         </div>
         <div class="summary-subtotal">
           <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
             <input type="checkbox" class="priority-include-cb" data-priority="4" checked style="width:13px;height:13px;">
             <span class="k">P4</span>
           </label>
-          <span id="totalP4Cost">—</span>
+          <span id="totalP4Cost" class="summary-cost">—</span>
         </div>
       </div>
       <div class="control" style="max-width: 520px; margin-bottom: 8px;">
@@ -739,10 +753,24 @@
           </div>
         </div>
       </div>
-      <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px;">
-        <input type="checkbox" id="deficiencyOnlyToggle" title="Include all facilities from the Master Deficiency File">
-        Include All Master Deficiency File Facilities
-      </label>
+      <div id="facilityTypeFilter" style="margin-bottom:8px; padding:6px 10px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; font-size:13px;">
+        <div style="font-weight:600; margin-bottom:4px; color:#374151;">Facility Selection</div>
+        <div style="display:flex; flex-wrap:wrap; gap:4px 12px;">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-weight:500;"><input type="checkbox" id="deficiencyOnlyToggle" checked> 122 Active Traditional Sites Only</label>
+        </div>
+        <div style="margin-top:4px; padding-top:4px; border-top:1px solid #e5e7eb; display:flex; flex-wrap:wrap; gap:12px 24px; align-items:flex-start;">
+          <div>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="facility-type-cb" value="school"> Schools</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;margin-left:20px;font-size:12px;color:#6b7280;" title="Subset of Schools: 17 high schools with CTE programs"><input type="checkbox" class="facility-type-cb" value="cte-pathway"> &#x2514; CTE Pathways</label>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:4px 12px;">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="facility-type-cb" value="cte"> CTE</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="facility-type-cb" value="athletics"> Athletics</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="facility-type-cb" value="oels"> OELs</label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="facility-type-cb" value="admin-support"> Admin &amp; Support</label>
+          </div>
+        </div>
+      </div>
       <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px;">
         <input type="checkbox" id="includeFciToggle" title="Include FCI deficiency data even when school is slated for new construction or gut reno">
         Include FCI for gut reno / new construction schools
@@ -753,10 +781,6 @@
         Include PK in enrollment
       </label>
       <div class="meta" id="schoolMeta"></div>
-    </div>
-
-    <div class="temp-stamp">
-      TEMP: Unknown FCI link for Shop Facility for Zones 1 &amp; 2 (Temps at NAMS)
     </div>
 
     <div class="card">

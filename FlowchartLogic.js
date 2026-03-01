@@ -732,10 +732,45 @@ function mapSliderKeyToThresholdKey(sliderId) {
     middleDistanceSlider: "middleDistance",
     highDistanceSlider: "highDistance",
     k12DistanceSlider: "k12Distance",
+    F1_DIST_dynamic: "elementaryDistance",  // so rawVal exists; display uses school distance + threshold
+    F4_DIST_dynamic: "elementaryDistance",
   };
   const result = mapping[sliderId];
   console.log("🔍 mapSliderKeyToThresholdKey:", sliderId, "->", result);
   return result;
+}
+
+// Get school's distance to welcoming schools from row (same field used in tables/decision logic)
+function getSchoolDistanceToWelcoming(row) {
+  if (!row) return null;
+  const raw = row["DistanceUnderutilizedschools"] ?? row["Distance Underutilized Schools"] ?? row["Distance to Underutilized"];
+  if (raw === "" || raw === null || raw === undefined) return null;
+  const num = Number(raw);
+  return Number.isFinite(num) ? num : null;
+}
+
+// Get current distance threshold from DOM sliders (so flowchart always reflects slider position).
+// Use canonical level ('elementary'|'k8'|'middle'|'high'|'k12') so K-8 schools stored as "Multi-Level" are resolved from Building Name.
+// When useFlow4Sliders is true, read from Flow 4: Closure/Consolidation sliders (elementaryDistanceSliderFlow4, etc.).
+function getDistanceThresholdFromSliders(schoolLevelStr, buildingNameStr, useFlow4Sliders) {
+  let canonical = normalizeSchoolLevelFlow(schoolLevelStr || '');
+  // Multi-Level often means K-8; infer from building name (e.g. "Bradford K8 North")
+  if ((!canonical || canonical === 'middle') && buildingNameStr) {
+    const fromName = normalizeSchoolLevelFlow(buildingNameStr);
+    if (fromName === 'k8') canonical = 'k8';
+  }
+  const suffix = useFlow4Sliders ? "Flow4" : "";
+  let sliderId;
+  if (canonical === 'elementary') sliderId = "elementaryDistanceSlider" + suffix;
+  else if (canonical === 'k8') sliderId = "k8DistanceSlider" + suffix;
+  else if (canonical === 'middle') sliderId = "middleDistanceSlider" + suffix;
+  else if (canonical === 'high') sliderId = "highDistanceSlider" + suffix;
+  else if (canonical === 'k12') sliderId = "k12DistanceSlider" + suffix;
+  else sliderId = "middleDistanceSlider" + suffix;
+  const el = typeof document !== "undefined" ? document.getElementById(sliderId) : null;
+  if (el && el.value != null) return parseFloat(el.value, 10);
+  const thresholdKey = sliderId.indexOf("middle") !== -1 ? "middleDistance" : "elementaryDistance";
+  return (window.thresholds && window.thresholds[thresholdKey]) ?? (sliderId.indexOf("middle") !== -1 ? 5.0 : 3.5);
 }
 
 // ✅ Initialize flowchart data
@@ -1464,29 +1499,33 @@ function formatSliderValue(key, value, schoolData = null) {
     case "siteCapacitySlider":
       return value;
     case "F1_DIST_dynamic":
-    case "F4_DIST_dynamic":
-      // Special case for F1_DIST and F4_DIST nodes - show dynamic distance based on school level
+      // Flow 1: Distance to welcoming schools — use main Strategic Sorting distance sliders
       if (schoolData) {
-        const schoolLevel = (schoolData["School Level"] || '').toLowerCase();
-        let distanceThreshold;
-        
-        if (schoolLevel.includes("elementary")) {
-          distanceThreshold = window.thresholds?.elementaryDistance || 3.5;
-        } else if (schoolLevel.includes("k-8")) {
-          distanceThreshold = window.thresholds?.k8Distance || 3.5;
-        } else if (schoolLevel.includes("middle")) {
-          distanceThreshold = window.thresholds?.middleDistance || 5.0;
-        } else if (schoolLevel.includes("high")) {
-          distanceThreshold = window.thresholds?.highDistance || 7.0;
-        } else if (schoolLevel.includes("6-12")) {
-          distanceThreshold = window.thresholds?.k12Distance || 6.0;
-        } else {
-          distanceThreshold = window.thresholds?.middleDistance || 5.0;
+        const schoolLevelRaw = schoolData["School Level"] || '';
+        const buildingName = schoolData["Building Name"] || '';
+        const distanceThreshold = getDistanceThresholdFromSliders(schoolLevelRaw, buildingName, false);
+        const schoolDist = getSchoolDistanceToWelcoming(schoolData);
+        if (schoolDist !== null) {
+          return `${schoolDist.toFixed(1)} mi  ≤  ${distanceThreshold.toFixed(1)} mi`;
         }
-        
         return `${distanceThreshold.toFixed(1)} mi`;
       }
-      return "choose level"; // Default fallback when no school selected
+      const defaultThreshold = getDistanceThresholdFromSliders("elementary", "", false);
+      return `${defaultThreshold.toFixed(1)} mi`;
+    case "F4_DIST_dynamic":
+      // Flow 4: Closure/Consolidation — use Flow 4 panel distance sliders (Distance to Welcoming Schools by School Level under Flow 4)
+      if (schoolData) {
+        const schoolLevelRaw = schoolData["School Level"] || '';
+        const buildingName = schoolData["Building Name"] || '';
+        const distanceThreshold = getDistanceThresholdFromSliders(schoolLevelRaw, buildingName, true);
+        const schoolDist = getSchoolDistanceToWelcoming(schoolData);
+        if (schoolDist !== null) {
+          return `${schoolDist.toFixed(1)} mi  ≤  ${distanceThreshold.toFixed(1)} mi`;
+        }
+        return `${distanceThreshold.toFixed(1)} mi`;
+      }
+      const defaultThresholdFlow4 = getDistanceThresholdFromSliders("elementary", "", true);
+      return `${defaultThresholdFlow4.toFixed(1)} mi`;
     case "buildSlider":
     case "buildAboveSlider":
     case "buildBelowSlider":
@@ -1840,8 +1879,10 @@ function evaluatePath(row, t) {
     }
   }
 
-  // Override: even if enrollment growth is above threshold, if total enrollment <= 300, route to consolidation (Flow 4)
-  if ((currentFlow === 2 || currentFlow === 3) && enrollmentLow) {
+  // Override: if school reached Flow 2 or 3 via the *underutilized* branch (F1_DIST), and enrollment <= 300, route to consolidation (Flow 4).
+  // Do NOT override when they reached Flow 3 via the 60–90% utilization band (F1_UTIL2 → F3_FAC_ABOVE); those stay in Building Improvement.
+  const cameFromUnderutilizedBranch = path.includes("F1_DIST");
+  if ((currentFlow === 2 || currentFlow === 3) && enrollmentLow && cameFromUnderutilizedBranch) {
     currentFlow = 4;
     while (path.length > 1 && !String(path[path.length - 1]).startsWith("F1_")) path.pop();
   }

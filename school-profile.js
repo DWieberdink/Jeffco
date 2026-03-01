@@ -70,7 +70,10 @@
   const elSourceDropdown = document.getElementById("sourceFilterDropdown");
   const elClearFilters = document.getElementById("clearFiltersBtn");
   const elTableMount = document.getElementById("tableMount");
-  const elDownload = document.getElementById("downloadCsvBtn");
+  const elExportBtn = document.getElementById("exportBtn");
+  const elExportDropdown = document.getElementById("exportDropdown");
+  const elExportCsvOption = document.getElementById("exportCsvOption");
+  const elExportPdfOption = document.getElementById("exportPdfOption");
 
   let allRows = [];
   let rowwiseByUid = new Map();
@@ -92,6 +95,7 @@
   let decisionRows = [];
   let decisionByUid = new Map();
   let decisionByNameKey = new Map();
+  let facilityIdByUid = new Map();
   let priorityOverrides = loadPriorityOverrides();
   let unitCostIndex = new Map();
   let unitCostByProjectKey = new Map();
@@ -528,14 +532,17 @@
   function buildRowwiseIndex(rows) {
     rowwiseByUid = new Map();
     rowwiseByNameKey = new Map();
+    facilityIdByUid = new Map();
     const nameToUid = new Map();
     (rows || []).forEach((r) => {
       const uid = norm(r["UniqueID"] ?? r.UniqueID);
       const name = norm(r["SchoolName"] ?? r.SchoolName);
+      const fid = norm(r["NEWJeffCoFacilityID"] ?? r.NEWJeffCoFacilityID);
       if (uid) {
         if (!rowwiseByUid.has(uid)) rowwiseByUid.set(uid, []);
         rowwiseByUid.get(uid).push(r);
         if (name && !nameToUid.has(name)) nameToUid.set(name, uid);
+        if (fid && !facilityIdByUid.has(uid)) facilityIdByUid.set(uid, fid);
       }
       const nk = normName(name);
       if (nk) {
@@ -987,7 +994,9 @@
     }
 
     const metaBits = [];
-    if (resolvedUniqueId) metaBits.push(`UniqueID: ${resolvedUniqueId}`);
+    const resolvedFacilityId = resolvedUniqueId ? facilityIdByUid.get(resolvedUniqueId) : "";
+    if (resolvedFacilityId) metaBits.push(`JeffCo Facility ID: ${resolvedFacilityId}`);
+    else if (resolvedUniqueId) metaBits.push(`JeffCo Facility ID: ${resolvedUniqueId}`);
     if (status) metaBits.push(`Status: ${status}`);
     if (level) metaBits.push(`Level: ${level}`);
     if (cap) metaBits.push(`Capacity: ${cap}`);
@@ -1088,7 +1097,7 @@
     populateFilters();
     applyFilters();
     render();
-    elDownload.disabled = !schoolRows.length;
+    elExportBtn.disabled = !schoolRows.length;
   }
 
   function normLoose(s) {
@@ -2422,7 +2431,7 @@
       if (elTotalP3Cost) elTotalP3Cost.textContent = "—";
       if (elTotalP4Cost) elTotalP4Cost.textContent = "—";
       elTableMount.innerHTML = '<div class="empty">No school selected.</div>';
-      elDownload.disabled = true;
+      elExportBtn.disabled = true;
       return;
     }
 
@@ -2617,7 +2626,7 @@
     });
 
     schoolRows = rollupRows;
-    elSchoolNameHeader.textContent = names.length <= 3 ? names.join(", ") : `${names.length} schools`;
+    elSchoolNameHeader.textContent = names.length <= 3 ? names.join(", ") : `${names.length} Facilities`;
     if (getIncludePKInEnrollment()) {
       let anyPK = false;
       selectedSchoolUids.forEach((id) => {
@@ -2634,16 +2643,15 @@
         elSchoolNameHeader.appendChild(badge);
       }
     }
-    elSchoolMeta.textContent = `${names.length} schools selected • ${rollupRows.length} rollup project rows`;
+    elSchoolMeta.textContent = `${names.length} facilities selected • ${rollupRows.length} rollup project rows`;
 
     populateFilters();
     applyFilters();
     render();
-    elDownload.disabled = !schoolRows.length;
+    elExportBtn.disabled = !schoolRows.length;
   }
 
   function downloadFilteredCsv() {
-    // Flatten viewRows into rows with DISPLAY_COLS only
     const flat = [];
     viewRows.forEach((g) => {
       (g.__rows || []).forEach((r) => {
@@ -2665,6 +2673,62 @@
     a.remove();
   }
 
+  function downloadFilteredPdf() {
+    const flat = [];
+    viewRows.forEach((g) => {
+      (g.__rows || []).forEach((r) => {
+        const out = {};
+        DISPLAY_COLS.forEach((c) => (out[c] = getCellValue(r, c) ?? ""));
+        flat.push(out);
+      });
+    });
+
+    const title = norm(elSchoolNameHeader.textContent || "Project list").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const headerLabels = DISPLAY_COLS.map((c) => {
+      const key = typeof c === "string" ? c : c.key || c;
+      return (COL_DISPLAY_NAMES && COL_DISPLAY_NAMES[key]) || key;
+    });
+    const headers = "<tr><th>" + headerLabels.map((h) => h.replace(/</g, "&lt;").replace(/>/g, "&gt;")).join("</th><th>") + "</th></tr>";
+    const rows = flat
+      .map(
+        (r) =>
+          "<tr><td>" +
+          DISPLAY_COLS.map((c) => {
+            const key = typeof c === "string" ? c : c.key || c;
+            const val = (r[key] ?? "").toString().replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            return val;
+          }).join("</td><td>") +
+          "</td></tr>"
+      )
+      .join("");
+
+    const html =
+      "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>" +
+      title +
+      "</title><style>body{font-family:sans-serif;font-size:11px;padding:12px;} table{border-collapse:collapse;width:100%;} th,td{border:1px solid #ccc;padding:4px 6px;text-align:left;} th{background:#f0f0f0;}</style></head><body><h1>" +
+      title +
+      "</h1><table><thead>" +
+      headers +
+      "</thead><tbody>" +
+      rows +
+      "</tbody></table></body></html>";
+
+    const w = window.open("", "_blank");
+    if (!w) {
+      alert("Please allow pop-ups to export PDF.");
+      return;
+    }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    w.setTimeout(function () {
+      w.print();
+      w.onafterprint = function () {
+        w.close();
+      };
+    }, 250);
+  }
+
   function init() {
     const school = getSchoolFromQuery();
     const uid = getUidFromQuery();
@@ -2672,7 +2736,7 @@
     selectedUniqueIdFromQuery = uid ? uid : "";
 
     elSchoolMeta.textContent = `Loading school summary (${DECISION_CSV_PATH}), projects (${ASSETS_CSV_PATH}), unit cost library (${UNITCOST_LIBRARY_CSV_PATH}), and room schedule (${ROOM_SCHEDULE_CSV_PATH})…`;
-    elDownload.disabled = true;
+    elExportBtn.disabled = true;
 
     Promise.all([
       parseCsv(DECISION_CSV_PATH),
@@ -2701,17 +2765,82 @@
           return;
         }
 
+        // CTE Pathways: high schools with CTE programs (subset of "school")
+        const CTE_PATHWAY_NAMES = new Set([
+          "golden high school","jefferson junior/senior high school","lakewood high school",
+          "arvada west high school","ralston valley high school","bear creek high school",
+          "chatfield senior high school","dakota ridge high school",
+          "alameda international junior/senior high school","green mountain high school",
+          "conifer high school","evergreen high school","columbine high school",
+          "arvada high school","wheat ridge high school","pomona junior/senior high school",
+          "standley lake high school",
+        ]);
+        // CTE facilities (Warren Tech)
+        const CTE_NAMES = new Set([
+          "warren tech","warren tech central","warren tech north","warren tech south",
+        ]);
+        // Athletics keywords
+        const ATHLETICS_KEYWORDS = ["stadium","athletic","field house"];
+        // OEL keywords
+        const OEL_KEYWORDS = ["oels","outdoor ed"];
+        // Admin & Support keywords
+        const ADMIN_KEYWORDS = [
+          "transportation","service center","conference","driving","landscape",
+          "support services","frank deangelis","shop facility","pump house",
+          "reservoir","wastewater","water treatment","gallery well","planetarium",
+          "809 bldg","809 service","581 conference","cottage","bldg 1","bldg 2",
+          "bldg 3","bldg 4","bldg 5","bldg 6","bldg 8","central services",
+        ];
+        function classifyFacilityType(name) {
+          const n = (name || "").toLowerCase();
+          if (CTE_NAMES.has(n)) return "cte";
+          if (CTE_PATHWAY_NAMES.has(n)) return "cte-pathway";
+          if (ATHLETICS_KEYWORDS.some((k) => n.includes(k))) return "athletics";
+          if (OEL_KEYWORDS.some((k) => n.includes(k))) return "oels";
+          if (ADMIN_KEYWORDS.some((k) => n.includes(k))) return "admin-support";
+          return "school";
+        }
+
+        // The "original 122" facilities shown by default (toggle unchecked).
+        // Keyed by the last segment of the UniqueID (CDE code).
+        const ORIGINAL_122 = new Set([
+          "0030","0033","0108","0370","0378","0660","0664","0694","0724","0779",
+          "0950","0951","0952","0965","1001","1244","1318","1522","1861","1864",
+          "1876","1886","1976","2093","2120","2130","2194","2288","2300","2322",
+          "2496","2550","2616","2820","2832","2836","2866","2963","3025","3088",
+          "3201","3216","3502","3536","3622","3628","3726","4190","4422","4548",
+          "4549","4550","4798","4830","4942","5004","5024","5036","5222","5350",
+          "5354","5454","5472","5524","5580","5623","5758","5892","5944","6133",
+          "6135","6285","6286","6330","6470","6539","6804","6808","6848","7114",
+          "7128","7190","7238","7239","7282","7468","7483","7529","7708","7753",
+          "7780","7833","7870","7962","8036","8090","8102","8209","8223","8276",
+          "8280","8300","8381","8432","8856","9008","9052","9058","9232","9234",
+          "9245","9299","9328","9342","9412","9424","9428","9429","9432","9490",
+          "9510","9648",
+        ]);
+        function getCdeSuffix(uid) {
+          if (!uid) return "";
+          const parts = uid.split("-");
+          return parts[parts.length - 1] || "";
+        }
+
         // Populate multi-select school dropdown from Decision Data Export
         // plus any CSV-only schools (those with SchoolName but no UniqueID).
+        // deficiency=true for the original 122; deficiency=false for the rest.
         const decisionOpts = (decisionRows || [])
-          .map((r) => ({
-            uid: norm(r["UniqueID"] ?? r.UniqueID),
-            name: norm(r["Building Name"] ?? r.BuildingName ?? r["BuildingName"]),
-            deficiency: true,
-            status: norm(r["Status"] ?? r.Status),
-            schoolLevel: norm(r["School Level"]),
-          }))
-          .filter((o) => o.uid && o.name && linkedUids.has(o.uid));
+          .map((r) => {
+            const uid = norm(r["UniqueID"] ?? r.UniqueID);
+            const bname = norm(r["Building Name"] ?? r.BuildingName ?? r["BuildingName"]);
+            return {
+              uid: uid,
+              name: bname,
+              deficiency: ORIGINAL_122.has(getCdeSuffix(uid)),
+              status: norm(r["Status"] ?? r.Status),
+              schoolLevel: norm(r["School Level"]),
+              facilityType: classifyFacilityType(bname),
+            };
+          })
+          .filter((o) => o.uid && o.name && (linkedUids.has(o.uid) || o.deficiency));
 
         const decisionUidSet = new Set(decisionOpts.map((o) => o.uid));
         const schoolNamesCoveredByDecision = new Set();
@@ -2731,6 +2860,7 @@
           deficiency: false,
           status: "",
           schoolLevel: "",
+          facilityType: classifyFacilityType(name),
         }));
 
         const schoolOpts = [...decisionOpts, ...csvOnlyOpts]
@@ -2748,7 +2878,7 @@
           searchWrap.style.cssText = "padding:6px 10px;border-bottom:1px solid #e5e7eb;position:sticky;top:0;background:#fff;z-index:1;";
           const searchInput = document.createElement("input");
           searchInput.type = "text";
-          searchInput.placeholder = "Search schools\u2026";
+          searchInput.placeholder = "Search facilities\u2026";
           searchInput.style.cssText = "width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:inherit;outline:none;";
           searchWrap.appendChild(searchInput);
           elSchoolSelectDropdown.appendChild(searchWrap);
@@ -2759,7 +2889,7 @@
           allCb.type = "checkbox";
           allCb.id = "schoolSelectAll";
           allCb.style.cssText = "width:14px;height:14px;";
-          const originalReportCount = schoolOpts.filter((o) => o.deficiency && o.status === "Active" && o.schoolLevel !== "Alternative").length;
+          const originalReportCount = schoolOpts.filter((o) => o.deficiency).length;
           const allLabelText = document.createElement("span");
           allLabelText.textContent = `Select All (${originalReportCount})`;
           allLabel.appendChild(allCb);
@@ -2781,7 +2911,8 @@
             cb.value = o.uid;
             cb.dataset.name = o.name;
             cb.dataset.deficiency = o.deficiency ? "1" : "0";
-            const isOriginalReport = o.deficiency && o.status === "Active" && o.schoolLevel !== "Alternative";
+            cb.dataset.facilityType = o.facilityType;
+            const isOriginalReport = o.deficiency;
             cb.dataset.originalReport = isOriginalReport ? "1" : "0";
             cb.style.cssText = "width:14px;height:14px;";
             label.appendChild(cb);
@@ -2791,20 +2922,45 @@
 
           const schoolCbs = elSchoolSelectDropdown.querySelectorAll(".school-cb");
 
+          // Facility type filter checkboxes
+          const elFacilityTypeFilter = document.getElementById("facilityTypeFilter");
+          const facilityTypeCbs = elFacilityTypeFilter
+            ? Array.from(elFacilityTypeFilter.querySelectorAll(".facility-type-cb"))
+            : [];
+
+          function getActiveFacilityTypes() {
+            const types = new Set();
+            facilityTypeCbs.forEach((cb) => { if (cb.checked) types.add(cb.value); });
+            return types;
+          }
+
+          function isFacilityTypeVisible(ft, activeTypes) {
+            if (activeTypes.has(ft)) return true;
+            if (ft === "cte-pathway" && activeTypes.has("school")) return true;
+            return false;
+          }
+
+          function isOriginal122Mode() {
+            return elDeficiencyToggle && elDeficiencyToggle.checked;
+          }
+
+          function isCbVisible(cb) {
+            if (isOriginal122Mode()) {
+              return cb.dataset.deficiency === "1";
+            }
+            const activeTypes = getActiveFacilityTypes();
+            if (activeTypes.size === 0) return false;
+            return isFacilityTypeVisible(cb.dataset.facilityType, activeTypes);
+          }
+
           function getVisibleSchoolCbs() {
-            const includeAll = elDeficiencyToggle && elDeficiencyToggle.checked;
             const cbs = [];
-            schoolCbs.forEach((cb) => {
-              if (!includeAll && cb.dataset.deficiency === "0") return;
-              cbs.push(cb);
-            });
+            schoolCbs.forEach((cb) => { if (isCbVisible(cb)) cbs.push(cb); });
             return cbs;
           }
 
           function getSelectAllTargets() {
-            const includeAll = elDeficiencyToggle && elDeficiencyToggle.checked;
-            const visible = getVisibleSchoolCbs();
-            return includeAll ? visible : visible.filter((cb) => cb.dataset.originalReport === "1");
+            return getVisibleSchoolCbs();
           }
 
           function onSchoolSelectionChanged() {
@@ -2814,46 +2970,60 @@
             const checkedTargets = targets.filter((cb) => cb.checked);
             const count = selectedSchoolUids.size;
             if (count === 0) {
-              elSchoolSelectLabel.textContent = "— Select schools —";
+              elSchoolSelectLabel.textContent = "— Select facilities —";
             } else if (checkedTargets.length === targets.length && targets.length > 0 && count === checkedTargets.length) {
-              elSchoolSelectLabel.textContent = `All schools (${count})`;
+              elSchoolSelectLabel.textContent = `All Facilities (${count})`;
             } else if (count <= 2) {
               const names = [];
               schoolCbs.forEach((cb) => { if (cb.checked) names.push(cb.dataset.name); });
               elSchoolSelectLabel.textContent = names.join(", ");
             } else {
-              elSchoolSelectLabel.textContent = `${count} schools selected`;
+              elSchoolSelectLabel.textContent = `${count} facilities selected`;
             }
             allCb.checked = checkedTargets.length === targets.length && targets.length > 0;
             allCb.indeterminate = checkedTargets.length > 0 && checkedTargets.length < targets.length;
             applyMultiSchoolSelection();
           }
 
-          function applyDeficiencyFilter() {
-            const includeAll = elDeficiencyToggle && elDeficiencyToggle.checked;
-            elSchoolSelectDropdown.querySelectorAll(".non-deficiency-school").forEach((lbl) => {
-              lbl.style.display = includeAll ? "" : "none";
+          function applyFacilityVisibility() {
+            schoolCbs.forEach((cb) => {
+              const lbl = cb.closest("label");
+              if (!lbl) return;
+              const vis = isCbVisible(cb);
+              lbl.style.display = vis ? "" : "none";
+              cb.checked = vis;
             });
-            if (!includeAll) {
-              const wasAllChecked = allCb.checked;
-              schoolCbs.forEach((cb) => {
-                if (cb.dataset.deficiency === "0" && cb.checked) {
-                  cb.checked = false;
-                }
-                if (wasAllChecked && cb.dataset.originalReport === "0" && cb.checked) {
-                  cb.checked = false;
-                }
-              });
-            } else {
-              const wasAllChecked = allCb.checked;
-              if (wasAllChecked) {
-                const targets = getSelectAllTargets();
-                targets.forEach((cb) => { cb.checked = true; });
-              }
-            }
+            allCb.checked = true;
+            allCb.indeterminate = false;
             updateSelectAllLabel();
             onSchoolSelectionChanged();
           }
+
+          // "122 Active Traditional Sites Only" checked -> uncheck all type checkboxes
+          if (elDeficiencyToggle) {
+            elDeficiencyToggle.addEventListener("change", () => {
+              if (elDeficiencyToggle.checked) {
+                facilityTypeCbs.forEach((cb) => { cb.checked = false; });
+              }
+              applyFacilityVisibility();
+            });
+          }
+
+          // Any type checkbox checked -> uncheck "122 active"
+          facilityTypeCbs.forEach((ftCb) => {
+            ftCb.addEventListener("change", () => {
+              if (ftCb.checked && elDeficiencyToggle && elDeficiencyToggle.checked) {
+                elDeficiencyToggle.checked = false;
+              }
+              // If no types checked and 122 not checked, nothing to show
+              const anyTypeChecked = facilityTypeCbs.some((c) => c.checked);
+              if (!anyTypeChecked && elDeficiencyToggle && !elDeficiencyToggle.checked) {
+                // Re-check 122 active as fallback
+                elDeficiencyToggle.checked = true;
+              }
+              applyFacilityVisibility();
+            });
+          });
 
           schoolCbs.forEach((cb) => cb.addEventListener("change", onSchoolSelectionChanged));
 
@@ -2867,19 +3037,15 @@
             onSchoolSelectionChanged();
           });
 
-          if (elDeficiencyToggle) {
-            elDeficiencyToggle.addEventListener("change", applyDeficiencyFilter);
-            applyDeficiencyFilter();
-          }
+          // Initial state: "122 active" checked, type cbs unchecked
+          applyFacilityVisibility();
 
           searchInput.addEventListener("input", () => {
             const q = searchInput.value.trim().toLowerCase();
-            const includeAll = elDeficiencyToggle && elDeficiencyToggle.checked;
             schoolCbs.forEach((cb) => {
               const lbl = cb.closest("label");
               if (!lbl) return;
-              const isNonDef = cb.dataset.deficiency === "0";
-              if (!includeAll && isNonDef) { lbl.style.display = "none"; return; }
+              if (!isCbVisible(cb)) { lbl.style.display = "none"; return; }
               if (!q) { lbl.style.display = ""; return; }
               const name = (cb.dataset.name || "").toLowerCase();
               lbl.style.display = name.includes(q) ? "" : "none";
@@ -2957,7 +3123,7 @@
         console.error("Failed to load CSVs:", err);
         elSchoolMeta.textContent = "Failed to load school summary and/or projects/unit-cost CSV.";
         elTableMount.innerHTML = '<div class="empty">Could not load the CSV file(s).</div>';
-        elDownload.disabled = true;
+        elExportBtn.disabled = true;
       });
 
     elSearch.addEventListener("input", () => {
@@ -3014,7 +3180,31 @@
       applyFilters();
       render();
     });
-    elDownload.addEventListener("click", downloadFilteredCsv);
+    if (elExportBtn) {
+      elExportBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const open = elExportDropdown.style.display === "block";
+        elExportDropdown.style.display = open ? "none" : "block";
+      });
+    }
+    if (elExportCsvOption) {
+      elExportCsvOption.addEventListener("click", () => {
+        elExportDropdown.style.display = "none";
+        downloadFilteredCsv();
+      });
+    }
+    if (elExportPdfOption) {
+      elExportPdfOption.addEventListener("click", () => {
+        elExportDropdown.style.display = "none";
+        downloadFilteredPdf();
+      });
+    }
+    document.addEventListener("click", () => {
+      if (elExportDropdown) elExportDropdown.style.display = "none";
+    });
+    if (elExportDropdown) {
+      elExportDropdown.addEventListener("click", (e) => e.stopPropagation());
+    }
 
     document.querySelectorAll(".priority-include-cb").forEach((cb) => {
       cb.addEventListener("change", () => updateTotalReplacementCostDisplay());
