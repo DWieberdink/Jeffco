@@ -1,4 +1,7 @@
 {
+  "scripts": {
+    "merge:unitcost": "node scripts/merge-unit-cost-library.mjs"
+  },
   "devDependencies": {
     "eslint": "^9.25.1",
     "http-server": "^14.1.1"

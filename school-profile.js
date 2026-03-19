@@ -12,7 +12,7 @@
   const UNITCOST_LIBRARY_CSV_PATH = "UnitCostLibrary.csv";
   const ROOM_SCHEDULE_CSV_PATH = "Jeffco Room Schedule.csv";
   // Bump this to force browsers to refetch CSV/JS.
-  const CACHE_BUST = "20260127_23";
+  const CACHE_BUST = "20260228_06";
   const PRIORITY_OVERRIDES_STORAGE_KEY = "jeffco_priority_overrides_assetid_v1";
 
   // The assets CSV is row-wise: one row per school + asset type.
@@ -189,10 +189,27 @@
     const cleaned = original.replace(/[^a-z0-9]/g, "");
     if (cleaned.includes("elementary") || cleaned === "es") return "elementary";
     if (cleaned.includes("k8") || original.includes("k-8") || original.includes("k 8") || /k\s*[-–—]\s*8/i.test(rawLevel)) return "k8";
+    // "Multi-Level" cleans to "multilevel" which wrongly contains "middle" — handle before middle
+    if (cleaned === "multilevel" || original.includes("multi-level") || original.includes("multi level")) return null;
     if (cleaned.includes("middle") || cleaned === "ms") return "middle";
     if (cleaned.includes("high") || cleaned === "hs") return "high";
     if (cleaned.includes("612") || cleaned.includes("k12") || original.includes("6-12") || original.includes("k-12") || original.includes("6 12") || original.includes("k 12")) return "k12";
     return null;
+  }
+
+  /** Canonical level for project-line filtering (School Level + Building Name + Multi → K-8 heuristic). */
+  function getEffectiveSchoolLevelKey(decision) {
+    if (!decision) return null;
+    const sl = (decision["School Level"] ?? decision.SchoolLevel ?? "").toString();
+    const bn = (decision["Building Name"] ?? decision.BuildingName ?? "").toString();
+    let key = normalizeSchoolLevel(sl);
+    if (!key) key = normalizeSchoolLevel(bn);
+    const sll = sl.toLowerCase();
+    if (!key && (sll.includes("multi") || sll.includes("option") || sll.includes("charter"))) {
+      key = normalizeSchoolLevel(bn);
+    }
+    if (!key && sll.includes("multi")) key = "k8";
+    return key;
   }
 
   function getEnrollmentDecision(row, t) {
@@ -1018,6 +1035,25 @@
     (schoolRows || []).forEach((r) => {
       const systemCategory = norm(r?.SystemCategory);
 
+      // School-level line items: drop wrong-level rows from the table entirely (not just grey out).
+      // Must run BEFORE decision-based early return, or all ES/MS/HS/K-8 lines stay visible when outcome is e.g. Standard Maintenance.
+      if (systemCategory === "02_gut & renovation" && !isRelevantGutRenovationRow(r, decision)) {
+        r.__hiddenBySchoolLevel = true;
+        return;
+      }
+      if (systemCategory === "01_new construction" && !isRelevantNewConstructionRow(r, decision)) {
+        r.__hiddenBySchoolLevel = true;
+        return;
+      }
+      if (!isRelevantPlaygroundRow(r, decision)) {
+        r.__hiddenBySchoolLevel = true;
+        return;
+      }
+      if (!isRelevantStemHeavyRow(r, decision)) {
+        r.__hiddenBySchoolLevel = true;
+        return;
+      }
+
       // Decision-based relevance:
       // - Gut & Reno only needed for capital investment outcomes
       // - New Construction only relevant for demolition / replacement outcomes
@@ -1044,25 +1080,6 @@
           r.__excludedReason = "decision";
           return;
         }
-      }
-
-      // For gut renovation, only compute/carry the level-relevant row.
-      // This prevents totals from summing ES+MS+HS+K-8 all together.
-      if (!isRelevantGutRenovationRow(r, decision)) {
-        r.__excludedFromTotals = true;
-        r.__excludedReason = "level";
-        r.UnitValue = "";
-        // Make exclusion explicit in the ReplacementCost column.
-        r.ReplacementCost = "Not included";
-        return;
-      }
-      // For new construction, only compute/carry the level-relevant row.
-      if (!isRelevantNewConstructionRow(r, decision)) {
-        r.__excludedFromTotals = true;
-        r.__excludedReason = "level";
-        r.UnitValue = "";
-        r.ReplacementCost = "Not included";
-        return;
       }
 
       // Compute Good/Poor from Value threshold (per-school ConditionScore first, then UnitValue).
@@ -1093,6 +1110,8 @@
         r.ReplacementCost = `$${Math.round(rc).toLocaleString()}`;
       }
     });
+
+    schoolRows = (schoolRows || []).filter((r) => !r.__hiddenBySchoolLevel);
 
     populateFilters();
     applyFilters();
@@ -1363,8 +1382,7 @@
 
   function getRenoProjectForDecision(decision) {
     // For 02_gut & renovation, only ONE of the level-specific projects should be counted.
-    const levelRaw = (decision?.["School Level"] ?? decision?.SchoolLevel ?? "").toString();
-    const levelKey = normalizeSchoolLevel(levelRaw);
+    const levelKey = getEffectiveSchoolLevelKey(decision);
     if (levelKey === "elementary") return "Gut & Major Renovation ES";
     if (levelKey === "middle") return "Gut & Major Renovation MS";
     if (levelKey === "high") return "Gut & Major Renovation HS";
@@ -1383,8 +1401,7 @@
   }
 
   function getNewConstructionProjectForDecision(decision) {
-    const levelRaw = (decision?.["School Level"] ?? decision?.SchoolLevel ?? "").toString();
-    const levelKey = normalizeSchoolLevel(levelRaw);
+    const levelKey = getEffectiveSchoolLevelKey(decision);
     if (levelKey === "elementary") return "New Construction ES";
     if (levelKey === "middle") return "New Construction MS";
     if (levelKey === "high") return "New Construction HS";
@@ -1400,6 +1417,53 @@
     const wanted = getNewConstructionProjectForDecision(decision);
     if (!wanted) return true;
     return asset === wanted;
+  }
+
+  /** Playground replacement (2–5 vs 5–12): use PK / school level so elementary without PK does not keep the toddler line. */
+  function isRelevantPlaygroundRow(row, decision) {
+    const assetLo = (norm(row?.AssetType) || "").toLowerCase();
+    if (!assetLo.includes("playground")) return true;
+    const levelKey = getEffectiveSchoolLevelKey(decision);
+    const pk = parseFloat(
+      (decision?.PKEnrollment ?? decision?.["PK Enrollment"] ?? decision?.["PK_Enrollment"] ?? "")
+        .toString()
+        .replace(/,/g, "")
+        .trim()
+    );
+    const hasPK = Number.isFinite(pk) && pk > 0;
+    const isAges2to5 = assetLo.includes("2-5") || assetLo.includes("ages 2");
+    const isAges5to12 = assetLo.includes("5-12") || assetLo.includes("ages 5");
+    if (isAges2to5) {
+      if (levelKey === "middle" || levelKey === "high") return false;
+      if (!hasPK && (levelKey === "elementary" || levelKey === "k8")) return false;
+      return true;
+    }
+    if (isAges5to12) {
+      return true;
+    }
+    return true;
+  }
+
+  /** Heavy modernization STEM: ES line vs MS/HS line by effective school level (K-8 keeps both). */
+  function isRelevantStemHeavyRow(row, decision) {
+    const sysLo = (norm(row?.SystemCategory) || "").toLowerCase();
+    if (!sysLo.includes("heavy")) return true;
+    const assetLo = (norm(row?.AssetType) || "").toLowerCase();
+    if (!assetLo.includes("stem") && !assetLo.includes("modernize")) return true;
+    const isESLine = assetLo.includes("(es)") || assetLo.includes("labs (es)");
+    const isMSHSLine = assetLo.includes("ms/hs");
+    if (!isESLine && !isMSHSLine) return true;
+    const levelKey = getEffectiveSchoolLevelKey(decision);
+    if (levelKey === "k8" || levelKey === "k12") return true;
+    if (isESLine) {
+      if (levelKey === "middle" || levelKey === "high") return false;
+      return true;
+    }
+    if (isMSHSLine) {
+      if (levelKey === "elementary") return false;
+      return true;
+    }
+    return true;
   }
 
   function shouldUseSchoolSqfForRow(row) {
@@ -2493,6 +2557,23 @@
           r.__libraryScore = computed;
         }
 
+        if (systemCategory === "02_gut & renovation" && !isRelevantGutRenovationRow(r, decision)) {
+          r.__hiddenBySchoolLevel = true;
+          return;
+        }
+        if (systemCategory === "01_new construction" && !isRelevantNewConstructionRow(r, decision)) {
+          r.__hiddenBySchoolLevel = true;
+          return;
+        }
+        if (!isRelevantPlaygroundRow(r, decision)) {
+          r.__hiddenBySchoolLevel = true;
+          return;
+        }
+        if (!isRelevantStemHeavyRow(r, decision)) {
+          r.__hiddenBySchoolLevel = true;
+          return;
+        }
+
         if (systemCategory === "02_gut & renovation" && !schoolNeedsGutReno) {
           r.__excludedFromTotals = true;
           r.__excludedReason = "decision";
@@ -2516,21 +2597,6 @@
           }
         }
 
-        if (!isRelevantGutRenovationRow(r, decision)) {
-          r.__excludedFromTotals = true;
-          r.__excludedReason = "level";
-          r.UnitValue = "";
-          r.ReplacementCost = "Not included";
-          return;
-        }
-        if (!isRelevantNewConstructionRow(r, decision)) {
-          r.__excludedFromTotals = true;
-          r.__excludedReason = "level";
-          r.UnitValue = "";
-          r.ReplacementCost = "Not included";
-          return;
-        }
-
         const s = norm(r?.ConditionScore || r?.__libraryScore).toLowerCase();
         const excludedByScore = s === "good";
         if (!r.__excludedFromTotals) {
@@ -2552,7 +2618,7 @@
         }
       });
 
-      combined.push(...rows);
+      combined.push(...rows.filter((r) => !r.__hiddenBySchoolLevel));
     });
 
     const SITE_INFRA_CATS = new Set(["08_site infrastructure", "08_site infrastructure_new"]);
@@ -2673,45 +2739,310 @@
     a.remove();
   }
 
+  function escapeHtmlPdf(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
   function downloadFilteredPdf() {
-    const flat = [];
-    viewRows.forEach((g) => {
+    function esc(s) {
+      return escapeHtmlPdf(s);
+    }
+
+    const facilityCount = selectedSchoolUids && selectedSchoolUids.size ? selectedSchoolUids.size : 0;
+    const isMultiFacilityRollup = facilityCount > 1;
+
+    let anySchoolLabel = false;
+    let tableRowCount = 0;
+    (viewRows || []).forEach((g) => {
+      tableRowCount += 1;
       (g.__rows || []).forEach((r) => {
-        const out = {};
-        DISPLAY_COLS.forEach((c) => (out[c] = getCellValue(r, c) ?? ""));
-        flat.push(out);
+        if (r.__schoolLabel) anySchoolLabel = true;
+        tableRowCount += 1;
       });
     });
 
-    const title = norm(elSchoolNameHeader.textContent || "Project list").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const headerLabels = DISPLAY_COLS.map((c) => {
+    // Portrait: smaller base when many category+data rows (e.g. select-all rollup).
+    let fontPt = 7.5;
+    if (tableRowCount > 42) fontPt = 7;
+    if (tableRowCount > 58) fontPt = 6.5;
+    if (tableRowCount > 76) fontPt = 6;
+    if (tableRowCount > 98) fontPt = 5.5;
+    if (tableRowCount > 125) fontPt = 5;
+    if (tableRowCount > 160) fontPt = 4.5;
+    if (isMultiFacilityRollup && facilityCount >= 40) fontPt = Math.min(fontPt, 6);
+    if (isMultiFacilityRollup && facilityCount >= 80) fontPt = Math.min(fontPt, 5.5);
+    if (isMultiFacilityRollup && facilityCount >= 100) fontPt = Math.min(fontPt, 5);
+
+    const headerLabels = [];
+    if (anySchoolLabel) headerLabels.push("Facility");
+    DISPLAY_COLS.forEach((c) => {
       const key = typeof c === "string" ? c : c.key || c;
-      return (COL_DISPLAY_NAMES && COL_DISPLAY_NAMES[key]) || key;
+      headerLabels.push((COL_DISPLAY_NAMES && COL_DISPLAY_NAMES[key]) || key);
     });
-    const headers = "<tr><th>" + headerLabels.map((h) => h.replace(/</g, "&lt;").replace(/>/g, "&gt;")).join("</th><th>") + "</th></tr>";
-    const rows = flat
-      .map(
-        (r) =>
-          "<tr><td>" +
-          DISPLAY_COLS.map((c) => {
-            const key = typeof c === "string" ? c : c.key || c;
-            const val = (r[key] ?? "").toString().replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            return val;
-          }).join("</td><td>") +
-          "</td></tr>"
-      )
-      .join("");
+    const colCount = headerLabels.length;
+
+    const thead =
+      "<tr><th>" + headerLabels.map((h) => esc(h)).join("</th><th>") + "</th></tr>";
+
+    const bodyParts = [];
+    let pdfDataRowIdx = 0;
+    /** Estimated table height (pt) for 2-page print fit */
+    let estTablePt = 0;
+    (viewRows || []).forEach((g) => {
+      estTablePt += Math.max(13, fontPt * 1.05 + 9);
+      const gname = esc(norm(g.__group) || "(Uncategorized)");
+      bodyParts.push(`<tr class="pdf-group"><td colspan="${colCount}">${gname}</td></tr>`);
+      (g.__rows || []).forEach((r) => {
+        const proj = norm(getCellValue(r, "Project Type"));
+        const fac = anySchoolLabel ? norm(r.__schoolLabel || "") : "";
+        const longText = Math.max(proj.length, fac.length, 24);
+        const wrapLines = Math.min(5, 1 + Math.floor(longText / 36));
+        estTablePt += Math.max(11, fontPt * 1.2 * wrapLines + 6);
+        const rowClass = (r.__excludedFromTotals ? "pdf-ex " : "") + "pdf-data" + (pdfDataRowIdx % 2 === 1 ? " pdf-zebra" : "");
+        pdfDataRowIdx += 1;
+        const cells = [];
+        if (anySchoolLabel) cells.push(esc(r.__schoolLabel || "—"));
+        DISPLAY_COLS.forEach((c) => {
+          const key = typeof c === "string" ? c : c.key || c;
+          cells.push(esc(getCellValue(r, key) ?? ""));
+        });
+        bodyParts.push(`<tr class="${rowClass}"><td>` + cells.join("</td><td>") + "</td></tr>");
+      });
+    });
+    const tbody = bodyParts.join("");
+
+    const schoolTitle = esc((elSchoolNameHeader && elSchoolNameHeader.innerText) || "Project list");
+    const docTitle = norm(elSchoolNameHeader && elSchoolNameHeader.innerText) || "Project list";
+    const meta = esc((elSchoolMeta && elSchoolMeta.textContent) || "");
+    const tot = esc((elTotalReplacementCost && elTotalReplacementCost.textContent) || "—");
+    const p1 = esc((elTotalP1Cost && elTotalP1Cost.textContent) || "—");
+    const p2 = esc((elTotalP2Cost && elTotalP2Cost.textContent) || "—");
+    const p3 = esc((elTotalP3Cost && elTotalP3Cost.textContent) || "—");
+    const p4 = esc((elTotalP4Cost && elTotalP4Cost.textContent) || "—");
+    const inc = getIncludedPriorities();
+    const pInTotal = ["1", "2", "3", "4"]
+      .filter((p) => inc.has(p))
+      .map((p) => "P" + p)
+      .join(", ");
+
+    const filt = [];
+    const q = norm(elSearch && elSearch.value);
+    if (q) filt.push(`Search: “${esc(q)}”`);
+    if (elPriorityFilterLabel && norm(elPriorityFilterLabel.textContent) && elPriorityFilterLabel.textContent !== "All") {
+      filt.push("Priority: " + esc(elPriorityFilterLabel.textContent));
+    }
+    if (elSystemLabel && norm(elSystemLabel.textContent) && elSystemLabel.textContent !== "All") {
+      filt.push("System: " + esc(elSystemLabel.textContent));
+    }
+    if (elAssetLabel && norm(elAssetLabel.textContent) && elAssetLabel.textContent !== "All") {
+      filt.push("Project type: " + esc(elAssetLabel.textContent));
+    }
+    if (elSourceLabel && norm(elSourceLabel.textContent) && elSourceLabel.textContent !== "All") {
+      filt.push("Condition source: " + esc(elSourceLabel.textContent));
+    }
+    const filtBlock = filt.length ? filt.join(" · ") : "No text filters (table filters: All).";
+
+    const def122 = document.getElementById("deficiencyOnlyToggle");
+    const facBits = [];
+    if (def122 && def122.checked) facBits.push("122 active traditional sites only");
+    document.querySelectorAll(".facility-type-cb:checked").forEach((cb) => {
+      const v = cb.value;
+      const map = {
+        school: "Schools",
+        "cte-pathway": "CTE Pathways",
+        cte: "CTE",
+        athletics: "Athletics",
+        oels: "OELs",
+        "admin-support": "Admin & Support",
+      };
+      if (map[v]) facBits.push(map[v]);
+    });
+    const facLine = esc(facBits.length ? facBits.join("; ") : "Facility filters: (none checked)");
+
+    const pkNote = getIncludePKInEnrollment() ? "PK included in enrollment figures." : "PK excluded from enrollment figures.";
+    const fciNote = getIncludeFciForMajor()
+      ? "FCI rows included for gut reno / new construction."
+      : "FCI rows excluded for gut reno / new construction (default).";
+
+    let additionBlock = "";
+    if (additionPlanningState.show) {
+      const so =
+        additionPlanningState.studentsOver != null
+          ? Number(additionPlanningState.studentsOver).toLocaleString()
+          : "—";
+      const gsfT =
+        additionPlanningState.gsfTarget != null
+          ? Number(additionPlanningState.gsfTarget).toLocaleString()
+          : "—";
+      const st = additionPlanningState.stories || 1;
+      additionBlock = `<div class="pdf-add"><strong>Building addition (planning):</strong> Students over capacity: ${esc(so)} · Target GSF: ${esc(gsfT)} · Stories: ${esc(
+        String(st)
+      )}</div>`;
+    }
+
+    // Target ~2 portrait pages: shrink print zoom (and margins) when the table is tall.
+    const PT = 72;
+    const pageH = 11 * PT;
+    const marginVIn = isMultiFacilityRollup || tableRowCount > 72 ? 0.26 : 0.4;
+    const marginHIn = isMultiFacilityRollup || tableRowCount > 72 ? 0.34 : 0.45;
+    const marginV = marginVIn * PT * 2;
+    const contentPerPage = pageH - marginV;
+    const metaRough = (elSchoolMeta && elSchoolMeta.textContent) || "";
+    let summaryReserve =
+      228 +
+      (additionBlock ? 52 : 0) +
+      (metaRough.length > 140 ? 32 : metaRough.length > 70 ? 16 : 0);
+    const tableBudgetPt = Math.max(236, contentPerPage * 2 - summaryReserve);
+
+    let heightFudge = 1.06;
+    if (facilityCount > 1) heightFudge *= 1.05;
+    if (facilityCount > 25) heightFudge *= 1.04;
+    if (facilityCount > 60) heightFudge *= 1.035;
+    if (facilityCount > 100) heightFudge *= 1.025;
+    estTablePt *= heightFudge;
+
+    let pdfZoomPct = 100;
+    if (estTablePt > tableBudgetPt && tableBudgetPt > 80) {
+      pdfZoomPct = Math.round((tableBudgetPt / estTablePt) * 1000) / 10;
+      pdfZoomPct = Math.max(34, Math.min(100, pdfZoomPct));
+    }
+
+    const cellPad =
+      pdfZoomPct < 82 ? "1px 2px" : pdfZoomPct < 90 ? "2px 3px" : "3px 5px";
+    const thPad = pdfZoomPct < 82 ? "2px 3px" : pdfZoomPct < 92 ? "4px 4px" : "5px 5px";
+    const groupCellPad = pdfZoomPct < 82 ? "2px 3px" : "4px 6px";
+
+    const when = new Date();
+    const stamp = esc(
+      when.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+    );
 
     const html =
       "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>" +
-      title +
-      "</title><style>body{font-family:sans-serif;font-size:11px;padding:12px;} table{border-collapse:collapse;width:100%;} th,td{border:1px solid #ccc;padding:4px 6px;text-align:left;} th{background:#f0f0f0;}</style></head><body><h1>" +
-      title +
-      "</h1><table><thead>" +
-      headers +
-      "</thead><tbody>" +
-      rows +
-      "</tbody></table></body></html>";
+      esc(docTitle) +
+      `</title><style>
+/* Portrait report — blue header / white grid (reference styling) */
+html {
+  zoom: ${pdfZoomPct}%;
+}
+@page { size: letter portrait; margin: ${marginVIn}in ${marginHIn}in; }
+* { box-sizing: border-box; }
+body {
+  font-family: Arial, Helvetica, "Segoe UI", sans-serif;
+  margin: 0;
+  padding: 0;
+  color: #111;
+  background: #fff;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.pdf-banner { font-size: 7pt; color: #3071a9; margin: 0 0 4pt 0; font-weight: 600; }
+h1 {
+  font-size: 12pt;
+  margin: 0 0 4pt 0;
+  line-height: 1.2;
+  font-weight: 800;
+  color: #1a365d;
+  padding-bottom: 4pt;
+  border-bottom: 3px solid #3071a9;
+}
+.pdf-meta { font-size: 7pt; margin: 4pt 0 6pt 0; line-height: 1.35; color: #333; }
+.pdf-cost-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10pt 18pt;
+  margin: 0 0 6pt 0;
+  font-size: 7pt;
+  padding: 6pt 8pt;
+  background: #f0f6fb;
+  border: 1px solid #c5d9ed;
+  border-radius: 2pt;
+}
+.pdf-total { font-weight: 800; font-size: 9pt; color: #1a365d; }
+.pdf-pgrid { display: grid; grid-template-columns: auto auto; gap: 1px 10px; align-items: baseline; }
+.pdf-pgrid .k { color: #3071a9; font-weight: 700; }
+.pdf-note { font-size: 6.5pt; color: #374151; margin: 0 0 5pt 0; line-height: 1.25; }
+.pdf-filters { font-size: 6.5pt; margin: 0 0 6pt 0; line-height: 1.3; color: #333; }
+.pdf-add {
+  font-size: 6.5pt;
+  margin: 0 0 6pt 0;
+  padding: 5pt 8pt;
+  background: #f0f6fb;
+  border: 1px solid #c5d9ed;
+  border-left: 4px solid #3071a9;
+  border-radius: 0 2pt 2pt 0;
+}
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: ${fontPt}pt;
+  table-layout: fixed;
+  border: 1px solid #cfd8e3;
+}
+table.data thead th {
+  background: #3071a9;
+  color: #fff;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: calc(${fontPt}pt + 0.35pt);
+  padding: ${thPad};
+  border: 1px solid #255a87;
+  text-align: left;
+  vertical-align: middle;
+}
+table.data tbody td {
+  border: 1px solid #d1d5db;
+  padding: ${cellPad};
+  vertical-align: top;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  text-align: left;
+  background: #fff;
+  color: #111;
+}
+table.data tbody tr.pdf-group td {
+  background: #e8f0f8;
+  color: #1e3a5f;
+  font-weight: 700;
+  font-size: calc(${fontPt}pt + 0.4pt);
+  padding: ${groupCellPad};
+  border: 1px solid #b8cce0;
+  page-break-after: avoid;
+}
+table.data tbody tr.pdf-data.pdf-zebra td { background: #f7fafc; }
+table.data tbody tr.pdf-ex td { color: #64748b; }
+table.data tbody tr.pdf-ex.pdf-zebra td { background: #f1f5f9; color: #64748b; }
+thead { display: table-header-group; }
+tfoot { display: table-footer-group; }
+.pdf-foot { font-size: 6pt; color: #64748b; margin-top: 6pt; line-height: 1.3; }
+/* Column widths (portrait) */
+table.data th:nth-child(1), table.data td:nth-child(1) { width: ${anySchoolLabel ? "11%" : "7%"}; }
+table.data th:nth-child(2), table.data td:nth-child(2) { width: ${anySchoolLabel ? "8%" : "34%"}; }
+table.data th:nth-child(3), table.data td:nth-child(3) { width: ${anySchoolLabel ? "30%" : "12%"}; }
+table.data th:nth-child(4), table.data td:nth-child(4) { width: ${anySchoolLabel ? "12%" : "14%"}; }
+table.data th:nth-child(5), table.data td:nth-child(5) { width: ${anySchoolLabel ? "14%" : "14%"}; }
+table.data th:nth-child(6), table.data td:nth-child(6) { width: ${anySchoolLabel ? "13%" : "14%"}; }
+table.data th:nth-child(7), table.data td:nth-child(7) { width: ${anySchoolLabel ? "12%" : "19%"}; }
+</style></head><body>
+<div class="pdf-banner">School Facility Planning Webtool · School Profile · Exported ${stamp}</div>
+<h1>${schoolTitle}</h1>
+${meta ? `<p class="pdf-meta">${meta}</p>` : ""}
+<div class="pdf-cost-wrap">
+  <div class="pdf-total">Total cost (selected priorities): ${tot}</div>
+  <div class="pdf-pgrid"><span class="k">P1</span><span>${p1}</span><span class="k">P2</span><span>${p2}</span><span class="k">P3</span><span>${p3}</span><span class="k">P4</span><span>${p4}</span></div>
+</div>
+<p class="pdf-note">Total uses only checked priority bands (P1–P4 checkboxes). Currently included: ${esc(pInTotal || "none")}. ${esc(pkNote)} ${esc(fciNote)}</p>
+<p class="pdf-filters"><strong>Facility selection:</strong> ${facLine}<br><strong>Table filters:</strong> ${filtBlock}</p>
+${additionBlock}
+<table class="data"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+<p class="pdf-foot">Grey text = row excluded from totals (decision, score, or N/A).${pdfZoomPct < 99 ? ` Print zoom set to ${pdfZoomPct}% to target two pages (Chrome/Edge).` : ""} If a third page appears, reduce print margins slightly.</p>
+</body></html>`;
 
     const w = window.open("", "_blank");
     if (!w) {

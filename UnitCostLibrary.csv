@@ -1,49 +1,49 @@
 SystemCategory,Project,Unit,UnitCost,Value
 00_general,ADA compliance,Percentage,50,0.5
 00_general,Hazmat remediation,SF,100,0.5
-01_new construction,Demolition,SF,$25 ,0.5
-01_new construction,New Construction ES,SF,,0.5
-01_new construction,New Construction HS,SF,,0.5
-01_new construction,New Construction K-8,SF,,0.5
-01_new construction,New Construction MS,SF,,0.5
-02_gut & renovation,Gut & Major Renovation ES,SF,$300 ,0.5
-02_gut & renovation,Gut & Major Renovation HS,SF,$370 ,0.5
-02_gut & renovation,Gut & Major Renovation K-8,SF,$305 ,0.5
-02_gut & renovation,Gut & Major Renovation MS,SF,$325 ,0.5
+01_new construction,Demolition,SF,10.73,0.5
+01_new construction,New Construction ES,SF,540.72,0.5
+01_new construction,New Construction HS,SF,625.21,0.5
+01_new construction,New Construction K-8,SF,571.14,0.5
+01_new construction,New Construction MS,SF,542.97,0.5
+02_gut & renovation,Gut & Major Renovation ES,SF,375.51,0.5
+02_gut & renovation,Gut & Major Renovation HS,SF,375.51,0.5
+02_gut & renovation,Gut & Major Renovation K-8,SF,375.51,0.5
+02_gut & renovation,Gut & Major Renovation MS,SF,375.51,0.5
 03_addition,New 1-story building (addition),SF,,0.5
 03_addition,New 2-story building,SF,,0.5
 03_addition,New 3-story building,SF,,0.5
-03_addition,New auditorium,SF,500,0.5
+03_addition,New auditorium,SF,1051.93,0.5
 03_addition,New gym and locker rooms,SF,200,0.5
-03_addition,New MPR,SF,200,0.5
+03_addition,New MPR,SF,625.21,0.5
 03_addition,New cafeteria and kitchen,SF,222,0.5
-04_campus upgrade,Add shade structure(s),Quantity,1,0.5
-04_campus upgrade,Campus landscaping upgrade,Acre,200,0.5
-04_campus upgrade,Expand parking,Quantity,12,0.5
+04_campus upgrade,Add shade structure(s),Quantity,36000,0.5
+04_campus upgrade,Campus landscaping upgrade,Acre,100000,0.5
+04_campus upgrade,Expand parking,Quantity,3150,0.5
 04_campus upgrade,Exterior paint entire campus,SF,15,0.5
-04_campus upgrade,"Front of school branding, landscape upgrades",SF,50,0.5
+04_campus upgrade,"Front of school branding, landscape upgrades",SF,23.19,0.5
 04_campus upgrade,Furniture upgrades,Quantity,100,0.5
-04_campus upgrade,Improve drop-off / pick-up zone,Quantity,10,0.5
-04_campus upgrade,New outdoor classroom,Quantity,100,0.5
-04_campus upgrade,Playground replacement (ages 2-5),SF,20,0.5
-04_campus upgrade,Playground replacement (ages 5-12),SF,20,0.5
-04_campus upgrade,Resurface asphalt,SF,20,0.5
-04_campus upgrade,Resurface concrete,SF,20,0.5
-04_campus upgrade,Upgrade artificial turf field,Quantity,10,0.5
-05_heavy modernization,Heavily modernize admin,SF,50,0.5
-05_heavy modernization,Heavily modernize classrooms,SF,50,0.5
-05_heavy modernization,Heavily modernize gym / assembly space,SF,50,0.5
+04_campus upgrade,Improve drop-off / pick-up zone,Quantity,525000,0.5
+04_campus upgrade,New outdoor classroom,Quantity,200000,0.5
+04_campus upgrade,Playground replacement (ages 2-5),SF,75.1,0.5
+04_campus upgrade,Playground replacement (ages 5-12),SF,43.18,0.5
+04_campus upgrade,Resurface asphalt,SF,3.27,0.5
+04_campus upgrade,Resurface concrete,SF,16.3,0.5
+04_campus upgrade,Upgrade artificial turf field,Quantity,1338000,0.5
+05_heavy modernization,Heavily modernize admin,SF,200.37,0.5
+05_heavy modernization,Heavily modernize classrooms,SF,316.11,0.5
+05_heavy modernization,Heavily modernize gym / assembly space,SF,186.21,0.5
 05_heavy modernization,Modernize kitchen,SF,50,0.5
 05_heavy modernization,Heavily modernize cafeteria,SF,50,0.5
-05_heavy modernization,Heavily modernize MPR,SF,50,0.5
-05_heavy modernization,Heavily modernize restrooms,SF,50,0.5
+05_heavy modernization,Heavily modernize MPR,SF,316.11,0.5
+05_heavy modernization,Heavily modernize restrooms,SF,473.13,0.5
 05_heavy modernization,Heavily modernize STEM / CTE / specialized labs (MS/HS),SF,50,0.5
-05_heavy modernization,Heavily modernize STEM/specialized labs (ES),SF,50,0.5
-06_light modernization,Lightly modernize admin,SF,50,0.7
-06_light modernization,Lightly modernize classrooms,SF,50,0.7
-06_light modernization,Lightly modernize corridors,SF,50,0.7
-06_light modernization,Lightly modernize entry lobby,SF,50,0.7
+05_heavy modernization,Heavily modernize STEM/specialized labs (ES),SF,450.6,0.5
+06_light modernization,Lightly modernize admin,SF,138.69,0.7
+06_light modernization,Lightly modernize classrooms,SF,170.38,0.7
+06_light modernization,Lightly modernize corridors,SF,123.92,0.7
+06_light modernization,Lightly modernize entry lobby,SF,138.69,0.7
 06_light modernization,Lightly modernize cafeteria,SF,50,0.7
-06_light modernization,Lightly modernize library/media center,SF,50,0.7
-06_light modernization,Lightly modernize gym / assembly space,SF,50,0.7
-06_light modernization,Lightly modernize MPR,SF,50,0.5
+06_light modernization,Lightly modernize library/media center,SF,193.48,0.7
+06_light modernization,Lightly modernize gym / assembly space,SF,55.56,0.7
+06_light modernization,Lightly modernize MPR,SF,170.38,0.5
