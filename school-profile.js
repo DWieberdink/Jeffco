@@ -12,12 +12,11 @@
   const UNITCOST_LIBRARY_CSV_PATH = "UnitCostLibrary.csv";
   const ROOM_SCHEDULE_CSV_PATH = "Jeffco Room Schedule.csv";
   // Bump this to force browsers to refetch CSV/JS.
-  const CACHE_BUST = "20260228_06";
+  const CACHE_BUST = "20260320_31";
   const PRIORITY_OVERRIDES_STORAGE_KEY = "jeffco_priority_overrides_assetid_v1";
 
   // The assets CSV is row-wise: one row per school + asset type.
   const REQUIRED_COLS = ["SchoolName", "AssetType"];
-  const OPTIONAL_COLS = ["RemainingUsefulLife", "UnitCost", "UnitValue", "ReplacementCost"];
   // Add computed Priority column (derived from SystemCategory) as the left-most column.
   const DISPLAY_COLS = [
     "Priority",
@@ -46,10 +45,60 @@
     studentsOver: null,
     gsfTarget: null,
     selectedKey: null, // elementary | middle | k8 | high
-    stories: 1, // 1 | 2 | 3
+    stories: 2, // 2 | 3 (rates from New Construction ES/MS/HS/K-8; 3-story +5% foundations)
     collapsed: false,
   };
-  const ADDITION_STORY_COST = { 1: 500, 2: 600, 3: 700 }; // $/SF
+  /** Fallback $/SF if school level or library rate is missing */
+  const ADDITION_STORY_FALLBACK_SF = { 2: 600, 3: 630 };
+  /** Applied to New Construction rate for 3-story additions (foundations / pad prep) */
+  const ADDITION_THIRD_STORY_FOUNDATION_FACTOR = 1.05;
+
+  /**
+   * New cafeteria and kitchen (03_addition): shell $/SF from UnitCostLibrary_withvalues
+   * Direct Unit Cost $ Range (Low)=(E) and (High)=(F) for Cafeteria and Kitchen rows → use mids.
+   * Kitchen equipment $/SF by school level from same row (ES/MS/HS), mid of E and F each.
+   * Composite: ⅓×(kitchen shell + equipment) + ⅔×(cafeteria shell), then × (1 + 0.065) hard-cost factor.
+   */
+  const CK_CAF_SHELL_E = 470;
+  const CK_CAF_SHELL_F = 515;
+  const CK_KIT_SHELL_E = 580;
+  const CK_KIT_SHELL_F = 640;
+  const CK_SHELL_CAF_MID = (CK_CAF_SHELL_E + CK_CAF_SHELL_F) / 2;
+  const CK_SHELL_KIT_MID = (CK_KIT_SHELL_E + CK_KIT_SHELL_F) / 2;
+  const CK_EQUIP_ES_MID = (8.52 + 9.41) / 2;
+  const CK_EQUIP_MS_MID = (4.41 + 4.83) / 2;
+  const CK_EQUIP_HS_MID = (4.1 + 4.54) / 2;
+  const CK_HARD_COST_FACTOR = 1.065;
+
+  /**
+   * Heavy kitchen/caf modernization — withvalues "Heavily modernize kitchen / cafeteria" SF row (E/F mids).
+   * Kitchen: $/SF = (kitchen shell mid + kitchen equipment mid by school level) × hard-cost factor; quantity = kitchen SF (schedule, else 2,800 basis).
+   * Cafeteria: $/SF = cafeteria shell mid × hard-cost factor (equipment on kitchen line only); quantity = cafeteria SF (schedule, else 5,800 basis).
+   */
+  const HM_KITCHEN_BASIS_SF = 2800;
+  const HM_CAFETERIA_BASIS_SF = 5800;
+  const HM_KIT_SHELL_E = 357.86;
+  const HM_KIT_SHELL_F = 393.64;
+  const HM_CAF_SHELL_E = 213.73;
+  const HM_CAF_SHELL_F = 235.11;
+  const HM_SHELL_KIT_MID = (HM_KIT_SHELL_E + HM_KIT_SHELL_F) / 2;
+  const HM_SHELL_CAF_MID = (HM_CAF_SHELL_E + HM_CAF_SHELL_F) / 2;
+
+  /** Light cafeteria — withvalues "Lightly modernize kitchen / cafeteria" SF row E/F mids; equipment not in % reduction (omit from this $/SF). */
+  const LM_CAF_SHELL_E = 146.69;
+  const LM_CAF_SHELL_F = 161.36;
+  const LM_SHELL_CAF_MID = (LM_CAF_SHELL_E + LM_CAF_SHELL_F) / 2;
+
+  /**
+   * New gym and locker rooms (03_addition): UnitCostLibrary_withvalues col E/F mids
+   * (Gym $445–$490/SF, Locker Room $1,035–$1,150/SF). Composite: ⅔ gym + ⅓ lockers; × hard-cost factor.
+   */
+  const GL_GYM_SHELL_E = 445;
+  const GL_GYM_SHELL_F = 490;
+  const GL_LOCKER_SHELL_E = 1035;
+  const GL_LOCKER_SHELL_F = 1150;
+  const GL_SHELL_GYM_MID = (GL_GYM_SHELL_E + GL_GYM_SHELL_F) / 2;
+  const GL_SHELL_LOCKER_MID = (GL_LOCKER_SHELL_E + GL_LOCKER_SHELL_F) / 2;
   const elSchoolSelectBtn = document.getElementById("schoolSelectBtn");
   const elSchoolSelectLabel = document.getElementById("schoolSelectLabel");
   const elSchoolSelectDropdown = document.getElementById("schoolSelectDropdown");
@@ -100,8 +149,8 @@
   let unitCostIndex = new Map();
   let unitCostByProjectKey = new Map();
   let libraryProjectOrder = []; // [{ proj, pk, sys }]
-  let roomScheduleByUid = new Map();
-  let roomScheduleByFacility = new Map();
+  /** Room schedule AREA sums by modernization CostEstimateLink bucket (normalized + STEM rollup). */
+  let roomScheduleModernizationSfByCategory = new Map();
 
   // Flowchart decision evaluation (mirrors DecisionLogic.js, but scoped to this page)
   const DECISION_THRESHOLDS = {
@@ -429,6 +478,19 @@
     return normKeyLoose(raw).replace(/\s*\/\s*/g, "/").replace(/\s+/g, " ").trim().toLowerCase();
   }
 
+  const MODERNIZE_STEM_SF_BUCKET = normalizeRoomCategory("modernize STEM/specialized labs");
+
+  /** Roll all STEM/CTE/specialized-lab CostEstimateLink strings into one SF total. */
+  function scheduleCostLinkToModernizationSfBucket(categoryNorm) {
+    if (!categoryNorm) return categoryNorm;
+    const isStemLabsLink =
+      categoryNorm.includes("modernize") &&
+      (categoryNorm.includes("stem") || categoryNorm.includes("cte")) &&
+      (categoryNorm.includes("specialized lab") || categoryNorm.includes(" lab"));
+    if (isStemLabsLink) return MODERNIZE_STEM_SF_BUCKET;
+    return categoryNorm;
+  }
+
   const ROOM_SCHEDULE_CATEGORY_BY_PROJECT_KEY = new Map([
     [normProjectKey("Heavily modernize admin"), normalizeRoomCategory("modernize admin")],
     [normProjectKey("Lightly modernize admin"), normalizeRoomCategory("modernize admin")],
@@ -440,18 +502,12 @@
     [normProjectKey("Heavily modernize gym / assembly space"), normalizeRoomCategory("modernize gym / assembly space")],
     [normProjectKey("Lightly modernize gym / assembly space"), normalizeRoomCategory("modernize gym / assembly space")],
     [normProjectKey("Modernize kitchen"), normalizeRoomCategory("modernize kitchen")],
-    [normProjectKey("Heavily modernize MPR"), normalizeRoomCategory("modernize MPR")],
-    [normProjectKey("Lightly modernize MPR"), normalizeRoomCategory("modernize MPR")],
+    [normProjectKey("Heavily modernize multipurpose room"), normalizeRoomCategory("modernize multipurpose room")],
+    [normProjectKey("Lightly modernize multipurpose room"), normalizeRoomCategory("modernize multipurpose room")],
     [normProjectKey("Lightly modernize library/media center"), normalizeRoomCategory("modernize library/media center")],
     [normProjectKey("Heavily modernize restrooms"), normalizeRoomCategory("modernize restrooms")],
-    [
-      normProjectKey("Heavily modernize STEM / CTE / specialized labs (MS/HS)"),
-      normalizeRoomCategory("modernize STEM / CTE / specialized labs (MS/HS)"),
-    ],
-    [
-      normProjectKey("Heavily modernize STEM/specialized labs (ES)"),
-      normalizeRoomCategory("modernize STEM/specialized labs (ES)"),
-    ],
+    [normProjectKey("Heavily modernize STEM/specialized labs (ES)"), MODERNIZE_STEM_SF_BUCKET],
+    [normProjectKey("Heavily modernize STEM / CTE / specialized labs (MS/HS)"), MODERNIZE_STEM_SF_BUCKET],
   ]);
 
   function findRoomScheduleKey(keys, matcher) {
@@ -477,72 +533,123 @@
     return { facilityKey, campusKey, areaKey, categoryKey };
   }
 
-  function buildRoomScheduleTotals(rows) {
+  function buildModernizationScheduleSfTotals(rows) {
     const idx = buildRoomScheduleIndex(rows);
     if (!idx.areaKey || !idx.categoryKey) {
-      console.warn("Room schedule CSV missing expected headers.", idx);
-      return { byUid: new Map(), byFacility: new Map() };
+      console.warn("Room schedule: missing AREA or CostEstimateLink column for SF totals.", idx);
+      return new Map();
     }
 
-    const byUid = new Map();
-    const byFacility = new Map();
+    const allowedBuckets = new Set();
+    ROOM_SCHEDULE_CATEGORY_BY_PROJECT_KEY.forEach((bucket) => allowedBuckets.add(bucket));
+
+    const out = new Map();
+    const ensureMaps = (bucket) => {
+      if (!out.has(bucket)) out.set(bucket, { byUid: new Map(), byFacility: new Map() });
+      return out.get(bucket);
+    };
+
     (rows || []).forEach((r) => {
       const categoryRaw = norm(getRoomScheduleFieldValue(r, idx.categoryKey));
       if (!categoryRaw) return;
+      const categoryNorm = normalizeRoomCategory(categoryRaw);
+      if (!categoryNorm) return;
+      const bucket = scheduleCostLinkToModernizationSfBucket(categoryNorm);
+      if (!allowedBuckets.has(bucket)) return;
+
       const area = parseNumberMaybe(getRoomScheduleFieldValue(r, idx.areaKey));
-      if (area === null) return;
+      if (area === null || !Number.isFinite(area)) return;
 
-      const categoryKey = normalizeRoomCategory(categoryRaw);
-      if (!categoryKey) return;
-
-      const uid = idx.campusKey ? norm(getRoomScheduleFieldValue(r, idx.campusKey)) : "";
-      if (uid) {
-        let catMap = byUid.get(uid);
-        if (!catMap) {
-          catMap = new Map();
-          byUid.set(uid, catMap);
-        }
-        catMap.set(categoryKey, (catMap.get(categoryKey) || 0) + area);
+      const maps = ensureMaps(bucket);
+      if (idx.campusKey) {
+        const u = norm(getRoomScheduleFieldValue(r, idx.campusKey));
+        if (u) maps.byUid.set(u, (maps.byUid.get(u) || 0) + area);
       }
-
-      const facilityRaw = idx.facilityKey ? norm(getRoomScheduleFieldValue(r, idx.facilityKey)) : "";
-      const facilityKey = normalizeFacilityName(facilityRaw);
-      if (facilityKey) {
-        let facMap = byFacility.get(facilityKey);
-        if (!facMap) {
-          facMap = new Map();
-          byFacility.set(facilityKey, facMap);
-        }
-        facMap.set(categoryKey, (facMap.get(categoryKey) || 0) + area);
+      if (idx.facilityKey) {
+        const facilityRaw = norm(getRoomScheduleFieldValue(r, idx.facilityKey));
+        const fk = normalizeFacilityName(facilityRaw);
+        if (fk) maps.byFacility.set(fk, (maps.byFacility.get(fk) || 0) + area);
       }
     });
 
-    return { byUid, byFacility };
+    return out;
   }
 
-  function applyRoomScheduleUnitValues(rows, uid, schoolName, decisionRow) {
-    if (!rows || !rows.length) return;
-    let catMap = uid ? roomScheduleByUid.get(uid) : null;
-    if (!catMap && schoolName) {
-      const facName = normalizeFacilityName(schoolName);
-      catMap = facName ? roomScheduleByFacility.get(facName) : null;
-    }
-    if (!catMap && decisionRow) {
-      const buildingName = normalizeFacilityName(decisionRow?.["Building Name"] ?? decisionRow?.BuildingName ?? "");
-      catMap = buildingName ? roomScheduleByFacility.get(buildingName) : null;
-    }
-    if (!catMap) return;
+  /** Copy project UniqueID → SF when schedule Campus Code ≠ project uid but Facility Name matches SchoolName. */
+  function syncScheduleCategorySfUidsFromProjectList(byUidMap, byFacilityMap) {
+    rowwiseByUid.forEach((rows, uid) => {
+      const u = norm(uid);
+      if (!u || !rows || !rows.length) return;
+      const existing = byUidMap.get(u);
+      if (existing != null && Number.isFinite(existing) && existing > 0) return;
+      const sn = norm(rows[0]?.SchoolName ?? rows[0]?.["School Name"]);
+      if (!sn) return;
+      const fk = normalizeFacilityName(sn);
+      const sf = fk ? byFacilityMap.get(fk) : null;
+      if (sf != null && Number.isFinite(sf) && sf > 0) byUidMap.set(u, sf);
+    });
+  }
 
+  function getScheduleCategorySfFromMaps(uid, schoolName, decisionRow, projectListSchoolName, byUidMap, byFacilityMap) {
+    const u = norm(uid);
+    if (u) {
+      const n = byUidMap.get(u);
+      if (n != null && Number.isFinite(n) && n > 0) return n;
+    }
+    const tryFacility = (raw) => {
+      const fk = normalizeFacilityName(raw);
+      if (!fk) return null;
+      const n = byFacilityMap.get(fk);
+      return n != null && Number.isFinite(n) && n > 0 ? n : null;
+    };
+    if (projectListSchoolName) {
+      const n = tryFacility(projectListSchoolName);
+      if (n != null) return n;
+    }
+    if (schoolName) {
+      const n = tryFacility(schoolName);
+      if (n != null) return n;
+    }
+    if (decisionRow) {
+      const n = tryFacility(decisionRow?.["Building Name"] ?? decisionRow?.BuildingName ?? "");
+      if (n != null) return n;
+    }
+    return null;
+  }
+
+  function getScheduleSfForMappedProjectRow(row, uid, schoolName, decisionRow, projectListSchoolName) {
+    const pk = normProjectKey(norm(row?.AssetType));
+    const bucket = ROOM_SCHEDULE_CATEGORY_BY_PROJECT_KEY.get(pk);
+    if (!bucket) return null;
+    const maps = roomScheduleModernizationSfByCategory.get(bucket);
+    if (!maps) return null;
+    return getScheduleCategorySfFromMaps(
+      uid,
+      schoolName,
+      decisionRow,
+      projectListSchoolName,
+      maps.byUid,
+      maps.byFacility
+    );
+  }
+
+  /** Room schedule SF into Unit Value for mapped heavy/light modernization lines (does not set condition or $). */
+  function hydrateModernizationUnitValueFromRoomSchedule(row, systemCategory, uid, schoolName, decisionRow, projectListSchoolName) {
+    const sys = norm(systemCategory);
+    if (sys !== "05_heavy modernization" && sys !== "06_light modernization") return;
+    const sf = getScheduleSfForMappedProjectRow(row, uid, schoolName, decisionRow, projectListSchoolName);
+    if (sf != null && Number.isFinite(sf) && sf > 0) {
+      row.UnitValue = formatLocaleInt(Math.round(sf));
+    }
+  }
+
+  function applyRoomScheduleUnitValues(rows, uid, schoolName, decisionRow, projectListSchoolName) {
+    if (!rows || !rows.length) return;
     rows.forEach((r) => {
-      const project = norm(r?.AssetType);
-      if (!project) return;
-      const pk = normProjectKey(project);
-      const categoryKey = ROOM_SCHEDULE_CATEGORY_BY_PROJECT_KEY.get(pk);
-      if (!categoryKey) return;
-      const sum = catMap.get(categoryKey);
+      const sum = getScheduleSfForMappedProjectRow(r, uid, schoolName, decisionRow, projectListSchoolName);
       if (sum == null) return;
       const rounded = Math.round(sum);
-      r.UnitValue = Number.isFinite(rounded) ? rounded.toLocaleString() : r.UnitValue;
+      r.UnitValue = Number.isFinite(rounded) ? formatLocaleInt(rounded) : r.UnitValue;
     });
   }
 
@@ -592,10 +699,68 @@
     return `${normKeyLoose(systemCategory)}||${normProjectKey(projectOrAssetType)}`;
   }
 
+  /** Thousand separators for displayed numbers (fixed locale). */
+  const DISPLAY_NUMBER_LOCALE = "en-US";
+
+  function formatLocaleInt(n) {
+    if (!Number.isFinite(n)) return "";
+    return Math.round(n).toLocaleString(DISPLAY_NUMBER_LOCALE);
+  }
+
+  function formatLocaleUsdInteger(n) {
+    if (!Number.isFinite(n)) return "";
+    return `$${Math.round(n).toLocaleString(DISPLAY_NUMBER_LOCALE)}`;
+  }
+
+  function formatLocaleDecimal(n, minFrac = 0, maxFrac = 2) {
+    if (!Number.isFinite(n)) return "";
+    return n.toLocaleString(DISPLAY_NUMBER_LOCALE, { minimumFractionDigits: minFrac, maximumFractionDigits: maxFrac });
+  }
+
+  function formatDisplayQuantityCell(raw) {
+    const s = norm(raw);
+    if (!s) return s;
+    const n = parseNumberMaybe(s);
+    if (n === null || !Number.isFinite(n)) return s;
+    const isInt = Math.abs(n - Math.round(n)) < 1e-9;
+    return isInt ? formatLocaleInt(n) : formatLocaleDecimal(n, 0, 6);
+  }
+
+  function formatDisplayReplacementCell(raw) {
+    const s = norm(raw);
+    if (!s) return s;
+    if (/not included/i.test(s)) return s;
+    const n = parseNumberMaybe(s);
+    if (n === null || !Number.isFinite(n)) return s;
+    return formatLocaleUsdInteger(n);
+  }
+
+  function formatDisplayUnitCostCell(raw) {
+    const s = norm(raw);
+    if (!s) return s;
+    const slash = s.indexOf("/");
+    if (slash >= 0) {
+      const prefix = s.slice(0, slash).trim();
+      const suffix = s.slice(slash);
+      const n = parseNumberMaybe(prefix);
+      if (n === null || !Number.isFinite(n)) return s;
+      const isInt = Math.abs(n - Math.round(n)) < 1e-9;
+      const mid = isInt ? formatLocaleDecimal(n, 0, 0) : formatLocaleDecimal(n, 0, 2);
+      return `$${mid}${suffix}`;
+    }
+    const n = parseNumberMaybe(s);
+    if (n !== null && Number.isFinite(n)) {
+      const isInt = Math.abs(n - Math.round(n)) < 1e-9;
+      return isInt ? `$${formatLocaleDecimal(n, 0, 0)}` : `$${formatLocaleDecimal(n, 0, 2)}`;
+    }
+    return s;
+  }
+
   function formatCsvCost(raw) {
     const n = parseNumberMaybe(raw);
     if (n !== null && Number.isFinite(n)) {
-      return Number.isInteger(n) ? `$${n.toLocaleString()}` : `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const isInt = Math.abs(n - Math.round(n)) < 1e-9;
+      return isInt ? formatLocaleUsdInteger(n) : `$${formatLocaleDecimal(n, 2, 2)}`;
     }
     return norm(raw);
   }
@@ -608,7 +773,11 @@
     // (Library often has "500" instead of "$500".)
     if (!cost.startsWith("$")) {
       const n = parseNumberMaybe(cost);
-      if (n !== null) cost = `$${cost.replace(/^\+/, "").trim()}`;
+      if (n !== null) {
+        const isInt = Math.abs(n - Math.round(n)) < 1e-9;
+        const mid = isInt ? formatLocaleDecimal(n, 0, 0) : formatLocaleDecimal(n, 0, 2);
+        cost = `$${mid}`;
+      }
     }
     const u = norm(unitRaw).replace(/\s+/g, " ").trim();
     return u ? `${cost}/${u.toUpperCase()}` : cost;
@@ -720,14 +889,6 @@
     return set;
   }
 
-  function isAdditionStoryProject(project) {
-    return (
-      project === "New 1-story building (addition)" ||
-      project === "New 2-story building" ||
-      project === "New 3-story building"
-    );
-  }
-
   function buildRowsFromRowwise(rawSchoolRows) {
     if (!rawSchoolRows || !rawSchoolRows.length) return [];
     const uid = norm(rawSchoolRows[0]["UniqueID"] ?? rawSchoolRows[0].UniqueID);
@@ -768,12 +929,8 @@
         const csvPriority = match ? norm(match.PriorityScore ?? match["PriorityScore"]) : "";
         const csvReplacementCost = match ? norm(match.ReplacementCost ?? match["ReplacementCost"]) : "";
 
-        const isAddition = sys === "03_addition";
-        const isCafKitchen = project === "New cafeteria and kitchen";
-        const allowLibraryForAddition = isAdditionStoryProject(project) || isCafKitchen;
-
-        const unit = (isAddition && !allowLibraryForAddition) ? "" : norm(lib?.unit);
-        const unitCost = (isAddition && !allowLibraryForAddition) ? "" : norm(lib?.unitCost);
+        const unit = norm(lib?.unit);
+        const unitCost = norm(lib?.unitCost);
         const libScore = norm(lib?.score);
 
         const validCsvPriority = (csvPriority === "1" || csvPriority === "2" || csvPriority === "3" || csvPriority === "4") ? csvPriority : "";
@@ -835,61 +992,6 @@
     return out;
   }
 
-  function applyUnitCostLibraryToAssets(assetRows, unitCostIndex) {
-    if (!assetRows || !assetRows.length || !unitCostIndex || unitCostIndex.size === 0) {
-      return { filled: 0, matched: 0 };
-    }
-
-    let filled = 0;
-    let overridden = 0;
-    let matched = 0;
-    let unitOverridden = 0;
-
-    assetRows.forEach((r) => {
-      const sys = norm(r.SystemCategory ?? r["SystemCategory"]);
-      const proj = norm(r.AssetType ?? r["AssetType"]);
-
-      // Under 03_addition, only the three story-building rows are library-driven.
-      // All other addition rows should keep the template's basis,
-      // EXCEPT "New cafeteria and kitchen", which should pull Unit+UnitCost from the library
-      // while taking UnitValue from the template.
-      const isAddition = norm(sys) === "03_addition";
-      const isStoryProject =
-        proj === "New 1-story building (addition)" || proj === "New 2-story building" || proj === "New 3-story building";
-      const isCafeteriaKitchen = proj === "New cafeteria and kitchen";
-      if (isAddition && !isStoryProject && !isCafeteriaKitchen) return;
-
-      const key = makeUnitCostKey(sys, proj);
-      const rec = unitCostIndex.get(key);
-      if (!rec) return;
-      matched += 1;
-
-      // Override Unit if provided by the library
-      if (norm(rec.unit)) {
-        const curUnit = norm(r.Unit ?? r["Unit"]);
-        if (curUnit !== norm(rec.unit)) {
-          r.Unit = norm(rec.unit);
-          unitOverridden += 1;
-        }
-      }
-
-      const current = norm(r.UnitCost ?? r["UnitCost"]);
-      if (!current && norm(rec.unitCost)) {
-        r.UnitCost = rec.unitCost;
-        filled += 1;
-        return;
-      }
-
-      // Library is authoritative: override template UnitCost when different.
-      if (norm(rec.unitCost) && current !== rec.unitCost) {
-        r.UnitCost = rec.unitCost;
-        overridden += 1;
-      }
-    });
-
-    return { filled, matched, overridden, unitOverridden };
-  }
-
   function buildDecisionIndexes(rows) {
     decisionByUid = new Map();
     decisionByNameKey = new Map();
@@ -946,7 +1048,7 @@
         decision?.["SqFt"]
     );
     const sqfNum = sqfRaw ? Number(sqfRaw.replace(/,/g, "")) : NaN;
-    const sqf = Number.isFinite(sqfNum) ? sqfNum.toLocaleString() : sqfRaw;
+    const sqf = Number.isFinite(sqfNum) ? sqfNum.toLocaleString(DISPLAY_NUMBER_LOCALE) : sqfRaw;
 
     // Determine flowchart outcome and whether to keep costs in black
     resolvedDecisionOutcome = decision ? evaluateSchoolDecision(decision, getActiveThresholds()) : "";
@@ -969,7 +1071,7 @@
       elTotalReplacementCost.textContent = "—";
     }
 
-    // Building addition planning (1-story only) — rendered under 03_addition group
+    // Building addition planning — rendered under 03_addition group
     additionPlanningState.show = false;
     additionPlanningState.studentsOver = null;
     additionPlanningState.gsfTarget = null;
@@ -1018,15 +1120,21 @@
     if (level) metaBits.push(`Level: ${level}`);
     if (cap) metaBits.push(`Capacity: ${cap}`);
     const enrEff = getEffectiveEnrollment(decision);
-    if (Number.isFinite(enrEff) || enr) metaBits.push(`Enrollment: ${Number.isFinite(enrEff) ? enrEff.toLocaleString() : enr}${!getIncludePKInEnrollment() && norm(decision?.PKEnrollment) ? ` (excl. PK: ${norm(decision.PKEnrollment)})` : ""}`);
+    if (Number.isFinite(enrEff) || enr) metaBits.push(`Enrollment: ${Number.isFinite(enrEff) ? enrEff.toLocaleString(DISPLAY_NUMBER_LOCALE) : enr}${!getIncludePKInEnrollment() && norm(decision?.PKEnrollment) ? ` (excl. PK: ${norm(decision.PKEnrollment)})` : ""}`);
     if (sqf) metaBits.push(`SQF: ${sqf}`);
     if (resolvedDecisionOutcome) metaBits.push(`Decision: ${resolvedDecisionOutcome}`);
     elSchoolMeta.textContent = metaBits.join(" • ");
 
     // Get all rowwise records for this school, then build profile rows.
     const rawSchoolRows = getRowwiseRowsForSelection(resolvedUniqueId, resolvedSchoolName);
+    const profileProjectSchoolName = norm(rawSchoolRows[0]?.SchoolName ?? "");
     schoolRows = buildRowsFromRowwise(rawSchoolRows);
-    applyRoomScheduleUnitValues(schoolRows, resolvedUniqueId, resolvedSchoolName, decision);
+    hydrateAdditionStoryUnitCosts(schoolRows, decision);
+    hydrateNewCafeteriaKitchenUnitCost(schoolRows, decision);
+    hydrateNewGymLockersUnitCost(schoolRows);
+    applyRoomScheduleUnitValues(schoolRows, resolvedUniqueId, resolvedSchoolName, decision, profileProjectSchoolName);
+    hydrateHeavyLightKitchenCafeteriaModUnitCosts(schoolRows, decision);
+    hydrateAdaComplianceUnitValue(schoolRows, decision);
 
     // Derive UnitValue + ReplacementCost.
     // Rule:
@@ -1082,12 +1190,38 @@
         }
       }
 
-      // Compute Good/Poor from Value threshold (per-school ConditionScore first, then UnitValue).
+      // Good/Poor: gut & new construction from decision outcome; otherwise library threshold vs pivot (CSV) / UnitValue.
       const lib = unitCostIndex ? unitCostIndex.get(makeUnitCostKey(r.SystemCategory, r.AssetType)) : null;
-      const computed = computeConditionScoreFromValue(r, lib);
-      if (computed) {
+      let computed = deriveGutRenovationNewConstructionConditionScore(r, needsGutReno, needsNewConstruction);
+      if (computed === null) {
+        computed = computeConditionScoreFromValue(r, lib);
+      }
+      const conditionResolved = computed === "Good" || computed === "Poor";
+      if (conditionResolved) {
         r.ConditionScore = computed;
-        r.__libraryScore = computed; // keep compatibility with existing rendering logic
+        r.__libraryScore = computed;
+      } else {
+        r.ConditionScore = "";
+        r.__libraryScore = "";
+      }
+
+      hydrateModernizationUnitValueFromRoomSchedule(
+        r,
+        systemCategory,
+        resolvedUniqueId,
+        resolvedSchoolName,
+        decision,
+        profileProjectSchoolName
+      );
+
+      if (needsStrictConditionMetricForCosting(systemCategory) && !conditionResolved) {
+        r.__excludedFromTotals = true;
+        r.__excludedReason = "unresolved";
+        if (systemCategory !== "05_heavy modernization" && systemCategory !== "06_light modernization") {
+          r.UnitValue = "";
+        }
+        r.ReplacementCost = "";
+        return;
       }
 
       // Score-based inclusion: Poor = included (black), Good = excluded (grey)
@@ -1099,17 +1233,22 @@
       const unit = normalizeUnit(r?.Unit, r?.UnitCost);
       if (!unit) return; // still allow ConditionScore/inclusion above; just skip cost math
 
+      applyDefaultCountableQuantityForCosting(r, excludedByScore);
+
       const derivedQ = computeDerivedQuantity(r, decision);
       if (derivedQ !== null && shouldUseSchoolSqfForRow(r)) {
         // Only overwrite UnitValue for the GSF-driven categories.
-        r.UnitValue = Number.isFinite(derivedQ) ? Math.round(derivedQ).toString() : String(derivedQ);
+        r.UnitValue = Number.isFinite(derivedQ) ? formatLocaleInt(Math.round(derivedQ)) : String(derivedQ);
       }
 
       const rc = computeReplacementCost(r, decision);
       if (rc !== null && Number.isFinite(rc)) {
-        r.ReplacementCost = `$${Math.round(rc).toLocaleString()}`;
+        r.ReplacementCost = formatLocaleUsdInteger(Math.round(rc));
       }
     });
+
+    clearQuantitiesAndCostsForGoodCondition(schoolRows);
+    suppressLightModernizationWhenHeavyIncluded(schoolRows);
 
     schoolRows = (schoolRows || []).filter((r) => !r.__hiddenBySchoolLevel);
 
@@ -1182,37 +1321,6 @@
     return row ? row[col] : "";
   }
 
-  function priorityCycleNext(current) {
-    const c = norm(current);
-    if (c === "1") return "2";
-    if (c === "2") return "3";
-    if (c === "3") return "4";
-    return "1";
-  }
-
-  function prioritiesInOrder(values) {
-    const seen = new Set();
-    (values || []).forEach((v) => {
-      const n = norm(v);
-      if (n) seen.add(n);
-    });
-    const order = ["1", "2", "3", "4"];
-    const out = [];
-    order.forEach((p) => {
-      if (seen.has(p)) out.push(p);
-    });
-    Array.from(seen)
-      .filter((p) => !order.includes(p))
-      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true }))
-      .forEach((p) => out.push(p));
-    return out;
-  }
-
-  // Normalized join key (declarative, no mapping): trim + collapse spaces + case-insensitive
-  function normKey(s) {
-    return norm(s).replace(/\s+/g, " ").toLowerCase();
-  }
-
   function uniqueSorted(values) {
     const set = new Set();
     (values || []).forEach((v) => {
@@ -1254,6 +1362,12 @@
     const s = norm(unitCostStr).toUpperCase();
     const m = s.match(/\/\s*([A-Z]+)\s*$/);
     return m ? m[1] : "";
+  }
+
+  /** Multi-school rollups: quantities in SF should always sum even when $/SF differs by facility. */
+  function isSquareFootMeasureUnit(u) {
+    const x = norm(u).toUpperCase();
+    return x === "SF" || x === "SQFT" || x === "SQF" || x === "SQ FT";
   }
 
   function parsePercentTo0to1(v) {
@@ -1302,10 +1416,29 @@
     return parseNumberMaybe(valueRaw);
   }
 
+  /**
+   * Condition metric 0–1 (or 0–100 legacy) for threshold compare: pivot field first;
+   * then ConditionSource when it is a bare number (e.g. 0 / 0.65), not "Default" or FCI labels.
+ */
+  function getConditionMetricRaw(row) {
+    const pivot = norm(row?.__pivotConditionScore);
+    if (pivot) return pivot;
+
+    const src = norm(row?.ConditionSource);
+    if (!src) return "";
+    if (/^default$/i.test(src)) return "";
+    if (/^deficiency data/i.test(src)) return "";
+    const t = src.replace(/,/g, "").trim();
+    if (!/^-?\d+(\.\d+)?$/.test(t)) return "";
+    return t;
+  }
+
   function computeConditionScoreFromValue(row, lib) {
     // Compare per-school value to UnitCostLibrary.Value threshold.
-    // Primary source: ConditionScore from the rowwise CSV (stored as __pivotConditionScore).
-    // Fallback: UnitValue (quantity) if score is missing.
+    // Metric: __pivotConditionScore, else numeric ConditionSource.
+    // For 08_* (FCI) only, fall back to UnitValue when the CSV metric is absent — that field
+    // carries deficiency dollars. For other categories (e.g. 04_campus upgrade), UnitValue is
+    // for costing only; without a numeric condition input, the score is unresolved (null).
     //
     // If (metric) > Value => return UnitCostLibrary.Score (if present)
     // Else => return the opposite.
@@ -1319,17 +1452,22 @@
     // so "above threshold" should map to Poor (included in totals).
     const higherIsWorse = sys === "01_new construction" || sys === "02_gut & renovation";
     const threshold = parseLibraryValueThreshold(norm(row?.Unit) || norm(lib?.unit), lib?.value);
-    const metricRaw = row?.__pivotConditionScore;
+    const metricRaw = getConditionMetricRaw(row);
     const unit = normalizeUnit(norm(row?.Unit) || norm(lib?.unit), "");
     const metric =
       unit === "PERCENT" || unit === "PERCENTAGE" || unit === "%"
         ? parsePercentTo0to1(metricRaw)
         : parseNumberMaybe(metricRaw);
     const uv = getUnitValueNumber(row);
-    const m = metric !== null ? metric : uv;
+    const useUvAsConditionMetric = sys.startsWith("08");
+    const m = metric !== null && metric !== undefined ? metric : useUvAsConditionMetric ? uv : null;
 
     if (threshold === null || m === null) {
-      return libScore || norm(row?.ConditionScore) || "";
+      if (libScore === "Good" || libScore === "Poor") return libScore;
+      const pivotLegacy = norm(row?.__pivotConditionScore);
+      if (/^good$/i.test(pivotLegacy)) return "Good";
+      if (/^poor$/i.test(pivotLegacy)) return "Poor";
+      return null;
     }
     // When Score column is missing, default interpretation differs:
     // - Most projects: higher score/value = better  => above threshold = Good
@@ -1340,6 +1478,35 @@
     const below = invertGoodPoor(above) || ((lowerIsBetter || higherIsWorse) ? "Good" : "Poor");
     if (m > threshold) return above;
     return below;
+  }
+
+  /**
+   * 01_new construction & 02_gut & renovation: condition label follows capital strategy from evaluateSchoolDecision
+   * (needsGutReno / needsNewConstruction). In-scope rows are Poor (need); CSV no longer supplies a metric for these.
+   */
+  function deriveGutRenovationNewConstructionConditionScore(row, needsGutReno, needsNewConstruction) {
+    const sys = norm(row?.SystemCategory);
+    if (sys === "02_gut & renovation") {
+      if (!needsGutReno) return null;
+      return "Poor";
+    }
+    if (sys === "01_new construction") {
+      if (!needsNewConstruction) return null;
+      return "Poor";
+    }
+    return null;
+  }
+
+  /** No $ totals unless Good/Poor can be resolved from CSV/library metric rules (see computeConditionScoreFromValue). */
+  function needsStrictConditionMetricForCosting(systemCategory) {
+    const sys = norm(systemCategory);
+    return (
+      sys === "00_general" ||
+      sys === "03_addition" ||
+      sys === "04_campus upgrade" ||
+      sys === "05_heavy modernization" ||
+      sys === "06_light modernization"
+    );
   }
 
   function getDecisionNumber(decision, keys) {
@@ -1362,21 +1529,6 @@
       "Sqft",
       "Building SF",
       "BuildingSF",
-    ]);
-  }
-
-  function getSchoolAcres(decision) {
-    return getDecisionNumber(decision, [
-      "Acres",
-      "Acreage",
-      "Site Acres",
-      "SiteAcres",
-      "Site Acreage",
-      "SiteAcreage",
-      "Site_Acres",
-      "Site_Acreage",
-      "Campus Acres",
-      "CampusAcres",
     ]);
   }
 
@@ -1406,7 +1558,181 @@
     if (levelKey === "middle") return "New Construction MS";
     if (levelKey === "high") return "New Construction HS";
     if (levelKey === "k8") return "New Construction K-8";
+    if (levelKey === "k12") return "New Construction HS";
     return null;
+  }
+
+  function getAdditionBaseNewConstructionProject(decision) {
+    return getNewConstructionProjectForDecision(decision);
+  }
+
+  function getAdditionStoryRatePerSf(stories, decision) {
+    const s = stories === 3 ? 3 : 2;
+    const ncProj = getAdditionBaseNewConstructionProject(decision);
+    if (!ncProj || !unitCostIndex) return null;
+    const lib = unitCostIndex.get(makeUnitCostKey("01_new construction", ncProj));
+    let rate = lib ? parseUnitCostNumber(lib.unitCost) : null;
+    if (rate === null || !Number.isFinite(rate)) return null;
+    if (s === 3) rate *= ADDITION_THIRD_STORY_FOUNDATION_FACTOR;
+    return rate;
+  }
+
+  function formatAdditionRateLabel(rate) {
+    if (rate === null || !Number.isFinite(rate)) return "—";
+    const n = Math.round(rate * 100) / 100;
+    return formatLocaleDecimal(n, 0, 2);
+  }
+
+  function getCafeteriaKitchenEquipmentMidPerSf(decision) {
+    const k = getEffectiveSchoolLevelKey(decision);
+    if (k === "middle") return CK_EQUIP_MS_MID;
+    if (k === "high" || k === "k12") return CK_EQUIP_HS_MID;
+    return CK_EQUIP_ES_MID; // elementary, k8, unknown
+  }
+
+  function getNewCafeteriaKitchenCompositeRatePerSf(decision) {
+    const eq = getCafeteriaKitchenEquipmentMidPerSf(decision);
+    const blendedCore =
+      (1 / 3) * (CK_SHELL_KIT_MID + eq) +
+      (2 / 3) * CK_SHELL_CAF_MID;
+    return blendedCore * CK_HARD_COST_FACTOR;
+  }
+
+  function getNewGymLockersCompositeRatePerSf() {
+    const blendedCore =
+      (2 / 3) * GL_SHELL_GYM_MID + (1 / 3) * GL_SHELL_LOCKER_MID;
+    return blendedCore * CK_HARD_COST_FACTOR;
+  }
+
+  function getHeavyModernizeKitchenRatePerSf(decision) {
+    const eq = getCafeteriaKitchenEquipmentMidPerSf(decision);
+    return (HM_SHELL_KIT_MID + eq) * CK_HARD_COST_FACTOR;
+  }
+
+  function getHeavyModernizeCafeteriaRatePerSf() {
+    return HM_SHELL_CAF_MID * CK_HARD_COST_FACTOR;
+  }
+
+  function getLightModernizeCafeteriaRatePerSf() {
+    return LM_SHELL_CAF_MID * CK_HARD_COST_FACTOR;
+  }
+
+  function getDecisionForResolvedSchool() {
+    const uid = norm(resolvedUniqueId);
+    if (uid && decisionByUid.has(uid)) return decisionByUid.get(uid);
+    return null;
+  }
+
+  /** Story addition rows have blank library UnitCost; fill $/SF from New Construction by school level (+5% for 3-story). */
+  function hydrateAdditionStoryUnitCosts(rows, decision) {
+    (rows || []).forEach((r) => {
+      if (norm(r?.SystemCategory) !== "03_addition") return;
+      const proj = norm(r?.AssetType);
+      if (proj === "New 2-story building") {
+        const rate = getAdditionStoryRatePerSf(2, decision);
+        const use =
+          rate !== null && Number.isFinite(rate) ? rate : ADDITION_STORY_FALLBACK_SF[2];
+        if (Number.isFinite(use)) r.UnitCost = `$${formatAdditionRateLabel(use)}/SF`;
+      } else if (proj === "New 3-story building") {
+        const rate = getAdditionStoryRatePerSf(3, decision);
+        const use =
+          rate !== null && Number.isFinite(rate) ? rate : ADDITION_STORY_FALLBACK_SF[3];
+        if (Number.isFinite(use)) r.UnitCost = `$${formatAdditionRateLabel(use)}/SF`;
+      }
+    });
+  }
+
+  function hydrateNewCafeteriaKitchenUnitCost(rows, decision) {
+    (rows || []).forEach((r) => {
+      if (norm(r?.SystemCategory) !== "03_addition") return;
+      if (norm(r?.AssetType) !== "New cafeteria and kitchen") return;
+      const rate = getNewCafeteriaKitchenCompositeRatePerSf(decision);
+      if (Number.isFinite(rate)) r.UnitCost = `$${formatAdditionRateLabel(rate)}/SF`;
+    });
+  }
+
+  function hydrateNewGymLockersUnitCost(rows) {
+    (rows || []).forEach((r) => {
+      if (norm(r?.SystemCategory) !== "03_addition") return;
+      if (norm(r?.AssetType) !== "New gym and locker rooms") return;
+      const rate = getNewGymLockersCompositeRatePerSf();
+      if (Number.isFinite(rate)) r.UnitCost = `$${formatAdditionRateLabel(rate)}/SF`;
+    });
+  }
+
+  /**
+   * Educational adequacy from decision export (0-1). Legacy 0-100 values normalized to 0-1.
+   * Used to fill ADA compliance % quantity when the project list leaves UnitValue blank.
+   */
+  function getEducationalAdequacy0to1(decision) {
+    if (!decision) return null;
+    const raw = decision.EducationalAdequacy ?? decision["Educational Adequacy"];
+    const n = parseFloat(String(raw ?? "").replace(/,/g, "").trim());
+    if (!Number.isFinite(n)) return null;
+    if (n >= 0 && n <= 1) return n;
+    if (n > 1 && n <= 100) return n / 100;
+    return null;
+  }
+
+  function hydrateAdaComplianceUnitValue(rows, decision) {
+    const ea = getEducationalAdequacy0to1(decision);
+    if (ea === null || !Number.isFinite(ea)) return;
+
+    (rows || []).forEach((r) => {
+      if (norm(r?.SystemCategory) !== "00_general") return;
+      if (norm(r?.AssetType).toLowerCase() !== "ada compliance") return;
+      const u = normalizeUnit(r?.Unit, r?.UnitCost);
+      if (u !== "PERCENTAGE" && u !== "PERCENT" && u !== "%") return;
+
+      const raw = norm(getRawUnitValue(r));
+      const q = getUnitValueNumber(r);
+      const nRaw = raw ? parseNumberMaybe(raw.replace(/%/g, "")) : null;
+      const looksLikeDollarsOrGarbage =
+        nRaw !== null && Number.isFinite(nRaw) && Math.abs(nRaw) > 100;
+      const qtyInvalid =
+        !raw ||
+        q === null ||
+        !Number.isFinite(q) ||
+        q < 0 ||
+        q > 1 ||
+        looksLikeDollarsOrGarbage;
+
+      if (!qtyInvalid) return;
+
+      r.UnitValue = formatLocaleDecimal(ea * 100, 0, 2);
+    });
+  }
+
+  function hydrateHeavyLightKitchenCafeteriaModUnitCosts(rows, decision) {
+    (rows || []).forEach((r) => {
+      const sys = norm(r?.SystemCategory);
+      const proj = norm(r?.AssetType);
+      if (sys === "05_heavy modernization" && proj === "Modernize kitchen") {
+        r.Unit = "SF";
+        const rate = getHeavyModernizeKitchenRatePerSf(decision);
+        if (Number.isFinite(rate)) r.UnitCost = `$${formatAdditionRateLabel(rate)}/SF`;
+        const sfRaw = getUnitValueNumber(r);
+        if (sfRaw === null || !Number.isFinite(sfRaw) || sfRaw <= 0) {
+          r.UnitValue = formatLocaleInt(Math.round(HM_KITCHEN_BASIS_SF));
+        }
+      } else if (sys === "05_heavy modernization" && proj === "Heavily modernize cafeteria") {
+        r.Unit = "SF";
+        const rate = getHeavyModernizeCafeteriaRatePerSf();
+        if (Number.isFinite(rate)) r.UnitCost = `$${formatAdditionRateLabel(rate)}/SF`;
+        const sfRaw = getUnitValueNumber(r);
+        if (sfRaw === null || !Number.isFinite(sfRaw) || sfRaw <= 0) {
+          r.UnitValue = formatLocaleInt(Math.round(HM_CAFETERIA_BASIS_SF));
+        }
+      } else if (sys === "06_light modernization" && proj === "Lightly modernize cafeteria") {
+        r.Unit = "SF";
+        const rate = getLightModernizeCafeteriaRatePerSf();
+        if (Number.isFinite(rate)) r.UnitCost = `$${formatAdditionRateLabel(rate)}/SF`;
+        const sfRaw = getUnitValueNumber(r);
+        if (sfRaw === null || !Number.isFinite(sfRaw) || sfRaw <= 0) {
+          r.UnitValue = formatLocaleInt(Math.round(HM_CAFETERIA_BASIS_SF));
+        }
+      }
+    });
   }
 
   function isRelevantNewConstructionRow(row, decision) {
@@ -1489,6 +1815,66 @@
     return null;
   }
 
+  /**
+   * Condition metric (e.g. numeric ConditionSource) does not fill UnitValue. For Poor, included rows with
+   * count-style units and blank quantity, default to 1 so unit cost × qty shows a planning stub.
+   */
+  function applyDefaultCountableQuantityForCosting(row, excludedByScore) {
+    if (excludedByScore) return;
+    if (row && row.__excludedFromTotals) return;
+    const u = normalizeUnit(row?.Unit, row?.UnitCost);
+    if (!u) return;
+    if (u === "PERCENT" || u === "PERCENTAGE" || u === "%") return;
+    if (shouldUseSchoolSqfForRow(row)) return;
+    const countable =
+      u === "QUANTITY" || u === "EA" || u === "EACH" || u === "ACRE" || u === "ACRES";
+    if (!countable) return;
+    if (norm(getRawUnitValue(row))) return;
+    row.UnitValue = "1";
+  }
+
+  /**
+   * Condition Good = excluded from need totals; blank unit value and replacement cost so the row reads consistently.
+   * Preserves decision-path wording "Not included".
+   */
+  function clearQuantitiesAndCostsForGoodCondition(rows) {
+    (rows || []).forEach((r) => {
+      if (norm(r?.ConditionScore || r?.__libraryScore).toLowerCase() !== "good") return;
+      r.UnitValue = "";
+      const rc = norm(r?.ReplacementCost);
+      if (rc && !/not included/i.test(rc)) r.ReplacementCost = "";
+    });
+  }
+
+  /** Heavy + light modernization share the same physical scope — don't double-count the light line. */
+  const HEAVY_LIGHT_MODERNIZATION_PAIRS = [
+    ["Heavily modernize admin", "Lightly modernize admin"],
+    ["Heavily modernize classrooms", "Lightly modernize classrooms"],
+    ["Heavily modernize gym / assembly space", "Lightly modernize gym / assembly space"],
+    ["Heavily modernize cafeteria", "Lightly modernize cafeteria"],
+    ["Heavily modernize multipurpose room", "Lightly modernize multipurpose room"],
+  ];
+
+  function suppressLightModernizationWhenHeavyIncluded(rows) {
+    const visible = (rows || []).filter((r) => !r.__hiddenBySchoolLevel);
+    const byPk = new Map();
+    visible.forEach((r) => {
+      const pk = normProjectKey(norm(r?.AssetType));
+      if (pk) byPk.set(pk, r);
+    });
+    HEAVY_LIGHT_MODERNIZATION_PAIRS.forEach(([heavyName, lightName]) => {
+      const heavyRow = byPk.get(normProjectKey(heavyName));
+      const lightRow = byPk.get(normProjectKey(lightName));
+      if (!heavyRow || !lightRow) return;
+      if (heavyRow.__excludedFromTotals) return;
+      lightRow.__excludedFromTotals = true;
+      if (!lightRow.__excludedReason) lightRow.__excludedReason = "heavy_mod";
+      lightRow.UnitValue = "";
+      const rc = norm(lightRow?.ReplacementCost);
+      if (rc && !/not included/i.test(rc)) lightRow.ReplacementCost = "";
+    });
+  }
+
   function computeReplacementCost(row, decision) {
     const unit = normalizeUnit(row?.Unit, row?.UnitCost);
     const unitCost = parseUnitCostNumber(row?.UnitCost);
@@ -1498,17 +1884,6 @@
     if (q === null) return null;
 
     return unitCost * q;
-  }
-
-  function computeBlackReplacementTotal(rows) {
-    let sum = 0;
-    (rows || []).forEach((r) => {
-      const rc = parseNumberMaybe(r?.ReplacementCost);
-      if (rc === null) return;
-      if (r && r.__excludedFromTotals) return;
-      sum += rc;
-    });
-    return sum;
   }
 
   function computeReplacementTotalsByPriority(rows) {
@@ -1538,12 +1913,15 @@
   function loadAdditionStoriesForSchool(uniqueId) {
     try {
       const uid = norm(uniqueId);
-      if (!uid || !window.localStorage) return 1;
+      if (!uid || !window.localStorage) return 2;
       const raw = window.localStorage.getItem(`jeffco_addition_stories_v1:${uid}`);
-      const n = raw ? Number(raw) : 1;
-      return n === 2 || n === 3 ? n : 1;
+      const n = raw ? Number(raw) : 2;
+      if (n === 3) return 3;
+      if (n === 2) return 2;
+      // Legacy 1-story preference removed — treat as 2-story
+      return 2;
     } catch {
-      return 1;
+      return 2;
     }
   }
 
@@ -1580,12 +1958,11 @@
 
   function computeAdditionCost() {
     if (!additionPlanningState.show || additionPlanningState.gsfTarget == null) return 0;
-    const s = additionPlanningState.stories === 2 || additionPlanningState.stories === 3 ? additionPlanningState.stories : 1;
-    const storyProject =
-      s === 1 ? "New 1-story building (addition)" : s === 2 ? "New 2-story building" : "New 3-story building";
-    const lib = unitCostIndex && unitCostIndex.get(makeUnitCostKey("03_addition", storyProject));
-    const libRate = lib ? parseUnitCostNumber(lib.unitCost) : null;
-    const rate = (libRate !== null ? libRate : (ADDITION_STORY_COST[s] || 0)) || 0;
+    const s = additionPlanningState.stories === 3 ? 3 : 2;
+    const decision = getDecisionForResolvedSchool();
+    const rateFromNc = getAdditionStoryRatePerSf(s, decision);
+    const fallback = ADDITION_STORY_FALLBACK_SF[s] || 0;
+    const rate = rateFromNc !== null && Number.isFinite(rateFromNc) ? rateFromNc : fallback;
     return Math.round(Number(additionPlanningState.gsfTarget) * rate);
   }
 
@@ -1710,11 +2087,7 @@
     const t = computeReplacementTotalsByPriority(filteredRows);
 
     const storyProject =
-      additionPlanningState.stories === 2
-        ? "New 2-story building"
-        : additionPlanningState.stories === 3
-          ? "New 3-story building"
-          : "New 1-story building (addition)";
+      additionPlanningState.stories === 3 ? "New 3-story building" : "New 2-story building";
     const additionVisible = filteredRows.some(
       (r) => norm(r?.SystemCategory) === "03_addition" && norm(r?.AssetType) === storyProject
     );
@@ -1728,16 +2101,16 @@
       else t["2"] += add;
     }
 
-    if (elTotalP1Cost) elTotalP1Cost.textContent = t["1"] ? `$${Math.round(t["1"]).toLocaleString()}` : "—";
-    if (elTotalP2Cost) elTotalP2Cost.textContent = t["2"] ? `$${Math.round(t["2"]).toLocaleString()}` : "—";
-    if (elTotalP3Cost) elTotalP3Cost.textContent = t["3"] ? `$${Math.round(t["3"]).toLocaleString()}` : "—";
-    if (elTotalP4Cost) elTotalP4Cost.textContent = t["4"] ? `$${Math.round(t["4"]).toLocaleString()}` : "—";
+    if (elTotalP1Cost) elTotalP1Cost.textContent = t["1"] ? formatLocaleUsdInteger(t["1"]) : "—";
+    if (elTotalP2Cost) elTotalP2Cost.textContent = t["2"] ? formatLocaleUsdInteger(t["2"]) : "—";
+    if (elTotalP3Cost) elTotalP3Cost.textContent = t["3"] ? formatLocaleUsdInteger(t["3"]) : "—";
+    if (elTotalP4Cost) elTotalP4Cost.textContent = t["4"] ? formatLocaleUsdInteger(t["4"]) : "—";
 
     const included = getIncludedPriorities();
     let total = 0;
     ["1", "2", "3", "4"].forEach((p) => { if (included.has(p)) total += (t[p] || 0); });
     total = Math.round(total);
-    elTotalReplacementCost.textContent = total ? `$${total.toLocaleString()}` : "—";
+    elTotalReplacementCost.textContent = total ? formatLocaleUsdInteger(total) : "—";
   }
 
   function compareValues(a, b, dir) {
@@ -1931,12 +2304,12 @@
         sgHeader.appendChild(sgLabel);
         const sgSub = document.createElement("span");
         sgSub.className = "group-subtotal";
-        sgSub.textContent = superTotal ? `$${Math.round(superTotal).toLocaleString()}` : "";
+        sgSub.textContent = superTotal ? formatLocaleUsdInteger(superTotal) : "";
         if (superTotal) {
-          sgSub.title = ["P1: $" + Math.round(superByP["1"]).toLocaleString(),
-            "P2: $" + Math.round(superByP["2"]).toLocaleString(),
-            "P3: $" + Math.round(superByP["3"]).toLocaleString(),
-            "P4: $" + Math.round(superByP["4"]).toLocaleString()].join("\n");
+          sgSub.title = ["P1: " + formatLocaleUsdInteger(superByP["1"]),
+            "P2: " + formatLocaleUsdInteger(superByP["2"]),
+            "P3: " + formatLocaleUsdInteger(superByP["3"]),
+            "P4: " + formatLocaleUsdInteger(superByP["4"])].join("\n");
         }
         sgHeader.appendChild(sgSub);
         sgTd.appendChild(sgHeader);
@@ -1977,12 +2350,12 @@
       header.appendChild(labelDiv);
       const subtotalSpan = document.createElement("span");
       subtotalSpan.className = "group-subtotal";
-      subtotalSpan.textContent = groupSubtotal ? `$${Math.round(groupSubtotal).toLocaleString()}` : "";
+      subtotalSpan.textContent = groupSubtotal ? formatLocaleUsdInteger(groupSubtotal) : "";
       if (groupSubtotal) {
-        const lines = ["P1: $" + Math.round(groupByP["1"]).toLocaleString(),
-          "P2: $" + Math.round(groupByP["2"]).toLocaleString(),
-          "P3: $" + Math.round(groupByP["3"]).toLocaleString(),
-          "P4: $" + Math.round(groupByP["4"]).toLocaleString()];
+        const lines = ["P1: " + formatLocaleUsdInteger(groupByP["1"]),
+          "P2: " + formatLocaleUsdInteger(groupByP["2"]),
+          "P3: " + formatLocaleUsdInteger(groupByP["3"]),
+          "P4: " + formatLocaleUsdInteger(groupByP["4"])];
         subtotalSpan.title = lines.join("\n");
       }
       header.appendChild(subtotalSpan);
@@ -2012,25 +2385,22 @@
         ];
 
         const studentsOverText =
-          additionPlanningState.studentsOver != null ? Number(additionPlanningState.studentsOver).toLocaleString() : "—";
-        const gsfText = additionPlanningState.gsfTarget != null ? Number(additionPlanningState.gsfTarget).toLocaleString() : "—";
-        const story = additionPlanningState.stories === 2 || additionPlanningState.stories === 3 ? additionPlanningState.stories : 1;
+          additionPlanningState.studentsOver != null ? Number(additionPlanningState.studentsOver).toLocaleString(DISPLAY_NUMBER_LOCALE) : "—";
+        const gsfText = additionPlanningState.gsfTarget != null ? Number(additionPlanningState.gsfTarget).toLocaleString(DISPLAY_NUMBER_LOCALE) : "—";
+        const story = additionPlanningState.stories === 3 ? 3 : 2;
         const isCollapsed = !!additionPlanningState.collapsed;
-
-        const story1RateLib = (() => {
-          const lib = unitCostIndex && unitCostIndex.get(makeUnitCostKey("03_addition", "New 1-story building (addition)"));
-          const n = lib ? parseUnitCostNumber(lib.unitCost) : null;
-          return n !== null ? n : 500;
-        })();
-        const story2RateLib = (() => {
-          const lib = unitCostIndex && unitCostIndex.get(makeUnitCostKey("03_addition", "New 2-story building"));
-          const n = lib ? parseUnitCostNumber(lib.unitCost) : null;
-          return n !== null ? n : 600;
-        })();
-        const story3RateLib = (() => {
-          const lib = unitCostIndex && unitCostIndex.get(makeUnitCostKey("03_addition", "New 3-story building"));
-          const n = lib ? parseUnitCostNumber(lib.unitCost) : null;
-          return n !== null ? n : 700;
+        const planDecision = getDecisionForResolvedSchool();
+        const r2 = getAdditionStoryRatePerSf(2, planDecision);
+        const r3 = getAdditionStoryRatePerSf(3, planDecision);
+        const story2RateLabel = formatAdditionRateLabel(r2 !== null ? r2 : ADDITION_STORY_FALLBACK_SF[2]);
+        const story3RateLabel = formatAdditionRateLabel(r3 !== null ? r3 : ADDITION_STORY_FALLBACK_SF[3]);
+        const ncLabel = (() => {
+          const p = getAdditionBaseNewConstructionProject(planDecision);
+          if (p === "New Construction ES") return "ES new-school rate";
+          if (p === "New Construction MS") return "MS new-school rate";
+          if (p === "New Construction HS") return "HS new-school rate";
+          if (p === "New Construction K-8") return "K–8 new-school rate";
+          return "new-school rate";
         })();
 
         infoTd.innerHTML =
@@ -2041,11 +2411,10 @@
           `</div>` +
           `<div class="addition-body">` +
           `<div class="addition-story-row">` +
-          `<div class="addition-note">Stories included in total cost:</div>` +
+          `<div class="addition-note">Stories included in total cost (${escapeHtmlText(ncLabel)}; 3-story +5% foundations):</div>` +
           `<div class="story-toggle" role="group" aria-label="Addition stories">` +
-          `<button type="button" data-stories="1" aria-pressed="${story === 1}">1 story ($${story1RateLib}/SF)</button>` +
-          `<button type="button" data-stories="2" aria-pressed="${story === 2}">2 story ($${story2RateLib}/SF)</button>` +
-          `<button type="button" data-stories="3" aria-pressed="${story === 3}">3 story ($${story3RateLib}/SF)</button>` +
+          `<button type="button" data-stories="2" aria-pressed="${story === 2}">2 story ($${story2RateLabel}/SF)</button>` +
+          `<button type="button" data-stories="3" aria-pressed="${story === 3}">3 story ($${story3RateLabel}/SF)</button>` +
           `</div>` +
           `</div>` +
           `<div class="addition-kpis">` +
@@ -2072,7 +2441,7 @@
           toggle.querySelectorAll("button[data-stories]").forEach((btn) => {
             btn.addEventListener("click", () => {
               const next = Number(btn.getAttribute("data-stories"));
-              if (next !== 1 && next !== 2 && next !== 3) return;
+              if (next !== 2 && next !== 3) return;
               additionPlanningState.stories = next;
               saveAdditionStoriesForSchool(resolvedUniqueId, next);
               updateTotalReplacementCostDisplay();
@@ -2139,11 +2508,11 @@
                 cell.style.textAlign = "center";
                 cell.style.fontSize = "11px";
               } else if (col === "ReplacementCost") {
-                cell.textContent = sum ? `$${Math.round(sum).toLocaleString()}` : "";
-                const tooltip = ["P1: $" + Math.round(byP["1"]).toLocaleString(),
-                  "P2: $" + Math.round(byP["2"]).toLocaleString(),
-                  "P3: $" + Math.round(byP["3"]).toLocaleString(),
-                  "P4: $" + Math.round(byP["4"]).toLocaleString()];
+                cell.textContent = sum ? formatLocaleUsdInteger(sum) : "";
+                const tooltip = ["P1: " + formatLocaleUsdInteger(byP["1"]),
+                  "P2: " + formatLocaleUsdInteger(byP["2"]),
+                  "P3: " + formatLocaleUsdInteger(byP["3"]),
+                  "P4: " + formatLocaleUsdInteger(byP["4"])];
                 cell.title = tooltip.join("\n");
               } else {
                 cell.textContent = "";
@@ -2173,7 +2542,7 @@
         if (r && r.__excludedFromTotals) {
           tr.classList.add("excluded-row");
           if (r.__excludedReason === "level") tr.classList.add("excluded-level");
-          if (r.__excludedReason === "good") tr.classList.add("excluded-good");
+          if (r.__excludedReason === "good" || r.__excludedReason === "heavy_mod") tr.classList.add("excluded-good");
         }
         DISPLAY_COLS.forEach((col) => {
           const cell = document.createElement("td");
@@ -2263,35 +2632,33 @@
             const isAdditionStoryRow =
               additionPlanningState.show &&
               systemCategory === "03_addition" &&
-              (assetTypeRaw === "New 1-story building (addition)" ||
-                assetTypeRaw === "New 2-story building" ||
-                assetTypeRaw === "New 3-story building");
+              (assetTypeRaw === "New 2-story building" || assetTypeRaw === "New 3-story building");
 
             if (isAdditionStoryRow) {
-              const storyForRow =
-                assetTypeRaw === "New 1-story building (addition)" ? 1 : assetTypeRaw === "New 2-story building" ? 2 : 3;
-              const storyProject =
-                storyForRow === 1 ? "New 1-story building (addition)" : storyForRow === 2 ? "New 2-story building" : "New 3-story building";
-              const lib = unitCostIndex && unitCostIndex.get(makeUnitCostKey("03_addition", storyProject));
-              const libRate = lib ? parseUnitCostNumber(lib.unitCost) : null;
-              const rate = (libRate !== null ? libRate : (ADDITION_STORY_COST[storyForRow] || 0)) || 0;
-              const isSelected = (additionPlanningState.stories || 1) === storyForRow;
+              const storyForRow = assetTypeRaw === "New 3-story building" ? 3 : 2;
+              const rowDecision = getDecisionForResolvedSchool();
+              const rateFromNc = getAdditionStoryRatePerSf(storyForRow, rowDecision);
+              const fallback = ADDITION_STORY_FALLBACK_SF[storyForRow] || 0;
+              const rate =
+                rateFromNc !== null && Number.isFinite(rateFromNc) ? rateFromNc : fallback;
+              const isSelected =
+                (additionPlanningState.stories === 3 ? 3 : 2) === storyForRow;
               const addCostForRow =
                 additionPlanningState.gsfTarget != null ? Math.round(Number(additionPlanningState.gsfTarget) * rate) : 0;
 
               if (col === "UnitCost") {
-                const text = rate ? `$${rate}/SF` : "—";
+                const text = rate ? `$${formatAdditionRateLabel(rate)}/SF` : "—";
                 cell.textContent = text;
                 cell.title = text;
                 if (!isSelected) cell.classList.add("muted");
               } else if (col === "UnitValue") {
                 const v = additionPlanningState.gsfTarget != null ? Math.round(Number(additionPlanningState.gsfTarget)) : null;
-                const text = v !== null ? v.toLocaleString() : "—";
+                const text = v !== null ? v.toLocaleString(DISPLAY_NUMBER_LOCALE) : "—";
                 cell.textContent = text;
                 cell.title = text;
                 if (!isSelected) cell.classList.add("muted");
               } else if (col === "ReplacementCost") {
-                const text = addCostForRow ? `$${addCostForRow.toLocaleString()}` : "—";
+                const text = addCostForRow ? formatLocaleUsdInteger(addCostForRow) : "—";
                 cell.textContent = text;
                 cell.title = text;
                 if (isSelected) cell.classList.add("cost-highlight");
@@ -2327,6 +2694,18 @@
               }
             } else {
               v = getCellValue(r, col);
+              if (col === "UnitValue") {
+                v = formatDisplayQuantityCell(v);
+                const u = normalizeUnit(r?.Unit, r?.UnitCost);
+                const isAdaPct =
+                  norm(r?.SystemCategory) === "00_general" &&
+                  norm(r?.AssetType).toLowerCase() === "ada compliance" &&
+                  (u === "PERCENTAGE" || u === "PERCENT" || u === "%");
+                if (isAdaPct && norm(v) && !String(v).includes("%")) {
+                  v = `${v}%`;
+                }
+              } else if (col === "UnitCost") v = formatDisplayUnitCostCell(v);
+              else if (col === "ReplacementCost") v = formatDisplayReplacementCell(v);
               cell.textContent = norm(v) ? norm(v) : "—";
               cell.title = norm(v);
             }
@@ -2412,71 +2791,11 @@
     }
   }
 
-  function renderNoMatchChooser(uniqueSchoolNames) {
-    const box = document.createElement("div");
-    box.className = "empty";
-    box.innerHTML =
-      `<div style="font-weight:900; color:#111827; margin-bottom:6px;">No assets found for clicked school</div>` +
-      `<div class="muted" style="margin-bottom:10px;">` +
-      `Clicked SchoolName: <strong>${escapeHtmlText(selectedSchoolNameFromQuery)}</strong><br/>` +
-      `This usually means the Step 2 school name text does not exactly match the Assets CSV <code>SchoolName</code> values.` +
-      `</div>`;
-
-    const label = document.createElement("label");
-    label.className = "muted";
-    label.style.display = "block";
-    label.style.marginBottom = "6px";
-    label.textContent = "Pick the matching SchoolName from the Assets CSV:";
-
-    const select = document.createElement("select");
-    select.style.width = "100%";
-    select.style.maxWidth = "520px";
-    select.style.padding = "8px 10px";
-    select.style.border = "1px solid var(--border)";
-    select.style.borderRadius = "8px";
-    select.style.fontFamily = "inherit";
-
-    const opt0 = document.createElement("option");
-    opt0.value = "";
-    opt0.textContent = "— Select SchoolName —";
-    select.appendChild(opt0);
-
-    uniqueSchoolNames.forEach((name) => {
-      const opt = document.createElement("option");
-      opt.value = name;
-      opt.textContent = name;
-      select.appendChild(opt);
-    });
-
-    select.addEventListener("change", () => {
-      const v = norm(select.value);
-      if (!v) return;
-      resolvedSchoolName = v;
-      schoolRows = allRows.filter((r) => normKey(r.SchoolName) === normKey(resolvedSchoolName));
-      elSchoolMeta.textContent =
-        `CSV rows: ${allRows.length.toLocaleString()} • ` +
-        `Resolved SchoolName="${resolvedSchoolName}" • ` +
-        `Rows: ${schoolRows.length.toLocaleString()}`;
-
-      populateFilters();
-      applyFilters();
-      render();
-    });
-
-    box.appendChild(label);
-    box.appendChild(select);
-    elTableMount.innerHTML = "";
-    elTableMount.appendChild(box);
-  }
-
   function escapeHtmlText(s) {
     return norm(s)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
-  }
-  function escapeHtmlAttr(s) {
-    return escapeHtmlText(s).replace(/"/g, "&quot;");
   }
 
   function applyMultiSchoolSelection() {
@@ -2529,8 +2848,14 @@
       const decision = uid ? decisionByUid.get(uid) : null;
       names.push(nm);
       const rawSchoolRows = getRowwiseRowsForSelection(uid, nm);
+      const profileProjectSchoolName = norm(rawSchoolRows[0]?.SchoolName ?? "");
       const rows = buildRowsFromRowwise(rawSchoolRows);
-      applyRoomScheduleUnitValues(rows, uid, nm, decision);
+      hydrateAdditionStoryUnitCosts(rows, decision);
+      hydrateNewCafeteriaKitchenUnitCost(rows, decision);
+      hydrateNewGymLockersUnitCost(rows);
+      applyRoomScheduleUnitValues(rows, uid, nm, decision, profileProjectSchoolName);
+      hydrateHeavyLightKitchenCafeteriaModUnitCosts(rows, decision);
+      hydrateAdaComplianceUnitValue(rows, decision);
 
       const schoolDecision = decision ? evaluateSchoolDecision(decision, getActiveThresholds()) : "";
       const schoolOutcome = (schoolDecision || "").trim();
@@ -2549,13 +2874,6 @@
         r.__schoolLabel = nm;
         r.__rowId = rowId++;
         const systemCategory = norm(r?.SystemCategory);
-
-        const lib = unitCostIndex ? unitCostIndex.get(makeUnitCostKey(r.SystemCategory, r.AssetType)) : null;
-        const computed = computeConditionScoreFromValue(r, lib);
-        if (computed) {
-          r.ConditionScore = computed;
-          r.__libraryScore = computed;
-        }
 
         if (systemCategory === "02_gut & renovation" && !isRelevantGutRenovationRow(r, decision)) {
           r.__hiddenBySchoolLevel = true;
@@ -2597,6 +2915,34 @@
           }
         }
 
+        const lib = unitCostIndex ? unitCostIndex.get(makeUnitCostKey(r.SystemCategory, r.AssetType)) : null;
+        let computed = deriveGutRenovationNewConstructionConditionScore(r, schoolNeedsGutReno, schoolNeedsNewConstruction);
+        if (computed === null) {
+          computed = computeConditionScoreFromValue(r, lib);
+        }
+        const conditionResolved = computed === "Good" || computed === "Poor";
+        if (conditionResolved) {
+          r.ConditionScore = computed;
+          r.__libraryScore = computed;
+        } else {
+          r.ConditionScore = "";
+          r.__libraryScore = "";
+        }
+
+        hydrateModernizationUnitValueFromRoomSchedule(r, systemCategory, uid, nm, decision, profileProjectSchoolName);
+
+        if (needsStrictConditionMetricForCosting(systemCategory) && !conditionResolved) {
+          if (!r.__excludedFromTotals) {
+            r.__excludedFromTotals = true;
+            r.__excludedReason = "unresolved";
+          }
+          if (systemCategory !== "05_heavy modernization" && systemCategory !== "06_light modernization") {
+            r.UnitValue = "";
+          }
+          r.ReplacementCost = "";
+          return;
+        }
+
         const s = norm(r?.ConditionScore || r?.__libraryScore).toLowerCase();
         const excludedByScore = s === "good";
         if (!r.__excludedFromTotals) {
@@ -2607,16 +2953,21 @@
         const unit = normalizeUnit(r?.Unit, r?.UnitCost);
         if (!unit) return;
 
+        applyDefaultCountableQuantityForCosting(r, excludedByScore);
+
         const derivedQ = computeDerivedQuantity(r, decision);
         if (derivedQ !== null && shouldUseSchoolSqfForRow(r)) {
-          r.UnitValue = Number.isFinite(derivedQ) ? Math.round(derivedQ).toString() : String(derivedQ);
+          r.UnitValue = Number.isFinite(derivedQ) ? formatLocaleInt(Math.round(derivedQ)) : String(derivedQ);
         }
 
         const rc = computeReplacementCost(r, decision);
         if (rc !== null && Number.isFinite(rc)) {
-          r.ReplacementCost = `$${Math.round(rc).toLocaleString()}`;
+          r.ReplacementCost = formatLocaleUsdInteger(Math.round(rc));
         }
       });
+
+      clearQuantitiesAndCostsForGoodCondition(rows);
+      suppressLightModernizationWhenHeavyIncluded(rows);
 
       combined.push(...rows.filter((r) => !r.__hiddenBySchoolLevel));
     });
@@ -2634,7 +2985,6 @@
     });
 
     const SCORE_NUM = { "good": 3, "fair": 2, "poor": 1 };
-    const NUM_SCORE = { 3: "Good", 2: "Fair", 1: "Poor" };
 
     const rollupRows = [];
     let rollupId = 0;
@@ -2666,7 +3016,54 @@
       const excludedByDecision = allExcludedByDecision && rows.length > 0;
       const excludedByScore = !excludedByDecision && avgScoreLabel.toLowerCase() === "good";
 
-      const rollupUnitValue = shouldUseSchoolSqfForRow(first) ? "" : first.UnitValue;
+      let rollupUnitValue = "";
+      const activeRows = rows.filter((r) => !r.__excludedFromTotals);
+      const u = normalizeUnit(first?.Unit, first?.UnitCost);
+      const isPercent = u === "PERCENT" || u === "PERCENTAGE" || u === "%";
+      const sumSfAcrossSchools = isSquareFootMeasureUnit(u);
+      const sysFirst = norm(first?.SystemCategory);
+      /** Heavy/light mod: schedule-filled UV often exists while rows stay excluded (unresolved "Default" metric). Still show Σ qty across the portfolio. */
+      const portfolioHeavyLightModRollup =
+        !isPercent && (sysFirst === "05_heavy modernization" || sysFirst === "06_light modernization");
+
+      if (isPercent) {
+        rollupUnitValue = first.UnitValue || "";
+      } else if (sumSfAcrossSchools || portfolioHeavyLightModRollup) {
+        let sum = 0;
+        let any = false;
+        rows.forEach((r) => {
+          const n = getUnitValueNumber(r);
+          if (n != null && Number.isFinite(n)) {
+            sum += n;
+            any = true;
+          }
+        });
+        rollupUnitValue = any ? formatLocaleInt(Math.round(sum)) : "";
+      } else if (!activeRows.length) {
+        rollupUnitValue = "";
+      } else {
+        let sum = 0;
+        let any = false;
+        activeRows.forEach((r) => {
+          const n = getUnitValueNumber(r);
+          if (n != null && Number.isFinite(n)) {
+            sum += n;
+            any = true;
+          }
+        });
+        let showSummedQty = any;
+        if (showSummedQty && activeRows.length > 1) {
+          const ucs = activeRows.map((r) => parseUnitCostNumber(r?.UnitCost));
+          const allParsed = ucs.every((n) => n != null && Number.isFinite(n));
+          if (!allParsed) {
+            showSummedQty = false;
+          } else {
+            const ref = ucs[0];
+            showSummedQty = ucs.every((n) => Math.abs(n - ref) < 0.5);
+          }
+        }
+        rollupUnitValue = showSummedQty ? formatLocaleInt(Math.round(sum)) : "";
+      }
 
       rollupRows.push({
         UniqueID: "",
@@ -2678,7 +3075,7 @@
         Unit: first.Unit,
         UnitCost: first.UnitCost,
         UnitValue: rollupUnitValue,
-        ReplacementCost: totalCost ? `$${Math.round(totalCost).toLocaleString()}` : "",
+        ReplacementCost: totalCost ? formatLocaleUsdInteger(Math.round(totalCost)) : "",
         __libraryScore: first.__libraryScore,
         __pivotConditionScore: first.__pivotConditionScore,
         __csvPriority: "",
@@ -2872,13 +3269,13 @@
     if (additionPlanningState.show) {
       const so =
         additionPlanningState.studentsOver != null
-          ? Number(additionPlanningState.studentsOver).toLocaleString()
+          ? Number(additionPlanningState.studentsOver).toLocaleString(DISPLAY_NUMBER_LOCALE)
           : "—";
       const gsfT =
         additionPlanningState.gsfTarget != null
-          ? Number(additionPlanningState.gsfTarget).toLocaleString()
+          ? Number(additionPlanningState.gsfTarget).toLocaleString(DISPLAY_NUMBER_LOCALE)
           : "—";
-      const st = additionPlanningState.stories || 1;
+      const st = additionPlanningState.stories === 3 ? 3 : 2;
       additionBlock = `<div class="pdf-add"><strong>Building addition (planning):</strong> Students over capacity: ${esc(so)} · Target GSF: ${esc(gsfT)} · Stories: ${esc(
         String(st)
       )}</div>`;
@@ -3080,12 +3477,13 @@ ${additionBlock}
         buildDecisionIndexes(decisionRows);
 
         unitCostIndex = buildUnitCostLibraryIndex(unitCostLibRows || []);
-        const roomTotals = buildRoomScheduleTotals(roomScheduleRows || []);
-        roomScheduleByUid = roomTotals.byUid || new Map();
-        roomScheduleByFacility = roomTotals.byFacility || new Map();
+        roomScheduleModernizationSfByCategory = buildModernizationScheduleSfTotals(roomScheduleRows || []);
 
         allRows = Array.isArray(assetRows) ? assetRows : [];
         buildRowwiseIndex(allRows);
+        roomScheduleModernizationSfByCategory.forEach((maps) => {
+          syncScheduleCategorySfUidsFromProjectList(maps.byUid, maps.byFacility);
+        });
 
         const linkedUids = getUniqueSchoolUids(allRows);
 

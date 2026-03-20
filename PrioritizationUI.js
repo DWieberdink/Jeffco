@@ -734,7 +734,6 @@ window.prioritizationUI = {
       const uid = (school["UniqueID"] || school.UniqueID || "").toString();
       const decisionOutcomeRaw = (school.decision || school["Decision Type"] || school.outcome || school.strategyOutcome || "").toString();
       const decisionOutcome = decisionOutcomeRaw.trim();
-      const keepBlack = true; // never grey-out rows in prioritized table
       const schoolProfileHref =
         "school-profile.html?school=" +
         encodeURIComponent((buildingName || "").toString()) +
@@ -806,7 +805,6 @@ window.prioritizationUI = {
     const table = container && container.querySelector("table.ps-prioritized-table");
     if (!table) return;
 
-    const self = this;
     const tbody = table.querySelector("tbody");
     const headers = Array.from(table.querySelectorAll("thead th.filterable-header"));
     const cache = (window.__prioritizedSchoolsFilterValuesCache = window.__prioritizedSchoolsFilterValuesCache || {});
@@ -1004,7 +1002,6 @@ window.prioritizationUI = {
     const table = container && container.querySelector("table.ps-prioritized-table");
     if (!table) return;
 
-    const self = this;
     table.querySelectorAll("th.sortable-header").forEach(function (header) {
       header.addEventListener("click", function (e) {
         if (e.target && (e.target.classList.contains("filter-btn") || e.target.closest(".filter-dropdown"))) return;

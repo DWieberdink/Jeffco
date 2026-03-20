@@ -1,6 +1,6 @@
 /* pivot-assettype-unitvalue.js
    Creates a pivoted CSV where each AssetType becomes two columns:
-     - "<AssetType> score" (from ConditionScore)
+     - "<AssetType> score" (optional; from ConditionScore if column exists in input)
      - "<AssetType> UnitValue" (from UnitValue)
 
    Input:  JeffCoProjectListAllSchools.csv
@@ -136,7 +136,7 @@ if (!rows.length) throw new Error(`No rows in ${INPUT_PATH}`);
 const header = rows[0].map((h) => norm(h));
 const idx = Object.fromEntries(header.map((h, i) => [h, i]));
 
-const required = ["UniqueID", "SchoolName", "AssetType", "UnitValue", "ConditionScore"];
+const required = ["UniqueID", "SchoolName", "AssetType", "UnitValue"];
 for (const c of required) {
   if (idx[c] == null) throw new Error(`Missing required column "${c}" in ${INPUT_PATH}`);
 }
@@ -163,7 +163,7 @@ for (let r = 1; r < rows.length; r++) {
   const rec = m.get(pk);
 
   const unitValue = norm(row[idx.UnitValue]);
-  const score = norm(row[idx.ConditionScore]);
+  const score = idx.ConditionScore != null ? norm(row[idx.ConditionScore]) : "";
   if (!rec.unitValue && unitValue) rec.unitValue = unitValue;
   if (!rec.score && score) rec.score = score;
 }

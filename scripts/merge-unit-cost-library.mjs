@@ -102,8 +102,7 @@ function rowsToObjects(header, dataRows) {
 
 /** Alternate names in withvalues "Project" column for canonical Project */
 const PROJECT_LOOKUP_KEYS = {
-  "New 1-story building (addition)": ["new 1-story building"],
-  "New MPR": ["new mpr (multi-purpose room)"],
+  "New multipurpose room": ["new mpr (multi-purpose room)", "new mpr"],
   "Heavily modernize STEM / CTE / specialized labs (MS/HS)": ["heavily modernize stem / cte labs (ms/hs)"],
   "Heavily modernize STEM/specialized labs (ES)": ["heavily modernize stem labs (es)"],
   "Modernize kitchen": ["heavily modernize kitchen / cafeteria"],
@@ -171,6 +170,7 @@ function sfSanity(project, cost, oldCost) {
     p.includes("gut & major") ||
     p.includes("new auditorium") ||
     p.includes("new mpr") ||
+    p.includes("multipurpose room") ||
     p.includes("playground replacement") ||
     p.includes("heavily modernize") ||
     p.includes("lightly modernize") ||

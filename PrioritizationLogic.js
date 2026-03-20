@@ -296,21 +296,21 @@ window.prioritizationLogic = {
       case "enrollment":
         return parseInt(school.Enrollment || 0, 10);
       case "highNeedStudents":
-        return parseFloat(school["% FRL"] || school["Free Reduced Lunch"] || 0, 10);
+        return parseFloat(school["% FRL"] || school["Free Reduced Lunch"] || 0);
       case "buildingCondition":
         {
-          const raw = parseFloat(school.BuildingScore || 0, 10);
+          const raw = parseFloat(school.BuildingScore || 0);
           if (!isFinite(raw)) return 0;
           // BuildingScore may be 0–1 or 0–10; normalize to 0–10 for scoring.
           return raw <= 1.5 ? raw * 10 : raw;
         }
       case "educationalAdequacy": {
-        const raw = parseFloat(school.EducationalAdequacy || 0, 10);
+        const raw = parseFloat(school.EducationalAdequacy || 0);
         return (isFinite(raw) ? raw : 0) * 100; // convert to %
       }
       case "neighborhoodCapture":
         {
-          const raw = parseFloat(school.AttendanceAreaEnrollment || 0, 10);
+          const raw = parseFloat(school.AttendanceAreaEnrollment || 0);
           if (!isFinite(raw)) return 0;
           // AttendanceAreaEnrollment may appear as a ratio (0–1) or percent (0–100).
           // Convert to a consistent percent (0–100) scale for display/scoring.
@@ -630,16 +630,16 @@ window.prioritizationLogic = {
       const enrollment = parseInt(school.Enrollment || 0, 10);
       totalStudents += enrollment;
       
-      const frlPercent = parseFloat(school["% FRL"] || school["Free Reduced Lunch"] || 0, 10);
+      const frlPercent = parseFloat(school["% FRL"] || school["Free Reduced Lunch"] || 0);
       totalFRL += enrollment * (frlPercent / 100);
       
-      const blackPercent = parseFloat(school["% Black"] || school["Black"] || 0, 10);
+      const blackPercent = parseFloat(school["% Black"] || school["Black"] || 0);
       totalBlack += enrollment * (blackPercent / 100);
       
-      const hispanicPercent = parseFloat(school["% Hispanic"] || school["Hispanic"] || 0, 10);
+      const hispanicPercent = parseFloat(school["% Hispanic"] || school["Hispanic"] || 0);
       totalHispanic += enrollment * (hispanicPercent / 100);
       
-      const whitePercent = parseFloat(school["% White"] || school["White"] || 0, 10);
+      const whitePercent = parseFloat(school["% White"] || school["White"] || 0);
       totalWhite += enrollment * (whitePercent / 100);
     });
 

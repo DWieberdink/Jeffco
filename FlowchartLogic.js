@@ -768,7 +768,7 @@ function getDistanceThresholdFromSliders(schoolLevelStr, buildingNameStr, useFlo
   else if (canonical === 'k12') sliderId = "k12DistanceSlider" + suffix;
   else sliderId = "middleDistanceSlider" + suffix;
   const el = typeof document !== "undefined" ? document.getElementById(sliderId) : null;
-  if (el && el.value != null) return parseFloat(el.value, 10);
+  if (el && el.value != null) return parseFloat(el.value);
   const thresholdKey = sliderId.indexOf("middle") !== -1 ? "middleDistance" : "elementaryDistance";
   return (window.thresholds && window.thresholds[thresholdKey]) ?? (sliderId.indexOf("middle") !== -1 ? 5.0 : 3.5);
 }

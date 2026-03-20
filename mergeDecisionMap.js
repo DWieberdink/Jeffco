@@ -1,5 +1,4 @@
 let mapExportLookup = {}; // 📦 global lookup
-let pendingSchoolData = null; // 💾 waiting schoolData if CSV loads late
 
 // Map_Export.csv references removed
 
@@ -17,8 +16,9 @@ window.addEventListener("message", (event) => {
       clearPreviousMergedSummary();
       startMerging(window.schoolData);
     } else {
-      console.log("⏳ [mergeDecisionMap.js] CSV not ready, saving schoolData for later...");
-      pendingSchoolData = window.schoolData;
+      console.log(
+        "⏳ [mergeDecisionMap.js] CSV not ready — window.schoolData updated; merge when mapExportLookup is loaded."
+      );
     }
   }
 });
