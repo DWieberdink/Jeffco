@@ -657,21 +657,21 @@ window.prioritizationUI = {
       '<table id="' + tableId + '" class="ps-prioritized-table">' +
       buildColGroupHTML() +
       "<thead><tr>" +
-      '<th class="sortable-header filterable-header text-center" data-column="0" data-type="number" title="Rank">' +
+      '<th class="sortable-header filterable-header text-center" data-filter-key="ps-rank" data-column="0" data-type="number" title="Rank">' +
       '<span class="th-inner"><span class="th-label">Rank</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>' +
       '<div class="filter-dropdown" role="menu" aria-hidden="true"></div>' +
       '<div class="column-resizer" data-col="0"></div></th>' +
       (isCombined
-        ? '<th class="sortable-header filterable-header" data-column="1" data-type="string" title="Strategy Group">' +
+        ? '<th class="sortable-header filterable-header" data-filter-key="ps-strategyGroup" data-column="1" data-type="string" title="Strategy Group">' +
           '<span class="th-inner"><span class="th-label">Strategy Group</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>' +
           '<div class="filter-dropdown" role="menu" aria-hidden="true"></div>' +
           '<div class="column-resizer" data-col="1"></div></th>'
         : "") +
-      '<th class="sortable-header filterable-header" data-column="' + (isCombined ? "2" : "1") + '" data-type="string" title="School">' +
+      '<th class="sortable-header filterable-header" data-filter-key="ps-school" data-column="' + (isCombined ? "2" : "1") + '" data-type="string" title="School">' +
       '<span class="th-inner"><span class="th-label">School</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>' +
       '<div class="filter-dropdown" role="menu" aria-hidden="true"></div>' +
       '<div class="column-resizer" data-col="' + (isCombined ? "2" : "1") + '"></div></th>' +
-      '<th class="sortable-header filterable-header text-center" data-column="' + (isCombined ? "3" : "2") + '" data-type="number" title="Score">' +
+      '<th class="sortable-header filterable-header text-center" data-filter-key="ps-score" data-column="' + (isCombined ? "3" : "2") + '" data-type="number" title="Score">' +
       '<span class="th-inner"><span class="th-label">Score</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>' +
       '<div class="filter-dropdown" role="menu" aria-hidden="true"></div>' +
       '<div class="column-resizer" data-col="' + (isCombined ? "3" : "2") + '"></div></th>';
@@ -679,8 +679,9 @@ window.prioritizationUI = {
     let metricStartColIndex = isCombined ? 4 : 3;
     sliderConfigs.forEach(function (config, idx) {
       const colIndex = metricStartColIndex + idx;
+      const weightKeyForFilter = self.mapUiKeyToWeightKey(config.key);
       const labelEscaped = config.label.replace(/"/g, "&quot;");
-      html += '<th class="sortable-header filterable-header text-center" data-column="' + colIndex + '" data-type="number" title="' + labelEscaped + '">' +
+      html += '<th class="sortable-header filterable-header text-center" data-filter-key="ps-m-' + weightKeyForFilter + '" data-column="' + colIndex + '" data-type="number" title="' + labelEscaped + '">' +
         '<span class="th-inner"><span class="th-label">' + config.label + '</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>' +
         '<div class="filter-dropdown" role="menu" aria-hidden="true"></div>' +
         '<div class="column-resizer" data-col="' + colIndex + '"></div></th>';
@@ -797,19 +798,115 @@ window.prioritizationUI = {
     this.setupColumnResizing(tableId);
     this.setupPrioritizedSchoolsFilters(container);
     this.setupPrioritizedSchoolsSortable(container);
+    this.applyStoredPrioritizedColumnFilters(container);
 
     // Equity overview intentionally suppressed per latest requirements.
+  },
+
+  // One-time migration: column-index filter state -> stable data-filter-key (survives metric column add/remove).
+  migratePrioritizedSchoolFiltersToKeys: function (table) {
+    const fs = window.__prioritizedSchoolsFilters;
+    if (!fs || !table) return;
+    const headers = Array.from(table.querySelectorAll("thead th.filterable-header"));
+    const dataKeys = Object.keys(fs).filter(function (k) {
+      return k !== "__psKeysMigrated";
+    });
+    if (!dataKeys.length) return;
+    if (!dataKeys.every(function (k) {
+      return /^\d+$/.test(k);
+    })) return;
+    const next = {};
+    headers.forEach(function (th, i) {
+      const nk = th.getAttribute("data-filter-key");
+      if (nk && fs[i] != null) next[nk] = fs[i];
+    });
+    dataKeys.forEach(function (k) {
+      delete fs[k];
+    });
+    Object.assign(fs, next);
+    fs.__psKeysMigrated = true;
+  },
+
+  // Re-apply column filters after table re-render (e.g. weight sliders). Drops stale values (e.g. old scores).
+  applyStoredPrioritizedColumnFilters: function (container) {
+    const table = container && container.querySelector("table.ps-prioritized-table");
+    if (!table) return;
+    const tbody = table.querySelector("tbody");
+    const headers = Array.from(table.querySelectorAll("thead th.filterable-header"));
+    if (!tbody || !headers.length) return;
+
+    const filterState = window.__prioritizedSchoolsFilters || (window.__prioritizedSchoolsFilters = {});
+
+    const getUniqueValuesForCol = function (colIndex) {
+      const values = new Set();
+      tbody.querySelectorAll("tr[data-row]").forEach(function (tr) {
+        const cell = tr.querySelector("td[data-filter=\"col-" + colIndex + "\"]");
+        if (cell) {
+          const v = (cell.textContent || "").trim();
+          values.add(v || "(blank)");
+        }
+      });
+      return values;
+    };
+
+    headers.forEach(function (th, colIndex) {
+      const fk = th.getAttribute("data-filter-key") || "ps-idx-" + colIndex;
+      let sel = filterState[fk];
+      if (!Array.isArray(sel) || sel.length === 0) {
+        filterState[fk] = null;
+        return;
+      }
+      const uniques = getUniqueValuesForCol(colIndex);
+      const effective = sel.filter(function (v) {
+        return uniques.has(v);
+      });
+      if (effective.length === 0) filterState[fk] = null;
+      else if (effective.length >= uniques.size) filterState[fk] = null;
+      else filterState[fk] = effective;
+    });
+
+    const selectedByCol = {};
+    headers.forEach(function (th, colIndex) {
+      const fk = th.getAttribute("data-filter-key") || "ps-idx-" + colIndex;
+      const s = filterState[fk];
+      selectedByCol[colIndex] = Array.isArray(s) && s.length > 0 ? s : null;
+    });
+
+    tbody.querySelectorAll("tr[data-row]").forEach(function (tr) {
+      let show = true;
+      headers.forEach(function (h, colIndex) {
+        const sel = selectedByCol[colIndex];
+        if (sel === null || sel === undefined) return;
+        if (Array.isArray(sel) && sel.length === 0) return;
+        const cell = tr.querySelector("td[data-filter=\"col-" + colIndex + "\"]");
+        const raw = (cell ? cell.textContent : "").trim();
+        const val = raw || "(blank)";
+        if (sel.indexOf(val) < 0) show = false;
+      });
+      tr.classList.toggle("filter-hidden", !show);
+    });
+
+    headers.forEach(function (th, colIndex) {
+      const filterBtn = th.querySelector(".filter-btn");
+      if (!filterBtn) return;
+      const uniques = getUniqueValuesForCol(colIndex);
+      const sel = selectedByCol[colIndex];
+      filterBtn.classList.toggle("filter-active", !!(sel && sel.length < uniques.size));
+    });
   },
 
   setupPrioritizedSchoolsFilters: function (container) {
     const table = container && container.querySelector("table.ps-prioritized-table");
     if (!table) return;
 
+    this.migratePrioritizedSchoolFiltersToKeys(table);
+
     const tbody = table.querySelector("tbody");
     const headers = Array.from(table.querySelectorAll("thead th.filterable-header"));
     const cache = (window.__prioritizedSchoolsFilterValuesCache = window.__prioritizedSchoolsFilterValuesCache || {});
 
     headers.forEach(function (th, colIndex) {
+      const filterKey = th.getAttribute("data-filter-key") || "ps-idx-" + colIndex;
       const filterBtn = th.querySelector(".filter-btn");
       const filterDropdown = th.querySelector(".filter-dropdown");
       if (!filterBtn || !filterDropdown) return;
@@ -826,13 +923,13 @@ window.prioritizationUI = {
           }
         });
         const arr = Array.from(values).sort(function (a, b) { return String(a).localeCompare(String(b)); });
-        if (arr.length > 0) cache[colIndex] = arr;
+        if (arr.length > 0) cache[filterKey] = arr;
         return arr;
       };
       getUniqueValues();
 
       const populateDropdown = function () {
-        let values = cache[colIndex];
+        let values = cache[filterKey];
         if (!values || values.length === 0) {
           values = getUniqueValues();
         }
@@ -852,7 +949,8 @@ window.prioritizationUI = {
           "</div>";
 
         const filterState = window.__prioritizedSchoolsFilters || (window.__prioritizedSchoolsFilters = {});
-        const selected = filterState[colIndex] != null ? filterState[colIndex] : null;
+        let selected = filterState[filterKey] != null ? filterState[filterKey] : null;
+        if (Array.isArray(selected) && selected.length === 0) selected = null;
         const selectAllCb = filterDropdown.querySelector(".filter-select-all-cb");
         const opts = filterDropdown.querySelectorAll(".filter-option");
 
@@ -874,6 +972,7 @@ window.prioritizationUI = {
         selectAllCb?.addEventListener("change", function () {
           const check = selectAllCb.checked;
           opts.forEach(function (cb) { cb.checked = check; });
+          updateSelectAllState();
           applyFilters();
         });
 
@@ -905,7 +1004,7 @@ window.prioritizationUI = {
         clearColBtn.addEventListener("click", function (e) {
           e.stopPropagation();
           const filterState = window.__prioritizedSchoolsFilters || (window.__prioritizedSchoolsFilters = {});
-          filterState[colIndex] = null;
+          filterState[filterKey] = null;
           const dd = th.querySelector(".filter-dropdown");
           const opts = dd ? dd.querySelectorAll(".filter-option") : [];
           const selectAllCb = dd ? dd.querySelector(".filter-select-all-cb") : null;
@@ -920,8 +1019,8 @@ window.prioritizationUI = {
 
       const applyFilters = () => {
         const filterState = window.__prioritizedSchoolsFilters || (window.__prioritizedSchoolsFilters = {});
-        const selectedByCol = {};
         headers.forEach(function (h, i) {
+          const fk = h.getAttribute("data-filter-key") || "ps-idx-" + i;
           const dd = h.querySelector(".filter-dropdown");
           if (!dd) return;
           const opts = dd.querySelectorAll(".filter-option");
@@ -931,17 +1030,20 @@ window.prioritizationUI = {
           }).map(function (cb) {
             return cb.value;
           });
-          selectedByCol[i] = checked.length === opts.length ? null : checked;
+          let effective = null;
+          if (checked.length > 0 && checked.length < opts.length) {
+            effective = checked;
+          }
+          filterState[fk] = effective;
         });
-
-        Object.assign(filterState, selectedByCol);
 
         tbody.querySelectorAll("tr[data-row]").forEach(function (tr) {
           let show = true;
           headers.forEach(function (h, i) {
-            const sel = selectedByCol[i];
+            const fk = h.getAttribute("data-filter-key") || "ps-idx-" + i;
+            const sel = filterState[fk];
             if (sel === null || sel === undefined) return;
-            if (sel.length === 0) { show = false; return; }
+            if (Array.isArray(sel) && sel.length === 0) return;
             const cell = tr.querySelector("td[data-filter=\"col-" + i + "\"]");
             const raw = (cell ? cell.textContent : "").trim();
             const val = raw || "(blank)";
@@ -951,7 +1053,7 @@ window.prioritizationUI = {
         });
 
         const vals = getUniqueValues();
-        const sel = selectedByCol[colIndex];
+        const sel = filterState[filterKey];
         filterBtn.classList.toggle("filter-active", !!(sel !== null && sel !== undefined && sel.length < vals.length));
       };
 
@@ -984,6 +1086,7 @@ window.prioritizationUI = {
     if (clearBtn) {
       clearBtn.addEventListener("click", function () {
         window.__prioritizedSchoolsFilters = {};
+        window.__prioritizedSchoolsFilterValuesCache = {};
         table.querySelectorAll(".filter-dropdown.is-open").forEach(function (d) {
           d.classList.remove("is-open");
         });

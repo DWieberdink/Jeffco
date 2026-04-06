@@ -756,6 +756,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Sticky header + filter styles
     injectDecisionBySchoolStickyStyles();
     setupDecisionBySchoolFilters(resultsDiv);
+    applyStoredDecisionBySchoolFilters(resultsDiv);
     setupDecisionBySchoolResizableColumns(resultsDiv);
 
     // Export current "Decision by School" table to CSV (in current onscreen order)
@@ -1088,7 +1089,8 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
         `;
 
-        const selected = (window.__decisionBySchoolFilters || {})[colIndex] ?? null;
+        let selected = (window.__decisionBySchoolFilters || {})[colIndex] ?? null;
+        if (Array.isArray(selected) && selected.length === 0) selected = null;
         const selectAllCb = filterDropdown.querySelector('.filter-select-all-cb');
         const opts = filterDropdown.querySelectorAll('.filter-option');
 
@@ -1110,6 +1112,7 @@ document.addEventListener("DOMContentLoaded", () => {
         selectAllCb?.addEventListener('change', () => {
           const check = selectAllCb.checked;
           opts.forEach(cb => { cb.checked = check; });
+          updateSelectAllState();
           applyFilters();
         });
 
@@ -1161,7 +1164,11 @@ document.addEventListener("DOMContentLoaded", () => {
           const opts = dd.querySelectorAll('.filter-option');
           if (opts.length === 0) return;
           const checked = Array.from(opts).filter(cb => cb.checked).map(cb => cb.value);
-          selectedByCol[i] = checked.length === opts.length ? null : checked;
+          let effective = null;
+          if (checked.length > 0 && checked.length < opts.length) {
+            effective = checked;
+          }
+          selectedByCol[i] = effective;
         });
 
         Object.assign(filterState, selectedByCol);
@@ -1171,7 +1178,7 @@ document.addEventListener("DOMContentLoaded", () => {
           headers.forEach((h, i) => {
             const sel = selectedByCol[i];
             if (sel === null || sel === undefined) return;
-            if (sel.length === 0) { show = false; return; }
+            if (Array.isArray(sel) && sel.length === 0) return;
             const cell = tr.querySelector(`td[data-filter="col-${i}"]`);
             const raw = (cell ? cell.textContent : '').trim();
             const val = raw || '(blank)';
@@ -1209,6 +1216,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (clearBtn) {
       clearBtn.addEventListener('click', () => {
         window.__decisionBySchoolFilters = {};
+        window.__decisionBySchoolFilterValuesCache = {};
         table.querySelectorAll('.filter-dropdown.is-open').forEach(d => d.classList.remove('is-open'));
         tbody.querySelectorAll('tr[data-row]').forEach(tr => tr.classList.remove('filter-hidden'));
         headers.forEach((h) => {
@@ -1217,6 +1225,70 @@ document.addEventListener("DOMContentLoaded", () => {
         });
       });
     }
+  }
+
+  /** Re-apply Decision by School column filters after table re-render (strategic sorting sliders). */
+  function applyStoredDecisionBySchoolFilters(resultsRoot) {
+    const table = resultsRoot && resultsRoot.querySelector('table.decision-by-school-table');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    const headers = Array.from(table.querySelectorAll('thead th.filterable-header'));
+    if (!tbody || !headers.length) return;
+
+    const filterState = window.__decisionBySchoolFilters || (window.__decisionBySchoolFilters = {});
+
+    const getUniqueValues = (colIndex) => {
+      const values = new Set();
+      tbody.querySelectorAll('tr[data-row]').forEach(tr => {
+        const cell = tr.querySelector(`td[data-filter="col-${colIndex}"]`);
+        if (cell) {
+          const v = (cell.textContent || '').trim();
+          values.add(v || '(blank)');
+        }
+      });
+      return values;
+    };
+
+    headers.forEach((th, colIndex) => {
+      let sel = filterState[colIndex];
+      if (!Array.isArray(sel) || sel.length === 0) {
+        filterState[colIndex] = null;
+        return;
+      }
+      const uniques = getUniqueValues(colIndex);
+      const effective = sel.filter(v => uniques.has(v));
+      if (effective.length === 0) filterState[colIndex] = null;
+      else if (effective.length >= uniques.size) filterState[colIndex] = null;
+      else filterState[colIndex] = effective;
+    });
+
+    const selectedByCol = {};
+    headers.forEach((h, i) => {
+      const s = filterState[i];
+      selectedByCol[i] = Array.isArray(s) && s.length > 0 ? s : null;
+    });
+
+    tbody.querySelectorAll('tr[data-row]').forEach(tr => {
+      let show = true;
+      headers.forEach((h, i) => {
+        const sel = selectedByCol[i];
+        if (sel === null || sel === undefined) return;
+        if (Array.isArray(sel) && sel.length === 0) return;
+        const cell = tr.querySelector(`td[data-filter="col-${i}"]`);
+        const raw = (cell ? cell.textContent : '').trim();
+        const val = raw || '(blank)';
+        if (!sel.includes(val)) show = false;
+      });
+      tr.classList.toggle('filter-hidden', !show);
+    });
+
+    headers.forEach((h, colIndex) => {
+      const filterBtn = h.querySelector('.filter-btn');
+      if (!filterBtn) return;
+      const uniques = getUniqueValues(colIndex);
+      const sel = selectedByCol[colIndex];
+      filterBtn.classList.toggle('filter-active', !!(sel && sel.length < uniques.size));
+    });
   }
 
   function setupSummaryGroupToggles(summaryRoot) {

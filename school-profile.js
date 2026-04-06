@@ -12,7 +12,7 @@
   const UNITCOST_LIBRARY_CSV_PATH = "UnitCostLibrary.csv";
   const ROOM_SCHEDULE_CSV_PATH = "Jeffco Room Schedule.csv";
   // Bump this to force browsers to refetch CSV/JS.
-  const CACHE_BUST = "20260320_31";
+  const CACHE_BUST = "20260402_8";
   const PRIORITY_OVERRIDES_STORAGE_KEY = "jeffco_priority_overrides_assetid_v1";
 
   // The assets CSV is row-wise: one row per school + asset type.
@@ -463,6 +463,52 @@
       .replace(/_+\d+\b/g, "");
   }
 
+  /** AssetTypes where Replacement Cost is labeled (not $). Never applied to 01_new construction / 02_gut & renovation. */
+  const SITE_SPECIFIC_REPLACEMENT_ASSET_NAMES = [
+    "ADA compliance",
+    "Hazmat remediation",
+    "New 2-story building",
+    "New 3-story building",
+    "New auditorium",
+    "New gym and locker rooms",
+    "New multipurpose room",
+    "New cafeteria and kitchen",
+    "Campus landscaping upgrade",
+    "Expand parking",
+    "Exterior paint entire campus",
+    "Resurface asphalt",
+    "Resurface concrete",
+    "Heavily modernize gym / assembly space",
+    "Modernize kitchen",
+    "Heavily modernize cafeteria",
+    "Heavily modernize multipurpose room",
+    "Lightly modernize cafeteria",
+    "Lightly modernize library/media center",
+    "Lightly modernize gym / assembly space",
+    "Lightly modernize multipurpose room",
+  ];
+  const SITE_SPECIFIC_REPLACEMENT_PROJECT_KEYS = new Set(
+    SITE_SPECIFIC_REPLACEMENT_ASSET_NAMES.map((n) => normProjectKey(n))
+  );
+
+  function isSiteSpecificReplacementRow(row) {
+    const sys = norm(row?.SystemCategory);
+    if (sys === "01_new construction" || sys === "02_gut & renovation") return false;
+    const pk = normProjectKey(row?.AssetType);
+    return !!pk && SITE_SPECIFIC_REPLACEMENT_PROJECT_KEYS.has(pk);
+  }
+
+  function applySiteSpecificReplacementCostLabels(rows) {
+    (rows || []).forEach((r) => {
+      if (!isSiteSpecificReplacementRow(r)) return;
+      // Still show the label when decision/unresolved excludes $ totals (__excludedFromTotals).
+      if (norm(r?.ConditionScore || r?.__libraryScore).toLowerCase() === "good") return;
+      if (r.__excludedReason === "heavy_mod") return;
+      if (/not included/i.test(norm(r?.ReplacementCost))) return;
+      r.ReplacementCost = "Site specific";
+    });
+  }
+
   function normalizeFacilityName(raw) {
     let s = norm(raw);
     if (!s) return "";
@@ -730,6 +776,7 @@
     const s = norm(raw);
     if (!s) return s;
     if (/not included/i.test(s)) return s;
+    if (/site specific/i.test(s)) return "Site specific";
     const n = parseNumberMaybe(s);
     if (n === null || !Number.isFinite(n)) return s;
     return formatLocaleUsdInteger(n);
@@ -1249,6 +1296,7 @@
 
     clearQuantitiesAndCostsForGoodCondition(schoolRows);
     suppressLightModernizationWhenHeavyIncluded(schoolRows);
+    applySiteSpecificReplacementCostLabels(schoolRows);
 
     schoolRows = (schoolRows || []).filter((r) => !r.__hiddenBySchoolLevel);
 
@@ -1392,10 +1440,16 @@
     return null;
   }
 
+  /** ADA uses unit "Project cost" with the same 0–1-style metric handling as Percentage rows. */
+  function unitUsesPercentStyleMetric(row) {
+    const u = normalizeUnit(row?.Unit, row?.UnitCost);
+    if (u === "PERCENT" || u === "PERCENTAGE" || u === "%") return true;
+    return u === "PROJECT COST" && norm(row?.AssetType).toLowerCase() === "ada compliance";
+  }
+
   function getUnitValueNumber(row) {
-    const unit = normalizeUnit(row?.Unit, row?.UnitCost);
     const raw = getRawUnitValue(row);
-    if (unit === "PERCENT" || unit === "PERCENTAGE" || unit === "%") {
+    if (unitUsesPercentStyleMetric(row)) {
       return parsePercentTo0to1(raw);
     }
     return parseNumberMaybe(raw);
@@ -1410,7 +1464,7 @@
 
   function parseLibraryValueThreshold(unitRaw, valueRaw) {
     const unit = normalizeUnit(unitRaw, "");
-    if (unit === "PERCENT" || unit === "PERCENTAGE" || unit === "%") {
+    if (unit === "PERCENT" || unit === "PERCENTAGE" || unit === "%" || unit === "PROJECT COST") {
       return parsePercentTo0to1(valueRaw);
     }
     return parseNumberMaybe(valueRaw);
@@ -1455,7 +1509,7 @@
     const metricRaw = getConditionMetricRaw(row);
     const unit = normalizeUnit(norm(row?.Unit) || norm(lib?.unit), "");
     const metric =
-      unit === "PERCENT" || unit === "PERCENTAGE" || unit === "%"
+      unit === "PERCENT" || unit === "PERCENTAGE" || unit === "%" || unit === "PROJECT COST"
         ? parsePercentTo0to1(metricRaw)
         : parseNumberMaybe(metricRaw);
     const uv = getUnitValueNumber(row);
@@ -1682,7 +1736,7 @@
       if (norm(r?.SystemCategory) !== "00_general") return;
       if (norm(r?.AssetType).toLowerCase() !== "ada compliance") return;
       const u = normalizeUnit(r?.Unit, r?.UnitCost);
-      if (u !== "PERCENTAGE" && u !== "PERCENT" && u !== "%") return;
+      if (u !== "PERCENTAGE" && u !== "PERCENT" && u !== "%" && u !== "PROJECT COST") return;
 
       const raw = norm(getRawUnitValue(r));
       const q = getUnitValueNumber(r);
@@ -1825,6 +1879,7 @@
     const u = normalizeUnit(row?.Unit, row?.UnitCost);
     if (!u) return;
     if (u === "PERCENT" || u === "PERCENTAGE" || u === "%") return;
+    if (u === "PROJECT COST" && norm(row?.AssetType).toLowerCase() === "ada compliance") return;
     if (shouldUseSchoolSqfForRow(row)) return;
     const countable =
       u === "QUANTITY" || u === "EA" || u === "EACH" || u === "ACRE" || u === "ACRES";
@@ -2086,20 +2141,7 @@
     const filteredRows = getFilteredFlatRows();
     const t = computeReplacementTotalsByPriority(filteredRows);
 
-    const storyProject =
-      additionPlanningState.stories === 3 ? "New 3-story building" : "New 2-story building";
-    const additionVisible = filteredRows.some(
-      (r) => norm(r?.SystemCategory) === "03_addition" && norm(r?.AssetType) === storyProject
-    );
-    if (additionVisible && computeAdditionCost()) {
-      const storyRow = filteredRows.find(
-        (r) => norm(r?.SystemCategory) === "03_addition" && norm(r?.AssetType) === storyProject
-      ) || null;
-      const addPriority = storyRow ? norm(getPriorityForRow(storyRow)) : "2";
-      const add = computeAdditionCost();
-      if (t.hasOwnProperty(addPriority)) t[addPriority] += add;
-      else t["2"] += add;
-    }
+    // New 2/3-story addition lines are "Site specific" (not summed from planner $/SF).
 
     if (elTotalP1Cost) elTotalP1Cost.textContent = t["1"] ? formatLocaleUsdInteger(t["1"]) : "—";
     if (elTotalP2Cost) elTotalP2Cost.textContent = t["2"] ? formatLocaleUsdInteger(t["2"]) : "—";
@@ -2658,11 +2700,22 @@
                 cell.title = text;
                 if (!isSelected) cell.classList.add("muted");
               } else if (col === "ReplacementCost") {
-                const text = addCostForRow ? formatLocaleUsdInteger(addCostForRow) : "—";
-                cell.textContent = text;
-                cell.title = text;
-                if (isSelected) cell.classList.add("cost-highlight");
-                else cell.classList.add("muted");
+                const score = norm(r?.ConditionScore || r?.__libraryScore).toLowerCase();
+                if (score === "good") {
+                  cell.textContent = "—";
+                  cell.title = "";
+                  cell.classList.add("muted");
+                } else if (/site specific/i.test(norm(r?.ReplacementCost))) {
+                  cell.textContent = "Site specific";
+                  cell.title = "Site specific";
+                  if (!isSelected) cell.classList.add("muted");
+                } else {
+                  const text = addCostForRow ? formatLocaleUsdInteger(addCostForRow) : "—";
+                  cell.textContent = text;
+                  cell.title = text;
+                  if (isSelected) cell.classList.add("cost-highlight");
+                  else cell.classList.add("muted");
+                }
               } else {
                 const v = getCellValue(r, col);
                 cell.textContent = norm(v) ? norm(v) : "—";
@@ -2700,7 +2753,7 @@
                 const isAdaPct =
                   norm(r?.SystemCategory) === "00_general" &&
                   norm(r?.AssetType).toLowerCase() === "ada compliance" &&
-                  (u === "PERCENTAGE" || u === "PERCENT" || u === "%");
+                  (u === "PERCENTAGE" || u === "PERCENT" || u === "%" || u === "PROJECT COST");
                 if (isAdaPct && norm(v) && !String(v).includes("%")) {
                   v = `${v}%`;
                 }
@@ -2968,6 +3021,7 @@
 
       clearQuantitiesAndCostsForGoodCondition(rows);
       suppressLightModernizationWhenHeavyIncluded(rows);
+      applySiteSpecificReplacementCostLabels(rows);
 
       combined.push(...rows.filter((r) => !r.__hiddenBySchoolLevel));
     });
@@ -3016,10 +3070,21 @@
       const excludedByDecision = allExcludedByDecision && rows.length > 0;
       const excludedByScore = !excludedByDecision && avgScoreLabel.toLowerCase() === "good";
 
+      let rollupReplacementCost = "";
+      if (!excludedByScore) {
+        if (isSiteSpecificReplacementRow(first)) {
+          rollupReplacementCost = "Site specific";
+        } else if (totalCost) {
+          rollupReplacementCost = formatLocaleUsdInteger(Math.round(totalCost));
+        }
+      }
+
       let rollupUnitValue = "";
       const activeRows = rows.filter((r) => !r.__excludedFromTotals);
       const u = normalizeUnit(first?.Unit, first?.UnitCost);
-      const isPercent = u === "PERCENT" || u === "PERCENTAGE" || u === "%";
+      const isPercent =
+        u === "PERCENT" || u === "PERCENTAGE" || u === "%" ||
+        (u === "PROJECT COST" && norm(first?.AssetType).toLowerCase() === "ada compliance");
       const sumSfAcrossSchools = isSquareFootMeasureUnit(u);
       const sysFirst = norm(first?.SystemCategory);
       /** Heavy/light mod: schedule-filled UV often exists while rows stay excluded (unresolved "Default" metric). Still show Σ qty across the portfolio. */
@@ -3075,7 +3140,7 @@
         Unit: first.Unit,
         UnitCost: first.UnitCost,
         UnitValue: rollupUnitValue,
-        ReplacementCost: totalCost ? formatLocaleUsdInteger(Math.round(totalCost)) : "",
+        ReplacementCost: rollupReplacementCost,
         __libraryScore: first.__libraryScore,
         __pivotConditionScore: first.__pivotConditionScore,
         __csvPriority: "",

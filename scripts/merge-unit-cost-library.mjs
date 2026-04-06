@@ -2,6 +2,8 @@
  * Merges UnitCostLibrary_withvalues.csv (detailed cost study) into the canonical
  * UnitCostLibrary.csv shape: SystemCategory,Project,Unit,UnitCost,Value
  *
+ * UnitCost is taken from Direct Unit Cost $ Range (High) only (not ACF / composite totals).
+ *
  * Run from repo root: node scripts/merge-unit-cost-library.mjs
  */
 import fs from "fs";
@@ -125,41 +127,27 @@ function wvMatchesProject(canonicalProject, wvProject) {
   return false;
 }
 
-function unitMatches(wanted, wvNorm) {
+function unitMatches(wanted, wvNorm, canonicalProject) {
   const w = normKey(wanted);
   const n = normKey(wvNorm);
   if (w === "quantity" && n === "quantity") return true;
   if (w === "sf" && n === "sf") return true;
   if (w === "percentage" && n === "percentage") return true;
   if (w === "acre" && n === "acre") return true;
+  // Canonical "Project cost" (ADA) aligns with withvalues row Unit Measure Normalized = Percentage.
+  if (
+    normKey(canonicalProject) === normKey("ADA compliance") &&
+    w === "project cost" &&
+    n === "percentage"
+  ) {
+    return true;
+  }
   return false;
 }
 
-function extractCost(wv, unitWanted) {
-  const acf = parseMoney(wv["Unit Cost ($) w ACF & Hard Costs"]);
-  const acfL = parseMoney(wv["Unit Cost ($) w ACF & Hard Costs (Low)"]);
-  const acfH = parseMoney(wv["Unit Cost ($) w ACF & Hard Costs (High)"]);
-  const dLow = parseMoney(wv["Direct Unit Cost $ Range (Low)"]);
-  const dHigh = parseMoney(wv["Direct Unit Cost $ Range (High)"]);
-  const u = norm(unitWanted).toLowerCase();
-
-  // Quantity / Acre: "Direct" range is usually the intended unit cost; col14 is often rolled-up totals.
-  if (u === "quantity" || u === "acre") {
-    let c = dLow ?? dHigh;
-    if (c === null && acfL !== null && acfH !== null) c = (acfL + acfH) / 2;
-    else if (c === null) c = acfL ?? acfH;
-    if (c === null) c = acf;
-    return c;
-  }
-
-  let c = acf;
-  if (c === null) {
-    if (acfL !== null && acfH !== null) c = (acfL + acfH) / 2;
-    else c = acfL ?? acfH ?? null;
-  }
-  if (c === null) c = dLow ?? dHigh;
-
-  return c;
+/** Project list unit cost: Direct Unit Cost $ Range (High) only (no ACF / rolled-up totals). */
+function extractCost(wv, _unitWanted) {
+  return parseMoney(wv["Direct Unit Cost $ Range (High)"]);
 }
 
 function sfSanity(project, cost, oldCost) {
@@ -219,7 +207,10 @@ for (const cells of canonical) {
   let costNum = null;
 
   const candidates = wvObjs.filter(
-    (w) => normKey(w["Project Type"]) === normKey(sys) && wvMatchesProject(proj, w["Project"]) && unitMatches(unit, w["Unit Measure Normalized"])
+    (w) =>
+      normKey(w["Project Type"]) === normKey(sys) &&
+      wvMatchesProject(proj, w["Project"]) &&
+      unitMatches(unit, w["Unit Measure Normalized"], proj)
   );
 
   if (candidates.length === 0) {
@@ -233,9 +224,18 @@ for (const cells of canonical) {
     if (norm(unit).toLowerCase() === "sf") {
       costNum = sfSanity(proj, costNum, oldNum);
     }
-    // ADA / percentage: keep prior library $50 scale (withvalues shows different basis)
-    if (norm(unit).toLowerCase() === "percentage" && proj.toLowerCase().includes("ada")) {
-      costNum = oldNum;
+    // ADA: Direct Unit Cost $ Range (High) is 3% of project cost (not a $/unit figure).
+    if (
+      proj.toLowerCase().includes("ada") &&
+      (norm(unit).toLowerCase() === "percentage" || normKey(unit) === "project cost")
+    ) {
+      const high = norm(wv["Direct Unit Cost $ Range (High)"]);
+      const t = high.replace(/\s/g, "");
+      const m = t.match(/^([\d.]+)%$/);
+      if (m) {
+        outLines.push(csvLine([sys, proj, unit, `${m[1]}%`, value]));
+        continue;
+      }
     }
   }
 

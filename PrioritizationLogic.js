@@ -295,8 +295,20 @@ window.prioritizationLogic = {
       }
       case "enrollment":
         return parseInt(school.Enrollment || 0, 10);
-      case "highNeedStudents":
-        return parseFloat(school["% FRL"] || school["Free Reduced Lunch"] || 0);
+      case "highNeedStudents": {
+        // Decision Data Export: HighNeedStudents (share high-need enrollment; 0–1 or 0–100).
+        const hnRaw =
+          school.HighNeedStudents ??
+          school["High need students"] ??
+          school["High Need Students"];
+        if (hnRaw !== undefined && hnRaw !== null && String(hnRaw).trim() !== "") {
+          const raw = parseFloat(String(hnRaw).replace(/,/g, ""));
+          if (!isFinite(raw)) return 0;
+          return raw <= 1.5 ? raw * 100 : raw;
+        }
+        const legacy = parseFloat(school["% FRL"] || school["Free Reduced Lunch"] || 0);
+        return isFinite(legacy) ? legacy : 0;
+      }
       case "buildingCondition":
         {
           const raw = parseFloat(school.BuildingScore || 0);
@@ -316,8 +328,25 @@ window.prioritizationLogic = {
           // Convert to a consistent percent (0–100) scale for display/scoring.
           return raw <= 1.5 ? raw * 100 : raw;
         }
-      case "welcomedStudents":
-        return parseInt(school["Welcomed Students"] || school["Students Welcomed"] || 0, 10);
+      case "welcomedStudents": {
+        // Decision Data Export: ROFTSStudentsREceived = students welcomed from prior consolidations (count).
+        const candidates = [
+          school.ROFTSStudentsREceived,
+          school.ROFTStudentsreceived,
+          school["ROFT Students Received"],
+          school["Welcomed Students"],
+          school["Students Welcomed"]
+        ];
+        for (let i = 0; i < candidates.length; i++) {
+          const c = candidates[i];
+          if (c === undefined || c === null) continue;
+          const s = String(c).trim();
+          if (s === "") continue;
+          const n = parseFloat(s.replace(/,/g, ""));
+          if (isFinite(n)) return n;
+        }
+        return 0;
+      }
       case "distanceFromOtherSchools":
         return parseFloat(school.DistanceUnderutilizedschools || 0, 10);
       case "pastInvestments":
@@ -415,16 +444,16 @@ window.prioritizationLogic = {
     score += components.enrollment;
     totalWeightUsed += enrollmentWeight;
 
-    // High-need students (% FRL)
-    // For Expansion & Maintenance/Investment, higher % FRL = higher priority.
-    // For Closure/Consolidation, higher % FRL = lower priority (reverse).
-    const frlPercent = this.getRawMetricValue(school, "highNeedStudents");
+    // High-need students (Decision Data Export HighNeedStudents; legacy: % FRL)
+    // For Expansion & Maintenance/Investment, higher share = higher priority.
+    // For Closure/Consolidation, reverse.
+    const highNeedPercent = this.getRawMetricValue(school, "highNeedStudents");
     const reverseHighNeed = isClosure;
-    const frlStat = getStat("highNeedStudents");
-    const frlScore = this.normalizeValue(frlPercent, frlStat.min, frlStat.max, reverseHighNeed);
-    normalizedData.highNeedStudents = frlScore;
+    const highNeedStat = getStat("highNeedStudents");
+    const highNeedScore = this.normalizeValue(highNeedPercent, highNeedStat.min, highNeedStat.max, reverseHighNeed);
+    normalizedData.highNeedStudents = highNeedScore;
     const highNeedWeight = isEnabled("highNeedStudents") ? (weights.highNeedStudents || 0) : 0;
-    components.highNeedStudents = (frlScore / 100) * highNeedWeight;
+    components.highNeedStudents = (highNeedScore / 100) * highNeedWeight;
     score += components.highNeedStudents;
     totalWeightUsed += highNeedWeight;
 
@@ -520,8 +549,8 @@ window.prioritizationLogic = {
       rawData: {
         utilizationRate: utilization,
         enrollment: enrollment,
-        highNeedStudents: frlPercent,
-        studentEconomicStatus: frlPercent,
+        highNeedStudents: highNeedPercent,
+        studentEconomicStatus: highNeedPercent,
         buildingCondition: buildingScore,
         educationalAdequacy: eaRaw,
         academicPerformance: eaRaw,
@@ -630,8 +659,8 @@ window.prioritizationLogic = {
       const enrollment = parseInt(school.Enrollment || 0, 10);
       totalStudents += enrollment;
       
-      const frlPercent = parseFloat(school["% FRL"] || school["Free Reduced Lunch"] || 0);
-      totalFRL += enrollment * (frlPercent / 100);
+      const needPct = this.getRawMetricValue(school, "highNeedStudents") || 0;
+      totalFRL += enrollment * (needPct / 100);
       
       const blackPercent = parseFloat(school["% Black"] || school["Black"] || 0);
       totalBlack += enrollment * (blackPercent / 100);
