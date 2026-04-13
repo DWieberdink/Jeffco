@@ -10,7 +10,6 @@ window.prioritizationLogic = {
       outcomes: [
         "Building Addition",
         "Policy Solution for Overcrowding",
-        "Building Replacement",
         "Building Addition with Capital Investment"
       ],
       description: "Expansion strategies that increase capacity on-site or via replacement"
@@ -20,7 +19,8 @@ window.prioritizationLogic = {
       outcomes: [
         "Targeted Capital Investment",
         "Standard Maintenance",
-        "Major Capital Investment"
+        "Major Capital Investment",
+        "Building Replacement"
       ],
       description: "Maintenance and capital investment strategies"
     },
@@ -164,6 +164,22 @@ window.prioritizationLogic = {
 
     return this.schoolData.filter(school => {
       const decision = school.decision || school["Decision Type"] || "";
+      const flowNum =
+        school.flow != null && school.flow !== "" ? Number(school.flow) : NaN;
+      // Same disambiguation as DecisionLogic when API not ready yet (defer / load order).
+      if (decision === "Building Replacement") {
+        if (flowNum === 2) return strategyGroupName === "Expansion";
+        if (flowNum === 3) return strategyGroupName === "Maintenance/Investment";
+        return strategyGroupName === "Maintenance/Investment";
+      }
+      // Match Step 3 Strategic Sorting: same `getStrategyGroupForDecision` as Decision by School table.
+      if (
+        typeof window !== "undefined" &&
+        window.decisionLogic &&
+        typeof window.decisionLogic.getStrategyGroupForDecision === "function"
+      ) {
+        return window.decisionLogic.getStrategyGroupForDecision(decision, flowNum) === strategyGroupName;
+      }
       return group.outcomes.some(outcome => decision === outcome);
     });
   },

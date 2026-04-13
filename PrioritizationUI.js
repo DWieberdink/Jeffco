@@ -18,10 +18,102 @@ window.prioritizationUI = {
   // - "scores": show normalized 0–100 indices used for weighting (does NOT change ranking)
   metricDisplayMode: "values",
   _outcomeFlyoutStyleInjected: false,
+  // Impact Analysis table: optional columns (persisted in localStorage)
+  impactTableShowProjectType: true,
+  impactTableShowStrategyGroup: true,
+
+  _loadImpactTableColumnPrefs: function () {
+    try {
+      var p = localStorage.getItem("jeffco_impact_col_project");
+      if (p === "0") this.impactTableShowProjectType = false;
+      else if (p === "1") this.impactTableShowProjectType = true;
+      var s = localStorage.getItem("jeffco_impact_col_strategy");
+      if (s === "0") this.impactTableShowStrategyGroup = false;
+      else if (s === "1") this.impactTableShowStrategyGroup = true;
+    } catch (e) {}
+  },
+
+  _saveImpactTableColumnPrefs: function () {
+    try {
+      localStorage.setItem("jeffco_impact_col_project", this.impactTableShowProjectType ? "1" : "0");
+      localStorage.setItem("jeffco_impact_col_strategy", this.impactTableShowStrategyGroup ? "1" : "0");
+    } catch (e) {}
+  },
+
+  /** Same value as Decision by School “Project Type” column (decision / outcome string). */
+  getProjectTypeLabelForRow: function (row) {
+    if (!row) return "Unknown";
+    var d =
+      row.decision != null && String(row.decision).trim() !== ""
+        ? row.decision
+        : row["Decision Type"] || row.outcome || row.strategyOutcome;
+    var t = d != null ? String(d).trim() : "";
+    return t || "Unknown";
+  },
+
+  _escapeHtml: function (s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  },
+
+  /** Checkboxes above weight sliders (Impact Analysis column visibility). */
+  buildImpactTableColumnToggleHtml: function (isCombined) {
+    var projChecked = this.impactTableShowProjectType !== false ? " checked" : "";
+    var stratChecked = this.impactTableShowStrategyGroup !== false ? " checked" : "";
+    var stratBlock = "";
+    if (isCombined) {
+      stratBlock =
+        '<label style="display:flex; align-items:center; gap:8px; cursor:pointer;">' +
+        '<input type="checkbox" id="impact-col-strategy-group"' +
+        stratChecked +
+        ' style="width:14px;height:14px;">' +
+        "<span>Include strategy group</span></label>";
+    }
+    return (
+      '<div class="impact-table-column-toggles" style="margin-bottom:0.75rem; padding:0.25rem 0 0.5rem 0; border-bottom:1px solid #e5e7eb;">' +
+      '<div style="display:flex; flex-direction:column; gap:6px; font-size:0.85em;">' +
+      '<label style="display:flex; align-items:center; gap:8px; cursor:pointer;">' +
+      '<input type="checkbox" id="impact-col-project-type"' +
+      projChecked +
+      ' style="width:14px;height:14px;">' +
+      "<span>Include project type</span></label>" +
+      stratBlock +
+      "</div></div>"
+    );
+  },
+
+  wireImpactTableColumnToggles: function (strategyGroupNames) {
+    var self = this;
+    var groupNames = Array.isArray(strategyGroupNames)
+      ? strategyGroupNames
+      : [strategyGroupNames].filter(Boolean);
+    var proj = document.getElementById("impact-col-project-type");
+    var strat = document.getElementById("impact-col-strategy-group");
+    if (proj) {
+      proj.addEventListener("change", function () {
+        self.impactTableShowProjectType = !!proj.checked;
+        self._saveImpactTableColumnPrefs();
+        self.renderPrioritizedSchools(groupNames);
+        self.updateMapVisualization(groupNames);
+      });
+    }
+    if (strat) {
+      strat.addEventListener("change", function () {
+        self.impactTableShowStrategyGroup = !!strat.checked;
+        self._saveImpactTableColumnPrefs();
+        self.renderPrioritizedSchools(groupNames);
+        self.updateMapVisualization(groupNames);
+      });
+    }
+  },
 
   // Initialize the prioritization UI
   initialize: function (schoolDataWithDecisions) {
     console.log("🎨 Initializing Prioritization UI");
+    this._loadImpactTableColumnPrefs();
     this.schoolDataWithDecisions = schoolDataWithDecisions || [];
     this.currentOutcomeFilters = null;
     this.outcomeFiltersByGroup = {};
@@ -266,22 +358,9 @@ window.prioritizationUI = {
     });
 
     if (leftPanel) {
-      // Optional context message when viewing the combined group
-      if (isCombined) {
-        const showAll = groupNames.includes("__ALL__");
-        const msg = showAll
-          ? 'These weights apply to <strong>Expansion</strong> and <strong>Maintenance/Investment</strong>. ' +
-            '<strong>Closure/Consolidation</strong> schools use their own scoring criteria. Use the Strategy Group filter in the table to narrow the list.'
-          : 'These weights are shared between <strong>Expansion</strong> and <strong>Maintenance/Investment</strong>. ' +
-            'Adjusting a slider here (or in either individual tab) updates both strategy groups.';
-        leftPanel.innerHTML =
-          '<p style="text-align:left; color:#555; font-size:0.85em; line-height:1.4; padding:0.25rem 0 0.75rem 0;">' +
-          msg +
-          "</p>" +
-          slidersHTML;
-      } else {
-      leftPanel.innerHTML = slidersHTML;
-      }
+      const toggleHtml = self.buildImpactTableColumnToggleHtml(isCombined);
+      leftPanel.innerHTML = toggleHtml + slidersHTML;
+      self.wireImpactTableColumnToggles(groupNames);
     }
 
     // Wire up slider change events
@@ -582,11 +661,15 @@ window.prioritizationUI = {
     });
     let html = "";
 
+    const showStrategyCol = isCombined && self.impactTableShowStrategyGroup !== false;
+    const showProjectTypeCol = self.impactTableShowProjectType !== false;
+
     // Build column width model (match Decision by School look: % or px)
     const colWidths = [];
     colWidths.push("8%"); // Rank
-    if (isCombined) colWidths.push("14%"); // Strategy Group
-    colWidths.push("22%"); // School
+    if (showStrategyCol) colWidths.push("12%");
+    if (showProjectTypeCol) colWidths.push("14%");
+    colWidths.push(showStrategyCol || showProjectTypeCol ? "18%" : "22%"); // School
     colWidths.push("10%"); // Score
     sliderConfigs.forEach(() => colWidths.push("80px")); // enabled metrics only
 
@@ -656,27 +739,68 @@ window.prioritizationUI = {
       '<div class="ps-prioritized-table-scroll">' +
       '<table id="' + tableId + '" class="ps-prioritized-table">' +
       buildColGroupHTML() +
-      "<thead><tr>" +
-      '<th class="sortable-header filterable-header text-center" data-filter-key="ps-rank" data-column="0" data-type="number" title="Rank">' +
+      "<thead><tr>";
+
+    var headCol = 0;
+    html +=
+      '<th class="sortable-header filterable-header text-center" data-filter-key="ps-rank" data-column="' +
+      headCol +
+      '" data-type="number" title="Rank">' +
       '<span class="th-inner"><span class="th-label">Rank</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>' +
       '<div class="filter-dropdown" role="menu" aria-hidden="true"></div>' +
-      '<div class="column-resizer" data-col="0"></div></th>' +
-      (isCombined
-        ? '<th class="sortable-header filterable-header" data-filter-key="ps-strategyGroup" data-column="1" data-type="string" title="Strategy Group">' +
-          '<span class="th-inner"><span class="th-label">Strategy Group</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>' +
-          '<div class="filter-dropdown" role="menu" aria-hidden="true"></div>' +
-          '<div class="column-resizer" data-col="1"></div></th>'
-        : "") +
-      '<th class="sortable-header filterable-header" data-filter-key="ps-school" data-column="' + (isCombined ? "2" : "1") + '" data-type="string" title="School">' +
+      '<div class="column-resizer" data-col="' +
+      headCol +
+      '"></div></th>';
+    headCol++;
+
+    if (showStrategyCol) {
+      html +=
+        '<th class="sortable-header filterable-header" data-filter-key="ps-strategyGroup" data-column="' +
+        headCol +
+        '" data-type="string" title="Strategy Group">' +
+        '<span class="th-inner"><span class="th-label">Strategy Group</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>' +
+        '<div class="filter-dropdown" role="menu" aria-hidden="true"></div>' +
+        '<div class="column-resizer" data-col="' +
+        headCol +
+        '"></div></th>';
+      headCol++;
+    }
+
+    if (showProjectTypeCol) {
+      html +=
+        '<th class="sortable-header filterable-header" data-filter-key="ps-projectType" data-column="' +
+        headCol +
+        '" data-type="string" title="Project Type">' +
+        '<span class="th-inner"><span class="th-label">Project Type</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>' +
+        '<div class="filter-dropdown" role="menu" aria-hidden="true"></div>' +
+        '<div class="column-resizer" data-col="' +
+        headCol +
+        '"></div></th>';
+      headCol++;
+    }
+
+    html +=
+      '<th class="sortable-header filterable-header" data-filter-key="ps-school" data-column="' +
+      headCol +
+      '" data-type="string" title="School">' +
       '<span class="th-inner"><span class="th-label">School</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>' +
       '<div class="filter-dropdown" role="menu" aria-hidden="true"></div>' +
-      '<div class="column-resizer" data-col="' + (isCombined ? "2" : "1") + '"></div></th>' +
-      '<th class="sortable-header filterable-header text-center" data-filter-key="ps-score" data-column="' + (isCombined ? "3" : "2") + '" data-type="number" title="Score">' +
+      '<div class="column-resizer" data-col="' +
+      headCol +
+      '"></div></th>';
+    headCol++;
+    html +=
+      '<th class="sortable-header filterable-header text-center" data-filter-key="ps-score" data-column="' +
+      headCol +
+      '" data-type="number" title="Score">' +
       '<span class="th-inner"><span class="th-label">Score</span><button type="button" class="filter-btn" aria-label="Filter column" title="Filter">▾</button><button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button></span>' +
       '<div class="filter-dropdown" role="menu" aria-hidden="true"></div>' +
-      '<div class="column-resizer" data-col="' + (isCombined ? "3" : "2") + '"></div></th>';
+      '<div class="column-resizer" data-col="' +
+      headCol +
+      '"></div></th>';
+    headCol++;
 
-    let metricStartColIndex = isCombined ? 4 : 3;
+    var metricStartColIndex = headCol;
     sliderConfigs.forEach(function (config, idx) {
       const colIndex = metricStartColIndex + idx;
       const weightKeyForFilter = self.mapUiKeyToWeightKey(config.key);
@@ -745,8 +869,21 @@ window.prioritizationUI = {
       html += '<td data-filter="col-' + colIdx + '">' + (index + 1) + "</td>";
       colIdx++;
 
-      if (isCombined) {
+      if (showStrategyCol) {
         html += '<td data-filter="col-' + colIdx + '">' + (strategyLabel || "Unknown") + "</td>";
+        colIdx++;
+      }
+
+      if (showProjectTypeCol) {
+        var ptLabel = self.getProjectTypeLabelForRow(school);
+        html +=
+          '<td data-filter="col-' +
+          colIdx +
+          '" title="' +
+          self._escapeHtml(ptLabel) +
+          '">' +
+          self._escapeHtml(ptLabel) +
+          "</td>";
         colIdx++;
       }
 

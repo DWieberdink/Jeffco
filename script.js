@@ -48,6 +48,23 @@ window.getEffectiveAvailableSeats = function (row) {
   const effEnr = window.getEffectiveEnrollment ? window.getEffectiveEnrollment(row) : 0;
   return Math.round(cap - effEnr);
 };
+/** 2030 headcount: mirrors PK toggle — with PK off, prefer explicit 2030_K+ else 2030_Total − 2030_PK. */
+window.getEffectiveProjectedEnrollment = function (row) {
+  if (!row) return null;
+  const inc = window.getIncludePKInEnrollment && window.getIncludePKInEnrollment();
+  const parse = (v) => {
+    const n = parseFloat((v ?? '').toString().replace(/,/g, '').trim());
+    return Number.isFinite(n) ? n : null;
+  };
+  if (inc) return parse(row['2030_Total'] ?? row['2030 Total']) ?? null;
+  const kPlus = parse(row['2030_K+'] ?? row['2030 K+']);
+  if (kPlus != null) return kPlus;
+  const total2030 = parse(row['2030_Total'] ?? row['2030 Total']);
+  if (total2030 == null) return null;
+  const pk2030 = parse(row['2030_PK'] ?? row['2030 PK']);
+  const pkPart = pk2030 != null ? pk2030 : 0;
+  return Math.max(0, total2030 - pkPart);
+};
 window.getEffectiveEnrollmentGrowth = function (row) {
   if (!row) return null;
   const parse = (v) => {
@@ -55,18 +72,48 @@ window.getEffectiveEnrollmentGrowth = function (row) {
     return Number.isFinite(n) ? n : null;
   };
   const inc = window.getIncludePKInEnrollment && window.getIncludePKInEnrollment();
-  let current, projected;
+  let current;
   if (inc) {
     current = parse(row.Enrollment ?? row['Enrollment']) ?? 0;
-    projected = parse(row['2030_Total'] ?? row['2030 Total']) ?? null;
   } else {
     const pk = parse(row.PKEnrollment ?? row['PKEnrollment']) ?? 0;
     const total = parse(row.Enrollment ?? row['Enrollment']) ?? 0;
     current = Math.max(0, total - pk);
-    projected = parse(row['2030_K+'] ?? row['2030 K+']) ?? parse(row['2030_Total']) ?? null;
   }
+  const projected = window.getEffectiveProjectedEnrollment(row);
   if (projected == null || !(current > 0)) return null;
   return (projected - current) / current;
+};
+/**
+ * Enrollment growth threshold is stored as a ratio (e.g. 0.05 = 5% on the slider).
+ * If a value is in (1, 100], treat it as a whole percent (legacy or mistaken storage) so 5 compares to growth as 5%, not 500%.
+ */
+window.normalizeEnrollmentGrowthThreshold = function (raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return 0.05;
+  if (n > 1 && n <= 100) return n / 100;
+  return n;
+};
+/**
+ * Ratio (0–1) for growth threshold.
+ * Prefer live `#growthSlider` when present so path logic matches the number shown on flowchart nodes,
+ * then `t.enrollmentGrowth`, then 5%.
+ */
+window.getEnrollmentGrowthThresholdRatio = function (t) {
+  const norm = window.normalizeEnrollmentGrowthThreshold;
+  let raw = null;
+  if (typeof document !== "undefined") {
+    const el = document.getElementById("growthSlider");
+    if (el && el.value != null && String(el.value).trim() !== "") {
+      const n = parseFloat(el.value);
+      if (Number.isFinite(n)) raw = n / 100;
+    }
+  }
+  if (raw == null && t && t.enrollmentGrowth !== undefined && t.enrollmentGrowth !== null && t.enrollmentGrowth !== "") {
+    raw = t.enrollmentGrowth;
+  }
+  if (raw == null) raw = 0.05;
+  return norm ? norm(raw) : raw;
 };
 window.getEffectiveAttendanceAreaEnrollment = function (row) {
   if (!row) return null;
@@ -77,16 +124,6 @@ window.getEffectiveAttendanceAreaEnrollment = function (row) {
   };
   if (inc) return parse(row['AttendanceAreaEnrollment'] ?? row['Attendance Area Enrollment']) ?? null;
   return parse(row['NonPKAttendanceAreaEnrollment'] ?? row['NonPK Attendance Area Enrollment']) ?? parse(row['AttendanceAreaEnrollment']) ?? null;
-};
-window.getEffectiveProjectedEnrollment = function (row) {
-  if (!row) return null;
-  const inc = window.getIncludePKInEnrollment && window.getIncludePKInEnrollment();
-  const parse = (v) => {
-    const n = parseFloat((v ?? '').toString().replace(/,/g, '').trim());
-    return Number.isFinite(n) ? n : null;
-  };
-  if (inc) return parse(row['2030_Total'] ?? row['2030 Total']) ?? null;
-  return parse(row['2030_K+'] ?? row['2030 K+']) ?? parse(row['2030_Total']) ?? null;
 };
 const withCacheBust = (url) => {
   if (!ASSET_VERSION) return url;
@@ -2383,8 +2420,9 @@ function setNearbySchoolsSectionVisibility(selectedId) {
 
   const hasSelection = !!(selectedId && selectedId.toString().trim());
   section.style.display = hasSelection ? '' : 'none';
+  // Keep School Matches collapsed until the user opens the <details> manually
+  section.open = false;
   if (!hasSelection) {
-    section.open = false;
     const list = document.getElementById('nearbySchoolsList');
     if (list) list.textContent = 'Select a school to see matches.';
     const cb = document.getElementById('showOverlappingGradesCb');
@@ -8902,12 +8940,6 @@ document.addEventListener("DOMContentLoaded", function() {
         console.log("🔍 No school available for flowchart path update");
       }
 
-      // ✅ Update nearby welcoming schools list for the selected school
-      if (selectedSchoolForFlow && typeof window.showNearbyWelcomingSchools === 'function') {
-        console.log("🔄 Updating nearby welcoming schools list for:", selectedSchoolForFlow);
-        window.showNearbyWelcomingSchools(selectedSchoolForFlow);
-      }
-      
       // ✅ Update nearby destination highlight on the map for the selected school
       if (selectedSchoolForFlow && typeof window.updateNearbyDestinationsHighlight === 'function' && window.decisionLogic && Array.isArray(window.decisionLogic.schoolData)) {
         const originRowForFlow = window.decisionLogic.schoolData.find(r => r["Building Name"] === selectedSchoolForFlow);

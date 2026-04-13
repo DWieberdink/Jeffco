@@ -613,10 +613,11 @@ function drawFlowBoxes() {
   }
   
   // Define flow box data (store globally) - Updated with saved layout positions
+  // Labels mirror Step 3 summary strategy groups (DecisionLogic decisionGroups) and left-panel flow section titles.
   flowBoxes = [
     {
       id: "flow1",
-      label: "FLOW 1 - INITIAL SORTING",
+      label: "FLOW 1 – Decision routing",
       x: -271.03200912475586,
       y: -333.68441009521484,
       width: 237.47534942626953,
@@ -624,8 +625,8 @@ function drawFlowBoxes() {
       color: "#e3f2fd"
     },
     {
-      id: "flow2", 
-      label: "FLOW 2 - CAPACITY\n INCREASE",
+      id: "flow2",
+      label: "FLOW 2 – Expansion / Overcrowding",
       x: -29.000279426574707,
       y: -456.79920959472656,
       width: 699.0092468261719,
@@ -634,7 +635,7 @@ function drawFlowBoxes() {
     },
     {
       id: "flow3",
-      label: "FLOW 3 - BUILDING\n IMPROVEMENT",
+      label: "FLOW 3 – Maintenance / Investment",
       x: -26.81069564819336,
       y: -81.96510314941406,
       width: 693.5711059570312,
@@ -643,7 +644,7 @@ function drawFlowBoxes() {
     },
     {
       id: "flow4",
-      label: "FLOW 4 - SCHOOL\n CONSOLIDATION",
+      label: "FLOW 4 – Closure / Consolidation",
       x: -26.216888427734375,
       y: 220.00949096679688,
       width: 688.54345703125,
@@ -1729,7 +1730,7 @@ function getEnrollmentDecision(row, t) {
   return (utilizationBelowThreshold || enrollmentBelowThreshold) ? "Yes" : "No";
 }
 
-// ✅ Evaluate Path function
+// ✅ Evaluate Path function (routing + `decisions` must stay aligned with DecisionLogic.js `evaluateSchool`)
 function evaluatePath(row, t) {
   console.log("🔍 Evaluating 4-flow path for school:", row["Building Name"]);
   console.log("🔍 Thresholds being used:", t);
@@ -1770,7 +1771,10 @@ function evaluatePath(row, t) {
     growth: (() => {
       const g = window.getEffectiveEnrollmentGrowth ? window.getEffectiveEnrollmentGrowth(row) : null;
       const val = (g != null && Number.isFinite(g)) ? g : 0;
-      return val > t.enrollmentGrowth ? "Yes" : "No";
+      const th = window.getEnrollmentGrowthThresholdRatio
+        ? window.getEnrollmentGrowthThresholdRatio(t)
+        : 0.05;
+      return val > th ? "Yes" : "No";
     })(),
     
     // Flow 2 - Building Addition
@@ -1879,10 +1883,16 @@ function evaluatePath(row, t) {
     }
   }
 
-  // Override: if school reached Flow 2 or 3 via the *underutilized* branch (F1_DIST), and enrollment <= 300, route to consolidation (Flow 4).
-  // Do NOT override when they reached Flow 3 via the 60–90% utilization band (F1_UTIL2 → F3_FAC_ABOVE); those stay in Building Improvement.
+  // Override: small schools on the underutilized + near-distance branch (F1_DIST) may be forced to
+  // consolidation (Flow 4) when projected growth is NOT above the growth threshold.
+  // If growth is "Yes", keep Flow 2/3 so the growth slider and F1_GROWTH → F3 "Yes" path stay meaningful.
   const cameFromUnderutilizedBranch = path.includes("F1_DIST");
-  if ((currentFlow === 2 || currentFlow === 3) && enrollmentLow && cameFromUnderutilizedBranch) {
+  if (
+    (currentFlow === 2 || currentFlow === 3) &&
+    enrollmentLow &&
+    cameFromUnderutilizedBranch &&
+    decisions.growth !== "Yes"
+  ) {
     currentFlow = 4;
     while (path.length > 1 && !String(path[path.length - 1]).startsWith("F1_")) path.pop();
   }
@@ -1988,14 +1998,11 @@ function highlightFlow(path, decisions, currentFlow) {
     .classed("hidden-flow", false)
     .attr("marker-end", null);
 
-  d3.selectAll(".link-label")
-    .classed("active-label", false)
-    .classed("hidden-flow", false);
+  d3.select(".link-labels").selectAll("text").remove();
 
   // Show ALL nodes and links first, then fade irrelevant ones with smooth transition
   d3.selectAll(".node").style("display", "block").transition().duration(400).style("opacity", 0.08);
   d3.selectAll(".link").style("display", "block").transition().duration(400).style("opacity", 0.08);
-  d3.selectAll(".link-label").style("display", "block").transition().duration(400).style("opacity", 0.08);
   d3.selectAll(".flow-box").transition().duration(400).style("opacity", 0.15);
   d3.selectAll(".flow-label").transition().duration(400).style("opacity", 0.15);
   
@@ -2044,17 +2051,6 @@ function highlightFlow(path, decisions, currentFlow) {
       .duration(400)
       .style("opacity", 1);
     
-    // Restore full opacity to visible link labels with matching stagger
-    d3.selectAll(".link-label")
-      .filter(d => d && d.source && d.target && visibleLinks.has(`${d.source}-${d.target}`))
-      .transition()
-      .delay(d => {
-        const i = pathIndex[d.source];
-        return (i || 0) * stepDelay;
-      })
-      .duration(400)
-      .style("opacity", 1);
-    
     console.log("🔍 Visible nodes (exact path):", Array.from(visibleNodes));
     console.log("🔍 Visible links (exact path):", Array.from(visibleLinks));
     console.log("🔍 Total nodes faded:", d3.selectAll(".node").size() - visibleNodes.size, "Total links faded:", d3.selectAll(".link").size() - visibleLinks.size);
@@ -2088,92 +2084,6 @@ function highlightFlow(path, decisions, currentFlow) {
     })
     .classed("active", true)
     .style("display", "block"); // Ensure active links are shown
-
-  // Highlight labels for active links
-  const labelGroup = d3.select(".link-labels");
-  labelGroup.selectAll("text").remove();
-
-  for (let i = 0; i < path.length - 1; i++) {
-    const source = nodes.find(n => n.id === path[i]);
-    const target = nodes.find(n => n.id === path[i + 1]);
-
-    if (!source || !target) {
-      console.warn(`⚠️ Could not find node for: ${path[i]} ➝ ${path[i + 1]}`);
-      continue; // Skip this label
-    }
-    let midX, midY;
-    // Custom label placement for E→F and E→1
-    if (source.id === "E" && target.id === "F") {
-      // Place label above the horizontal segment between left of E and center of F
-      const nodeWidthE = 180;
-      const startX = source.fx - nodeWidthE / 2;
-      const endX = target.fx;
-      midX = (startX + endX) / 2;
-      midY = source.fy - 10; // slightly above the line
-    } else if (source.id === "E" && target.id === "1") {
-      // Place label above the first horizontal segment (right from E)
-      const nodeWidthE = 150;
-      const startX = source.fx + nodeWidthE / 2;
-      const m = nodes.find(n => n.id === "M");
-      const horizontalGap = 120;
-      const rightOfM_X = m.fx + nodeWidthE / 2 + horizontalGap;
-      midX = (startX + rightOfM_X) / 2;
-      midY = source.fy - 10;
-    } else if (source.id === "O" && target.id === "20") {
-      // Place label above the first horizontal segment (left from O)
-      const nodeWidthO = 180;
-      const startX = source.fx - nodeWidthO / 2;
-      const leftGap = 60;
-      const leftX = startX - leftGap;
-      midX = ((startX + leftX) / 2)-50;
-      midY = source.fy +70;
-    } else if (source.id === "Z" && target.id === "20") {
-      // Place label above the first horizontal segment (right from Z)
-      const nodeWidthZ = 180;
-      const startX = source.fx + nodeWidthZ / 2;
-      const center20X = target.fx;
-      midX = (startX + center20X) / 2;
-      midY = source.fy - 10;
-    } else if (source.id === "W" && target.id === "5") {
-      // Place label to the right and slightly down from the first horizontal segment (right from W)
-      const nodeWidthW = 150;
-      const offset = 40;
-      const startX = source.fx + nodeWidthW / 2;
-      const rightX = startX + offset;
-      midX = (startX + rightX) / 2 + 35; // move right
-      midY = source.fy + 70; // move down
-    } else if (source.id === "G" && target.id === "U") {
-      // Place label at midpoint between right edge of G and center of U
-      const nodeWidthG = 180;
-      const startX = source.fx + nodeWidthG / 2;
-      const startY = source.fy;
-      const endX = target.fx;
-      const endY = target.fy;
-      midX = (startX + endX) / 2-20;
-      midY = (startY + endY) / 2 - 20; // slightly above the line
-    } else if (source.id === "U" && target.id === "W"){
-      // Place label at midpoint between right edge of U and center of W
-      const nodeWidthU = 180;
-      const startX = source.fx + nodeWidthU / 2;
-      const startY = source.fy;
-      const endX = target.fx;
-      const endY = target.fy;
-      midX = (startX + endX) / 2-20;
-      midY = (startY + endY) / 2 - 20; // slightly above the line
-    }
-    else {
-      // Default: midpoint of straight line
-      midX = (source.fx + target.fx) / 2;
-      midY = ((source.fy + target.fy) / 2)+5;
-    }
-    const label = decisions[source.id] || "";
-    labelGroup.append("text")
-      .attr("x", midX)
-      .attr("y", midY)
-      .attr("text-anchor", "middle")
-      .attr("class", "link-label")
-      .text(label);
-  }
 }
 
 function updateFlowForSchool(name, thresholds) {
@@ -2238,12 +2148,7 @@ function resetFlowchartVisibility() {
     .duration(400)
     .style("opacity", 1); // Show all links at full opacity
 
-  d3.selectAll(".link-label")
-    .classed("active-label", false)
-    .style("display", "block")
-    .transition()
-    .duration(400)
-    .style("opacity", 1); // Show all labels at full opacity
+  d3.select(".link-labels").selectAll("text").remove();
 
   d3.selectAll(".flow-box").transition().duration(400).style("opacity", 0.3); // Show flow boxes
   d3.selectAll(".flow-label").transition().duration(400).style("opacity", 0.3); // Show flow labels
@@ -2793,7 +2698,10 @@ function updateFlowchartSchoolInfo(name) {
   if (!row) {
     infoDiv.innerHTML = "";
     const existingList = document.getElementById("flowchart-welcoming-list");
-    if (existingList) existingList.innerHTML = "";
+    if (existingList) {
+      existingList.innerHTML = "";
+      existingList.style.display = "none";
+    }
     return;
   }
   // Use PK-aware helpers for enrollment display (consistent with flow logic)
@@ -2912,6 +2820,10 @@ function updateFlowchartSchoolInfo(name) {
     listDiv.style.fontFamily = "'Franklin Gothic Book', 'Franklin Gothic', 'Arial Narrow', Arial, sans-serif";
     listDiv.style.fontSize = "11px";
     infoDiv.insertAdjacentElement("afterend", listDiv);
+  }
+  if (listDiv) {
+    listDiv.style.display = "none";
+    listDiv.innerHTML = "";
   }
 
   // Wire the "Include PK in utilization" checkbox
@@ -3175,11 +3087,6 @@ if (mainFlowchartSelect) {
     // Also drive the flowchart highlight when user selects from this dropdown
     if (typeof window.updateFlowForSchool === 'function') {
       window.updateFlowForSchool(name, thresholds);
-    }
-
-    // If the nearby-schools panel is visible, update it for the newly selected school
-    if (typeof window.showNearbyWelcomingSchools === 'function' && name) {
-      window.showNearbyWelcomingSchools(name);
     }
   });
   

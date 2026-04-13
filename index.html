@@ -22,11 +22,11 @@
   <!-- ELK.js (graph layout engine) for flowchart auto-layout -->
   <script src="https://cdn.jsdelivr.net/npm/elkjs@0.11.0/lib/elk.bundled.js" defer></script>
   <!-- Cache-bust local scripts so GitHub Pages / browsers don't serve stale JS -->
-  <script src="DecisionLogic.js?v=20260402_2" defer></script>
-  <script src="PrioritizationLogic.js?v=20260402_9" defer></script>
-  <script src="PrioritizationUI.js?v=20260402_2" defer></script>
-  <script src="FlowchartLogic.js?v=20260210_9" defer></script>
-  <script src="script.js?v=20260210_8" defer></script>
+  <script src="DecisionLogic.js?v=20260403_6" defer></script>
+  <script src="PrioritizationLogic.js?v=20260403_2" defer></script>
+  <script src="PrioritizationUI.js?v=20260403_3" defer></script>
+  <script src="FlowchartLogic.js?v=20260403_5" defer></script>
+  <script src="script.js?v=20260403_1" defer></script>
   <script src="global-search.js" defer></script>
   
 
@@ -2858,6 +2858,13 @@
     .truncate-cell:hover { overflow: visible; white-space: normal; height: auto; }
     .truncate-cell:hover::after { content: attr(data-tooltip); position: absolute; left: 0; top: 100%; background-color: #333; color: white; padding: 5px; border-radius: 4px; z-index: 100; white-space: normal; width: max-content; max-width: 300px; }
     /* .truncate-cell:hover::after { content: none !important; } */
+    /* Strategic Sorting summary only: full labels (no ellipsis). Decision by School and Impact Analysis unchanged. */
+    #summary .truncate-cell {
+      max-width: none;
+      white-space: normal;
+      overflow: visible;
+      text-overflow: unset;
+    }
     .decision-panel-body th.sortable-header { 
       cursor: pointer; 
       position: relative; 

@@ -195,12 +195,23 @@
     return loadThresholdsFromStorage() || DECISION_THRESHOLDS;
   }
 
-  const PK_ENROLLMENT_KEY = "jeffco_include_pk_enrollment_v1";
+  // Align with script.js (v2); still read legacy v1 so toggles match the main dashboard.
+  const PK_ENROLLMENT_KEY_V2 = "jeffco_include_pk_enrollment_v2";
+  const PK_ENROLLMENT_KEY_V1 = "jeffco_include_pk_enrollment_v1";
   function getIncludePKInEnrollment() {
-    try { return (window.localStorage && window.localStorage.getItem(PK_ENROLLMENT_KEY)) === "true"; } catch { return false; }
+    try {
+      if (!window.localStorage) return false;
+      const v2 = window.localStorage.getItem(PK_ENROLLMENT_KEY_V2);
+      if (v2 === "true" || v2 === "false") return v2 === "true";
+      return window.localStorage.getItem(PK_ENROLLMENT_KEY_V1) === "true";
+    } catch {
+      return false;
+    }
   }
   function setIncludePKInEnrollment(v) {
-    try { if (window.localStorage) window.localStorage.setItem(PK_ENROLLMENT_KEY, v ? "true" : "false"); } catch {}
+    try {
+      if (window.localStorage) window.localStorage.setItem(PK_ENROLLMENT_KEY_V2, v ? "true" : "false");
+    } catch {}
   }
 
   function getIncludeFciForMajor() {
@@ -218,6 +229,59 @@
     const cap = parseFloat((row.Capacity ?? row.capacity ?? "").toString().replace(/,/g, "").trim()) || 0;
     if (!cap || cap <= 0) return 0;
     return getEffectiveEnrollment(row) / cap;
+  }
+
+  /** Same rules as script.js (this page does not load script.js). */
+  function normalizeEnrollmentGrowthThresholdLocal(raw) {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return 0.05;
+    if (n > 1 && n <= 100) return n / 100;
+    return n;
+  }
+
+  function getEnrollmentGrowthThresholdRatioLocal(t) {
+    const raw =
+      t && t.enrollmentGrowth !== undefined && t.enrollmentGrowth !== null && t.enrollmentGrowth !== ""
+        ? t.enrollmentGrowth
+        : 0.05;
+    return normalizeEnrollmentGrowthThresholdLocal(raw);
+  }
+
+  function getEffectiveProjectedEnrollmentLocal(row) {
+    if (!row) return null;
+    const parse = (v) => {
+      const n = parseFloat((v ?? "").toString().replace(/,/g, "").trim());
+      return Number.isFinite(n) ? n : null;
+    };
+    const inc = getIncludePKInEnrollment();
+    if (inc) return parse(row["2030_Total"] ?? row["2030 Total"]) ?? null;
+    const kPlus = parse(row["2030_K+"] ?? row["2030 K+"]);
+    if (kPlus != null) return kPlus;
+    const total2030 = parse(row["2030_Total"] ?? row["2030 Total"]);
+    if (total2030 == null) return null;
+    const pk2030 = parse(row["2030_PK"] ?? row["2030 PK"]);
+    const pkPart = pk2030 != null ? pk2030 : 0;
+    return Math.max(0, total2030 - pkPart);
+  }
+
+  function getEffectiveEnrollmentGrowthLocal(row) {
+    if (!row) return null;
+    const parse = (v) => {
+      const n = parseFloat((v ?? "").toString().replace(/,/g, "").trim());
+      return Number.isFinite(n) ? n : null;
+    };
+    const inc = getIncludePKInEnrollment();
+    let current;
+    if (inc) {
+      current = parse(row.Enrollment ?? row["Enrollment"]) ?? 0;
+    } else {
+      const pk = parse(row.PKEnrollment ?? row["PKEnrollment"]) ?? 0;
+      const total = parse(row.Enrollment ?? row["Enrollment"]) ?? 0;
+      current = Math.max(0, total - pk);
+    }
+    const projected = getEffectiveProjectedEnrollmentLocal(row);
+    if (projected == null || !(current > 0)) return null;
+    return (projected - current) / current;
   }
 
   function coercePercent0to100(raw) {
@@ -300,8 +364,13 @@
 
     const distVal = Number(row.DistanceUnderutilizedschools);
     const dist = Number.isFinite(distVal) && distVal <= distanceThreshold ? "Yes" : "No";
-    const growthVal = window.getEffectiveEnrollmentGrowth ? window.getEffectiveEnrollmentGrowth(row) : null;
-    const growth = (growthVal != null && Number.isFinite(growthVal)) && growthVal > t.enrollmentGrowth ? "Yes" : "No";
+    const growthVal = window.getEffectiveEnrollmentGrowth
+      ? window.getEffectiveEnrollmentGrowth(row)
+      : getEffectiveEnrollmentGrowthLocal(row);
+    const growthTh = window.getEnrollmentGrowthThresholdRatio
+      ? window.getEnrollmentGrowthThresholdRatio(t)
+      : getEnrollmentGrowthThresholdRatioLocal(t);
+    const growth = (growthVal != null && Number.isFinite(growthVal)) && growthVal > growthTh ? "Yes" : "No";
 
     const attendancePct = coercePercent0to100(row.AttendanceAreaEnrollment);
     const attendance = attendancePct >= t.attendanceAreaEnrollment ? "Yes" : "No";
@@ -318,15 +387,8 @@
 
     const edu4 = edu2;
     const fac4 = coerceBuildingScore0to10(row.BuildingScore) >= t.buildingThresholdFlow4 ? "Yes" : "No";
-    // dist4 uses raw school level text heuristics
-    const sl = (row["School Level"] || "").toString().toLowerCase();
-    let dist4Threshold = t.middleDistance;
-    if (sl.includes("elementary")) dist4Threshold = t.elementaryDistance;
-    else if (sl.includes("k-8")) dist4Threshold = t.k8Distance;
-    else if (sl.includes("middle")) dist4Threshold = t.middleDistance;
-    else if (sl.includes("high")) dist4Threshold = t.highDistance;
-    else if (sl.includes("6-12")) dist4Threshold = t.k12Distance;
-    const dist4 = Number.isFinite(distVal) && distVal <= dist4Threshold ? "Yes" : "No";
+    // Flow 4 uses the same distance ladder as Flow 1 dist (FlowchartLogic / DecisionLogic).
+    const dist4 = dist;
 
     const util1 = getEnrollmentDecision(row, t);
 
@@ -340,6 +402,19 @@
       }
     } else {
       currentFlow = util2 === "Yes" ? 2 : 3;
+    }
+
+    const enrollmentForOverride = getEffectiveEnrollment(row);
+    const enrollmentLow =
+      Number.isFinite(enrollmentForOverride) && enrollmentForOverride <= 300;
+    const cameFromUnderutilizedBranch = util1 === "Yes";
+    if (
+      (currentFlow === 2 || currentFlow === 3) &&
+      enrollmentLow &&
+      cameFromUnderutilizedBranch &&
+      growth !== "Yes"
+    ) {
+      currentFlow = 4;
     }
 
     let finalDecision = "Unknown";

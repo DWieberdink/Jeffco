@@ -241,6 +241,24 @@ document.addEventListener("DOMContentLoaded", () => {
     return null;
   }
 
+  /**
+   * Distance-to-underutilized threshold (miles) by normalized school level.
+   * Must stay in sync with FlowchartLogic.js evaluatePath (`dist` and `dist4`).
+   */
+  function getDistanceThresholdForSchoolLevel(row, t) {
+    let schoolLevelRaw = row["School Level"] || "";
+    let level = normalizeSchoolLevel(schoolLevelRaw);
+    if (!level && row["Building Name"]) {
+      level = normalizeSchoolLevel(row["Building Name"].toString());
+    }
+    if (level === "elementary") return t.elementaryDistance;
+    if (level === "k8") return t.k8Distance;
+    if (level === "middle") return t.middleDistance;
+    if (level === "high") return t.highDistance;
+    if (level === "k12") return t.k12Distance;
+    return t.middleDistance || 5.0;
+  }
+
   function getEffectiveEnrollmentLocal(row) {
     if (window.getEffectiveEnrollment) return window.getEffectiveEnrollment(row);
     const e = parseFloat((row.Enrollment || '').toString().replace(/,/g, '').trim()) || 0;
@@ -307,43 +325,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
   function evaluateSchool(row, t = self.thresholds) {
-    // Use EXACTLY the same logic as FlowchartLogic.js evaluatePath
+    // Keep aligned with FlowchartLogic.js `evaluatePath` (flow numbers, overrides, decisions object, dist/dist4).
     const decisions = {
       // Flow 1 - Main Decision (F1_UTIL1 now includes enrollment logic)
       util1: getEnrollmentDecision(row, t),
       util2: getEffectiveUtilizationLocal(row) > t.utilizationHigh ? "Yes" : "No",
       dist: (() => {
-        let schoolLevelRaw = row["School Level"] || '';
-        let level = normalizeSchoolLevel(schoolLevelRaw);
-        
-        // Special handling: If school level is "Multi-Level" or unrecognized, try to infer from school name
-        if (!level && row["Building Name"]) {
-          const schoolName = row["Building Name"].toString();
-          level = normalizeSchoolLevel(schoolName);
-        }
-        
-        let distanceThreshold;
-        
-        if (level === 'elementary') {
-          distanceThreshold = t.elementaryDistance;
-        } else if (level === 'k8') {
-          distanceThreshold = t.k8Distance;
-        } else if (level === 'middle') {
-          distanceThreshold = t.middleDistance;
-        } else if (level === 'high') {
-          distanceThreshold = t.highDistance;
-        } else if (level === 'k12') {
-          distanceThreshold = t.k12Distance;
-        } else {
-          distanceThreshold = t.middleDistance || 5.0; // Default fallback
-        }
-        
+        const distanceThreshold = getDistanceThresholdForSchoolLevel(row, t);
         return +row.DistanceUnderutilizedschools <= distanceThreshold ? "Yes" : "No";
       })(),
       growth: (() => {
         const g = window.getEffectiveEnrollmentGrowth ? window.getEffectiveEnrollmentGrowth(row) : null;
         const val = (g != null && Number.isFinite(g)) ? g : 0;
-        return val > t.enrollmentGrowth ? "Yes" : "No";
+        const th = window.getEnrollmentGrowthThresholdRatio
+          ? window.getEnrollmentGrowthThresholdRatio(t)
+          : 0.05;
+        return val > th ? "Yes" : "No";
       })(),
       
       // Flow 2 - Building Addition
@@ -377,23 +374,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // Node label: "Composite Building Score above?"
       fac4: coerceBuildingScore0to10(row.BuildingScore) >= t.buildingThresholdFlow4 ? "Yes" : "No",
       dist4: (() => {
-        const schoolLevel = (row["School Level"] || '').toLowerCase();
-        let distanceThreshold;
-        
-        if (schoolLevel.includes("elementary")) {
-          distanceThreshold = t.elementaryDistance;
-        } else if (schoolLevel.includes("k-8")) {
-          distanceThreshold = t.k8Distance;
-        } else if (schoolLevel.includes("middle")) {
-          distanceThreshold = t.middleDistance;
-        } else if (schoolLevel.includes("high")) {
-          distanceThreshold = t.highDistance;
-        } else if (schoolLevel.includes("6-12")) {
-          distanceThreshold = t.k12Distance;
-        } else {
-          distanceThreshold = t.middleDistance; // Default to middle school distance
-        }
-        
+        const distanceThreshold = getDistanceThresholdForSchoolLevel(row, t);
         return +row.DistanceUnderutilizedschools <= distanceThreshold ? "Yes" : "No";
       })(),
     };
@@ -435,8 +416,16 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    // Override: even if enrollment growth is above threshold, if total enrollment <= 300, route to consolidation (Flow 4)
-    if ((currentFlow === 2 || currentFlow === 3) && enrollmentLow) {
+    // Match FlowchartLogic.js evaluatePath (do not diverge from the live flowchart):
+    // Force Flow 4 for small enrollment (<=300) on the underutilized branch only when growth is not
+    // above the growth threshold; if growth is "Yes", stay in Flow 2/3 so the growth slider matters.
+    const cameFromUnderutilizedBranch = decisions.util1 === "Yes";
+    if (
+      (currentFlow === 2 || currentFlow === 3) &&
+      enrollmentLow &&
+      cameFromUnderutilizedBranch &&
+      decisions.growth !== "Yes"
+    ) {
       currentFlow = 4;
     }
 
@@ -519,9 +508,18 @@ document.addEventListener("DOMContentLoaded", () => {
     return finalDecision;
   }
 
-  function getStrategyGroupForDecision(decision) {
+  function getStrategyGroupForDecision(decision, flow) {
     if (!decision) return "Other";
-    
+
+    // "Building Replacement" is the same label from Flow 2 (expansion / capacity) and Flow 3
+    // (maintenance & building improvement). Strategy group must follow the flowchart flow, not the text alone.
+    if (decision === "Building Replacement") {
+      const f = flow != null && flow !== "" ? Number(flow) : NaN;
+      if (f === 2) return "Expansion";
+      if (f === 3) return "Maintenance/Investment";
+      return "Maintenance/Investment";
+    }
+
     // Prefer the shared strategy group definitions from prioritizationLogic
     if (window.prioritizationLogic && window.prioritizationLogic.strategyGroups) {
       const groups = window.prioritizationLogic.strategyGroups;
@@ -552,6 +550,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     return "Other";
   }
+
+  // Step 4 prioritization must use the same mapping as Step 3 "Strategy Group" (renderTable).
+  self.getStrategyGroupForDecision = getStrategyGroupForDecision;
 
   function renderTable(data) {
     console.log("📋 renderTable called with data length:", data.length);
@@ -612,7 +613,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const articulationArea = (
         row["Articulation Area"] || row["ArticulationArea"] || ""
       ).toString().replace(/"/g, "&quot;");
-      const strategyGroup = getStrategyGroupForDecision(decision);
+      const strategyGroup = getStrategyGroupForDecision(decision, row.flow);
 
       return (
         `<tr data-row>` +
