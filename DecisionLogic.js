@@ -12,9 +12,10 @@ window.decisionLogic = {
     siteCapacity: "Yes",
     buildingThreshold: 1.5,
     buildingThresholdAbove: 1.5,
-    buildingThresholdBelow: 1.5,
+    buildingThresholdBelow: 7,
     buildingThresholdFlow4: 1.5,
     adequateProgramsMin: 80, // Changed to percentage (0-100)
+    adequateProgramsMinFlow3: 80, // Flow 3 only — Educational Adequacy threshold (%)
     attendanceAreaEnrollment: 80, // Percentage threshold for attendance area enrollment (0-100)
     distanceReceiving: 1.0,
     // Enrollment thresholds by school level
@@ -358,7 +359,8 @@ document.addEventListener("DOMContentLoaded", () => {
       // Flow 3 - Maintenance/Investment
       // Node label: "Composite Building Score below?"
       fac3_below: coerceBuildingScore0to10(row.BuildingScore) <= t.buildingThresholdBelow ? "Yes" : "No",
-      edu3: (+row.EducationalAdequacy * 100) >= t.adequateProgramsMin ? "Yes" : "No",
+      edu3:
+        (+row.EducationalAdequacy * 100) >= (t.adequateProgramsMinFlow3 ?? t.adequateProgramsMin) ? "Yes" : "No",
       edu3_2: (() => {
         // Safety/security check: use Below50PCTL_EA_Cat (Yes = below 50% percentile EA or safety/security issues)
         const hasBelow50PercentileCategory = row["Below50PCTL_EA_Cat"];
@@ -461,9 +463,9 @@ document.addEventListener("DOMContentLoaded", () => {
           finalDecision = "Targeted Capital Investment"; // F3_OUT1
         } else {
           if (decisions.edu3_2 === "Yes") {
-            finalDecision = "Standard Maintenance"; // F3_OUT2
+            finalDecision = "Targeted Capital Investment"; // F3_OUT1 — issues flagged
           } else {
-            finalDecision = "Targeted Capital Investment"; // F3_OUT1
+            finalDecision = "Standard Maintenance"; // F3_OUT2
           }
         }
       } else {

@@ -162,9 +162,10 @@
     siteCapacity: "Yes",
     buildingThreshold: 1.5,
     buildingThresholdAbove: 1.5,
-    buildingThresholdBelow: 1.5,
+    buildingThresholdBelow: 7,
     buildingThresholdFlow4: 1.5,
     adequateProgramsMin: 80,
+    adequateProgramsMinFlow3: 80,
     attendanceAreaEnrollment: 80,
     distanceReceiving: 1.0,
     elementaryEnrollment: 220,
@@ -380,7 +381,8 @@
     const expand = (row.SiteCapacity || "").toString().toLowerCase() === "yes" ? "Yes" : "No";
 
     const fac3_below = coerceBuildingScore0to10(row.BuildingScore) <= t.buildingThresholdBelow ? "Yes" : "No";
-    const edu3 = edu2;
+    const flow3AdeqMin = t.adequateProgramsMinFlow3 != null ? t.adequateProgramsMinFlow3 : t.adequateProgramsMin;
+    const edu3 = Number.isFinite(eduAdeqPct) && eduAdeqPct >= flow3AdeqMin ? "Yes" : "No";
     const below50 = (row["Below50PCTL_EA_Cat"] || "").toString().toLowerCase() === "yes";
     const edu3_2 = below50 ? "Yes" : "No";
     const fac3_above = coerceBuildingScore0to10(row.BuildingScore) >= t.buildingThresholdAbove ? "Yes" : "No";
@@ -438,7 +440,7 @@
         if (fac3_below === "Yes") {
           finalDecision = "Targeted Capital Investment";
         } else {
-          finalDecision = edu3_2 === "Yes" ? "Standard Maintenance" : "Targeted Capital Investment";
+          finalDecision = edu3_2 === "Yes" ? "Targeted Capital Investment" : "Standard Maintenance";
         }
       } else {
         finalDecision = edu3 === "Yes" ? "Major Capital Investment" : "Building Replacement";

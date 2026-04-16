@@ -84,6 +84,7 @@
     { label: "Educational Adequacy", sliderId: "progSlider", keywords: "educational adequacy program threshold", flow: 1, parentId: "decision-input-panel" },
     { label: "Building Score Above Threshold", sliderId: "buildAboveSlider", keywords: "building score above maintenance investment", flow: 2, parentId: "decision-input-panel" },
     { label: "Building Score Below Threshold", sliderId: "buildBelowSlider", keywords: "building score below maintenance investment", flow: 2, parentId: "decision-input-panel" },
+    { label: "Educational Adequacy (Flow 3)", sliderId: "progFlow3Slider", keywords: "educational adequacy flow 3 maintenance investment", flow: 2, parentId: "decision-input-panel" },
     { label: "Building Score (Flow 4)", sliderId: "buildFlow4Slider", keywords: "building score closure consolidation flow 4", flow: 3, parentId: "decision-input-panel" },
   ].forEach(function (s) {
     INDEX.push({ label: s.label, keywords: s.label + " " + s.keywords, category: "Settings", action: { type: "slider", sliderId: s.sliderId, flow: s.flow, parentId: s.parentId } });

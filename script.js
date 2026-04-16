@@ -7219,6 +7219,7 @@ map.on('load', () => {
     if (!window.flowchartInitialized) {
       initializeFlowchart();
     }
+    window.__centerViewPrefersFlowchart = true;
   };
 
   window.switchToMap = function() {
@@ -7252,6 +7253,7 @@ map.on('load', () => {
     setTimeout(() => {
       if (map && map.resize) map.resize();
     }, 100);
+    window.__centerViewPrefersFlowchart = false;
   };
   
   function setupFlowchartToggleButtons() {
@@ -8751,7 +8753,7 @@ function addPercentageListeners(visibleFeatures) {
 document.addEventListener("DOMContentLoaded", function() {
     const sliderIds = [
       "utilSlider", "utilHighSlider", "growthSlider",
-      "buildSlider", "buildAboveSlider", "buildBelowSlider", "buildFlow4Slider", "progSlider",
+      "buildSlider", "buildAboveSlider", "buildBelowSlider", "buildFlow4Slider", "progSlider", "progFlow3Slider",
       "attendanceAreaEnrollmentSlider",
       "elementaryEnrollmentSlider", "k8EnrollmentSlider", "middleEnrollmentSlider", 
       "highEnrollmentSlider", "k12EnrollmentSlider",
@@ -8776,6 +8778,13 @@ document.addEventListener("DOMContentLoaded", function() {
         buildingThresholdBelow: parseFloat(document.getElementById("buildBelowSlider").value),
         buildingThresholdFlow4: parseFloat(document.getElementById("buildFlow4Slider").value),
         adequateProgramsMin: parseInt(document.getElementById("progSlider").value, 10),
+        adequateProgramsMinFlow3: (() => {
+          const f3 = document.getElementById("progFlow3Slider");
+          if (f3 && f3.value != null && f3.value !== "") return parseInt(f3.value, 10);
+          const p = document.getElementById("progSlider");
+          if (p && p.value != null && p.value !== "") return parseInt(p.value, 10);
+          return 80;
+        })(),
         attendanceAreaEnrollment: parseInt(document.getElementById("attendanceAreaEnrollmentSlider").value, 10),
         // Enrollment thresholds by school level
         elementaryEnrollment: parseInt(document.getElementById("elementaryEnrollmentSlider").value, 10),
@@ -8965,7 +8974,11 @@ document.addEventListener("DOMContentLoaded", function() {
           const outSpan = document.getElementById(slider.id.replace("Slider", "Out"));
           if (outSpan) {
             // Format percentage sliders
-            if (slider.id === "attendanceAreaEnrollmentSlider" || slider.id === "progSlider") {
+            if (
+              slider.id === "attendanceAreaEnrollmentSlider" ||
+              slider.id === "progSlider" ||
+              slider.id === "progFlow3Slider"
+            ) {
               outSpan.textContent = slider.value;
             } else {
               outSpan.textContent = slider.value;
@@ -10718,6 +10731,7 @@ if (typeof window.switchToFlowchart !== 'function') {
         console.error('❌ Error during fallback flowchart initialization:', e);
       }
     }
+    window.__centerViewPrefersFlowchart = true;
   };
 }
 
@@ -10738,12 +10752,201 @@ if (typeof window.switchToMap !== 'function') {
         }
       }, 100);
     }
+    window.__centerViewPrefersFlowchart = false;
   };
 }
 
 // --- Process Steps stripe (Step 1–4) ---
 // Declarative mapping between process steps and UI panels.
 (function initProcessStepsStripe() {
+  /** Steps 3–4: entering from Step 1/2 defaults to collapsed (“Show tables”); 3↔4 preserves layout; “Pop out” → movable panel (~20vh). */
+  let prevBottomTablesStep = 2;
+  function requestMapResize() {
+    setTimeout(() => {
+      try {
+        if (window.map && typeof window.map.resize === 'function') window.map.resize();
+      } catch {}
+    }, 80);
+  }
+
+  function getBrandBarHeight() {
+    return parseInt(getComputedStyle(document.documentElement).getPropertyValue('--brand-bar-height') || '52', 10) || 52;
+  }
+
+  function getProcessStepsHeight() {
+    const nav = document.getElementById('process-steps');
+    if (nav) {
+      const h = nav.getBoundingClientRect().height;
+      if (h > 8) return Math.round(h);
+    }
+    return getBrandBarHeight();
+  }
+
+  function placeBottomTablesFloatingPanel() {
+    const main = document.getElementById('bottom-tables-main');
+    if (!main) return;
+    const w = Math.min(Math.round(window.innerWidth * 0.92), 1400);
+    const h = Math.max(120, Math.round(window.innerHeight * 0.2));
+    const left = Math.round((window.innerWidth - w) / 2);
+    const topBrand = getBrandBarHeight();
+    const bottomReserve = getProcessStepsHeight() + 12;
+    let top = Math.round(window.innerHeight - bottomReserve - h);
+    top = Math.max(topBrand + 6, top);
+    main.style.width = `${w}px`;
+    main.style.height = `${h}px`;
+    main.style.left = `${left}px`;
+    main.style.top = `${top}px`;
+    main.style.right = 'auto';
+    main.style.bottom = 'auto';
+  }
+
+  function clampBottomTablesFloatingPanel() {
+    const main = document.getElementById('bottom-tables-main');
+    if (!main || !main.classList.contains('bottom-tables-main--floating')) return;
+    const margin = 6;
+    const topBrand = getBrandBarHeight();
+    const bottomReserve = getProcessStepsHeight() + margin;
+    const rect = main.getBoundingClientRect();
+    let left = parseFloat(main.style.left) || rect.left;
+    let top = parseFloat(main.style.top) || rect.top;
+    if (rect.left < margin) left += margin - rect.left;
+    if (rect.top < topBrand + margin) top += topBrand + margin - rect.top;
+    if (rect.right > window.innerWidth - margin) left -= rect.right - (window.innerWidth - margin);
+    if (rect.bottom > window.innerHeight - bottomReserve) top -= rect.bottom - (window.innerHeight - bottomReserve);
+    main.style.left = `${Math.round(left)}px`;
+    main.style.top = `${Math.round(top)}px`;
+  }
+
+  function expandBottomTablesDocked() {
+    document.body.classList.remove('bottom-tables-docked-collapsed');
+    requestMapResize();
+  }
+
+  function collapseBottomTablesDocked() {
+    if (!document.body.classList.contains('bottom-tables-step34')) return;
+    if (document.body.classList.contains('bottom-tables-floating-open')) return;
+    document.body.classList.add('bottom-tables-docked-collapsed');
+    requestMapResize();
+  }
+
+  function hideBottomTablesFloating() {
+    const main = document.getElementById('bottom-tables-main');
+    document.body.classList.remove('bottom-tables-floating-open');
+    document.body.classList.remove('bottom-tables-docked-collapsed');
+    if (main) {
+      main.classList.remove('bottom-tables-main--floating');
+      main.style.width = '';
+      main.style.height = '';
+      main.style.left = '';
+      main.style.top = '';
+      main.style.right = '';
+      main.style.bottom = '';
+    }
+    try {
+      window.removeEventListener('resize', clampBottomTablesFloatingPanel);
+    } catch {}
+    requestMapResize();
+  }
+
+  function showBottomTablesFloating() {
+    const main = document.getElementById('bottom-tables-main');
+    if (!main) return;
+    document.body.classList.remove('bottom-tables-docked-collapsed');
+    main.classList.add('bottom-tables-main--floating');
+    document.body.classList.add('bottom-tables-floating-open');
+    placeBottomTablesFloatingPanel();
+    try {
+      window.removeEventListener('resize', clampBottomTablesFloatingPanel);
+      window.addEventListener('resize', clampBottomTablesFloatingPanel);
+    } catch {}
+    requestMapResize();
+    setTimeout(() => { try { clampBottomTablesFloatingPanel(); } catch {} }, 0);
+  }
+
+  function initBottomTablesFloatingDrag() {
+    const handle = document.querySelector('.bottom-tables-float-drag');
+    const main = document.getElementById('bottom-tables-main');
+    if (!handle || !main || handle.__bottomTablesDragInit) return;
+    handle.__bottomTablesDragInit = true;
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+    let baseLeft = 0;
+    let baseTop = 0;
+
+    handle.addEventListener('mousedown', (ev) => {
+      if (ev.button !== 0) return;
+      if (!main.classList.contains('bottom-tables-main--floating')) return;
+      ev.preventDefault();
+      dragging = true;
+      startX = ev.clientX;
+      startY = ev.clientY;
+      baseLeft = parseFloat(main.style.left) || main.getBoundingClientRect().left;
+      baseTop = parseFloat(main.style.top) || main.getBoundingClientRect().top;
+      document.body.style.userSelect = 'none';
+    });
+
+    document.addEventListener('mousemove', (ev) => {
+      if (!dragging) return;
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      main.style.left = `${Math.round(baseLeft + dx)}px`;
+      main.style.top = `${Math.round(baseTop + dy)}px`;
+      clampBottomTablesFloatingPanel();
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      document.body.style.userSelect = '';
+    });
+  }
+
+  function applyBottomTablesStepMode(stepNum) {
+    const n = Number(stepNum);
+    const is34 = n === 3 || n === 4;
+    const wasOutside34 = prevBottomTablesStep !== 3 && prevBottomTablesStep !== 4;
+
+    if (!is34) {
+      document.body.classList.remove('bottom-tables-step34', 'bottom-tables-floating-open', 'bottom-tables-docked-collapsed');
+      hideBottomTablesFloating();
+      prevBottomTablesStep = n;
+      return;
+    }
+
+    document.body.classList.add('bottom-tables-step34');
+    const main = document.getElementById('bottom-tables-main');
+    const wasFloating = !!(main && main.classList.contains('bottom-tables-main--floating'));
+
+    if (!wasFloating) {
+      document.body.classList.remove('bottom-tables-floating-open');
+      if (main) {
+        main.classList.remove('bottom-tables-main--floating');
+        main.style.width = '';
+        main.style.height = '';
+        main.style.left = '';
+        main.style.top = '';
+        main.style.right = '';
+        main.style.bottom = '';
+      }
+      try {
+        window.removeEventListener('resize', clampBottomTablesFloatingPanel);
+      } catch {}
+      if (wasOutside34) {
+        document.body.classList.add('bottom-tables-docked-collapsed');
+      }
+    } else {
+      document.body.classList.add('bottom-tables-floating-open');
+      placeBottomTablesFloatingPanel();
+      try {
+        window.removeEventListener('resize', clampBottomTablesFloatingPanel);
+        window.addEventListener('resize', clampBottomTablesFloatingPanel);
+      } catch {}
+    }
+    prevBottomTablesStep = n;
+    requestMapResize();
+  }
+
   function setActiveStep(stepNum) {
     const nav = document.getElementById('process-steps');
     if (!nav) return;
@@ -10765,6 +10968,22 @@ if (typeof window.switchToMap !== 'function') {
       setTimeout(() => {
         try { window.map.resize(); } catch {}
       }, 100);
+    }
+    if (mode === 'map') {
+      window.__centerViewPrefersFlowchart = false;
+    }
+    if (mode === 'flowchart') {
+      window.__centerViewPrefersFlowchart = true;
+    }
+  }
+
+  function applyCenterViewForMapSteps() {
+    if (window.__centerViewPrefersFlowchart && typeof window.switchToFlowchart === 'function') {
+      window.switchToFlowchart();
+    } else if (typeof window.switchToMap === 'function') {
+      window.switchToMap();
+    } else {
+      setMainView(window.__centerViewPrefersFlowchart ? 'flowchart' : 'map');
     }
   }
 
@@ -10822,6 +11041,39 @@ if (typeof window.switchToMap !== 'function') {
     }
   }
 
+  /** Open Strategic Sorting nested slider groups; keep "Distance to Underutilized…" collapsed. */
+  function expandDecisionInputSliderSections() {
+    const panel = document.getElementById('decision-input-panel');
+    if (!panel || panel.hidden) return;
+    try {
+      panel.open = true;
+    } catch {}
+    panel.querySelectorAll('details.flow-section').forEach((el) => {
+      const sm = el.querySelector(':scope > summary');
+      const label = sm ? sm.textContent.trim() : '';
+      if (label.indexOf('Enrollment Thresholds by School Level') !== -1) return;
+      if (label.indexOf('Distance to Underutilized Schools') !== -1) return;
+      if (label.indexOf('Distance to Welcoming Schools') !== -1) return;
+      try {
+        el.open = true;
+      } catch {}
+    });
+  }
+
+  function expandScenarioInputSliderSections() {
+    const panel = document.getElementById('scenario-input-panel');
+    if (!panel || panel.hidden) return;
+    try {
+      panel.open = true;
+    } catch {}
+    const weights = document.getElementById('prioritizationWeightsDetails');
+    if (weights) {
+      try {
+        weights.open = true;
+      } catch {}
+    }
+  }
+
   window._goToStep = goToStep;
   function goToStep(stepNum) {
     setStepPanelsVisibility(stepNum);
@@ -10834,27 +11086,64 @@ if (typeof window.switchToMap !== 'function') {
       case 2:
         // Step 2 is map exploration: hide both side panels.
         ensurePanelsVisible({ left: false, right: false });
-        setMainView('map');
+        applyCenterViewForMapSteps();
         break;
       case 3:
         ensurePanelsVisible({ left: true, right: true });
-        setMainView('map');
+        applyCenterViewForMapSteps();
+        expandDecisionInputSliderSections();
         openDetails('decision-output-panel');
         break;
       case 4:
         ensurePanelsVisible({ left: true, right: true });
-        setMainView('map');
+        applyCenterViewForMapSteps();
+        expandScenarioInputSliderSections();
         openDetails('scenario-output-panel');
         break;
       default:
         break;
     }
     setActiveStep(stepNum);
+    applyBottomTablesStepMode(stepNum);
   }
 
   document.addEventListener('DOMContentLoaded', () => {
     const nav = document.getElementById('process-steps');
     if (!nav) return;
+
+    initBottomTablesFloatingDrag();
+    const showTablesBtn = document.getElementById('bottomTablesShowTablesBtn');
+    const dockBtn = document.getElementById('bottomTablesDockBtn');
+    const hideDockedBtn = document.getElementById('bottomTablesHideDockedBtn');
+    const popoutBtn = document.getElementById('bottomTablesPopoutBtn');
+    const closeBtn = document.getElementById('bottomTablesFloatCloseBtn');
+    if (showTablesBtn) {
+      showTablesBtn.addEventListener('click', () => {
+        expandBottomTablesDocked();
+      });
+    }
+    if (dockBtn) {
+      dockBtn.addEventListener('click', () => {
+        hideBottomTablesFloating();
+      });
+    }
+    if (hideDockedBtn) {
+      hideDockedBtn.addEventListener('click', () => {
+        collapseBottomTablesDocked();
+      });
+    }
+    if (popoutBtn) {
+      popoutBtn.addEventListener('click', () => {
+        if (!document.body.classList.contains('bottom-tables-step34')) return;
+        showBottomTablesFloating();
+      });
+    }
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        hideBottomTablesFloating();
+      });
+    }
 
     // Click handlers
     nav.querySelectorAll('.process-step').forEach((btn) => {
@@ -10878,6 +11167,7 @@ if (typeof window.switchToMap !== 'function') {
     // Default to Step 2 (map) on landing
     setActiveStep(2);
     setStepPanelsVisibility(2);
+    applyBottomTablesStepMode(2);
     // Step 2 should be map-only by default.
     ensurePanelsVisible({ left: false, right: false });
     setMainView('map');
