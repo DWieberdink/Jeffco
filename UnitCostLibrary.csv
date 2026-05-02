@@ -1,48 +1,45 @@
-SystemCategory,Project,Unit,UnitCost,Value
-00_general,ADA compliance,Project cost,3%,0.5
-00_general,Hazmat remediation,SF,,0.5
-01_new construction,Demolition,SF,10.5,0.5
-01_new construction,New Construction ES,SF,528,0.5
-01_new construction,New Construction HS,SF,610.5,0.5
-01_new construction,New Construction K-8,SF,557.7,0.5
-01_new construction,New Construction MS,SF,530.2,0.5
-02_gut & renovation,Gut & Major Renovation ES,SF,367.5,0.5
-02_gut & renovation,Gut & Major Renovation HS,SF,367.5,0.5
-02_gut & renovation,Gut & Major Renovation K-8,SF,367.5,0.5
-02_gut & renovation,Gut & Major Renovation MS,SF,367.5,0.5
-03_addition,New 2-story building,SF,,0.5
-03_addition,New 3-story building,SF,,0.5
-03_addition,New auditorium,SF,1029.5,0.5
-03_addition,New gym and locker rooms,SF,,0.5
-03_addition,New multipurpose room,SF,610.5,0.5
-03_addition,New cafeteria and kitchen,SF,,0.5
-04_campus upgrade,Add shade structure(s),Quantity,39600,0.5
-04_campus upgrade,Campus landscaping upgrade,Acre,110000,0.5
-04_campus upgrade,Expand parking,Quantity,3465,0.5
-04_campus upgrade,Exterior paint entire campus,Quantity,49500,0.5
-04_campus upgrade,"Front of school branding, landscape upgrades",SF,22.64,0.5
-04_campus upgrade,Furniture upgrades,,Site specific,0.5
-04_campus upgrade,Improve drop-off / pick-up zone,Quantity,577500,0.5
-04_campus upgrade,New outdoor classroom,Quantity,220000,0.5
-04_campus upgrade,Playground replacement (ages 2-5),SF,73.34,0.5
-04_campus upgrade,Playground replacement (ages 5-12),SF,42.16,0.5
-04_campus upgrade,Resurface asphalt,SF,3.19,0.5
-04_campus upgrade,Resurface concrete,SF,15.92,0.5
-04_campus upgrade,Upgrade artificial turf field,Quantity,1471800,0.5
-05_heavy modernization,Heavily modernize admin,SF,195.66,0.5
-05_heavy modernization,Heavily modernize classrooms,SF,308.67,0.5
-05_heavy modernization,Heavily modernize gym / assembly space,SF,181.83,0.5
-05_heavy modernization,Modernize kitchen,EA,,0.5
-05_heavy modernization,Heavily modernize cafeteria,EA,,0.5
-05_heavy modernization,Heavily modernize multipurpose room,SF,308.67,0.5
-05_heavy modernization,Heavily modernize restrooms,SF,462,0.5
-05_heavy modernization,Heavily modernize STEM / CTE / specialized labs (MS/HS),,Site specific,0.5
-05_heavy modernization,Heavily modernize STEM/specialized labs (ES),SF,440,0.5
-06_light modernization,Lightly modernize admin,SF,135.43,0.7
-06_light modernization,Lightly modernize classrooms,SF,166.38,0.7
-06_light modernization,Lightly modernize corridors,SF,121,0.7
-06_light modernization,Lightly modernize entry lobby,EA,64638,0.7
-06_light modernization,Lightly modernize cafeteria,SF,,0.7
-06_light modernization,Lightly modernize library/media center,SF,188.93,0.7
-06_light modernization,Lightly modernize gym / assembly space,SF,54.25,0.7
-06_light modernization,Lightly modernize multipurpose room,SF,166.38,0.5
+SystemCategory,Project,Unit,UnitCost,Value,ScopeAssumption,UpgradeScopeAssumption,SizeAssumptions
+00_general,ADA compliance,Project cost,3%,0.5,Allowance for ADA compliance modifications across various project elements.,,
+01_new construction,Demolition,SF,10.5,0.5,"Includes demolition, site clearance, and disposal of building materials.","Includes demolition, site clearance, and disposal of building materials.","50,000 SF"
+01_new construction,New Construction ES,SF,528,0.5,Includes construction of a new school building with all necessary utilities and finishes.,Includes construction of a new school building with all necessary utilities and finishes.,"80,700 SF"
+01_new construction,New Construction HS,SF,610.5,0.5,Includes construction of a new school building with all necessary utilities and finishes.,Includes construction of a new school building with all necessary utilities and finishes.,"250,000 SF"
+01_new construction,New Construction K-8,SF,557.7,0.5,Includes construction of a new school building with all necessary utilities and finishes.,Includes construction of a new school building with all necessary utilities and finishes.,"90,000 SF"
+01_new construction,New Construction MS,SF,530.2,0.5,Includes construction of a new school building with all necessary utilities and finishes.,Includes construction of a new school building with all necessary utilities and finishes.,"150,000 SF"
+02_gut & renovation,Gut & Major Renovation ES,SF,367.5,0.5,"Includes comprehensive interior and systems modernization, addressing architectural, MEP, ADA, and building code upgrades.","Includes comprehensive interior and systems modernization, addressing architectural, MEP, ADA, and building code upgrades.",
+02_gut & renovation,Gut & Major Renovation HS,SF,367.5,0.5,"Includes comprehensive interior and systems modernization, addressing architectural, MEP, ADA, and building code upgrades.","Includes comprehensive interior and systems modernization, addressing architectural, MEP, ADA, and building code upgrades.",
+02_gut & renovation,Gut & Major Renovation K-8,SF,367.5,0.5,"Includes comprehensive interior and systems modernization, addressing architectural, MEP, ADA, and building code upgrades.","Includes comprehensive interior and systems modernization, addressing architectural, MEP, ADA, and building code upgrades.",
+02_gut & renovation,Gut & Major Renovation MS,SF,367.5,0.5,"Includes comprehensive interior and systems modernization, addressing architectural, MEP, ADA, and building code upgrades.","Includes comprehensive interior and systems modernization, addressing architectural, MEP, ADA, and building code upgrades.",
+03_addition,New 2-story building,SF,,0.5,Includes construction of a new two-story building with all necessary utilities and finishes.,Includes construction of a new two-story building with all necessary utilities and finishes.,
+03_addition,New 3-story building,SF,,0.5,Includes construction of a new three-story building with all necessary utilities and finishes.,Includes construction of a new three-story building with all necessary utilities and finishes.,
+03_addition,New auditorium,SF,1029.5,0.5,Includes construction of a new auditorium with all necessary utilities and finishes.,Includes construction of a new auditorium with all necessary utilities and finishes.,"11,000 SF"
+03_addition,New gym and locker rooms,SF,,0.5,Includes construction of a new gymnasium with locker rooms and related facilities.,Includes construction of a new gymnasium with locker rooms and related facilities.,"2,500 SF Locker, 8,000 SF Gym"
+03_addition,New multipurpose room,SF,610.5,0.5,Includes construction of a new multipurpose room with all necessary utilities and finishes.,Includes construction of a new multipurpose room with all necessary utilities and finishes.,"4,900 SF"
+03_addition,New cafeteria and kitchen,SF,,0.5,Includes construction of a new cafeteria and food service areas with all necessary utilities and finishes.,Includes construction of a new cafeteria and food service areas with all necessary utilities and finishes.,"2,800 SF Kitchen, 5,600 SF  Cafeteria"
+04_campus upgrade,Add shade structure(s),Quantity,39600,0.5,"Includes installation of play area shade structures, foundations, and related site work.","This assumes a 15'x15' Structure mounted to the existing sidewalk, no foundations, and sitework within another budget line item",Standard structure size (200-400 sq ft)
+04_campus upgrade,Campus landscaping upgrade,Acre,110000,0.5,"Includes planting, irrigation, hardscaping, and maintenance.","Includes planting, irrigation, no hardscapes, and maintenance.",
+04_campus upgrade,Expand parking,Quantity,3465,0.5,"Includes new parking spaces, paving, striping, and lighting.","Assumes 9x18 parking space + Drive lane (33% x 24'L) x 9'w, Marking, Grading, Curb, landscape repair, No Lighting",Standard parking space size (9' x 18')
+04_campus upgrade,"Front of school branding, landscape upgrades",Quantity,147180,0.5,"Includes new signage, landscaping, branding elements, and hardscaping.","Includes new signage, landscaping, branding elements, and hardscaping.","6,500 SF"
+04_campus upgrade,Furniture upgrades,,Site specific,0.5,"Includes new furniture, delivery, and installation for classrooms, offices, or common areas.",,
+04_campus upgrade,Improve drop-off / pick-up zone,Quantity,577500,0.5,"Includes reconfiguration of traffic flow, paving, signage, and safety features.","Demolition, Fine grading, Joint sealants, asphalt, C&G, pavement, HC Ramps, Truncated Domes, sidewalk, 4'H CL Fence, Minor Electrical Work, Storm drainage, Landscape","26,500 SF"
+04_campus upgrade,New outdoor classroom,Quantity,220000,0.5,"Includes construction of outdoor learning spaces with seating, shade structures, and utilities.","Plug Allowance, Scopes of Work Vary Drastically",Standard classroom size (750-1000 sq ft)
+04_campus upgrade,Playground replacement (ages 2-5),SF,73.34,0.5,"Includes installation of new play structures, safety surfacing, and associated site work.",,"3,000 SF"
+04_campus upgrade,Playground replacement (ages 5-12),SF,42.16,0.5,"Includes installation of new play structures, safety surfacing, and associated site work.",,"9,000 SF"
+04_campus upgrade,Resurface asphalt,SF,3.19,0.5,"Includes milling, new asphalt surface, and striping.","Includes a 2"" Mill Overlay and Striping","25,000 SF"
+04_campus upgrade,Resurface concrete,SF,15.92,0.5,"Includes removal, preparation, and pouring new concrete surfaces.","Assumes Replacing 4"" Standard Gray Sidewalk","5,000 SF"
+04_campus upgrade,Upgrade artificial turf field,Quantity,1471800,0.5,"Includes regrading, new turf, drainage improvements, and lighting.","Assumed a 77,255 SF Field Replacement, New Lighting ($700K + Soft Costs), Drainage, Landscape Repair","77,255 SF"
+05_heavy modernization,Heavily modernize admin,SF,195.66,0.4,"Major updates to administrative spaces, including new flooring, lighting, fixtures, and finishes.","Major renovations including layout changes, new fixtures, finishes, and system upgrades.","6,100 SF"
+05_heavy modernization,Heavily modernize classrooms,SF,308.67,0.4,"Major updates to classroom spaces, including new flooring, lighting, fixtures, and finishes.","Major updates to classroom spaces, including new flooring, lighting, fixtures, and finishes. Based on 4,900 SF",Standard classroom size (750-1000 sq ft)
+05_heavy modernization,Heavily modernize gym / assembly space,SF,181.83,0.4,"Major renovations to gymnasium or assembly areas, including new flooring, lighting, fixtures, and HVAC upgrades.","Major renovations to gymnasium or assembly areas, including new flooring, lighting, fixtures, and HVAC upgrades. Based on a 11,252 SF Gym",Standard gym size (5000-8000 sq ft)
+05_heavy modernization,Modernize kitchen,EA,,0.4,"Major updates to food service facilities, including new fixtures, flooring, finishes, and significant HVAC upgrades.","Based on 5,800 SF Cafeteria and 2,800 SF Kitchen",
+05_heavy modernization,Heavily modernize cafeteria,EA,,0.4,"Major updates to food service facilities, including new fixtures, flooring, finishes, and significant HVAC upgrades.","Based on 5,800 SF Cafeteria and 2,800 SF Kitchen",
+05_heavy modernization,Heavily modernize multipurpose room,SF,308.67,0.4,"Major updates to multipurpose rooms, including new flooring, lighting, fixtures, and finishes.","Based on 4,900 SF",
+05_heavy modernization,Heavily modernize restrooms,SF,462,0.4,"Complete overhaul including new fixtures, tiles, partitions, and finishes.","Complete overhaul including new fixtures, tiles, partitions, and finishes.","1,800 SF"
+05_heavy modernization,Heavily modernize STEM / CTE / specialized labs (MS/HS),,Site specific,0.4,"Complete renovation including new lab fixtures, utilities, flooring, and finishes.",,Standard lab size (1000-1500 sq ft)
+06_light modernization,Lightly modernize admin,SF,135.43,0.6,"Minor updates including painting, lighting, and minor fixture replacements.","Reduced Heavy Administration Costs by 30% based on 6,100 SF",
+06_light modernization,Lightly modernize classrooms,SF,166.38,0.6,"Minor updates including painting, lighting, and minor fixture replacements.","Reduced Heavy Classrooms Costs by 45% based on 4,900 SF",
+06_light modernization,Lightly modernize corridors,SF,121,0.6,"Minor updates including painting, lighting, and minor fixture replacements.",,
+06_light modernization,Lightly modernize entry lobby,EA,64638,0.6,"Minor updates including painting, lighting, and minor fixture replacements.",Based on 500 SF,
+06_light modernization,Lightly modernize cafeteria,SF,,0.6,"Minor updates to food service areas, including fixtures, flooring, and lighting.","Based on 5,800 SF Cafeteria and 2,800 SF Kitchen. Kitchen Equipment Not Included in % Reduction",
+06_light modernization,Lightly modernize library/media center,SF,188.93,0.6,"Minor updates including painting, lighting, and minor fixture replacements.","Based on 2,000 SF",Standard library size (1000-2000 sq ft)
+06_light modernization,Lightly modernize gym / assembly space,SF,54.25,0.6,"Minor updates including painting, lighting, and minor fixture replacements.","Based on 30% Reduction to Major renovations to gymnasium or assembly areas, including new flooring, lighting, fixtures, and HVAC upgrades. Based on a 11,252 SF Gym",
+06_light modernization,Lightly modernize multipurpose room,SF,166.38,0.6,"Minor updates including painting, lighting, and minor fixture replacements.","Based 45% Reduction to Major updates to multipurpose rooms, including new flooring, lighting, fixtures, and finishes.",

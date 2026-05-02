@@ -1,5 +1,5 @@
 /* school-profile.js
-   - Loads JeffCoProjectListAllSchools.csv (one row per school+asset)
+   - Loads project list CSV (one row per school+asset)
    - Filters rows by SchoolName == selected school (string match with trim)
    - Renders ONE table grouped by SystemCategory
    - Allows sorting (click header) + filtering (search + dropdowns)
@@ -7,17 +7,25 @@
 */
 
 (function () {
-  const ASSETS_CSV_PATH = "JeffCoProjectListAllSchools.csv";
+  const ASSETS_CSV_PATH = "JeffCoProjectListAllSchools.no-stem-es-labs.csv";
   const DECISION_CSV_PATH = "Decision Data Export.csv";
   const UNITCOST_LIBRARY_CSV_PATH = "UnitCostLibrary.csv";
   const ROOM_SCHEDULE_CSV_PATH = "Jeffco Room Schedule.csv";
   // Bump this to force browsers to refetch CSV/JS.
-  const CACHE_BUST = "20260402_8";
-  const PRIORITY_OVERRIDES_STORAGE_KEY = "jeffco_priority_overrides_assetid_v1";
+  const CACHE_BUST = "20260501_47";
+  const PRIORITY_OVERRIDES_STORAGE_KEY = "jeffco_priority_overrides_per_row_v1";
+  const MANUAL_QTY_OVERRIDES_STORAGE_KEY = "jeffco_manual_site_qty_overrides_v2";
+  /** Bump version when include defaults change so old localStorage overrides do not mask new behavior. */
+  const ROW_INCLUDE_TOGGLE_STORAGE_KEY = "jeffco_row_include_toggle_v8";
+  /** Legacy key — migrated once into MANUAL_QTY_OVERRIDES_STORAGE_KEY on load. */
+  const LEGACY_RESURFACE_SF_STORAGE_KEY = "jeffco_resurface_sf_overrides_v1";
 
   // The assets CSV is row-wise: one row per school + asset type.
   const REQUIRED_COLS = ["SchoolName", "AssetType"];
   // Add computed Priority column (derived from SystemCategory) as the left-most column.
+  /** Replacement-cost placeholder when no $ total (displayed as "-"). */
+  const RC_PLACEHOLDER = "-";
+
   const DISPLAY_COLS = [
     "Priority",
     "Project Type",
@@ -54,7 +62,7 @@
   const ADDITION_THIRD_STORY_FOUNDATION_FACTOR = 1.05;
 
   /**
-   * New cafeteria and kitchen (03_addition): shell $/SF from UnitCostLibrary_withvalues
+   * New cafeteria and kitchen (03_addition): shell $/SF from cost-study assumptions (see UnitCostLibrary UnitCost / scope columns).
    * Direct Unit Cost $ Range (Low)=(E) and (High)=(F) for Cafeteria and Kitchen rows → use mids.
    * Kitchen equipment $/SF by school level from same row (ES/MS/HS), mid of E and F each.
    * Composite: ⅓×(kitchen shell + equipment) + ⅔×(cafeteria shell), then × (1 + 0.065) hard-cost factor.
@@ -71,7 +79,7 @@
   const CK_HARD_COST_FACTOR = 1.065;
 
   /**
-   * Heavy kitchen/caf modernization — withvalues "Heavily modernize kitchen / cafeteria" SF row (E/F mids).
+   * Heavy kitchen/caf modernization — combined kitchen/cafeteria cost study line (mapped to Modernize kitchen / Heavily modernize cafeteria).
    * Kitchen: $/SF = (kitchen shell mid + kitchen equipment mid by school level) × hard-cost factor; quantity = kitchen SF (schedule, else 2,800 basis).
    * Cafeteria: $/SF = cafeteria shell mid × hard-cost factor (equipment on kitchen line only); quantity = cafeteria SF (schedule, else 5,800 basis).
    */
@@ -84,13 +92,13 @@
   const HM_SHELL_KIT_MID = (HM_KIT_SHELL_E + HM_KIT_SHELL_F) / 2;
   const HM_SHELL_CAF_MID = (HM_CAF_SHELL_E + HM_CAF_SHELL_F) / 2;
 
-  /** Light cafeteria — withvalues "Lightly modernize kitchen / cafeteria" SF row E/F mids; equipment not in % reduction (omit from this $/SF). */
+  /** Light cafeteria — combined kitchen/cafeteria light-mod line; equipment not in % reduction (omit from this $/SF). */
   const LM_CAF_SHELL_E = 146.69;
   const LM_CAF_SHELL_F = 161.36;
   const LM_SHELL_CAF_MID = (LM_CAF_SHELL_E + LM_CAF_SHELL_F) / 2;
 
   /**
-   * New gym and locker rooms (03_addition): UnitCostLibrary_withvalues col E/F mids
+   * New gym and locker rooms (03_addition): cost-study direct range mids reflected in UnitCostLibrary `UnitCost`.
    * (Gym $445–$490/SF, Locker Room $1,035–$1,150/SF). Composite: ⅔ gym + ⅓ lockers; × hard-cost factor.
    */
   const GL_GYM_SHELL_E = 445;
@@ -114,10 +122,8 @@
   const elAssetBtn = document.getElementById("assetFilterBtn");
   const elAssetLabel = document.getElementById("assetFilterLabel");
   const elAssetDropdown = document.getElementById("assetFilterDropdown");
-  const elSourceBtn = document.getElementById("sourceFilterBtn");
-  const elSourceLabel = document.getElementById("sourceFilterLabel");
-  const elSourceDropdown = document.getElementById("sourceFilterDropdown");
   const elClearFilters = document.getElementById("clearFiltersBtn");
+  const elResetManualQtyOverrides = document.getElementById("resetManualQtyOverridesBtn");
   const elTableMount = document.getElementById("tableMount");
   const elExportBtn = document.getElementById("exportBtn");
   const elExportDropdown = document.getElementById("exportDropdown");
@@ -132,8 +138,8 @@
   let sortState = { key: "SystemCategory", dir: "asc" };
   const collapsedGroups = new Set();
   const collapsedSuperGroups = new Set();
-  const expandedFciAssets = new Set();
-  let groupsInitialized = false;
+  /** Keys for FCI asset rollups the user has explicitly collapsed (default = expanded / detail rows visible). */
+  const collapsedFciAssets = new Set();
   let selectedSchoolNameFromQuery = "";
   let selectedUniqueIdFromQuery = "";
   let resolvedSchoolName = "";
@@ -146,11 +152,13 @@
   let decisionByNameKey = new Map();
   let facilityIdByUid = new Map();
   let priorityOverrides = loadPriorityOverrides();
+  let manualQtyOverrides = loadManualQtyOverrides();
+  let rowIncludeToggleOverrides = loadRowIncludeToggleOverrides();
   let unitCostIndex = new Map();
   let unitCostByProjectKey = new Map();
   let libraryProjectOrder = []; // [{ proj, pk, sys }]
-  /** Room schedule AREA sums by modernization CostEstimateLink bucket (normalized + STEM rollup). */
-  let roomScheduleModernizationSfByCategory = new Map();
+  /** Room schedule AREA sums by normalized CostEstimateLink bucket (STEM labs rolled into one bucket). */
+  let roomScheduleSfByBucket = new Map();
 
   // Flowchart decision evaluation (mirrors DecisionLogic.js, but scoped to this page)
   const DECISION_THRESHOLDS = {
@@ -199,6 +207,7 @@
   // Align with script.js (v2); still read legacy v1 so toggles match the main dashboard.
   const PK_ENROLLMENT_KEY_V2 = "jeffco_include_pk_enrollment_v2";
   const PK_ENROLLMENT_KEY_V1 = "jeffco_include_pk_enrollment_v1";
+  const CAPACITY_SOURCE_STORAGE_KEY = "jeffco_capacity_source_v1";
   function getIncludePKInEnrollment() {
     try {
       if (!window.localStorage) return false;
@@ -214,9 +223,62 @@
       if (window.localStorage) window.localStorage.setItem(PK_ENROLLMENT_KEY_V2, v ? "true" : "false");
     } catch {}
   }
+  function getCapacitySource() {
+    try {
+      const v = window.localStorage ? window.localStorage.getItem(CAPACITY_SOURCE_STORAGE_KEY) : null;
+      return v === "educational" ? "educational" : "capacity";
+    } catch {
+      return "capacity";
+    }
+  }
+  function setCapacitySource(v) {
+    try {
+      if (window.localStorage) window.localStorage.setItem(CAPACITY_SOURCE_STORAGE_KEY, v === "educational" ? "educational" : "capacity");
+    } catch {}
+  }
+  function getEffectiveCapacityDetails(row) {
+    const parseNum = (v) => {
+      const n = parseFloat((v ?? "").toString().replace(/,/g, "").trim());
+      return Number.isFinite(n) ? n : null;
+    };
+    const source = getCapacitySource();
+    const rawCapacity = row ? (row.Capacity ?? row.capacity ?? row["Capacity"] ?? null) : null;
+    const rawEducational = row ? (row.EducationalCapacity ?? row["EducationalCapacity"] ?? row["Educational Capacity"] ?? null) : null;
+    const capacity = parseNum(rawCapacity);
+    const educational = parseNum(rawEducational);
+    if (source === "educational") {
+      if (Number.isFinite(educational) && educational > 0) {
+        return { value: educational, label: "Educational Capacity", source: "educational", missingEducational: false };
+      }
+      const rawText = (rawEducational ?? "").toString().trim();
+      return {
+        value: null,
+        label: "Educational Capacity",
+        source: "educational",
+        missingEducational: true,
+        note: rawText ? `Educational capacity does not exist (${rawText}).` : "Educational capacity does not exist."
+      };
+    }
+    return {
+      value: Number.isFinite(capacity) && capacity > 0 ? capacity : null,
+      label: "Capacity",
+      source: "capacity",
+      missingEducational: false
+    };
+  }
+  function getEffectiveCapacity(row) {
+    const d = getEffectiveCapacityDetails(row);
+    return d && Number.isFinite(d.value) && d.value > 0 ? d.value : null;
+  }
 
+  /** Default ON: FCI (08_) stays in planning totals for gut/new-construction paths unless the user explicitly turns it off ("0"). */
   function getIncludeFciForMajor() {
-    try { return !!(window.localStorage && window.localStorage.getItem("includeFciForMajor")); } catch { return false; }
+    try {
+      if (!window.localStorage) return true;
+      return window.localStorage.getItem("includeFciForMajor") !== "0";
+    } catch {
+      return true;
+    }
   }
   function getEffectiveEnrollment(row) {
     if (!row) return 0;
@@ -226,9 +288,9 @@
     return inc ? e : Math.max(0, e - pk);
   }
   function getEffectiveUtilization(row) {
-    if (!row) return 0;
-    const cap = parseFloat((row.Capacity ?? row.capacity ?? "").toString().replace(/,/g, "").trim()) || 0;
-    if (!cap || cap <= 0) return 0;
+    if (!row) return null;
+    const cap = getEffectiveCapacity(row);
+    if (!cap || cap <= 0) return null;
     return getEffectiveEnrollment(row) / cap;
   }
 
@@ -285,6 +347,110 @@
     return (projected - current) / current;
   }
 
+  /**
+   * Mirror script.js / FlowchartLogic globals so growth threshold + enrollment growth
+   * match the main dashboard (same localStorage thresholds; optional #growthSlider if present).
+   */
+  function installFlowchartParityWindowShims() {
+    if (typeof window === "undefined") return;
+    window.getIncludePKInEnrollment = getIncludePKInEnrollment;
+    window.getEffectiveCapacityDetails = getEffectiveCapacityDetails;
+    window.getEffectiveCapacity = getEffectiveCapacity;
+    window.getEffectiveEnrollment = getEffectiveEnrollment;
+    window.getEffectiveUtilization = getEffectiveUtilization;
+    window.getEffectiveProjectedEnrollment = getEffectiveProjectedEnrollmentLocal;
+    window.getEffectiveEnrollmentGrowth = getEffectiveEnrollmentGrowthLocal;
+    window.normalizeEnrollmentGrowthThreshold = normalizeEnrollmentGrowthThresholdLocal;
+    window.getEnrollmentGrowthThresholdRatio = function (t) {
+      const norm = window.normalizeEnrollmentGrowthThreshold;
+      let raw = null;
+      if (typeof document !== "undefined") {
+        const el = document.getElementById("growthSlider");
+        if (el && el.value != null && String(el.value).trim() !== "") {
+          const n = parseFloat(el.value);
+          if (Number.isFinite(n)) raw = n / 100;
+        }
+      }
+      if (raw == null && t && t.enrollmentGrowth !== undefined && t.enrollmentGrowth !== null && t.enrollmentGrowth !== "") {
+        raw = t.enrollmentGrowth;
+      }
+      if (raw == null) raw = 0.05;
+      return norm ? norm(raw) : raw;
+    };
+  }
+  installFlowchartParityWindowShims();
+
+  /**
+   * Capacity/enrollment for flowchart + project table — **not** affected by facility toggles
+   * (Include PK / Use Educational Capacity). Those toggles only change header meta via
+   * getEffectiveCapacityDetails / getEffectiveEnrollment.
+   */
+  function getDecisionCapacityDetails(row) {
+    const parseNum = (v) => {
+      const n = parseFloat((v ?? "").toString().replace(/,/g, "").trim());
+      return Number.isFinite(n) ? n : null;
+    };
+    const rawCapacity = row ? (row.Capacity ?? row.capacity ?? row["Capacity"] ?? null) : null;
+    const capacity = parseNum(rawCapacity);
+    return {
+      value: Number.isFinite(capacity) && capacity > 0 ? capacity : null,
+      label: "Capacity",
+      source: "capacity",
+      missingEducational: false,
+    };
+  }
+
+  function getDecisionCapacity(row) {
+    const d = getDecisionCapacityDetails(row);
+    return d && Number.isFinite(d.value) && d.value > 0 ? d.value : null;
+  }
+
+  /** Enrollment minus PK (seat-equivalent); stable for utilization vs toggles. */
+  function getDecisionEnrollment(row) {
+    if (!row) return 0;
+    const e = parseFloat((row.Enrollment ?? row.enrollment ?? "").toString().replace(/,/g, "").trim()) || 0;
+    const pk =
+      parseFloat(
+        (row.PKEnrollment ?? row["PKEnrollment"] ?? row["PK Enrollment"] ?? "").toString().replace(/,/g, "").trim()
+      ) || 0;
+    return Math.max(0, e - pk);
+  }
+
+  function getDecisionUtilization(row) {
+    if (!row) return null;
+    const cap = getDecisionCapacity(row);
+    if (!cap || cap <= 0) return null;
+    return getDecisionEnrollment(row) / cap;
+  }
+
+  /** Projected enrollment for growth calc — excludes PK component when 2030 fields allow it. */
+  function getDecisionProjectedEnrollmentLocal(row) {
+    if (!row) return null;
+    const parse = (v) => {
+      const n = parseFloat((v ?? "").toString().replace(/,/g, "").trim());
+      return Number.isFinite(n) ? n : null;
+    };
+    const kPlus = parse(row["2030_K+"] ?? row["2030 K+"]);
+    if (kPlus != null) return kPlus;
+    const total2030 = parse(row["2030_Total"] ?? row["2030 Total"]);
+    if (total2030 == null) return null;
+    const pk2030 = parse(row["2030_PK"] ?? row["2030 PK"]);
+    const pkPart = pk2030 != null ? pk2030 : 0;
+    return Math.max(0, total2030 - pkPart);
+  }
+
+  function getDecisionEnrollmentGrowthLocal(row) {
+    if (!row) return null;
+    const parse = (v) => {
+      const n = parseFloat((v ?? "").toString().replace(/,/g, "").trim());
+      return Number.isFinite(n) ? n : null;
+    };
+    const current = getDecisionEnrollment(row);
+    const projected = getDecisionProjectedEnrollmentLocal(row);
+    if (projected == null || !(current > 0)) return null;
+    return (projected - current) / current;
+  }
+
   function coercePercent0to100(raw) {
     const n = parseFloat((raw ?? "").toString().trim());
     if (!Number.isFinite(n)) return 0;
@@ -311,6 +477,207 @@
     return null;
   }
 
+  /** Same rules as FlowchartLogic.js `normalizeSchoolLevelFlow` / DecisionLogic distance + util1. */
+  function normalizeSchoolLevelFlow(rawLevel) {
+    if (!rawLevel) return null;
+    const trimmed = rawLevel.toString().trim();
+    if (!trimmed) return null;
+    const original = trimmed.toLowerCase();
+    const cleaned = original.replace(/[^a-z0-9]/g, "");
+    if (cleaned.includes("elementary") || cleaned === "es" || original === "elementary") return "elementary";
+    if (cleaned.includes("k8")) return "k8";
+    if (
+      original.includes("k-8") ||
+      original.includes("k 8") ||
+      original.includes("kthrough8") ||
+      /k\s*[-–—]\s*8/i.test(rawLevel)
+    ) {
+      return "k8";
+    }
+    if (/^k.*8|8.*k/i.test(cleaned) && cleaned.length <= 5) return "k8";
+    if (cleaned.includes("middle") || cleaned === "ms" || original === "middle") return "middle";
+    if (cleaned.includes("high") || cleaned === "hs" || original === "high") return "high";
+    if (
+      cleaned.includes("612") ||
+      cleaned.includes("k12") ||
+      original.includes("6-12") ||
+      original.includes("k-12") ||
+      original.includes("6 12") ||
+      original.includes("k 12") ||
+      original.includes("6through12")
+    ) {
+      return "k12";
+    }
+    return null;
+  }
+
+  function pickFirstNonEmpty(row, keys) {
+    if (!row || !keys) return "";
+    for (let i = 0; i < keys.length; i++) {
+      const v = row[keys[i]];
+      if (v != null && String(v).trim() !== "") return v;
+    }
+    return "";
+  }
+
+  function getDistanceMilesFromRow(row) {
+    const raw = pickFirstNonEmpty(row, [
+      "DistanceUnderutilizedschools",
+      "Distance Underutilized Schools",
+      "Distance to Underutilized",
+    ]);
+    const n = parseFloat(String(raw ?? "").replace(/,/g, "").trim());
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  function getDistanceThresholdForSchoolLevelProfile(row, t) {
+    let schoolLevelRaw = row["School Level"] || "";
+    let level = normalizeSchoolLevelFlow(schoolLevelRaw);
+    if (!level && row["Building Name"]) {
+      level = normalizeSchoolLevelFlow(row["Building Name"].toString());
+    }
+    if (level === "elementary") return t.elementaryDistance;
+    if (level === "k8") return t.k8Distance;
+    if (level === "middle") return t.middleDistance;
+    if (level === "high") return t.highDistance;
+    if (level === "k12") return t.k12Distance;
+    return t.middleDistance || 5.0;
+  }
+
+  /**
+   * Matches DecisionLogic.js `loadDistanceToWelcomingMap` — Decision Data Export has no distance column;
+   * the dashboard merges miles from OD_Draft.csv into `DistanceUnderutilizedschools`.
+   */
+  function loadDistanceToWelcomingMapForProfile() {
+    return new Promise((resolve) => {
+      const cached = window.distanceToWelcomingMap;
+      if (cached && typeof cached === "object" && Object.keys(cached).length > 0) {
+        resolve(cached);
+        return;
+      }
+      if (typeof Papa === "undefined" || !Papa.parse) {
+        console.warn("⚠️ PapaParse unavailable; distance-to-welcoming map not loaded.");
+        resolve({});
+        return;
+      }
+      Papa.parse("./OD_Draft.csv", {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          try {
+            const pairDistances = {};
+            const pairMeta = {};
+            const norm = (s) => (s || "").toString().trim().toLowerCase();
+            const normName = (s) => norm((s || "").toString().trim().replace(/\s+/g, " "));
+            const median = (arr) => {
+              if (!arr.length) return NaN;
+              const s = [...arr].sort((a, b) => a - b);
+              const m = Math.floor(s.length / 2);
+              return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+            };
+
+            (results.data || []).forEach((row) => {
+              const originCode = (row["CurrentSchoolCode"] || row.CurrentSchoolCode || "").toString().trim();
+              if (!originCode) return;
+
+              const destCode = (row["DestinationSchoolCode"] || row.DestinationSchoolCode || "").toString().trim();
+              if (norm(originCode) === norm(destCode)) return;
+
+              const dist = parseFloat(
+                (row["LinearDistance_Miles"] || row.LinearDistance_Miles || "").toString().trim()
+              );
+              if (!isFinite(dist)) return;
+
+              const originKey = norm(originCode);
+              const destKey = norm(destCode);
+              const pairKey = `${originKey}|${destKey}`;
+              if (!pairDistances[pairKey]) pairDistances[pairKey] = [];
+              pairDistances[pairKey].push(dist);
+              pairMeta[pairKey] = {
+                destCode,
+                destName: row["DestinationSchoolName"] || row.DestinationSchoolName || "",
+                destGrades: row["DestinationSchoolGrades"] || row.DestinationSchoolGrades || "",
+              };
+            });
+
+            const map = {};
+            const mapByName = {};
+            const rowsByOrigin = {};
+            Object.keys(pairDistances).forEach((pairKey) => {
+              const [originKey, destKey] = pairKey.split("|");
+              const med = median(pairDistances[pairKey]);
+              if (!Number.isFinite(med)) return;
+              if (map[originKey] === undefined || med < map[originKey]) map[originKey] = med;
+              const meta = pairMeta[pairKey];
+              if (meta && meta.destCode) {
+                if (!rowsByOrigin[originKey]) rowsByOrigin[originKey] = [];
+                rowsByOrigin[originKey].push({
+                  "Network Distance (Miles)": med,
+                  NetworkDistanceMiles: med,
+                  "Destination CDE Prefix": meta.destCode,
+                  DestinationCDEPrefix: meta.destCode,
+                  "Destination Facility Name": meta.destName,
+                  "Destination Grades": meta.destGrades,
+                });
+              }
+            });
+            const originKeyToName = {};
+            (results.data || []).forEach((row) => {
+              const oc = (row["CurrentSchoolCode"] || row.CurrentSchoolCode || "").toString().trim();
+              const on = (row["CurrentSchoolName"] || row.CurrentSchoolName || "").toString().trim();
+              if (!oc || !on) return;
+              const key = norm(oc);
+              if (!originKeyToName[key]) originKeyToName[key] = normName(on);
+            });
+            Object.keys(map).forEach((k) => {
+              const n = originKeyToName[k];
+              if (n) mapByName[n] = map[k];
+            });
+
+            window.distanceToWelcomingMap = map;
+            window.distanceToWelcomingMapByName = mapByName;
+            window.distanceToWelcomingRowsByOrigin = rowsByOrigin;
+            console.log(
+              "✅ School profile: loaded distance-to-welcoming map from OD_Draft.csv for",
+              Object.keys(map).length,
+              "schools"
+            );
+            resolve(map);
+          } catch (e) {
+            console.error("❌ Error processing OD_Draft.csv:", e);
+            resolve({});
+          }
+        },
+        error: (err) => {
+          console.error("❌ Failed to load OD_Draft.csv:", err);
+          resolve({});
+        },
+      });
+    });
+  }
+
+  function applyDistanceToWelcomingRows(decisionRows) {
+    const distanceMap = window.distanceToWelcomingMap;
+    const mapByName = window.distanceToWelcomingMapByName || {};
+    if (!distanceMap || typeof distanceMap !== "object") return;
+    const normId = (s) => (s || "").toString().trim().toLowerCase();
+    const normName = (s) => normId((s || "").toString().trim().replace(/\s+/g, " "));
+    (decisionRows || []).forEach((row) => {
+      const uniqueId = row.UniqueID || row["UniqueID"] || row["Unique Id"];
+      const key = normId(uniqueId);
+      let dist = key ? distanceMap[key] : undefined;
+      if (dist === undefined) {
+        const name = row["Building Name"] || row.BuildingName || "";
+        const nameKey = normName(name);
+        dist = nameKey ? mapByName[nameKey] : undefined;
+      }
+      if (dist !== undefined) {
+        row.DistanceUnderutilizedschools = dist;
+      }
+    });
+  }
+
   /** Canonical level for project-line filtering (School Level + Building Name + Multi → K-8 heuristic). */
   function getEffectiveSchoolLevelKey(decision) {
     if (!decision) return null;
@@ -330,9 +697,9 @@
     const utilization = getEffectiveUtilization(row);
     const enrollment = getEffectiveEnrollment(row);
     const schoolLevelRaw = row?.["School Level"] ?? row?.SchoolLevel ?? "";
-    let level = normalizeSchoolLevel(schoolLevelRaw);
+    let level = normalizeSchoolLevelFlow(schoolLevelRaw);
     if (!level && (row?.["Building Name"] || row?.BuildingName)) {
-      level = normalizeSchoolLevel(row?.["Building Name"] || row?.BuildingName);
+      level = normalizeSchoolLevelFlow(row?.["Building Name"] || row?.BuildingName);
     }
 
     let enrollmentThreshold;
@@ -341,10 +708,18 @@
     else if (level === "middle") enrollmentThreshold = t.middleEnrollment || 500;
     else if (level === "high") enrollmentThreshold = t.highEnrollment || 700;
     else if (level === "k12") enrollmentThreshold = t.k12Enrollment || 600;
-    else enrollmentThreshold = t.middleEnrollment || 500;
+    else {
+      const candidates = [t.elementaryEnrollment, t.k8Enrollment, t.middleEnrollment, t.highEnrollment, t.k12Enrollment].filter(
+        (v) => typeof v === "number"
+      );
+      enrollmentThreshold =
+        candidates.length > 0
+          ? candidates.sort((a, b) => a - b)[Math.floor(candidates.length / 2)]
+          : t.middleEnrollment || 500;
+    }
 
     const utilizationBelowThreshold = Number.isFinite(utilization) ? utilization < t.utilization : false;
-    const enrollmentBelowThreshold = Number.isFinite(enrollment) ? enrollment < enrollmentThreshold : false;
+    const enrollmentBelowThreshold = enrollment < enrollmentThreshold;
     return utilizationBelowThreshold || enrollmentBelowThreshold ? "Yes" : "No";
   }
 
@@ -353,17 +728,8 @@
     const util = getEffectiveUtilization(row);
     const util2 = Number.isFinite(util) && util > t.utilizationHigh ? "Yes" : "No";
 
-    // dist threshold depends on level (infer if needed)
-    let level = normalizeSchoolLevel(row["School Level"] || "");
-    if (!level && row["Building Name"]) level = normalizeSchoolLevel(row["Building Name"]);
-    let distanceThreshold = t.middleDistance || 5.0;
-    if (level === "elementary") distanceThreshold = t.elementaryDistance;
-    else if (level === "k8") distanceThreshold = t.k8Distance;
-    else if (level === "middle") distanceThreshold = t.middleDistance;
-    else if (level === "high") distanceThreshold = t.highDistance;
-    else if (level === "k12") distanceThreshold = t.k12Distance;
-
-    const distVal = Number(row.DistanceUnderutilizedschools);
+    const distanceThreshold = getDistanceThresholdForSchoolLevelProfile(row, t);
+    const distVal = getDistanceMilesFromRow(row);
     const dist = Number.isFinite(distVal) && distVal <= distanceThreshold ? "Yes" : "No";
     const growthVal = window.getEffectiveEnrollmentGrowth
       ? window.getEffectiveEnrollmentGrowth(row)
@@ -389,7 +755,6 @@
 
     const edu4 = edu2;
     const fac4 = coerceBuildingScore0to10(row.BuildingScore) >= t.buildingThresholdFlow4 ? "Yes" : "No";
-    // Flow 4 uses the same distance ladder as Flow 1 dist (FlowchartLogic / DecisionLogic).
     const dist4 = dist;
 
     const util1 = getEnrollmentDecision(row, t);
@@ -403,7 +768,12 @@
         currentFlow = 3;
       }
     } else {
-      currentFlow = util2 === "Yes" ? 2 : 3;
+      // Match DecisionLogic.js / FlowchartLogic.js: overcrowding (util2) only enters Flow 2 when growth is above threshold.
+      if (util2 === "Yes") {
+        currentFlow = growth === "Yes" ? 2 : 3;
+      } else {
+        currentFlow = 3;
+      }
     }
 
     const enrollmentForOverride = getEffectiveEnrollment(row);
@@ -483,6 +853,11 @@
     return (s ?? "").toString().trim();
   }
 
+  /** Lowercase UniqueID for map keys — matches script.js normalizeId / dashboard joins. */
+  function normUid(s) {
+    return norm(s).toLowerCase();
+  }
+
   function normName(s) {
     // Normalize school/building name for matching across CSVs.
     return norm(s)
@@ -540,21 +915,29 @@
       .replace(/_+\d+\b/g, "");
   }
 
+  /**
+   * Outcomes that trigger gut/reno and/or new-construction decision paths used to mark every other
+   * line as "decision" N/A (include toggle off, condition column N/A). 03_addition was exempt so it
+   * could still be planned; campus (04) and modernization (05/06) need the same treatment.
+   */
+  const DECISION_GUT_OR_NC_PROJECT_SCOPE_CATEGORIES = new Set([
+    "01_new construction",
+    "02_gut & renovation",
+    "03_addition",
+    "04_campus upgrade",
+    "05_heavy modernization",
+    "06_light modernization",
+  ]);
+
   /** AssetTypes where Replacement Cost is labeled (not $). Never applied to 01_new construction / 02_gut & renovation. */
   const SITE_SPECIFIC_REPLACEMENT_ASSET_NAMES = [
     "ADA compliance",
-    "Hazmat remediation",
     "New 2-story building",
     "New 3-story building",
     "New auditorium",
     "New gym and locker rooms",
     "New multipurpose room",
     "New cafeteria and kitchen",
-    "Campus landscaping upgrade",
-    "Expand parking",
-    "Exterior paint entire campus",
-    "Resurface asphalt",
-    "Resurface concrete",
     "Heavily modernize gym / assembly space",
     "Modernize kitchen",
     "Heavily modernize cafeteria",
@@ -568,11 +951,108 @@
     SITE_SPECIFIC_REPLACEMENT_ASSET_NAMES.map((n) => normProjectKey(n))
   );
 
+  /**
+   * Campus lines where Replacement Cost stays "Site specific" until quantity is entered
+   * (stored override or CSV). Same rows get editable Unit Value + optional synthetic Poor for costing.
+   */
+  const MANUAL_QTY_PLANNING_ASSET_KEYS = new Set(
+    [
+      "Resurface asphalt",
+      "Resurface concrete",
+      "Campus landscaping upgrade",
+      "Expand parking",
+      "Front of school branding, landscape upgrades",
+      "Improve drop-off / pick-up zone",
+      "Playground replacement (ages 2-5)",
+      "Playground replacement (ages 5-12)",
+    ].map((n) => normProjectKey(n))
+  );
+
+  /** Planning defaults when project CSV leaves Unit Value blank (04_campus upgrade playgrounds). */
+  const PLAYGROUND_2_5_DEFAULT_SF = 3500;
+  const PLAYGROUND_5_12_DEFAULT_SF = 5000;
+  const PLAYGROUND_2_5_PK = normProjectKey("Playground replacement (ages 2-5)");
+  const PLAYGROUND_5_12_PK = normProjectKey("Playground replacement (ages 5-12)");
+
+  /** Yes/No condition, qty 1 + $ when Good (reference); no 0–1 gradient bar. */
+  const CAMPUS_YES_NO_REFERENCE_ASSET_KEYS = new Set(
+    ["Add shade structure(s)", "New outdoor classroom"].map((n) => normProjectKey(n))
+  );
+
+  function manualPlanningAssetKey(row) {
+    return normProjectKey(row?.AssetType ?? row?.["Asset Type"] ?? row?.["Project"] ?? row?.assetType ?? "");
+  }
+
+  function isPlaygroundPlanningAssetRow(row) {
+    const pk = manualPlanningAssetKey(row);
+    return pk === PLAYGROUND_2_5_PK || pk === PLAYGROUND_5_12_PK;
+  }
+
+  function isCampusYesNoReferenceAssetRow(row) {
+    return CAMPUS_YES_NO_REFERENCE_ASSET_KEYS.has(manualPlanningAssetKey(row));
+  }
+
+  /** Matches the condition column when it shows "Yes" for shade / outdoor classroom (Good in source data). */
+  function campusYesNoReferenceRowShowsYes(row) {
+    if (!isCampusYesNoReferenceAssetRow(row)) return false;
+    return norm(row?.ConditionScore || row?.__libraryScore || "").toLowerCase() === "good";
+  }
+
+  /** Display labels only (library + project CSV keep canonical AssetType strings). */
+  const PROJECT_TYPE_DISPLAY_LABEL_BY_ASSET_PK = new Map([
+    [normProjectKey("Front of school branding, landscape upgrades"), "Front of school branding, curb appeal"],
+  ]);
+
+  function displayProjectTypeLabel(row) {
+    if (!row) return "";
+    const pk = manualPlanningAssetKey(row);
+    const mapped = PROJECT_TYPE_DISPLAY_LABEL_BY_ASSET_PK.get(pk);
+    if (mapped) return mapped;
+    return row.AssetType ?? row["AssetType"] ?? "";
+  }
+
+  /** Drop costing stub quantity "1" for acres / parking when user did not save an override (still shows Site specific). */
+  function stripManualPlanningStubQuantity(rows) {
+    (rows || []).forEach((r) => {
+      if (!manualPlanningUnitAllowsInput(r)) return;
+      // Only campus/site manual-planning rows — do not strip authored CSV totals on other EA/qty lines (e.g. FCI deficiency).
+      if (!isManualQtyPlanningAssetRow(r)) return;
+      const key = getRowKey(r);
+      const leg = getRowKeyLegacy(r);
+      const hasOv =
+        (key && Object.prototype.hasOwnProperty.call(manualQtyOverrides || {}, key)) ||
+        (leg && leg !== key && Object.prototype.hasOwnProperty.call(manualQtyOverrides || {}, leg));
+      if (hasOv) {
+        const st = manualQtyOverrides[key] ?? manualQtyOverrides[leg];
+        if (st !== null && st !== undefined && st !== "" && Number(st) > 0) return;
+      }
+      const raw = norm(getRawUnitValue(r));
+      if (raw !== "1") return;
+      const u = normalizeUnit(r?.Unit, r?.UnitCost).toUpperCase();
+      if (isSquareFootMeasureUnit(u)) return;
+      r.UnitValue = "";
+      r.ReplacementCost = "";
+    });
+  }
+
   function isSiteSpecificReplacementRow(row) {
     const sys = norm(row?.SystemCategory);
     if (sys === "01_new construction" || sys === "02_gut & renovation") return false;
     const pk = normProjectKey(row?.AssetType);
     return !!pk && SITE_SPECIFIC_REPLACEMENT_PROJECT_KEYS.has(pk);
+  }
+
+  /**
+   * Campus manual-qty assets (resurface, playgrounds, …) plus SF-based rows whose Replacement Cost
+   * is labeled “Site specific” from the unit-cost library (additions, modernizations, etc.).
+   */
+  function isManualQtyPlanningAssetRow(row) {
+    if (!row || row.__isRollup) return false;
+    if (MANUAL_QTY_PLANNING_ASSET_KEYS.has(manualPlanningAssetKey(row))) return true;
+    if (isSiteSpecificReplacementRow(row) && isSquareFootMeasureUnit(normalizeUnit(row?.Unit, row?.UnitCost))) {
+      return true;
+    }
+    return false;
   }
 
   function applySiteSpecificReplacementCostLabels(rows) {
@@ -582,8 +1062,258 @@
       if (norm(r?.ConditionScore || r?.__libraryScore).toLowerCase() === "good") return;
       if (r.__excludedReason === "heavy_mod") return;
       if (/not included/i.test(norm(r?.ReplacementCost))) return;
-      r.ReplacementCost = "Site specific";
+      // Keep numeric $ only when quantity meaningfully drives display here (non–manual-qty site-specific rows).
+      const dollars = parseNumberMaybe(r?.ReplacementCost);
+      if (dollars !== null && Number.isFinite(dollars)) return;
+      r.ReplacementCost = RC_PLACEHOLDER;
     });
+  }
+
+  /**
+   * Campus / site-specific planning rows: Replacement Cost stays "Site specific" until the user saves a quantity
+   * in this browser (room schedule & CSV may still show SF/qty in Unit Value). After reset, RC returns here even when UV matches defaults.
+   * Playgrounds use built-in planning defaults (3,500 / 5,000 SF): those quantities unlock $ from condition scoring without a browser override.
+   */
+  function applyManualQtySiteSpecificLabels(rows) {
+    (rows || []).forEach((r) => {
+      if (!isManualQtyPlanningAssetRow(r)) return;
+      if (norm(r?.ConditionScore || r?.__libraryScore).toLowerCase() === "good") return;
+      if (r.__excludedReason === "heavy_mod") return;
+      if (/not included/i.test(norm(r?.ReplacementCost))) return;
+      if (hasManualPlanningQtyOverrideStored(r)) return;
+      const q = getUnitValueNumber(r);
+      if (isPlaygroundPlanningAssetRow(r) && q !== null && Number.isFinite(q) && q > 0) return;
+      r.ReplacementCost = RC_PLACEHOLDER;
+    });
+  }
+
+  function formatManualQtyDisplayForRow(row, n) {
+    const u = normalizeUnit(row?.Unit, row?.UnitCost).toUpperCase();
+    if (u === "ACRE" || u === "ACRES") return formatLocaleDecimal(n, 0, 2);
+    return formatLocaleInt(Math.round(n));
+  }
+
+  function hydrateManualQtyOverrides(rows) {
+    (rows || []).forEach((r) => {
+      if (!manualPlanningUnitAllowsInput(r)) return;
+      const key = getRowKey(r);
+      const leg = getRowKeyLegacy(r);
+      const stored =
+        (key && Object.prototype.hasOwnProperty.call(manualQtyOverrides || {}, key) ? manualQtyOverrides[key] : null) ??
+        (leg && leg !== key && Object.prototype.hasOwnProperty.call(manualQtyOverrides || {}, leg) ? manualQtyOverrides[leg] : null);
+      if (stored === null || stored === undefined) return;
+      if (stored === "") {
+        r.UnitValue = "";
+        return;
+      }
+      const n = Number(stored);
+      if (Number.isFinite(n) && n > 0) {
+        r.UnitValue = formatManualQtyDisplayForRow(r, n);
+      }
+    });
+  }
+
+  /** Default SF for playground lines when CSV quantity is blank or non-positive (editable like other planning SF). */
+  function hydratePlaygroundDefaultPlanningSf(rows) {
+    (rows || []).forEach((r) => {
+      if (!isPlaygroundPlanningAssetRow(r)) return;
+      if (hasManualPlanningQtyOverrideStored(r)) return;
+      const u = normalizeUnit(r?.Unit, r?.UnitCost).toUpperCase();
+      if (!isSquareFootMeasureUnit(u)) return;
+      const q = getUnitValueNumber(r);
+      if (q !== null && Number.isFinite(q) && q > 0) return;
+      const pk = manualPlanningAssetKey(r);
+      const n = pk === PLAYGROUND_2_5_PK ? PLAYGROUND_2_5_DEFAULT_SF : PLAYGROUND_5_12_DEFAULT_SF;
+      r.UnitValue = formatLocaleInt(Math.round(n));
+    });
+  }
+
+  function loadManualQtyOverrides() {
+    try {
+      if (!window.localStorage) return {};
+      let raw = window.localStorage.getItem(MANUAL_QTY_OVERRIDES_STORAGE_KEY);
+      if (!raw) {
+        const legacy = window.localStorage.getItem(LEGACY_RESURFACE_SF_STORAGE_KEY);
+        if (legacy) {
+          window.localStorage.setItem(MANUAL_QTY_OVERRIDES_STORAGE_KEY, legacy);
+          raw = legacy;
+        }
+      }
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveManualQtyOverrides() {
+    try {
+      if (!window.localStorage) return;
+      window.localStorage.setItem(MANUAL_QTY_OVERRIDES_STORAGE_KEY, JSON.stringify(manualQtyOverrides || {}));
+    } catch {
+      // ignore
+    }
+  }
+
+  function manualPlanningUnitAllowsInput(row) {
+    const u = normalizeUnit(row?.Unit, row?.UnitCost).toUpperCase();
+    if (!u || u === "PERCENT" || u === "PERCENTAGE" || u === "%") return false;
+    return (
+      isSquareFootMeasureUnit(u) ||
+      u === "ACRE" ||
+      u === "ACRES" ||
+      u === "QUANTITY" ||
+      u === "EA" ||
+      u === "EACH"
+    );
+  }
+
+  function manualQtyPlaceholder(row) {
+    const u = normalizeUnit(row?.Unit, row?.UnitCost).toUpperCase();
+    if (isSquareFootMeasureUnit(u)) return "SF";
+    if (u === "ACRE" || u === "ACRES") return "Acres";
+    return "Qty";
+  }
+
+  /** Any non-rollup row with a countable planning unit (SF, qty, EA, acres) may override Unit Value in localStorage. */
+  function manualPlanningQtyCellEditable(row) {
+    if (!row || row.__isRollup) return false;
+    if (row.__excludedFromTotals) return false;
+    if (!manualPlanningUnitAllowsInput(row)) return false;
+    if (norm(row.__excludedReason) === "heavy_mod") return false;
+    if (norm(row.__excludedReason) === "decision") return false;
+    const rc = norm(row?.ReplacementCost);
+    if (/not included/i.test(rc)) return false;
+    return true;
+  }
+
+  /** User saved a planning quantity (localStorage) — not schedule/CSV-only. */
+  function hasManualPlanningQtyOverrideStored(row) {
+    const key = getRowKey(row);
+    const leg = getRowKeyLegacy(row);
+    if (!manualQtyOverrides) return false;
+    const st =
+      (key && Object.prototype.hasOwnProperty.call(manualQtyOverrides, key) ? manualQtyOverrides[key] : null) ??
+      (leg && leg !== key && Object.prototype.hasOwnProperty.call(manualQtyOverrides, leg) ? manualQtyOverrides[leg] : null);
+    if (st === null || st === undefined || st === "") return false;
+    const n = Number(st);
+    return Number.isFinite(n) && n > 0;
+  }
+
+  function syncManualPlanningQtyPrefilledClass(inp, row) {
+    if (!inp) return;
+    if (!norm(inp.value)) {
+      inp.classList.remove("manual-planning-qty-input--prefilled");
+      return;
+    }
+    if (row && hasManualPlanningQtyOverrideStored(row)) {
+      inp.classList.remove("manual-planning-qty-input--prefilled");
+    } else {
+      inp.classList.add("manual-planning-qty-input--prefilled");
+    }
+  }
+
+  function createManualPlanningQtyInput(r) {
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.className = "manual-planning-qty-input resurface-sf-input";
+    inp.setAttribute("aria-label", "Planning quantity (" + manualQtyPlaceholder(r) + ")");
+    inp.setAttribute("placeholder", manualQtyPlaceholder(r));
+    inp.inputMode = "decimal";
+    const uvStart = getUnitValueNumber(r);
+    const uMu = normalizeUnit(r?.Unit, r?.UnitCost).toUpperCase();
+    inp.value =
+      uvStart !== null && Number.isFinite(uvStart) && uvStart > 0
+        ? uMu === "ACRE" || uMu === "ACRES"
+          ? String(uvStart)
+          : String(Math.round(uvStart))
+        : "";
+    let qtyDirty = false;
+    syncManualPlanningQtyPrefilledClass(inp, r);
+    let qtyRecalcDebounce = null;
+    const rowKeyLegacy = getRowKeyLegacy(r);
+    inp.addEventListener("input", () => {
+      qtyDirty = true;
+      if (norm(inp.value)) inp.classList.remove("manual-planning-qty-input--prefilled");
+      else syncManualPlanningQtyPrefilledClass(inp, r);
+      if (qtyRecalcDebounce) clearTimeout(qtyRecalcDebounce);
+      qtyRecalcDebounce = setTimeout(() => {
+        qtyRecalcDebounce = null;
+        const key = getRowKey(r);
+        if (!key) return;
+        const raw = norm(inp.value);
+        if (!raw) return;
+        const n = parseNumberMaybe(raw);
+        if (n === null || !Number.isFinite(n) || n <= 0) return;
+        manualQtyOverrides[key] = n;
+        saveManualQtyOverrides();
+        refreshSchoolDataAfterManualQtyEdit();
+      }, 420);
+    });
+    inp.addEventListener("blur", () => {
+      if (qtyRecalcDebounce) {
+        clearTimeout(qtyRecalcDebounce);
+        qtyRecalcDebounce = null;
+      }
+      const key = getRowKey(r);
+      if (!key) return;
+      const raw = norm(inp.value);
+      if (!raw) {
+        let removed = false;
+        if (Object.prototype.hasOwnProperty.call(manualQtyOverrides, key)) {
+          delete manualQtyOverrides[key];
+          removed = true;
+        }
+        if (rowKeyLegacy && rowKeyLegacy !== key && Object.prototype.hasOwnProperty.call(manualQtyOverrides, rowKeyLegacy)) {
+          delete manualQtyOverrides[rowKeyLegacy];
+          removed = true;
+        }
+        if (removed) saveManualQtyOverrides();
+        qtyDirty = false;
+        syncManualPlanningQtyPrefilledClass(inp, r);
+        refreshSchoolDataAfterManualQtyEdit();
+        return;
+      }
+      const n = parseNumberMaybe(raw);
+      if (n === null || !Number.isFinite(n) || n <= 0) {
+        const fromStore =
+          manualQtyOverrides[key] ??
+          (rowKeyLegacy && rowKeyLegacy !== key ? manualQtyOverrides[rowKeyLegacy] : undefined);
+        const base =
+          fromStore !== undefined && fromStore !== "" ? Number(fromStore) : getUnitValueNumber(r);
+        inp.value =
+          base !== null && Number.isFinite(base) && base > 0 ? String(Math.round(base)) : "";
+        qtyDirty = false;
+        syncManualPlanningQtyPrefilledClass(inp, r);
+        refreshSchoolDataAfterManualQtyEdit();
+        return;
+      }
+      if (qtyDirty) {
+        manualQtyOverrides[key] = n;
+        saveManualQtyOverrides();
+      }
+      qtyDirty = false;
+      refreshSchoolDataAfterManualQtyEdit();
+    });
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        inp.blur();
+      }
+    });
+    return inp;
+  }
+
+  function refreshSchoolDataAfterManualQtyEdit() {
+    if (!selectedSchoolUids.size) return;
+    if (selectedSchoolUids.size === 1) {
+      const uid0 = Array.from(selectedSchoolUids)[0];
+      if (uid0.startsWith("name:")) setSelectedSchool("", uid0.slice(5));
+      else setSelectedSchool(uid0, norm(decisionByUid.get(uid0)?.["Building Name"]) || "");
+      return;
+    }
+    applyMultiSchoolSelection();
   }
 
   function normalizeFacilityName(raw) {
@@ -604,7 +1334,7 @@
   const MODERNIZE_STEM_SF_BUCKET = normalizeRoomCategory("modernize STEM/specialized labs");
 
   /** Roll all STEM/CTE/specialized-lab CostEstimateLink strings into one SF total. */
-  function scheduleCostLinkToModernizationSfBucket(categoryNorm) {
+  function scheduleCostLinkToSfBucket(categoryNorm) {
     if (!categoryNorm) return categoryNorm;
     const isStemLabsLink =
       categoryNorm.includes("modernize") &&
@@ -614,24 +1344,52 @@
     return categoryNorm;
   }
 
-  const ROOM_SCHEDULE_CATEGORY_BY_PROJECT_KEY = new Map([
-    [normProjectKey("Heavily modernize admin"), normalizeRoomCategory("modernize admin")],
-    [normProjectKey("Lightly modernize admin"), normalizeRoomCategory("modernize admin")],
-    [normProjectKey("Heavily modernize cafeteria"), normalizeRoomCategory("modernize cafeteria")],
-    [normProjectKey("Lightly modernize cafeteria"), normalizeRoomCategory("modernize cafeteria")],
-    [normProjectKey("Heavily modernize classrooms"), normalizeRoomCategory("modernize classrooms")],
-    [normProjectKey("Lightly modernize classrooms"), normalizeRoomCategory("modernize classrooms")],
-    [normProjectKey("Lightly modernize corridors"), normalizeRoomCategory("modernize corridors")],
-    [normProjectKey("Heavily modernize gym / assembly space"), normalizeRoomCategory("modernize gym / assembly space")],
-    [normProjectKey("Lightly modernize gym / assembly space"), normalizeRoomCategory("modernize gym / assembly space")],
-    [normProjectKey("Modernize kitchen"), normalizeRoomCategory("modernize kitchen")],
-    [normProjectKey("Heavily modernize multipurpose room"), normalizeRoomCategory("modernize multipurpose room")],
-    [normProjectKey("Lightly modernize multipurpose room"), normalizeRoomCategory("modernize multipurpose room")],
-    [normProjectKey("Lightly modernize library/media center"), normalizeRoomCategory("modernize library/media center")],
-    [normProjectKey("Heavily modernize restrooms"), normalizeRoomCategory("modernize restrooms")],
-    [normProjectKey("Heavily modernize STEM/specialized labs (ES)"), MODERNIZE_STEM_SF_BUCKET],
-    [normProjectKey("Heavily modernize STEM / CTE / specialized labs (MS/HS)"), MODERNIZE_STEM_SF_BUCKET],
-  ]);
+  /**
+   * AssetType (project list) → normalized CostEstimateLink bucket text found in the room schedule.
+   * Heavy/light pairs that share one schedule phrase both receive the same summed SF (no split).
+   * 03_addition / 04_campus: bucket matches normalizeRoomCategory(Project) — tag rooms with that phrase in CostEstimateLink.
+   */
+  function buildScheduleSfBucketByProjectKey() {
+    const m = new Map();
+    const put = (assetName, schedulePhrase) => {
+      m.set(normProjectKey(assetName), normalizeRoomCategory(schedulePhrase));
+    };
+    const putSelf = (assetName) => put(assetName, assetName);
+
+    put("Heavily modernize admin", "modernize admin");
+    put("Lightly modernize admin", "modernize admin");
+    put("Heavily modernize cafeteria", "modernize cafeteria");
+    put("Lightly modernize cafeteria", "modernize cafeteria");
+    put("Heavily modernize classrooms", "modernize classrooms");
+    put("Lightly modernize classrooms", "modernize classrooms");
+    put("Lightly modernize corridors", "modernize corridors");
+    put("Heavily modernize gym / assembly space", "modernize gym / assembly space");
+    put("Lightly modernize gym / assembly space", "modernize gym / assembly space");
+    put("Modernize kitchen", "modernize kitchen");
+    put("Heavily modernize multipurpose room", "modernize multipurpose room");
+    put("Lightly modernize multipurpose room", "modernize multipurpose room");
+    put("Lightly modernize library/media center", "modernize library/media center");
+    put("Heavily modernize restrooms", "modernize restrooms");
+    put("Heavily modernize STEM / CTE / specialized labs (MS/HS)", "modernize STEM/specialized labs");
+
+    putSelf("New 2-story building");
+    putSelf("New 3-story building");
+    putSelf("New auditorium");
+    putSelf("New gym and locker rooms");
+    putSelf("New multipurpose room");
+    putSelf("New cafeteria and kitchen");
+
+    putSelf("Playground replacement (ages 2-5)");
+    putSelf("Playground replacement (ages 5-12)");
+    putSelf("Resurface asphalt");
+    putSelf("Resurface concrete");
+
+    put("Lightly modernize entry lobby", "modernize entry lobby");
+
+    return m;
+  }
+
+  const SCHEDULE_SF_BUCKET_BY_PROJECT_KEY = buildScheduleSfBucketByProjectKey();
 
   function findRoomScheduleKey(keys, matcher) {
     return keys.find((k) => matcher.test(norm(k).toLowerCase())) || "";
@@ -656,7 +1414,7 @@
     return { facilityKey, campusKey, areaKey, categoryKey };
   }
 
-  function buildModernizationScheduleSfTotals(rows) {
+  function buildRoomScheduleSfTotals(rows) {
     const idx = buildRoomScheduleIndex(rows);
     if (!idx.areaKey || !idx.categoryKey) {
       console.warn("Room schedule: missing AREA or CostEstimateLink column for SF totals.", idx);
@@ -664,7 +1422,7 @@
     }
 
     const allowedBuckets = new Set();
-    ROOM_SCHEDULE_CATEGORY_BY_PROJECT_KEY.forEach((bucket) => allowedBuckets.add(bucket));
+    SCHEDULE_SF_BUCKET_BY_PROJECT_KEY.forEach((bucket) => allowedBuckets.add(bucket));
 
     const out = new Map();
     const ensureMaps = (bucket) => {
@@ -677,7 +1435,7 @@
       if (!categoryRaw) return;
       const categoryNorm = normalizeRoomCategory(categoryRaw);
       if (!categoryNorm) return;
-      const bucket = scheduleCostLinkToModernizationSfBucket(categoryNorm);
+      const bucket = scheduleCostLinkToSfBucket(categoryNorm);
       if (!allowedBuckets.has(bucket)) return;
 
       const area = parseNumberMaybe(getRoomScheduleFieldValue(r, idx.areaKey));
@@ -685,7 +1443,7 @@
 
       const maps = ensureMaps(bucket);
       if (idx.campusKey) {
-        const u = norm(getRoomScheduleFieldValue(r, idx.campusKey));
+        const u = normUid(getRoomScheduleFieldValue(r, idx.campusKey));
         if (u) maps.byUid.set(u, (maps.byUid.get(u) || 0) + area);
       }
       if (idx.facilityKey) {
@@ -701,7 +1459,7 @@
   /** Copy project UniqueID → SF when schedule Campus Code ≠ project uid but Facility Name matches SchoolName. */
   function syncScheduleCategorySfUidsFromProjectList(byUidMap, byFacilityMap) {
     rowwiseByUid.forEach((rows, uid) => {
-      const u = norm(uid);
+      const u = normUid(uid);
       if (!u || !rows || !rows.length) return;
       const existing = byUidMap.get(u);
       if (existing != null && Number.isFinite(existing) && existing > 0) return;
@@ -714,7 +1472,7 @@
   }
 
   function getScheduleCategorySfFromMaps(uid, schoolName, decisionRow, projectListSchoolName, byUidMap, byFacilityMap) {
-    const u = norm(uid);
+    const u = normUid(uid);
     if (u) {
       const n = byUidMap.get(u);
       if (n != null && Number.isFinite(n) && n > 0) return n;
@@ -742,9 +1500,9 @@
 
   function getScheduleSfForMappedProjectRow(row, uid, schoolName, decisionRow, projectListSchoolName) {
     const pk = normProjectKey(norm(row?.AssetType));
-    const bucket = ROOM_SCHEDULE_CATEGORY_BY_PROJECT_KEY.get(pk);
+    const bucket = SCHEDULE_SF_BUCKET_BY_PROJECT_KEY.get(pk);
     if (!bucket) return null;
-    const maps = roomScheduleModernizationSfByCategory.get(bucket);
+    const maps = roomScheduleSfByBucket.get(bucket);
     if (!maps) return null;
     return getScheduleCategorySfFromMaps(
       uid,
@@ -756,10 +1514,9 @@
     );
   }
 
-  /** Room schedule SF into Unit Value for mapped heavy/light modernization lines (does not set condition or $). */
-  function hydrateModernizationUnitValueFromRoomSchedule(row, systemCategory, uid, schoolName, decisionRow, projectListSchoolName) {
-    const sys = norm(systemCategory);
-    if (sys !== "05_heavy modernization" && sys !== "06_light modernization") return;
+  /** Room schedule summed AREA → Unit Value when CostEstimateLink maps to this AssetType (any system category). */
+  function hydrateScheduleSfIntoUnitValue(row, uid, schoolName, decisionRow, projectListSchoolName) {
+    if (hasManualPlanningQtyOverrideStored(row)) return;
     const sf = getScheduleSfForMappedProjectRow(row, uid, schoolName, decisionRow, projectListSchoolName);
     if (sf != null && Number.isFinite(sf) && sf > 0) {
       row.UnitValue = formatLocaleInt(Math.round(sf));
@@ -769,6 +1526,7 @@
   function applyRoomScheduleUnitValues(rows, uid, schoolName, decisionRow, projectListSchoolName) {
     if (!rows || !rows.length) return;
     rows.forEach((r) => {
+      if (hasManualPlanningQtyOverrideStored(r)) return;
       const sum = getScheduleSfForMappedProjectRow(r, uid, schoolName, decisionRow, projectListSchoolName);
       if (sum == null) return;
       const rounded = Math.round(sum);
@@ -776,13 +1534,25 @@
     });
   }
 
+  /** Normalized AssetType keys omitted from the project sheet (may still exist in source extracts). */
+  const EXCLUDED_PROJECT_SHEET_ASSET_KEYS = new Set(
+    ["Hazmat remediation", "Exterior paint entire campus"].map((n) => normProjectKey(n))
+  );
+
+  /** Project-sheet lines removed from dashboard (still may exist in source extracts). */
+  function isExcludedFromProjectSheetRow(r) {
+    const pk = normProjectKey(r?.AssetType ?? r?.["Asset Type"] ?? r?.assetType ?? "");
+    return !!pk && EXCLUDED_PROJECT_SHEET_ASSET_KEYS.has(pk);
+  }
+
   function buildRowwiseIndex(rows) {
     rowwiseByUid = new Map();
     rowwiseByNameKey = new Map();
     facilityIdByUid = new Map();
     const nameToUid = new Map();
-    (rows || []).forEach((r) => {
-      const uid = norm(r["UniqueID"] ?? r.UniqueID);
+    const filtered = (rows || []).filter((r) => !isExcludedFromProjectSheetRow(r));
+    filtered.forEach((r) => {
+      const uid = normUid(r["UniqueID"] ?? r.UniqueID);
       const name = norm(r["SchoolName"] ?? r.SchoolName);
       const fid = norm(r["NEWJeffCoFacilityID"] ?? r.NEWJeffCoFacilityID);
       if (uid) {
@@ -799,8 +1569,8 @@
     });
     // Merge empty-UID rows into their school's UID bucket so that
     // a UID-based lookup returns the school's full data (all categories).
-    (rows || []).forEach((r) => {
-      const uid = norm(r["UniqueID"] ?? r.UniqueID);
+    filtered.forEach((r) => {
+      const uid = normUid(r["UniqueID"] ?? r.UniqueID);
       if (uid) return;
       const name = norm(r["SchoolName"] ?? r.SchoolName);
       const linked = name ? nameToUid.get(name) : null;
@@ -811,10 +1581,16 @@
   }
 
   function getRowwiseRowsForSelection(uid, name) {
-    const u = norm(uid);
-    const n = norm(name);
+    const u = normUid(uid);
     if (u && rowwiseByUid.has(u)) return rowwiseByUid.get(u);
-    if (n) return rowwiseByNameKey.get(normName(n)) || [];
+    const n = norm(name);
+    if (n) {
+      const byProjName = rowwiseByNameKey.get(normName(n)) || [];
+      if (byProjName.length) return byProjName;
+      const dec = decisionByNameKey.get(normName(n));
+      const uidFromDec = dec ? normUid(dec["UniqueID"] ?? dec.UniqueID) : "";
+      if (uidFromDec && rowwiseByUid.has(uidFromDec)) return rowwiseByUid.get(uidFromDec);
+    }
     return [];
   }
 
@@ -840,11 +1616,38 @@
     return n.toLocaleString(DISPLAY_NUMBER_LOCALE, { minimumFractionDigits: minFrac, maximumFractionDigits: maxFrac });
   }
 
-  function formatDisplayQuantityCell(raw) {
+  function isMultipurposeRoomAsset(row) {
+    if (!row) return false;
+    const a = norm(row.AssetType).toLowerCase();
+    return a.includes("multipurpose");
+  }
+
+  function isHeavilyModernizeCafeteriaRow(row) {
+    if (!row) return false;
+    return normProjectKey(row.AssetType) === normProjectKey("Heavily modernize cafeteria");
+  }
+
+  function isHeavilyModernizeGymAssemblyRow(row) {
+    if (!row) return false;
+    return normProjectKey(row.AssetType) === normProjectKey("Heavily modernize gym / assembly space");
+  }
+
+  /** Multipurpose modernization rows show "-" instead of "does not apply". */
+  function doesNotApplyConditionDisplay(row) {
+    return isMultipurposeRoomAsset(row) ? "-" : "does not apply";
+  }
+
+  /** @param {unknown} raw @param {object} [row] — when set, multipurpose + “does not apply” displays as "-" */
+  function formatDisplayQuantityCell(raw, row) {
     const s = norm(raw);
     if (!s) return s;
     const n = parseNumberMaybe(s);
-    if (n === null || !Number.isFinite(n)) return s;
+    if (n === null || !Number.isFinite(n)) {
+      if (row && isMultipurposeRoomAsset(row) && /does not apply/i.test(s)) {
+        return "-";
+      }
+      return s;
+    }
     const isInt = Math.abs(n - Math.round(n)) < 1e-9;
     return isInt ? formatLocaleInt(n) : formatLocaleDecimal(n, 0, 6);
   }
@@ -853,7 +1656,7 @@
     const s = norm(raw);
     if (!s) return s;
     if (/not included/i.test(s)) return s;
-    if (/site specific/i.test(s)) return "Site specific";
+    if (isReplacementCostPlaceholder(s)) return RC_PLACEHOLDER;
     const n = parseNumberMaybe(s);
     if (n === null || !Number.isFinite(n)) return s;
     return formatLocaleUsdInteger(n);
@@ -862,6 +1665,7 @@
   function formatDisplayUnitCostCell(raw) {
     const s = norm(raw);
     if (!s) return s;
+    if (/site specific/i.test(s)) return RC_PLACEHOLDER;
     const slash = s.indexOf("/");
     if (slash >= 0) {
       const prefix = s.slice(0, slash).trim();
@@ -1007,25 +1811,53 @@
   function getUniqueSchoolUids(rows) {
     const set = new Set();
     (rows || []).forEach((r) => {
-      const uid = norm(r["UniqueID"] ?? r.UniqueID);
+      const uid = normUid(r["UniqueID"] ?? r.UniqueID);
       if (uid) set.add(uid);
     });
     return set;
   }
 
+  /** Short CSV AssetType for paired heavy/light spaces → index row under both library project keys. */
+  const PAIRED_MODERNIZE_ASSET_SHORT = [
+    { short: "Modernize admin", heavy: "Heavily modernize admin", light: "Lightly modernize admin" },
+    { short: "Modernize classrooms", heavy: "Heavily modernize classrooms", light: "Lightly modernize classrooms" },
+    { short: "Modernize gym / assembly space", heavy: "Heavily modernize gym / assembly space", light: "Lightly modernize gym / assembly space" },
+    { short: "Modernize cafeteria", heavy: "Heavily modernize cafeteria", light: "Lightly modernize cafeteria" },
+    { short: "Modernize multipurpose room", heavy: "Heavily modernize multipurpose room", light: "Lightly modernize multipurpose room" },
+  ];
+
+  function expandRowwiseAssetTypeIndexKeys(assetTypeRaw) {
+    const pkOne = normProjectKey(norm(assetTypeRaw));
+    if (!pkOne) return [];
+    for (let i = 0; i < PAIRED_MODERNIZE_ASSET_SHORT.length; i++) {
+      const pair = PAIRED_MODERNIZE_ASSET_SHORT[i];
+      if (normProjectKey(pair.short) === pkOne) {
+        const h = normProjectKey(pair.heavy);
+        const l = normProjectKey(pair.light);
+        const out = [];
+        if (h) out.push(h);
+        if (l) out.push(l);
+        return out.length ? out : [pkOne];
+      }
+    }
+    return [pkOne];
+  }
+
   function buildRowsFromRowwise(rawSchoolRows) {
     if (!rawSchoolRows || !rawSchoolRows.length) return [];
-    const uid = norm(rawSchoolRows[0]["UniqueID"] ?? rawSchoolRows[0].UniqueID);
+    const uid = normUid(rawSchoolRows[0]["UniqueID"] ?? rawSchoolRows[0].UniqueID);
     const school = norm(rawSchoolRows[0]["SchoolName"] ?? rawSchoolRows[0].SchoolName);
 
     // Index the raw rows by normalized project key. Multiple rows per key
     // are possible when the same project has entries for different priorities.
     const byPk = new Map();
     rawSchoolRows.forEach((r) => {
-      const pk = normProjectKey(norm(r.AssetType ?? r["AssetType"]));
-      if (!pk) return;
-      if (!byPk.has(pk)) byPk.set(pk, []);
-      byPk.get(pk).push(r);
+      const keys = expandRowwiseAssetTypeIndexKeys(r.AssetType ?? r["AssetType"]);
+      keys.forEach((pk) => {
+        if (!pk) return;
+        if (!byPk.has(pk)) byPk.set(pk, []);
+        byPk.get(pk).push(r);
+      });
     });
 
     const out = [];
@@ -1033,7 +1865,7 @@
 
     const consumedPks = new Set();
 
-    // Pass 1: Build rows in the exact order defined by UnitCostLibrary.csv.
+    // Pass 1: SystemCategory comes from UnitCostLibrary; CSV SystemCategory is ignored (match is AssetType only).
     (libraryProjectOrder || []).forEach((p) => {
       const project = norm(p?.proj);
       const pk = norm(p?.pk);
@@ -1047,6 +1879,7 @@
       const matches = byPk.get(pk) || [null];
 
       matches.forEach((match) => {
+        const csvUnitSemantic = match ? norm(match.Unit ?? match["Unit"]) : "";
         const scoreVal = match ? norm(match.ConditionScore ?? match["ConditionScore"]) : "";
         const pv = match ? norm(match.UnitValue ?? match["UnitValue"]) : "";
         const source = match ? norm(match.ConditionSource ?? match["ConditionSource"]) : "";
@@ -1072,6 +1905,7 @@
           ReplacementCost: csvReplacementCost ? formatCsvCost(csvReplacementCost) : "",
           __libraryScore: libScore,
           __pivotConditionScore: scoreVal,
+          __csvUnitSemantic: csvUnitSemantic,
           __csvPriority: validCsvPriority,
           __rowId: rowId++,
         });
@@ -1107,6 +1941,7 @@
           ReplacementCost: csvReplacementCost ? formatCsvCost(csvReplacementCost) : "",
           __libraryScore: "",
           __pivotConditionScore: scoreVal,
+          __csvUnitSemantic: csvUnit,
           __csvPriority: validCsvPriority,
           __rowId: rowId++,
         });
@@ -1120,7 +1955,7 @@
     decisionByUid = new Map();
     decisionByNameKey = new Map();
     (rows || []).forEach((r) => {
-      const uid = norm(r["UniqueID"] ?? r.UniqueID);
+      const uid = normUid(r["UniqueID"] ?? r.UniqueID);
       const name = norm(r["Building Name"] ?? r.BuildingName ?? r["BuildingName"]);
       if (uid) decisionByUid.set(uid, r);
       const nk = normName(name);
@@ -1129,7 +1964,7 @@
   }
 
   function setSelectedSchool(uid, name) {
-    resolvedUniqueId = norm(uid);
+    resolvedUniqueId = uid ? normUid(uid) : "";
     resolvedSchoolName = norm(name);
     resolvedDecisionOutcome = "";
     keepBlackForCosts = false;
@@ -1161,7 +1996,8 @@
 
     const status = norm(decision?.Status);
     const level = norm(decision?.["School Level"]);
-    const cap = norm(decision?.Capacity);
+    const capDetails = getEffectiveCapacityDetails(decision || {});
+    const cap = Number.isFinite(capDetails?.value) ? capDetails.value.toLocaleString(DISPLAY_NUMBER_LOCALE) : "";
     const enr = norm(decision?.Enrollment);
     const sqfRaw = norm(
       decision?.[" SquareFt "] ??
@@ -1205,13 +2041,8 @@
 
     const isBuildingAdditionDecision = (resolvedDecisionOutcome || "").includes("Building Addition");
     if (decision && isBuildingAdditionDecision) {
-      const parseNum = (v) => {
-        const s = (v ?? "").toString().replace(/,/g, "").trim();
-        const n = Number(s);
-        return Number.isFinite(n) ? n : null;
-      };
-      const enrollment = getEffectiveEnrollment(decision);
-      const capacity = parseNum(decision.Capacity);
+      const enrollment = getDecisionEnrollment(decision);
+      const capacity = getDecisionCapacity(decision);
       const availableSeats = capacity !== null && Number.isFinite(enrollment) ? Math.round(capacity - enrollment) : null;
       const overBySeats = availableSeats !== null ? Math.max(0, -availableSeats) : null;
       const overByCap = Number.isFinite(enrollment) && capacity !== null ? Math.max(0, enrollment - capacity) : null;
@@ -1242,7 +2073,8 @@
     else if (resolvedUniqueId) metaBits.push(`JeffCo Facility ID: ${resolvedUniqueId}`);
     if (status) metaBits.push(`Status: ${status}`);
     if (level) metaBits.push(`Level: ${level}`);
-    if (cap) metaBits.push(`Capacity: ${cap}`);
+    if (cap) metaBits.push(`${capDetails?.label || "Capacity"}: ${cap}`);
+    else if (capDetails?.missingEducational) metaBits.push(capDetails.note || "Educational capacity does not exist.");
     const enrEff = getEffectiveEnrollment(decision);
     if (Number.isFinite(enrEff) || enr) metaBits.push(`Enrollment: ${Number.isFinite(enrEff) ? enrEff.toLocaleString(DISPLAY_NUMBER_LOCALE) : enr}${!getIncludePKInEnrollment() && norm(decision?.PKEnrollment) ? ` (excl. PK: ${norm(decision.PKEnrollment)})` : ""}`);
     if (sqf) metaBits.push(`SQF: ${sqf}`);
@@ -1259,6 +2091,9 @@
     applyRoomScheduleUnitValues(schoolRows, resolvedUniqueId, resolvedSchoolName, decision, profileProjectSchoolName);
     hydrateHeavyLightKitchenCafeteriaModUnitCosts(schoolRows, decision);
     hydrateAdaComplianceUnitValue(schoolRows, decision);
+    hydrateManualQtyOverrides(schoolRows);
+    hydratePlaygroundDefaultPlanningSf(schoolRows);
+    synthesizeHeavyLightModernizationPivotFromSibling(schoolRows);
 
     // Derive UnitValue + ReplacementCost.
     // Rule:
@@ -1304,9 +2139,8 @@
         return;
       }
 
-      const MAJOR_CATEGORIES = new Set(["01_new construction", "02_gut & renovation", "03_addition"]);
       const isFciCategory = systemCategory.startsWith("08");
-      if ((needsGutReno || needsNewConstruction) && !MAJOR_CATEGORIES.has(systemCategory)) {
+      if ((needsGutReno || needsNewConstruction) && !DECISION_GUT_OR_NC_PROJECT_SCOPE_CATEGORIES.has(systemCategory)) {
         if (!(isFciCategory && getIncludeFciForMajor())) {
           r.__excludedFromTotals = true;
           r.__excludedReason = "decision";
@@ -1329,23 +2163,26 @@
         r.__libraryScore = "";
       }
 
-      hydrateModernizationUnitValueFromRoomSchedule(
-        r,
-        systemCategory,
-        resolvedUniqueId,
-        resolvedSchoolName,
-        decision,
-        profileProjectSchoolName
-      );
+      hydrateScheduleSfIntoUnitValue(r, resolvedUniqueId, resolvedSchoolName, decision, profileProjectSchoolName);
 
       if (needsStrictConditionMetricForCosting(systemCategory) && !conditionResolved) {
-        r.__excludedFromTotals = true;
-        r.__excludedReason = "unresolved";
-        if (systemCategory !== "05_heavy modernization" && systemCategory !== "06_light modernization") {
-          r.UnitValue = "";
+        // Project CSV often leaves campus resurfacing at ConditionSource Default with no pivoted metric;
+        // treat as Poor so SF × $/SF can still be edited and totaled. Same for modernization rows with SF
+        // already filled from the room schedule or project CSV.
+        if (strictMetricUnresolvedBypass(r)) {
+          r.ConditionScore = "Poor";
+          r.__libraryScore = "Poor";
+        } else {
+          if (!r.__excludedFromTotals) {
+            r.__excludedFromTotals = true;
+            r.__excludedReason = "unresolved";
+          }
+          if (systemCategory !== "05_heavy modernization" && systemCategory !== "06_light modernization") {
+            r.UnitValue = "";
+          }
+          r.ReplacementCost = "";
+          return;
         }
-        r.ReplacementCost = "";
-        return;
       }
 
       // Score-based inclusion: Poor = included (black), Good = excluded (grey)
@@ -1360,9 +2197,22 @@
       applyDefaultCountableQuantityForCosting(r, excludedByScore);
 
       const derivedQ = computeDerivedQuantity(r, decision);
-      if (derivedQ !== null && shouldUseSchoolSqfForRow(r)) {
+      if (
+        derivedQ !== null &&
+        shouldUseSchoolSqfForRow(r) &&
+        !hasManualPlanningQtyOverrideStored(r)
+      ) {
         // Only overwrite UnitValue for the GSF-driven categories.
         r.UnitValue = Number.isFinite(derivedQ) ? formatLocaleInt(Math.round(derivedQ)) : String(derivedQ);
+      }
+
+      // Yes (Good): one structure → quantity 1 so replacement cost shows in the sheet.
+      if (
+        isCampusYesNoReferenceAssetRow(r) &&
+        norm(r?.ConditionScore || r?.__libraryScore).toLowerCase() === "good" &&
+        !hasManualPlanningQtyOverrideStored(r)
+      ) {
+        r.UnitValue = "1";
       }
 
       const rc = computeReplacementCost(r, decision);
@@ -1371,11 +2221,23 @@
       }
     });
 
-    clearQuantitiesAndCostsForGoodCondition(schoolRows);
+    stripManualPlanningStubQuantity(schoolRows);
+
+    clearQuantitiesAndCostsForGoodCondition(
+      schoolRows,
+      resolvedUniqueId,
+      resolvedSchoolName,
+      decision,
+      profileProjectSchoolName
+    );
     suppressLightModernizationWhenHeavyIncluded(schoolRows);
     applySiteSpecificReplacementCostLabels(schoolRows);
+    applyManualQtySiteSpecificLabels(schoolRows);
 
     schoolRows = (schoolRows || []).filter((r) => !r.__hiddenBySchoolLevel);
+    snapshotNaturalRowIncludeState(schoolRows);
+    pruneRowIncludeToggleOverridesAgainstDefaults(schoolRows);
+    applyRowIncludeToggleOverrides(schoolRows);
 
     populateFilters();
     applyFilters();
@@ -1413,6 +2275,21 @@
 
   function getRowKey(row) {
     // AssetID was removed from the profile dataset; use a stable composite key.
+    // Append __rowId so multiple CSV rows (same asset, different priorities, etc.) get distinct storage keys.
+    const uid = normUid(row?.UniqueID);
+    const school = norm(row?.SchoolName);
+    const sys = norm(row?.SystemCategory);
+    const asset = norm(row?.AssetType);
+    const composite = [uid, school, sys, asset].filter(Boolean).join("|");
+    const rid = row?.__rowId;
+    const base = composite || (rid === 0 || rid ? `row:${rid}` : "");
+    if (!base) return "";
+    if (rid === undefined || rid === null) return base;
+    return `${base}||rid:${rid}`;
+  }
+
+  /** Pre–normUid localStorage keys used CO-1420 casing; read overrides under legacy keys too. */
+  function getRowKeyLegacy(row) {
     const uid = norm(row?.UniqueID);
     const school = norm(row?.SchoolName);
     const sys = norm(row?.SystemCategory);
@@ -1421,6 +2298,302 @@
     if (composite) return composite;
     const rid = row?.__rowId;
     return rid === 0 || rid ? String(rid) : "";
+  }
+
+  function isReplacementCostPlaceholder(val) {
+    const s = norm(val);
+    return s === RC_PLACEHOLDER || /^site specific$/i.test(s);
+  }
+
+  function loadRowIncludeToggleOverrides() {
+    try {
+      if (!window.localStorage) return {};
+      const raw = window.localStorage.getItem(ROW_INCLUDE_TOGGLE_STORAGE_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveRowIncludeToggleOverrides() {
+    try {
+      if (!window.localStorage) return;
+      window.localStorage.setItem(ROW_INCLUDE_TOGGLE_STORAGE_KEY, JSON.stringify(rowIncludeToggleOverrides || {}));
+    } catch {
+      // ignore
+    }
+  }
+
+  function tableTotalColumnCount() {
+    return DISPLAY_COLS.length + 1;
+  }
+
+  function snapshotNaturalRowIncludeState(rows) {
+    (rows || []).forEach((r) => {
+      r.__naturalExcludedFromTotals = !!r.__excludedFromTotals;
+    });
+  }
+
+  /**
+   * Include toggle default (1 = in totals):
+   * - ALWAYS_OFF: landscaping, expand parking, improve drop-off / pick-up zone (never default on).
+   * - DEFAULT_OFF (asset keys below): opt-in for heavy/light cafeteria & gym (all listed), resurface; also applies outside 04.
+   * - 04_campus upgrade: Furniture upgrades default on only when metric ≤ UnitCostLibrary Value (~0.5); branding and improve drop-off default off (opt-in); shade & outdoor classroom
+   *   default on only when Good (“Yes”); other 04 lines default off.
+   * - 06_light modernization / legacy modernization row “Lightly modernize corridors”: default on only when condition metric is strictly below 0.5 (fixed cutoff; not library Value 0.6).
+   * - Elsewhere: on when project-list condition input exists and row is in capital need; 00_general / 01 / 02 / 08_* follow exclusion flags only.
+   */
+  const ROW_INCLUDE_ALWAYS_OFF_ASSET_KEYS = new Set(
+    ["Campus landscaping upgrade", "Expand parking", "Improve drop-off / pick-up zone"].map((n) => normProjectKey(n))
+  );
+
+  const ROW_INCLUDE_DEFAULT_OFF_ASSET_KEYS = new Set(
+    [
+      "Heavily modernize cafeteria",
+      "Heavily modernize gym / assembly space",
+      "Lightly modernize cafeteria",
+      "Lightly modernize gym / assembly space",
+      "Resurface asphalt",
+      "Resurface concrete",
+    ].map((n) => normProjectKey(n))
+  );
+
+  const FURNITURE_UPGRADES_ASSET_PK = normProjectKey("Furniture upgrades");
+  const FRONT_SCHOOL_BRANDING_ASSET_PK = normProjectKey("Front of school branding, landscape upgrades");
+  const LIGHTLY_MODERNIZE_CORRIDORS_ASSET_PK = normProjectKey("Lightly modernize corridors");
+
+  /** Pivot or numeric ConditionSource — mirrors getConditionMetricRaw eligibility (not Default / not DNR-only). */
+  function rowHasProjectListConditionInput(row) {
+    const piv = norm(row?.__pivotConditionScore);
+    if (piv && !/^does not apply$/i.test(piv)) return true;
+    const src = norm(row?.ConditionSource);
+    if (!src || /^default$/i.test(src)) return false;
+    if (/^deficiency data/i.test(src)) return false;
+    const t = src.replace(/,/g, "").trim();
+    return /^-?\d+(\.\d+)?$/.test(t);
+  }
+
+  function rowIncludeToggleDefaultOn(r) {
+    if (!r) return false;
+    const pk = manualPlanningAssetKey(r);
+    if (ROW_INCLUDE_ALWAYS_OFF_ASSET_KEYS.has(pk)) return false;
+
+    const sys = norm(r?.SystemCategory);
+    if (pk === LIGHTLY_MODERNIZE_CORRIDORS_ASSET_PK && (sys === "06_light modernization" || sys === "modernization")) {
+      return lightModernizeCorridorsIncludeDefaultOn(r);
+    }
+
+    if (sys === "04_campus upgrade") {
+      if (pk === FRONT_SCHOOL_BRANDING_ASSET_PK) return false;
+      if (pk === FURNITURE_UPGRADES_ASSET_PK) {
+        return campus04AssetMetricLeLibraryValueIncludeDefaultOn(r, pk);
+      }
+      if (ROW_INCLUDE_DEFAULT_OFF_ASSET_KEYS.has(pk)) return false;
+      if (isCampusYesNoReferenceAssetRow(r)) {
+        return campusYesNoReferenceRowShowsYes(r);
+      }
+      return false;
+    }
+
+    if (ROW_INCLUDE_DEFAULT_OFF_ASSET_KEYS.has(pk)) return false;
+
+    if (
+      sys === "00_general" ||
+      sys === "01_new construction" ||
+      sys === "02_gut & renovation" ||
+      sys.startsWith("08")
+    ) {
+      return !r.__naturalExcludedFromTotals;
+    }
+
+    if (!rowHasProjectListConditionInput(r)) return false;
+    return !r.__naturalExcludedFromTotals;
+  }
+
+  function rowIncludeToggleEffectiveDesired(r) {
+    const key = getRowKey(r);
+    const leg = key ? getRowKeyLegacy(r) : "";
+    if (key && Object.prototype.hasOwnProperty.call(rowIncludeToggleOverrides, key)) {
+      return !!rowIncludeToggleOverrides[key];
+    }
+    if (leg && leg !== key && Object.prototype.hasOwnProperty.call(rowIncludeToggleOverrides, leg)) {
+      return !!rowIncludeToggleOverrides[leg];
+    }
+    return rowIncludeToggleDefaultOn(r);
+  }
+
+  /** Drop stored include overrides that match the current default (keeps intentional divergences only). */
+  function pruneRowIncludeToggleOverridesAgainstDefaults(rows) {
+    let changed = false;
+    (rows || []).forEach((r) => {
+      if (r.__isRollup) return;
+      const k = getRowKey(r);
+      if (!k || !Object.prototype.hasOwnProperty.call(rowIncludeToggleOverrides, k)) return;
+      const def = rowIncludeToggleDefaultOn(r);
+      if (rowIncludeToggleOverrides[k] === def) {
+        delete rowIncludeToggleOverrides[k];
+        changed = true;
+      }
+    });
+    if (changed) saveRowIncludeToggleOverrides();
+  }
+
+  /**
+   * User turns include ON for strict-metric rows (03/04/05/06) that were excluded as unresolved or Good:
+   * treat as Poor for planning and compute replacement $ so the row can enter totals.
+   * Campus shade / outdoor classroom (Good "Yes") usually already has $ — skip when no strict unlock needed.
+   */
+  function materializeStrictMetricRowForPlanning(row, decision) {
+    if (!row) return;
+    const er = row.__excludedReason;
+    if (er !== "unresolved" && er !== "good") return;
+    if (er === "good" && !needsStrictConditionMetricForCosting(row.SystemCategory) && !isCampusYesNoReferenceAssetRow(row)) {
+      return;
+    }
+    if (er === "good" && isCampusYesNoReferenceAssetRow(row)) {
+      const rc0 = parseNumberMaybe(row?.ReplacementCost);
+      if (rc0 !== null && Number.isFinite(rc0) && rc0 > 0) return;
+    }
+
+    row.__manualPlanningUnlockStrictMetric = true;
+    row.__manualPlanningUnlockStrictMetricWas = er;
+    row.ConditionScore = "Poor";
+    row.__libraryScore = "Poor";
+    row.__excludedReason = "";
+    applyDefaultCountableQuantityForCosting(row, false);
+    const rc = computeReplacementCost(row, decision);
+    if (rc !== null && Number.isFinite(rc)) {
+      row.ReplacementCost = formatLocaleUsdInteger(Math.round(rc));
+    }
+  }
+
+  function revertStrictMetricRowPlanning(row) {
+    if (!row || !row.__manualPlanningUnlockStrictMetric) return;
+    const was = row.__manualPlanningUnlockStrictMetricWas;
+    row.__manualPlanningUnlockStrictMetric = false;
+    row.__manualPlanningUnlockStrictMetricWas = null;
+    row.__excludedReason = was === "good" ? "good" : "unresolved";
+    if (was === "good") {
+      row.ConditionScore = "Good";
+      row.__libraryScore = "Good";
+    } else {
+      row.ConditionScore = "";
+      row.__libraryScore = "";
+    }
+    row.ReplacementCost = "";
+  }
+
+  function applyRowIncludeToggleOverrides(rows) {
+    const decision = getDecisionForResolvedSchool();
+    (rows || []).forEach((r) => {
+      if (r.__isRollup) return;
+      const wantOn = rowIncludeToggleEffectiveDesired(r);
+      r.__rowIncludeToggleOn = wantOn;
+
+      if (!wantOn) {
+        if (r.__manualPlanningUnlockStrictMetric) revertStrictMetricRowPlanning(r);
+        r.__excludedFromTotals = true;
+        return;
+      }
+
+      if (r.__excludedReason === "decision") {
+        r.__excludedFromTotals = true;
+        return;
+      }
+
+      // Toggle/default wins over Good/unresolved grey state (not decision-based N/A).
+      r.__excludedFromTotals = false;
+    });
+
+    (rows || []).forEach((r) => {
+      if (r.__isRollup) return;
+      if (r.__excludedFromTotals) return;
+      if (!rowIncludeToggleEffectiveDesired(r)) return;
+      if (r.__excludedReason === "unresolved") {
+        materializeStrictMetricRowForPlanning(r, decision);
+        return;
+      }
+      if (r.__excludedReason === "good") {
+        if (!needsStrictConditionMetricForCosting(r.SystemCategory) && !isCampusYesNoReferenceAssetRow(r)) return;
+        materializeStrictMetricRowForPlanning(r, decision);
+      }
+    });
+
+    suppressLightModernizationWhenHeavyIncluded(rows);
+  }
+
+  function commitRowIncludeToggleForRow(row, wantOn) {
+    if (row.__isRollup && row.__rollupRows && row.__rollupRows.length) {
+      row.__rollupRows.forEach((sub) => {
+        const k = getRowKey(sub);
+        if (!k) return;
+        const def = rowIncludeToggleDefaultOn(sub);
+        if (wantOn === def) delete rowIncludeToggleOverrides[k];
+        else rowIncludeToggleOverrides[k] = wantOn;
+      });
+      saveRowIncludeToggleOverrides();
+      if (selectedSchoolUids.size > 1) {
+        applyMultiSchoolSelection();
+      } else {
+        applyRowIncludeToggleOverrides(schoolRows);
+        applyFilters();
+        render();
+        updateTotalReplacementCostDisplay();
+      }
+      return;
+    }
+    const k = getRowKey(row);
+    if (!k) return;
+    const def = rowIncludeToggleDefaultOn(row);
+    if (wantOn === def) delete rowIncludeToggleOverrides[k];
+    else rowIncludeToggleOverrides[k] = wantOn;
+    saveRowIncludeToggleOverrides();
+    applyRowIncludeToggleOverrides(schoolRows);
+    applyFilters();
+    render();
+    updateTotalReplacementCostDisplay();
+  }
+
+  function createRowIncludeToggleControl(row) {
+    const lab = document.createElement("label");
+    lab.className = "row-include-switch";
+    const inp = document.createElement("input");
+    inp.type = "checkbox";
+    inp.setAttribute("role", "switch");
+    if (row.__isRollup && row.__rollupRows && row.__rollupRows.length) {
+      const subs = row.__rollupRows;
+      const onCount = subs.filter((s) => s && !s.__excludedFromTotals).length;
+      inp.checked = subs.length > 0 && onCount === subs.length;
+      inp.indeterminate = onCount > 0 && onCount < subs.length;
+      if (inp.indeterminate) lab.classList.add("row-include-switch--indeterminate");
+      lab.title = "0 = all facilities excluded, 1 = all included (click to set)";
+    } else {
+      inp.checked = row ? !row.__excludedFromTotals : false;
+      lab.title = inp.checked
+        ? "Included (1) — click to set excluded (0)"
+        : "Excluded (0) — click to set included (1)";
+    }
+    inp.setAttribute("aria-label", inp.checked ? "Include in totals: 1 (on)" : "Include in totals: 0 (off)");
+    inp.addEventListener("click", (e) => e.stopPropagation());
+    inp.addEventListener("change", () => {
+      commitRowIncludeToggleForRow(row, inp.checked);
+    });
+    lab.appendChild(inp);
+    const slider = document.createElement("span");
+    slider.className = "row-include-switch-slider";
+    slider.setAttribute("aria-hidden", "true");
+    const bit0 = document.createElement("span");
+    bit0.className = "row-include-switch-bit row-include-switch-0";
+    bit0.textContent = "0";
+    const bit1 = document.createElement("span");
+    bit1.className = "row-include-switch-bit row-include-switch-1";
+    bit1.textContent = "1";
+    slider.appendChild(bit0);
+    slider.appendChild(bit1);
+    lab.appendChild(slider);
+    return lab;
   }
 
   function defaultPriorityForRow(row) {
@@ -1442,7 +2615,9 @@
 
   function getCellValue(row, col) {
     if (col === "Priority") return getPriorityForRow(row);
-    if (col === "Project Type") return row ? (row.AssetType ?? row["AssetType"] ?? "") : "";
+    if (col === "Project Type") return row ? displayProjectTypeLabel(row) : "";
+    if (col === "ConditionScore") return row ? formatConditionScoreDisplay(row) : "";
+    if (col === "UnitValue" && row) return formatDisplayQuantityCell(row[col], row);
     return row ? row[col] : "";
   }
 
@@ -1532,6 +2707,19 @@
     return parseNumberMaybe(raw);
   }
 
+  /**
+   * For strict metric categories, unresolved pivot still allows costing when quantity exists:
+   * manual campus planning rows, or heavy/light modernization with SF from room schedule / CSV.
+   */
+  function strictMetricUnresolvedBypass(row) {
+    if (hasManualPlanningQtyOverrideStored(row)) return true;
+    if (isManualQtyPlanningAssetRow(row)) return true;
+    const sys = norm(row?.SystemCategory);
+    if (sys !== "05_heavy modernization" && sys !== "06_light modernization") return false;
+    const q = getUnitValueNumber(row);
+    return q !== null && Number.isFinite(q) && q > 0;
+  }
+
   function invertGoodPoor(label) {
     const s = norm(label).toLowerCase();
     if (s === "good") return "Poor";
@@ -1562,6 +2750,231 @@
     const t = src.replace(/,/g, "").trim();
     if (!/^-?\d+(\.\d+)?$/.test(t)) return "";
     return t;
+  }
+
+  /**
+   * Numeric condition metric used in threshold logic (same `m` as computeConditionScoreFromValue).
+   * Shown in the Condition score column instead of Good/Poor labels.
+   */
+  function getConditionMetricNumberForDisplay(row, lib) {
+    if (!row) return null;
+    const sys = norm(row?.SystemCategory);
+    const unit = normalizeUnit(norm(row?.Unit) || norm(lib?.unit), "");
+    const metricRaw = getConditionMetricRaw(row);
+    const metric =
+      unit === "PERCENT" || unit === "PERCENTAGE" || unit === "%" || unit === "PROJECT COST"
+        ? parsePercentTo0to1(metricRaw)
+        : parseNumberMaybe(metricRaw);
+    const uv = getUnitValueNumber(row);
+    const useUvAsConditionMetric = sys.startsWith("08");
+    const m = metric !== null && metric !== undefined ? metric : useUvAsConditionMetric ? uv : null;
+    return m;
+  }
+
+  /**
+   * 04_campus: default include when condition metric ≤ library Value (same 0.5 split as scoring).
+   * Used for Furniture upgrades (above threshold ⇒ Good ⇒ default off).
+   */
+  function campus04AssetMetricLeLibraryValueIncludeDefaultOn(row, expectedPk) {
+    if (!row || norm(row?.SystemCategory) !== "04_campus upgrade") return false;
+    if (manualPlanningAssetKey(row) !== expectedPk) return false;
+    const lib = unitCostIndex?.get(makeUnitCostKey(row.SystemCategory, row.AssetType)) ?? null;
+    const th = lib ? parseLibraryValueThreshold(norm(row?.Unit) || norm(lib?.unit), lib?.value) : null;
+    const n = getConditionMetricNumberForDisplay(row, lib);
+    if (n === null || !Number.isFinite(n) || th === null || !Number.isFinite(th)) return false;
+    return n <= th && !row.__naturalExcludedFromTotals;
+  }
+
+  /** Default include only when pivot/source metric is strictly below 0.5 (capital need). */
+  function lightModernizeCorridorsIncludeDefaultOn(row) {
+    if (!row) return false;
+    if (manualPlanningAssetKey(row) !== LIGHTLY_MODERNIZE_CORRIDORS_ASSET_PK) return false;
+    const sys = norm(row?.SystemCategory);
+    if (sys !== "06_light modernization" && sys !== "modernization") return false;
+    const lib =
+      unitCostIndex?.get(makeUnitCostKey("06_light modernization", row.AssetType)) ??
+      unitCostIndex?.get(makeUnitCostKey(row.SystemCategory, row.AssetType)) ??
+      null;
+    const n = getConditionMetricNumberForDisplay(row, lib);
+    if (n === null || !Number.isFinite(n)) return false;
+    return n < 0.5 && !row.__naturalExcludedFromTotals;
+  }
+
+  function isDoesNotApplyPhrase(s) {
+    return s && /does not apply/i.test(norm(s));
+  }
+
+  /** Deficiency / replacement cost still uses metrics internally; list UI omits the score column. */
+  function isSiteInfrastructureSystemCategory(systemCategory) {
+    const s = norm(systemCategory).toLowerCase();
+    return s === "08_site infrastructure" || s === "08_site infrastructure_new";
+  }
+  function isSiteInfrastructureRow(row) {
+    return !!(row && isSiteInfrastructureSystemCategory(row.SystemCategory));
+  }
+
+  function formatConditionScoreDisplay(row) {
+    if (!row) return "—";
+    if (isSiteInfrastructureRow(row)) return "";
+    if (row.__excludedReason === "level" || row.__excludedReason === "decision") return "N/A";
+    if (row.__isRollup) {
+      const cs = norm(row.ConditionScore);
+      if (!cs) return "—";
+      const pn = parseNumberMaybe(cs.replace(/,/g, ""));
+      if (pn !== null && Number.isFinite(pn)) return cs;
+      return "—";
+    }
+    if (isCampusYesNoReferenceAssetRow(row)) {
+      if (campusYesNoReferenceRowShowsYes(row)) return "Yes";
+      const label = norm(row?.ConditionScore || row?.__libraryScore || "").toLowerCase();
+      if (label === "poor") return "No";
+      return "—";
+    }
+    if (isHeavilyModernizeCafeteriaRow(row)) return "-";
+    if (isHeavilyModernizeGymAssemblyRow(row)) return "-";
+    if (isDoesNotApplyPhrase(row?.__pivotConditionScore)) return doesNotApplyConditionDisplay(row);
+    if (isDoesNotApplyPhrase(row?.ConditionSource)) return doesNotApplyConditionDisplay(row);
+    if (isDoesNotApplyPhrase(row?.__csvUnitSemantic)) return doesNotApplyConditionDisplay(row);
+    if (isDoesNotApplyPhrase(row?.Unit)) return doesNotApplyConditionDisplay(row);
+    const internalPoor =
+      norm(row?.ConditionScore || row?.__libraryScore || "").toLowerCase() === "poor";
+    if (isManualQtyPlanningAssetRow(row) && internalPoor) return "—";
+    const lib = unitCostIndex ? unitCostIndex.get(makeUnitCostKey(row.SystemCategory, row.AssetType)) : null;
+    const n = getConditionMetricNumberForDisplay(row, lib);
+    if (n !== null && Number.isFinite(n)) return formatLocaleDecimal(n, 2, 2);
+    return "—";
+  }
+
+  /** 0–1 gradient scale + cutoff lines; structure/FCI (non–site-infra 08_*) uses binary bar. */
+  function getConditionScaleConfig(row) {
+    if (isCampusYesNoReferenceAssetRow(row)) return { mode: "none", cutoff: null };
+    if (isHeavilyModernizeCafeteriaRow(row)) return { mode: "none", cutoff: null };
+    if (isHeavilyModernizeGymAssemblyRow(row)) return { mode: "none", cutoff: null };
+    const sys = norm(row?.SystemCategory).toLowerCase();
+    if (sys === "04_campus upgrade") return { mode: "continuous", cutoff: 0.5 };
+    // Heavy vs light modernization tiers are separate library rows (AssetType), not chosen by metric bands.
+    // Good/Poor uses UnitCostLibrary Value per row (often 0.5 heavy / 0.7 light); align the bar cutoff with that.
+    if (sys === "05_heavy modernization" || sys === "06_light modernization") {
+      const lib = unitCostIndex ? unitCostIndex.get(makeUnitCostKey(row.SystemCategory, row.AssetType)) : null;
+      const th = lib ? parseLibraryValueThreshold(norm(row?.Unit) || norm(lib?.unit), lib?.value) : null;
+      if (th !== null && Number.isFinite(th)) {
+        return { mode: "continuous", cutoff: th };
+      }
+      return { mode: "continuous", cutoff: sys === "05_heavy modernization" ? 0.5 : 0.7 };
+    }
+    if (sys === "08_site infrastructure" || sys === "08_site infrastructure_new") {
+      return { mode: "none", cutoff: null };
+    }
+    if (sys.startsWith("08")) return { mode: "binary", cutoff: null };
+    return { mode: "none", cutoff: null };
+  }
+
+  function appendConditionScoreVisual(cell, row, displayText, isFciMuted) {
+    cell.innerHTML = "";
+    if (isSiteInfrastructureRow(row)) return;
+    const cfg = getConditionScaleConfig(row);
+    const rawStr = String(displayText).replace(/,/g, "").trim();
+    const n = parseNumberMaybe(rawStr);
+
+    const wrap = document.createElement("div");
+    wrap.className = "condition-score-widget" + (isFciMuted ? " condition-score-widget--fci-muted" : "");
+
+    const numEl = document.createElement("span");
+    numEl.className = "condition-score-num condition-score-num--solo";
+    numEl.textContent = displayText;
+
+    const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
+    function appendValueUnderBar(chart, pct) {
+      const rowEl = document.createElement("div");
+      rowEl.className = "condition-score-value-under";
+      const span = document.createElement("span");
+      span.textContent = displayText;
+      span.style.left = `${pct * 100}%`;
+      span.title = displayText;
+      rowEl.appendChild(span);
+      chart.appendChild(rowEl);
+    }
+
+    if (cfg.mode === "none" || n === null || !Number.isFinite(n)) {
+      wrap.appendChild(numEl);
+      cell.appendChild(wrap);
+      return;
+    }
+
+    const chart = document.createElement("div");
+    chart.className = "condition-score-chart";
+
+    if (cfg.mode === "binary") {
+      if (n < 0 || n > 1) {
+        wrap.appendChild(numEl);
+        cell.appendChild(wrap);
+        return;
+      }
+      const pct = clamp01(n);
+      const track = document.createElement("div");
+      track.className = "condition-score-track condition-score-track--binary condition-score-track--neutral";
+      if (pct > 0) {
+        const fillClip = document.createElement("div");
+        fillClip.className = "condition-score-fill-clip" + (pct >= 1 - 1e-9 ? " condition-score-fill-clip--full" : "");
+        fillClip.style.width = `${pct * 100}%`;
+        const fill = document.createElement("div");
+        fill.className = "condition-score-binary-fill";
+        fill.setAttribute("aria-hidden", "true");
+        fill.style.width = pct >= 1 - 1e-9 ? "100%" : `${(1 / pct) * 100}%`;
+        fillClip.appendChild(fill);
+        track.appendChild(fillClip);
+      }
+      const marker = document.createElement("div");
+      marker.className = "condition-score-marker condition-score-marker--value";
+      marker.style.left = `${pct * 100}%`;
+      marker.title = `Score ${displayText}`;
+      track.appendChild(marker);
+      const scaleLblBin = document.createElement("div");
+      scaleLblBin.className = "condition-score-scale-labels condition-score-scale-labels--binary";
+      scaleLblBin.innerHTML = "<span>0</span><span>1</span>";
+      chart.appendChild(scaleLblBin);
+      chart.appendChild(track);
+      appendValueUnderBar(chart, pct);
+      wrap.appendChild(chart);
+      cell.appendChild(wrap);
+      return;
+    }
+
+    const pct = clamp01(n);
+    const track = document.createElement("div");
+    track.className = "condition-score-track condition-score-track--continuous condition-score-track--neutral";
+    if (pct > 0) {
+      const fillClip = document.createElement("div");
+      fillClip.className = "condition-score-fill-clip" + (pct >= 1 - 1e-9 ? " condition-score-fill-clip--full" : "");
+      fillClip.style.width = `${pct * 100}%`;
+      const grad = document.createElement("div");
+      grad.className = "condition-score-gradient";
+      grad.setAttribute("aria-hidden", "true");
+      grad.style.width = pct >= 1 - 1e-9 ? "100%" : `${(1 / pct) * 100}%`;
+      fillClip.appendChild(grad);
+      track.appendChild(fillClip);
+    }
+    if (cfg.cutoff !== null && cfg.cutoff !== undefined) {
+      const co = document.createElement("div");
+      co.className = "condition-score-marker condition-score-marker--cutoff";
+      co.style.left = `${clamp01(cfg.cutoff) * 100}%`;
+      co.title = `Cutoff ${formatLocaleDecimal(cfg.cutoff, 2, 2)}`;
+      track.appendChild(co);
+    }
+    const mv = document.createElement("div");
+    mv.className = "condition-score-marker condition-score-marker--value";
+    mv.style.left = `${pct * 100}%`;
+    mv.title = `Score ${displayText}`;
+    track.appendChild(mv);
+    const scaleLbl = document.createElement("div");
+    scaleLbl.className = "condition-score-scale-labels";
+    scaleLbl.innerHTML = "<span>0</span><span>0.5</span><span>1</span>";
+    chart.appendChild(scaleLbl);
+    chart.appendChild(track);
+    appendValueUnderBar(chart, pct);
+    wrap.appendChild(chart);
+    cell.appendChild(wrap);
   }
 
   function computeConditionScoreFromValue(row, lib) {
@@ -1749,7 +3162,7 @@
   }
 
   function getDecisionForResolvedSchool() {
-    const uid = norm(resolvedUniqueId);
+    const uid = normUid(resolvedUniqueId);
     if (uid && decisionByUid.has(uid)) return decisionByUid.get(uid);
     return null;
   }
@@ -1843,7 +3256,10 @@
         const rate = getHeavyModernizeKitchenRatePerSf(decision);
         if (Number.isFinite(rate)) r.UnitCost = `$${formatAdditionRateLabel(rate)}/SF`;
         const sfRaw = getUnitValueNumber(r);
-        if (sfRaw === null || !Number.isFinite(sfRaw) || sfRaw <= 0) {
+        if (
+          (sfRaw === null || !Number.isFinite(sfRaw) || sfRaw <= 0) &&
+          !hasManualPlanningQtyOverrideStored(r)
+        ) {
           r.UnitValue = formatLocaleInt(Math.round(HM_KITCHEN_BASIS_SF));
         }
       } else if (sys === "05_heavy modernization" && proj === "Heavily modernize cafeteria") {
@@ -1851,7 +3267,10 @@
         const rate = getHeavyModernizeCafeteriaRatePerSf();
         if (Number.isFinite(rate)) r.UnitCost = `$${formatAdditionRateLabel(rate)}/SF`;
         const sfRaw = getUnitValueNumber(r);
-        if (sfRaw === null || !Number.isFinite(sfRaw) || sfRaw <= 0) {
+        if (
+          (sfRaw === null || !Number.isFinite(sfRaw) || sfRaw <= 0) &&
+          !hasManualPlanningQtyOverrideStored(r)
+        ) {
           r.UnitValue = formatLocaleInt(Math.round(HM_CAFETERIA_BASIS_SF));
         }
       } else if (sys === "06_light modernization" && proj === "Lightly modernize cafeteria") {
@@ -1859,7 +3278,10 @@
         const rate = getLightModernizeCafeteriaRatePerSf();
         if (Number.isFinite(rate)) r.UnitCost = `$${formatAdditionRateLabel(rate)}/SF`;
         const sfRaw = getUnitValueNumber(r);
-        if (sfRaw === null || !Number.isFinite(sfRaw) || sfRaw <= 0) {
+        if (
+          (sfRaw === null || !Number.isFinite(sfRaw) || sfRaw <= 0) &&
+          !hasManualPlanningQtyOverrideStored(r)
+        ) {
           r.UnitValue = formatLocaleInt(Math.round(HM_CAFETERIA_BASIS_SF));
         }
       }
@@ -1951,13 +3373,16 @@
    * count-style units and blank quantity, default to 1 so unit cost × qty shows a planning stub.
    */
   function applyDefaultCountableQuantityForCosting(row, excludedByScore) {
-    if (excludedByScore) return;
+    // Good rows normally skip default qty; shade structure (Yes) still shows planning $ in Replacement Cost.
+    if (excludedByScore && !isCampusYesNoReferenceAssetRow(row)) return;
     if (row && row.__excludedFromTotals) return;
     const u = normalizeUnit(row?.Unit, row?.UnitCost);
     if (!u) return;
     if (u === "PERCENT" || u === "PERCENTAGE" || u === "%") return;
     if (u === "PROJECT COST" && norm(row?.AssetType).toLowerCase() === "ada compliance") return;
     if (shouldUseSchoolSqfForRow(row)) return;
+    if (hasManualPlanningQtyOverrideStored(row)) return;
+    if (isManualQtyPlanningAssetRow(row)) return;
     const countable =
       u === "QUANTITY" || u === "EA" || u === "EACH" || u === "ACRE" || u === "ACRES";
     if (!countable) return;
@@ -1966,14 +3391,42 @@
   }
 
   /**
-   * Condition Good = excluded from need totals; blank unit value and replacement cost so the row reads consistently.
+   * Condition Good = excluded from need totals; clear replacement $ (and unit value for most rows).
+   * Manual planning rows keep UV / show rules above. Rows with SF from the Jeffco room schedule keep **Unit Value**
+   * for reference when Good, but clear **Replacement Cost** (no $ need) unless the user saved a planning qty override.
    * Preserves decision-path wording "Not included".
    */
-  function clearQuantitiesAndCostsForGoodCondition(rows) {
+  function clearQuantitiesAndCostsForGoodCondition(rows, contextUid, schoolName, decisionRow, profileProjectSchoolName) {
+    const ctxUid = normUid(contextUid || "");
+    const ctxSchool = norm(schoolName || "");
     (rows || []).forEach((r) => {
       if (norm(r?.ConditionScore || r?.__libraryScore).toLowerCase() !== "good") return;
-      r.UnitValue = "";
+      if (isCampusYesNoReferenceAssetRow(r)) return;
       const rc = norm(r?.ReplacementCost);
+
+      const uid = normUid(r?.UniqueID) || ctxUid;
+      const sn = norm(r?.SchoolName) || ctxSchool;
+      const scheduleSf = getScheduleSfForMappedProjectRow(r, uid, sn, decisionRow || null, profileProjectSchoolName || "");
+      const hasScheduleSf = scheduleSf != null && Number.isFinite(scheduleSf) && scheduleSf > 0;
+
+      if (isManualQtyPlanningAssetRow(r)) {
+        const q = getUnitValueNumber(r);
+        const hasPlanningQty = q !== null && Number.isFinite(q) && q > 0;
+        if (hasManualPlanningQtyOverrideStored(r) || hasPlanningQty) return;
+        if (rc && !/not included/i.test(rc)) r.ReplacementCost = "";
+        return;
+      }
+
+      if (hasScheduleSf) {
+        if (!hasManualPlanningQtyOverrideStored(r)) {
+          r.UnitValue = formatLocaleInt(Math.round(scheduleSf));
+        }
+        if (hasManualPlanningQtyOverrideStored(r)) return;
+        if (rc && !/not included/i.test(rc)) r.ReplacementCost = "";
+        return;
+      }
+
+      r.UnitValue = "";
       if (rc && !/not included/i.test(rc)) r.ReplacementCost = "";
     });
   }
@@ -1986,6 +3439,49 @@
     ["Heavily modernize cafeteria", "Lightly modernize cafeteria"],
     ["Heavily modernize multipurpose room", "Lightly modernize multipurpose room"],
   ];
+
+  /** True if the row still reflects authored project-list CSV inputs (quantity or condition pivot). */
+  function rowHasHeavyLightPivotInput(r) {
+    if (!r) return false;
+    if (norm(getRawUnitValue(r))) return true;
+    if (norm(r.__pivotConditionScore)) return true;
+    if (norm(r.ConditionSource)) return true;
+    return false;
+  }
+
+  /**
+   * When only one side of a heavy/light pair exists in rowwise CSV, copy shared pivot fields from the
+   * sibling so Unit Value / condition inputs need not be duplicated. UnitCost and SystemCategory stay
+   * per library row; replacement $ still uses each row's own $/SF × quantity.
+   */
+  function synthesizeHeavyLightModernizationPivotFromSibling(rows) {
+    if (!rows || !rows.length) return;
+    const byPk = new Map();
+    rows.forEach((r) => {
+      const pk = normProjectKey(norm(r?.AssetType));
+      if (pk) byPk.set(pk, r);
+    });
+    HEAVY_LIGHT_MODERNIZATION_PAIRS.forEach(([heavyName, lightName]) => {
+      const heavyRow = byPk.get(normProjectKey(heavyName));
+      const lightRow = byPk.get(normProjectKey(lightName));
+      if (!heavyRow || !lightRow) return;
+      const hIn = rowHasHeavyLightPivotInput(heavyRow);
+      const lIn = rowHasHeavyLightPivotInput(lightRow);
+      if (hIn && !lIn && !hasManualPlanningQtyOverrideStored(lightRow)) {
+        lightRow.UnitValue = heavyRow.UnitValue;
+        lightRow.ConditionSource = heavyRow.ConditionSource;
+        lightRow.__pivotConditionScore = heavyRow.__pivotConditionScore;
+        lightRow.__csvPriority = heavyRow.__csvPriority;
+        lightRow.__heavyLightPivotFromSibling = "heavy";
+      } else if (lIn && !hIn && !hasManualPlanningQtyOverrideStored(heavyRow)) {
+        heavyRow.UnitValue = lightRow.UnitValue;
+        heavyRow.ConditionSource = lightRow.ConditionSource;
+        heavyRow.__pivotConditionScore = lightRow.__pivotConditionScore;
+        heavyRow.__csvPriority = lightRow.__csvPriority;
+        heavyRow.__heavyLightPivotFromSibling = "light";
+      }
+    });
+  }
 
   function suppressLightModernizationWhenHeavyIncluded(rows) {
     const visible = (rows || []).filter((r) => !r.__hiddenBySchoolLevel);
@@ -2044,9 +3540,12 @@
 
   function loadAdditionStoriesForSchool(uniqueId) {
     try {
-      const uid = norm(uniqueId);
+      const uid = normUid(uniqueId);
       if (!uid || !window.localStorage) return 2;
-      const raw = window.localStorage.getItem(`jeffco_addition_stories_v1:${uid}`);
+      const legacy = norm(uniqueId);
+      const raw =
+        window.localStorage.getItem(`jeffco_addition_stories_v1:${uid}`) ??
+        (legacy !== uid ? window.localStorage.getItem(`jeffco_addition_stories_v1:${legacy}`) : null);
       const n = raw ? Number(raw) : 2;
       if (n === 3) return 3;
       if (n === 2) return 2;
@@ -2059,7 +3558,7 @@
 
   function saveAdditionStoriesForSchool(uniqueId, stories) {
     try {
-      const uid = norm(uniqueId);
+      const uid = normUid(uniqueId);
       if (!uid || !window.localStorage) return;
       window.localStorage.setItem(`jeffco_addition_stories_v1:${uid}`, String(stories));
     } catch {
@@ -2069,9 +3568,12 @@
 
   function loadAdditionCollapsedForSchool(uniqueId) {
     try {
-      const uid = norm(uniqueId);
+      const uid = normUid(uniqueId);
       if (!uid || !window.localStorage) return false;
-      const raw = window.localStorage.getItem(`jeffco_addition_collapsed_v1:${uid}`);
+      const legacy = norm(uniqueId);
+      const raw =
+        window.localStorage.getItem(`jeffco_addition_collapsed_v1:${uid}`) ??
+        (legacy !== uid ? window.localStorage.getItem(`jeffco_addition_collapsed_v1:${legacy}`) : null);
       return raw === "1";
     } catch {
       return false;
@@ -2080,22 +3582,12 @@
 
   function saveAdditionCollapsedForSchool(uniqueId, collapsed) {
     try {
-      const uid = norm(uniqueId);
+      const uid = normUid(uniqueId);
       if (!uid || !window.localStorage) return;
       window.localStorage.setItem(`jeffco_addition_collapsed_v1:${uid}`, collapsed ? "1" : "0");
     } catch {
       // ignore
     }
-  }
-
-  function computeAdditionCost() {
-    if (!additionPlanningState.show || additionPlanningState.gsfTarget == null) return 0;
-    const s = additionPlanningState.stories === 3 ? 3 : 2;
-    const decision = getDecisionForResolvedSchool();
-    const rateFromNc = getAdditionStoryRatePerSf(s, decision);
-    const fallback = ADDITION_STORY_FALLBACK_SF[s] || 0;
-    const rate = rateFromNc !== null && Number.isFinite(rateFromNc) ? rateFromNc : fallback;
-    return Math.round(Number(additionPlanningState.gsfTarget) * rate);
   }
 
   function getFilteredPriorities() {
@@ -2134,14 +3626,19 @@
     dropdown.appendChild(allLabel);
 
     values.forEach((v) => {
+      const val = v && typeof v === "object" && "value" in v ? v.value : v;
+      const text =
+        v && typeof v === "object" && ("label" in v || "value" in v)
+          ? String(v.label !== undefined ? v.label : v.value)
+          : String(v);
       const lbl = document.createElement("label");
       const cb = document.createElement("input");
       cb.type = "checkbox";
       cb.className = cbClass;
-      cb.value = v;
+      cb.value = val;
       cb.checked = true;
       lbl.appendChild(cb);
-      lbl.append(" " + v);
+      lbl.append(" " + text);
       dropdown.appendChild(lbl);
     });
   }
@@ -2262,10 +3759,6 @@
     const assetTotal = elAssetDropdown ? elAssetDropdown.querySelectorAll(".asset-filter-cb").length : 0;
     const filterByAsset = assetSel.size > 0 && assetSel.size < assetTotal;
 
-    const sourceSel = elSourceDropdown ? getMultiSelectValues(elSourceDropdown, "source-filter-cb") : new Set();
-    const sourceTotal = elSourceDropdown ? elSourceDropdown.querySelectorAll(".source-filter-cb").length : 0;
-    const filterBySource = sourceSel.size > 0 && sourceSel.size < sourceTotal;
-
     const filtered = schoolRows.filter((r) => {
       if (filterByPriority) {
         if (r.__isRollup && r.__rollupPriority === "(Multiple)" && r.__rollupRows) {
@@ -2277,7 +3770,6 @@
       }
       if (filterBySystem && !systemSel.has(norm(r.SystemCategory))) return false;
       if (filterByAsset && !assetSel.has(norm(r.AssetType))) return false;
-      if (filterBySource && !sourceSel.has(norm(r.ConditionSource))) return false;
       if (q) {
         const hay = DISPLAY_COLS.map((c) => norm(getCellValue(r, c))).join(" | ").toLowerCase();
         if (!hay.includes(q)) return false;
@@ -2323,6 +3815,12 @@
     const table = document.createElement("table");
     const thead = document.createElement("thead");
     const trh = document.createElement("tr");
+
+    const thToggle = document.createElement("th");
+    thToggle.className = "col-include-toggle";
+    thToggle.textContent = "";
+    thToggle.title = "Include row in planning totals";
+    trh.appendChild(thToggle);
 
     DISPLAY_COLS.forEach((col) => {
       const th = document.createElement("th");
@@ -2378,11 +3876,6 @@
       return byP;
     }
 
-    if (!groupsInitialized) {
-      viewRows.forEach((g) => collapsedGroups.add(g.__group));
-      groupsInitialized = true;
-    }
-
     const superGroupOrder = [];
     const superGroupMap = new Map();
     viewRows.forEach((g) => {
@@ -2410,7 +3903,7 @@
         const sgTr = document.createElement("tr");
         sgTr.className = "super-group-row" + (isSuperCollapsed ? " collapsed" : "") + (sgKey === "FCI Deficiency" ? " fci-deficiency" : "");
         const sgTd = document.createElement("td");
-        sgTd.colSpan = DISPLAY_COLS.length;
+        sgTd.colSpan = tableTotalColumnCount();
         const sgHeader = document.createElement("div");
         sgHeader.className = "group-header";
         const sgLabel = document.createElement("div");
@@ -2456,7 +3949,7 @@
       const groupTr = document.createElement("tr");
       groupTr.className = "group-row" + (isCollapsed ? " collapsed" : "") + (isFciParent ? " fci-child" : "");
       const td = document.createElement("td");
-      td.colSpan = DISPLAY_COLS.length;
+      td.colSpan = tableTotalColumnCount();
       const header = document.createElement("div");
       header.className = "group-header";
       const labelDiv = document.createElement("div");
@@ -2493,7 +3986,7 @@
       if (additionPlanningState.show && norm(g.__group).toLowerCase() === "03_addition") {
         const infoTr = document.createElement("tr");
         const infoTd = document.createElement("td");
-        infoTd.colSpan = DISPLAY_COLS.length;
+        infoTd.colSpan = tableTotalColumnCount();
         infoTd.style.padding = "10px";
 
         const TARGETS = [
@@ -2598,7 +4091,7 @@
         fciAssetGroups.forEach((assetRows, at) => {
           if (assetRows.length > 1) {
             const collapseKey = groupKey + "||" + at;
-            const isAssetCollapsed = !expandedFciAssets.has(collapseKey);
+            const isAssetCollapsed = collapsedFciAssets.has(collapseKey);
 
             const byP = { "1": 0, "2": 0, "3": 0, "4": 0 };
             assetRows.forEach((ar) => {
@@ -2614,6 +4107,9 @@
             const rollupTr = document.createElement("tr");
             rollupTr.className = "fci-rollup-row" + (isAssetCollapsed ? " collapsed" : "");
             rollupTr.style.cursor = "pointer";
+            const rollupToggleTd = document.createElement("td");
+            rollupToggleTd.className = "col-include-toggle fci-rollup-toggle-spacer";
+            rollupTr.appendChild(rollupToggleTd);
             DISPLAY_COLS.forEach((col) => {
               const cell = document.createElement("td");
               if (col === "Project Type") {
@@ -2639,8 +4135,8 @@
               rollupTr.appendChild(cell);
             });
             rollupTr.addEventListener("click", () => {
-              if (expandedFciAssets.has(collapseKey)) expandedFciAssets.delete(collapseKey);
-              else expandedFciAssets.add(collapseKey);
+              if (collapsedFciAssets.has(collapseKey)) collapsedFciAssets.delete(collapseKey);
+              else collapsedFciAssets.add(collapseKey);
               render();
             });
             tbody.appendChild(rollupTr);
@@ -2663,6 +4159,22 @@
           if (r.__excludedReason === "level") tr.classList.add("excluded-level");
           if (r.__excludedReason === "good" || r.__excludedReason === "heavy_mod") tr.classList.add("excluded-good");
         }
+        if (
+          r &&
+          isCampusYesNoReferenceAssetRow(r) &&
+          norm(r?.ConditionScore || r?.__libraryScore).toLowerCase() === "good" &&
+          r.__rowIncludeToggleOn !== false
+        ) {
+          tr.classList.add("campus-yes-cost-row");
+        }
+        if (r && hasManualPlanningQtyOverrideStored(r)) {
+          tr.classList.add("planning-qty-committed-row");
+        }
+        const toggleTd = document.createElement("td");
+        toggleTd.className = "col-include-toggle";
+        if (r) toggleTd.appendChild(createRowIncludeToggleControl(r));
+        tr.appendChild(toggleTd);
+
         DISPLAY_COLS.forEach((col) => {
           const cell = document.createElement("td");
           if (col === "Project Type") cell.classList.add("project-type-cell");
@@ -2685,6 +4197,10 @@
                 b.setAttribute("aria-pressed", String(isCommon && normLoose(current) === normLoose(p)));
                 if (isSiteInfraRollup) {
                   b.title = `Priority ${p} (hardcoded)`;
+                  b.style.cursor = "default";
+                } else if (r.__excludedFromTotals) {
+                  b.disabled = true;
+                  b.style.opacity = "0.45";
                   b.style.cursor = "default";
                 } else {
                   b.title = `Set rollup priority to ${p}`;
@@ -2721,7 +4237,11 @@
               b.textContent = p;
               b.setAttribute("aria-pressed", String(normLoose(current) === normLoose(p)));
               b.title = isExternal ? `Priority ${p} (set in CSV)` : `Set priority to ${p}`;
-              if (!isExternal) {
+              if (!isExternal && r.__excludedFromTotals) {
+                b.disabled = true;
+                b.style.opacity = "0.45";
+                b.style.cursor = "default";
+              } else if (!isExternal) {
                 b.addEventListener("click", () => {
                   const key = getRowKey(r);
                   if (key) {
@@ -2782,9 +4302,9 @@
                   cell.textContent = "—";
                   cell.title = "";
                   cell.classList.add("muted");
-                } else if (/site specific/i.test(norm(r?.ReplacementCost))) {
-                  cell.textContent = "Site specific";
-                  cell.title = "Site specific";
+                } else if (isReplacementCostPlaceholder(r?.ReplacementCost)) {
+                  cell.textContent = RC_PLACEHOLDER;
+                  cell.title = "";
                   if (!isSelected) cell.classList.add("muted");
                 } else {
                   const text = addCostForRow ? formatLocaleUsdInteger(addCostForRow) : "—";
@@ -2806,26 +4326,33 @@
               return;
             }
 
+            if (col === "UnitValue" && manualPlanningQtyCellEditable(r) && !isFciParent) {
+              cell.appendChild(createManualPlanningQtyInput(r));
+              tr.appendChild(cell);
+              return;
+            }
+
             let v = "";
-            // Condition score display:
-            // - Show N/A (black) when row is level-not-relevant (e.g. non-matching new construction / gut reno)
-            // - Otherwise show Good/Poor and colorize
+            // Condition score: numeric metric (2 decimals), not Good/Poor labels
             if (col === "ConditionScore") {
-              const isNA = r && (r.__excludedReason === "level" || r.__excludedReason === "decision");
-              const display = isNA ? "N/A" : (norm(r?.ConditionScore) || norm(getCellValue(r, col)));
-              const text = display ? display : "—";
-              cell.textContent = text;
-              cell.title = text;
+              if (isSiteInfrastructureRow(r)) {
+                cell.textContent = "";
+                cell.title = "";
+                cell.classList.add("muted");
+              } else {
+              const text = getCellValue(r, col);
+              const display = norm(text) ? text : "—";
+              appendConditionScoreVisual(cell, r, display, !!isFciParent);
+              cell.title = display;
               if (!isFciParent) {
-                const k = text.toLowerCase();
-                if (k === "good") cell.classList.add("score-good");
-                else if (k === "poor") cell.classList.add("score-poor");
-                else if (k === "n/a" || k === "na") cell.classList.add("score-na");
+                const k = display.toLowerCase();
+                if (k === "n/a" || k === "na") cell.classList.add("score-na");
+                else if (display === "—" || display === "-") cell.classList.add("muted");
+              }
               }
             } else {
               v = getCellValue(r, col);
               if (col === "UnitValue") {
-                v = formatDisplayQuantityCell(v);
                 const u = normalizeUnit(r?.Unit, r?.UnitCost);
                 const isAdaPct =
                   norm(r?.SystemCategory) === "00_general" &&
@@ -2850,19 +4377,28 @@
 
             // Grey out dollar totals (ReplacementCost) for non-target decision outcomes,
             // but allow Demolition-related values to stay black for replacement cases.
+            // Always show a computed $ total in normal (black) text — including planning SF × $/SF.
             if (col === "ReplacementCost" && norm(v)) {
-              if (isFciParent) {
-                cell.style.color = "#111827";
-              } else if (isDemolition) {
-                if (!keepBlackForDemolitionCost) cell.classList.add("muted");
-              } else {
-                if (!keepBlackForCosts) cell.classList.add("muted");
+              if (!isFciParent) {
+                if (isDemolition) {
+                  if (!keepBlackForDemolitionCost) cell.classList.add("muted");
+                } else {
+                  const campusYesGood =
+                    isCampusYesNoReferenceAssetRow(r) &&
+                    norm(r?.ConditionScore || r?.__libraryScore).toLowerCase() === "good";
+                  const rcParsed = parseNumberMaybe(r?.ReplacementCost);
+                  const hasNumericReplacement =
+                    rcParsed !== null && Number.isFinite(rcParsed);
+                  if (!keepBlackForCosts && !campusYesGood && !hasNumericReplacement) {
+                    cell.classList.add("muted");
+                  }
+                }
               }
             }
 
-            // FCI Deficiency: grey out ConditionScore, UnitCost, UnitValue
-            if (isFciParent && (col === "ConditionScore" || col === "UnitCost" || col === "UnitValue")) {
-              cell.style.color = "var(--muted)";
+            // FCI Deficiency: grey out UnitCost, UnitValue (condition column muted inside widget)
+            if (isFciParent && (col === "UnitCost" || col === "UnitValue")) {
+              cell.classList.add("muted");
             }
           }
           tr.appendChild(cell);
@@ -2890,11 +4426,12 @@
   function populateFilters() {
     const prevSystems = elSystemDropdown ? getMultiSelectValues(elSystemDropdown, "system-filter-cb") : new Set();
     const prevAssets = elAssetDropdown ? getMultiSelectValues(elAssetDropdown, "asset-filter-cb") : new Set();
-    const prevSources = elSourceDropdown ? getMultiSelectValues(elSourceDropdown, "source-filter-cb") : new Set();
 
     const systems = uniqueSorted(schoolRows.map((r) => r.SystemCategory));
-    const assets = uniqueSorted(schoolRows.map((r) => r.AssetType));
-    const sources = uniqueSorted(schoolRows.map((r) => r.ConditionSource));
+    const assets = uniqueSorted(schoolRows.map((r) => r.AssetType)).map((a) => ({
+      value: a,
+      label: displayProjectTypeLabel({ AssetType: a }),
+    }));
 
     if (elSystemDropdown) {
       buildMultiSelectDropdown(elSystemDropdown, systems, "system-filter-cb");
@@ -2903,10 +4440,6 @@
     if (elAssetDropdown) {
       buildMultiSelectDropdown(elAssetDropdown, assets, "asset-filter-cb");
       if (prevAssets.size) restoreMultiSelectState(elAssetDropdown, "asset-filter-cb", prevAssets, elAssetLabel);
-    }
-    if (elSourceDropdown) {
-      buildMultiSelectDropdown(elSourceDropdown, sources, "source-filter-cb");
-      if (prevSources.size) restoreMultiSelectState(elSourceDropdown, "source-filter-cb", prevSources, elSourceLabel);
     }
   }
 
@@ -2928,6 +4461,14 @@
       .replace(/>/g, "&gt;");
   }
 
+  /** Category expand/collapse and FCI drill-in state must not carry across facilities or the next school can render with every section still collapsed. */
+  function resetProjectTableUiStateForSchoolChange() {
+    collapsedGroups.clear();
+    collapsedSuperGroups.clear();
+    collapsedFciAssets.clear();
+    if (elSearch) elSearch.value = "";
+  }
+
   function applyMultiSchoolSelection() {
     if (!selectedSchoolUids.size) {
       schoolRows = [];
@@ -2947,6 +4488,8 @@
       elExportBtn.disabled = true;
       return;
     }
+
+    resetProjectTableUiStateForSchoolChange();
 
     if (selectedSchoolUids.size === 1) {
       const uid = Array.from(selectedSchoolUids)[0];
@@ -2986,6 +4529,9 @@
       applyRoomScheduleUnitValues(rows, uid, nm, decision, profileProjectSchoolName);
       hydrateHeavyLightKitchenCafeteriaModUnitCosts(rows, decision);
       hydrateAdaComplianceUnitValue(rows, decision);
+      hydrateManualQtyOverrides(rows);
+      hydratePlaygroundDefaultPlanningSf(rows);
+      synthesizeHeavyLightModernizationPivotFromSibling(rows);
 
       const schoolDecision = decision ? evaluateSchoolDecision(decision, getActiveThresholds()) : "";
       const schoolOutcome = (schoolDecision || "").trim();
@@ -2998,7 +4544,6 @@
       const schoolNeedsNewConstruction =
         ["Building Replacement", "Welcoming School with Building Replacement"].includes(schoolOutcome) ||
         schoolOutcome.toLowerCase().includes("demolition");
-      const MAJOR_CATEGORIES = new Set(["01_new construction", "02_gut & renovation", "03_addition"]);
 
       rows.forEach((r) => {
         r.__schoolLabel = nm;
@@ -3038,7 +4583,7 @@
         }
 
         const isFciCat = systemCategory.startsWith("08");
-        if ((schoolNeedsGutReno || schoolNeedsNewConstruction) && !MAJOR_CATEGORIES.has(systemCategory)) {
+        if ((schoolNeedsGutReno || schoolNeedsNewConstruction) && !DECISION_GUT_OR_NC_PROJECT_SCOPE_CATEGORIES.has(systemCategory)) {
           if (!(isFciCat && getIncludeFciForMajor())) {
             r.__excludedFromTotals = true;
             r.__excludedReason = "decision";
@@ -3059,18 +4604,23 @@
           r.__libraryScore = "";
         }
 
-        hydrateModernizationUnitValueFromRoomSchedule(r, systemCategory, uid, nm, decision, profileProjectSchoolName);
+        hydrateScheduleSfIntoUnitValue(r, uid, nm, decision, profileProjectSchoolName);
 
         if (needsStrictConditionMetricForCosting(systemCategory) && !conditionResolved) {
-          if (!r.__excludedFromTotals) {
-            r.__excludedFromTotals = true;
-            r.__excludedReason = "unresolved";
+          if (strictMetricUnresolvedBypass(r)) {
+            r.ConditionScore = "Poor";
+            r.__libraryScore = "Poor";
+          } else {
+            if (!r.__excludedFromTotals) {
+              r.__excludedFromTotals = true;
+              r.__excludedReason = "unresolved";
+            }
+            if (systemCategory !== "05_heavy modernization" && systemCategory !== "06_light modernization") {
+              r.UnitValue = "";
+            }
+            r.ReplacementCost = "";
+            return;
           }
-          if (systemCategory !== "05_heavy modernization" && systemCategory !== "06_light modernization") {
-            r.UnitValue = "";
-          }
-          r.ReplacementCost = "";
-          return;
         }
 
         const s = norm(r?.ConditionScore || r?.__libraryScore).toLowerCase();
@@ -3086,8 +4636,20 @@
         applyDefaultCountableQuantityForCosting(r, excludedByScore);
 
         const derivedQ = computeDerivedQuantity(r, decision);
-        if (derivedQ !== null && shouldUseSchoolSqfForRow(r)) {
+        if (
+          derivedQ !== null &&
+          shouldUseSchoolSqfForRow(r) &&
+          !hasManualPlanningQtyOverrideStored(r)
+        ) {
           r.UnitValue = Number.isFinite(derivedQ) ? formatLocaleInt(Math.round(derivedQ)) : String(derivedQ);
+        }
+
+        if (
+          isCampusYesNoReferenceAssetRow(r) &&
+          norm(r?.ConditionScore || r?.__libraryScore).toLowerCase() === "good" &&
+          !hasManualPlanningQtyOverrideStored(r)
+        ) {
+          r.UnitValue = "1";
         }
 
         const rc = computeReplacementCost(r, decision);
@@ -3096,9 +4658,16 @@
         }
       });
 
-      clearQuantitiesAndCostsForGoodCondition(rows);
+      stripManualPlanningStubQuantity(rows);
+
+      clearQuantitiesAndCostsForGoodCondition(rows, uid, nm, decision, profileProjectSchoolName);
       suppressLightModernizationWhenHeavyIncluded(rows);
       applySiteSpecificReplacementCostLabels(rows);
+      applyManualQtySiteSpecificLabels(rows);
+
+      snapshotNaturalRowIncludeState(rows);
+      pruneRowIncludeToggleOverridesAgainstDefaults(rows);
+      applyRowIncludeToggleOverrides(rows);
 
       combined.push(...rows.filter((r) => !r.__hiddenBySchoolLevel));
     });
@@ -3135,6 +4704,22 @@
         avgScoreLabel = avg >= 2.5 ? "Good" : avg >= 1.5 ? "Fair" : "Poor";
       }
 
+      let rollupMetricSum = 0;
+      let rollupMetricCount = 0;
+      rows.forEach((r) => {
+        const lib = unitCostIndex ? unitCostIndex.get(makeUnitCostKey(r.SystemCategory, r.AssetType)) : null;
+        const mn = getConditionMetricNumberForDisplay(r, lib);
+        if (mn !== null && Number.isFinite(mn)) {
+          rollupMetricSum += mn;
+          rollupMetricCount += 1;
+        }
+      });
+      let rollupConditionScoreDisplay =
+        rollupMetricCount > 0 ? formatLocaleDecimal(rollupMetricSum / rollupMetricCount, 2, 2) : "";
+      if (SITE_INFRA_CATS.has(norm(first.SystemCategory).toLowerCase())) {
+        rollupConditionScoreDisplay = "";
+      }
+
       let totalCost = 0;
       let allExcludedByDecision = true;
       rows.forEach((r) => {
@@ -3148,11 +4733,18 @@
       const excludedByScore = !excludedByDecision && avgScoreLabel.toLowerCase() === "good";
 
       let rollupReplacementCost = "";
+      const anyChildIncludedInTotals = rows.some((sub) => !sub.__excludedFromTotals);
+      const allChildrenToggleOn = rows.length > 0 && rows.every((sub) => sub && !sub.__excludedFromTotals);
       if (!excludedByScore) {
-        if (isSiteSpecificReplacementRow(first)) {
-          rollupReplacementCost = "Site specific";
-        } else if (totalCost) {
+        if (totalCost) {
           rollupReplacementCost = formatLocaleUsdInteger(Math.round(totalCost));
+        } else if (isSiteSpecificReplacementRow(first)) {
+          rollupReplacementCost = RC_PLACEHOLDER;
+        } else if (
+          isManualQtyPlanningAssetRow(first) &&
+          rows.some((sub) => !sub.__excludedFromTotals)
+        ) {
+          rollupReplacementCost = RC_PLACEHOLDER;
         }
       }
 
@@ -3212,7 +4804,7 @@
         SchoolName: "",
         SystemCategory: first.SystemCategory,
         AssetType: first.AssetType,
-        ConditionScore: avgScoreLabel,
+        ConditionScore: rollupConditionScoreDisplay,
         ConditionSource: first.ConditionSource,
         Unit: first.Unit,
         UnitCost: first.UnitCost,
@@ -3225,8 +4817,9 @@
         __isRollup: true,
         __rollupRows: rows,
         __rowId: rollupId++,
-        __excludedFromTotals: excludedByDecision || excludedByScore,
+        __excludedFromTotals: !anyChildIncludedInTotals,
         __excludedReason: excludedByDecision ? "decision" : (excludedByScore ? "good" : ""),
+        __rowIncludeToggleOn: allChildrenToggleOn,
       });
     });
 
@@ -3317,6 +4910,7 @@
     if (isMultiFacilityRollup && facilityCount >= 100) fontPt = Math.min(fontPt, 5);
 
     const headerLabels = [];
+    headerLabels.push("Include");
     if (anySchoolLabel) headerLabels.push("Facility");
     DISPLAY_COLS.forEach((c) => {
       const key = typeof c === "string" ? c : c.key || c;
@@ -3341,9 +4935,17 @@
         const longText = Math.max(proj.length, fac.length, 24);
         const wrapLines = Math.min(5, 1 + Math.floor(longText / 36));
         estTablePt += Math.max(11, fontPt * 1.2 * wrapLines + 6);
-        const rowClass = (r.__excludedFromTotals ? "pdf-ex " : "") + "pdf-data" + (pdfDataRowIdx % 2 === 1 ? " pdf-zebra" : "");
+        const campusYesPdf =
+          isCampusYesNoReferenceAssetRow(r) &&
+          norm(r?.ConditionScore || r?.__libraryScore).toLowerCase() === "good";
+        const rowClass =
+          (r.__excludedFromTotals ? "pdf-ex " : "") +
+          (campusYesPdf ? "pdf-campus-yes " : "") +
+          "pdf-data" +
+          (pdfDataRowIdx % 2 === 1 ? " pdf-zebra" : "");
         pdfDataRowIdx += 1;
         const cells = [];
+        cells.push(r.__excludedFromTotals ? "Off" : "On");
         if (anySchoolLabel) cells.push(esc(r.__schoolLabel || "—"));
         DISPLAY_COLS.forEach((c) => {
           const key = typeof c === "string" ? c : c.key || c;
@@ -3379,9 +4981,6 @@
     }
     if (elAssetLabel && norm(elAssetLabel.textContent) && elAssetLabel.textContent !== "All") {
       filt.push("Project type: " + esc(elAssetLabel.textContent));
-    }
-    if (elSourceLabel && norm(elSourceLabel.textContent) && elSourceLabel.textContent !== "All") {
-      filt.push("Condition source: " + esc(elSourceLabel.textContent));
     }
     const filtBlock = filt.length ? filt.join(" · ") : "No text filters (table filters: All).";
 
@@ -3557,6 +5156,15 @@ table.data tbody tr.pdf-group td {
 table.data tbody tr.pdf-data.pdf-zebra td { background: #f7fafc; }
 table.data tbody tr.pdf-ex td { color: #64748b; }
 table.data tbody tr.pdf-ex.pdf-zebra td { background: #f1f5f9; color: #64748b; }
+/* Match on-screen campus Yes (shade / outdoor classroom): excluded from totals but full-weight black text */
+table.data tbody tr.pdf-ex.pdf-campus-yes td {
+  color: #111;
+  font-weight: 600;
+}
+table.data tbody tr.pdf-ex.pdf-campus-yes.pdf-zebra td {
+  background: #f7fafc;
+  color: #111;
+}
 thead { display: table-header-group; }
 tfoot { display: table-footer-group; }
 .pdf-foot { font-size: 6pt; color: #64748b; margin-top: 6pt; line-height: 1.3; }
@@ -3580,7 +5188,7 @@ ${meta ? `<p class="pdf-meta">${meta}</p>` : ""}
 <p class="pdf-filters"><strong>Facility selection:</strong> ${facLine}<br><strong>Table filters:</strong> ${filtBlock}</p>
 ${additionBlock}
 <table class="data"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
-<p class="pdf-foot">Grey text = row excluded from totals (decision, score, or N/A).${pdfZoomPct < 99 ? ` Print zoom set to ${pdfZoomPct}% to target two pages (Chrome/Edge).` : ""} If a third page appears, reduce print margins slightly.</p>
+<p class="pdf-foot">Grey text = row excluded from totals (decision, score, or N/A). Shade structure and new outdoor classroom <strong>Yes</strong> rows print in black (reference cost).${pdfZoomPct < 99 ? ` Print zoom set to ${pdfZoomPct}% to target two pages (Chrome/Edge).` : ""} If a third page appears, reduce print margins slightly.</p>
 </body></html>`;
 
     const w = window.open("", "_blank");
@@ -3614,16 +5222,18 @@ ${additionBlock}
       parseCsv(UNITCOST_LIBRARY_CSV_PATH).catch(() => []),
       parseCsv(ROOM_SCHEDULE_CSV_PATH).catch(() => []),
     ])
-      .then(([decRows, assetRows, unitCostLibRows, roomScheduleRows]) => {
+      .then(async ([decRows, assetRows, unitCostLibRows, roomScheduleRows]) => {
         decisionRows = decRows || [];
+        await loadDistanceToWelcomingMapForProfile();
+        applyDistanceToWelcomingRows(decisionRows);
         buildDecisionIndexes(decisionRows);
 
         unitCostIndex = buildUnitCostLibraryIndex(unitCostLibRows || []);
-        roomScheduleModernizationSfByCategory = buildModernizationScheduleSfTotals(roomScheduleRows || []);
+        roomScheduleSfByBucket = buildRoomScheduleSfTotals(roomScheduleRows || []);
 
         allRows = Array.isArray(assetRows) ? assetRows : [];
         buildRowwiseIndex(allRows);
-        roomScheduleModernizationSfByCategory.forEach((maps) => {
+        roomScheduleSfByBucket.forEach((maps) => {
           syncScheduleCategorySfUidsFromProjectList(maps.byUid, maps.byFacility);
         });
 
@@ -3700,7 +5310,7 @@ ${additionBlock}
         // deficiency=true for the original 122; deficiency=false for the rest.
         const decisionOpts = (decisionRows || [])
           .map((r) => {
-            const uid = norm(r["UniqueID"] ?? r.UniqueID);
+            const uid = normUid(r["UniqueID"] ?? r.UniqueID);
             const bname = norm(r["Building Name"] ?? r.BuildingName ?? r["BuildingName"]);
             return {
               uid: uid,
@@ -3716,7 +5326,7 @@ ${additionBlock}
         const decisionUidSet = new Set(decisionOpts.map((o) => o.uid));
         const schoolNamesCoveredByDecision = new Set();
         (allRows || []).forEach((r) => {
-          const uid = norm(r["UniqueID"] ?? r.UniqueID);
+          const uid = normUid(r["UniqueID"] ?? r.UniqueID);
           const name = norm(r["SchoolName"] ?? r.SchoolName);
           if (uid && name && decisionUidSet.has(uid)) schoolNamesCoveredByDecision.add(name);
         });
@@ -3957,33 +5567,76 @@ ${additionBlock}
             applyMultiSchoolSelection();
           });
         }
-
-        const fciToggle = document.getElementById("includeFciToggle");
-        if (fciToggle) {
-          fciToggle.checked = !!localStorage.getItem("includeFciForMajor");
-          fciToggle.addEventListener("change", () => {
-            if (fciToggle.checked) localStorage.setItem("includeFciForMajor", "1");
-            else localStorage.removeItem("includeFciForMajor");
+        const capToggle = document.getElementById("useEducationalCapacityToggle");
+        if (capToggle) {
+          capToggle.checked = getCapacitySource() === "educational";
+          capToggle.addEventListener("change", () => {
+            setCapacitySource(capToggle.checked ? "educational" : "capacity");
             applyMultiSchoolSelection();
           });
         }
 
-        // If URL has a school/uid param, pre-check that school
-        let resolvedUid = norm(selectedUniqueIdFromQuery);
+        const fciToggle = document.getElementById("includeFciToggle");
+        if (fciToggle) {
+          try {
+            fciToggle.checked = window.localStorage.getItem("includeFciForMajor") !== "0";
+          } catch {
+            fciToggle.checked = true;
+          }
+          fciToggle.addEventListener("change", () => {
+            if (fciToggle.checked) window.localStorage.setItem("includeFciForMajor", "1");
+            else window.localStorage.setItem("includeFciForMajor", "0");
+            applyMultiSchoolSelection();
+          });
+        }
+
+        // If URL has a school/uid param, pre-select ONLY that facility (uncheck all others).
+        // applyFacilityVisibility() runs first and checks every visible facility; only toggling
+        // the matching row to checked leaves all others checked too, so applyMultiSchoolSelection
+        // treats the visit as multi-school and shows combined projects for everyone.
+        let resolvedUid = normUid(selectedUniqueIdFromQuery);
         let resolvedName = norm(selectedSchoolNameFromQuery);
+        const hadUrlSchool = !!(selectedUniqueIdFromQuery || selectedSchoolNameFromQuery);
 
         if (resolvedUid && decisionByUid.has(resolvedUid)) {
           const r = decisionByUid.get(resolvedUid);
           resolvedName = norm(r?.["Building Name"]) || resolvedName;
         } else if (resolvedName) {
           const r = decisionByNameKey.get(normName(resolvedName));
-          resolvedUid = norm(r?.["UniqueID"]) || resolvedUid;
+          resolvedUid = normUid(r?.["UniqueID"]) || resolvedUid;
           resolvedName = norm(r?.["Building Name"]) || resolvedName;
         }
 
-        if (resolvedUid && window.__schoolCbs) {
-          window.__schoolCbs.forEach((cb) => { if (cb.value === resolvedUid) cb.checked = true; });
-          if (window.__onSchoolSelectionChanged) window.__onSchoolSelectionChanged();
+        if (window.__schoolCbs) {
+          let targetValue = null;
+          if (resolvedUid) {
+            const byUid = Array.from(window.__schoolCbs).find((cb) => cb.value === resolvedUid);
+            if (byUid) targetValue = resolvedUid;
+          }
+          if (!targetValue && resolvedName) {
+            const nk = normName(resolvedName);
+            const byName = Array.from(window.__schoolCbs).find(
+              (cb) =>
+                cb.value === "name:" + resolvedName || normName(cb.dataset.name || "") === nk
+            );
+            if (byName) targetValue = byName.value;
+          }
+
+          if (targetValue) {
+            window.__schoolCbs.forEach((cb) => {
+              cb.checked = cb.value === targetValue;
+            });
+            if (window.__onSchoolSelectionChanged) window.__onSchoolSelectionChanged();
+          } else if (hadUrlSchool) {
+            elSchoolNameHeader.textContent = "—";
+            elSchoolMeta.textContent =
+              "That facility could not be found in the list, or it has no linked project data.";
+            elTableMount.innerHTML = '<div class="empty">No school selected.</div>';
+          } else {
+            elSchoolNameHeader.textContent = "—";
+            elSchoolMeta.textContent = "Select one or more schools above to view summary and projects.";
+            elTableMount.innerHTML = '<div class="empty">No school selected.</div>';
+          }
         } else {
           elSchoolNameHeader.textContent = "—";
           elSchoolMeta.textContent = "Select one or more schools above to view summary and projects.";
@@ -4035,9 +5688,6 @@ ${additionBlock}
     if (elAssetBtn && elAssetDropdown && elAssetLabel) {
       wireMultiSelect("assetMultiSelect", elAssetBtn, elAssetDropdown, "asset-filter-cb", elAssetLabel, onFilterChanged);
     }
-    if (elSourceBtn && elSourceDropdown && elSourceLabel) {
-      wireMultiSelect("sourceMultiSelect", elSourceBtn, elSourceDropdown, "source-filter-cb", elSourceLabel, onFilterChanged);
-    }
 
     elClearFilters.addEventListener("click", () => {
       elSearch.value = "";
@@ -4046,11 +5696,22 @@ ${additionBlock}
       updatePriorityFilterLabel();
       if (elSystemDropdown && elSystemLabel) clearMultiSelect(elSystemDropdown, "system-filter-cb", elSystemLabel);
       if (elAssetDropdown && elAssetLabel) clearMultiSelect(elAssetDropdown, "asset-filter-cb", elAssetLabel);
-      if (elSourceDropdown && elSourceLabel) clearMultiSelect(elSourceDropdown, "source-filter-cb", elSourceLabel);
       sortState = { key: "SystemCategory", dir: "asc" };
       applyFilters();
       render();
     });
+
+    if (elResetManualQtyOverrides) {
+      elResetManualQtyOverrides.addEventListener("click", () => {
+        const msg =
+          "Clear all saved planning quantities (SF/qty you typed for site-specific rows) in this browser?\n\n" +
+          "Values will come from the room schedule and project CSV again.";
+        if (!window.confirm(msg)) return;
+        manualQtyOverrides = {};
+        saveManualQtyOverrides();
+        refreshSchoolDataAfterManualQtyEdit();
+      });
+    }
     if (elExportBtn) {
       elExportBtn.addEventListener("click", (e) => {
         e.stopPropagation();

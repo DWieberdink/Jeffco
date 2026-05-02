@@ -140,7 +140,6 @@ console.log("scoreByPk:", scoreByPk.size, "unitValueByPk:", unitValueByPk.size);
 // Print a few checks
 const checks = [
   "ADA compliance",
-  "Hazmat remediation",
   "Demolition",
   "Front of school branding, landscape upgrades",
 ];

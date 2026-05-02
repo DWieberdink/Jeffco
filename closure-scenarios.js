@@ -79,6 +79,7 @@
 
   const CS_PIN_KEY = "csScenarioPinned";
   const CS_EXCLUDE_DEST_KEY = "csExcludedDestinations_v1";
+  const CAPACITY_SOURCE_STORAGE_KEY = "jeffco_capacity_source_v1";
 
   let decisionReady = false;
   let odStudentsReady = false;
@@ -134,8 +135,7 @@
     elSelect.innerHTML = '<option value="">— Select a school to close —</option>';
     activeWithStudents.forEach((s) => {
       const enrollment = Number(s.enrollment) || 0;
-      const seats = Number(s.seats) || 0;
-      const cap = enrollment + seats;
+      const cap = Number(s.capacity);
       const utilPct = cap > 0 ? (enrollment / cap) * 100 : null;
       const utilText = (utilPct === null) ? "— util" : `${utilPct.toFixed(0)}% util`;
       const opt = document.createElement("option");
@@ -274,6 +274,25 @@
     return Number.isFinite(n) ? n : null;
   }
 
+  function getCapacitySource() {
+    try {
+      const raw = window.localStorage ? window.localStorage.getItem(CAPACITY_SOURCE_STORAGE_KEY) : null;
+      return raw === "educational" ? "educational" : "capacity";
+    } catch {
+      return "capacity";
+    }
+  }
+
+  function getEffectiveCapacityForRow(row) {
+    const source = getCapacitySource();
+    const cap = parseNumberMaybe(row?.Capacity ?? row?.["Capacity"]);
+    const eduCap = parseNumberMaybe(row?.EducationalCapacity ?? row?.["EducationalCapacity"] ?? row?.["Educational Capacity"]);
+    if (source === "educational") {
+      return Number.isFinite(eduCap) && eduCap > 0 ? eduCap : null;
+    }
+    return Number.isFinite(cap) && cap > 0 ? cap : null;
+  }
+
   function getGradeNum(gRaw) {
     const g = norm(gRaw).toUpperCase();
     if (!g) return null;
@@ -373,12 +392,12 @@
       const name = norm(r["Building Name"] ?? r.BuildingName ?? r["BuildingName"]);
       const status = norm(r.Status);
       const articulationArea = norm(r["Articulation Area"] ?? r["ArticulationArea"] ?? "");
-      const cap = parseNumberMaybe(r.Capacity ?? r["Capacity"]) ?? 0;
+      const cap = getEffectiveCapacityForRow(r) ?? 0;
       const enrollment = Math.max(0, parseNumberMaybe(r.Enrollment ?? r["Enrollment"]) ?? 0);
       const pk = Math.max(0, parseNumberMaybe(r.PKEnrollment ?? r["PKEnrollment"] ?? r["PK Enrollment"]) ?? 0);
       const effEnr = Math.max(0, enrollment - pk);
       const seats = cap > 0 ? Math.max(0, Math.round(cap - effEnr)) : 0;
-      schoolMetaByCode.set(code, { code, name, status, seats, enrollment, articulationArea });
+      schoolMetaByCode.set(code, { code, name, status, seats, enrollment, capacity: cap, articulationArea });
     });
 
     decisionReady = true;

@@ -344,7 +344,7 @@
     .cost-highlight {
       background: #fff7ed !important;
       border-color: #fdba74 !important;
-      font-weight: 900;
+      font-weight: 400;
       color: var(--text) !important;
     }
 
@@ -466,12 +466,20 @@
       cursor: pointer;
       user-select: none;
     }
+    /* Keep column headers visible while scrolling the project list */
+    #tableMount table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 8;
+      background: #f3f4f6;
+      box-shadow: 0 1px 0 var(--border);
+    }
     tbody tr:hover td {
       background: #fafafa;
     }
     .group-row td {
       background: #eef2f7;
-      font-weight: 900;
+      font-weight: 400;
       color: #0f172a;
       cursor: pointer;
       user-select: none;
@@ -496,7 +504,7 @@
       transform: rotate(-90deg);
     }
     .group-row td .group-subtotal {
-      font-weight: 600;
+      font-weight: 400;
       font-size: 13px;
       color: #374151;
     }
@@ -508,7 +516,7 @@
     }
     tr.fci-rollup-row td {
       background: #f5e6c8;
-      font-weight: 700;
+      font-weight: 400;
       border-top: 1.5px solid #c9a96e;
       color: #4a3a14;
       font-size: 12px;
@@ -520,7 +528,7 @@
     }
     .super-group-row td {
       background: #d1d8e3;
-      font-weight: 900;
+      font-weight: 400;
       font-size: 15px;
       color: #0f172a;
       cursor: pointer;
@@ -554,7 +562,7 @@
       transform: rotate(-90deg);
     }
     .super-group-row td .group-subtotal {
-      font-weight: 700;
+      font-weight: 400;
       font-size: 14px;
       color: #1e293b;
     }
@@ -610,6 +618,32 @@
       outline-offset: -2px;
     }
 
+    .manual-planning-qty-input,
+    .resurface-sf-input {
+      width: 100%;
+      max-width: 120px;
+      box-sizing: border-box;
+      padding: 4px 6px;
+      font: inherit;
+      font-size: 13px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: #fff;
+    }
+    .manual-planning-qty-input:focus,
+    .resurface-sf-input:focus {
+      outline: 2px solid var(--blue);
+      outline-offset: 0;
+      border-color: var(--blue);
+    }
+    /* Prefilled planning quantity (existing SF/qty) — shows the field is editable / replaceable */
+    .manual-planning-qty-input.manual-planning-qty-input--prefilled {
+      color: #94a3b8;
+    }
+    .manual-planning-qty-input.manual-planning-qty-input--prefilled:focus {
+      color: var(--text);
+    }
+
     /* Keep the row control compact on smaller screens */
     @media (max-width: 720px) {
       .priority-segment-btn {
@@ -620,49 +654,269 @@
     .muted {
       color: var(--muted);
     }
+    /* Project list (#tableMount): light grey when N/A / excluded; black otherwise; no bold in cells */
+    #tableMount table tbody td {
+      font-weight: 400;
+    }
+    #tableMount table tbody td.muted,
+    #tableMount table tbody td.score-na {
+      color: #cbd5e1;
+    }
     /* Rows excluded from totals (e.g., non-relevant gut-reno levels) */
     .excluded-row td {
-      color: #cbd5e1; /* noticeably greyer than .muted */
+      color: #cbd5e1;
     }
-    th:nth-child(1), td:nth-child(1) { width: 7%; padding: 2px 4px; }
-    th:nth-child(2), td:nth-child(2) { width: 33%; }
-    th:nth-child(3), td:nth-child(3) { width: 12%; }
-    th:nth-child(4), td:nth-child(4) { width: 14%; }
+    #tableMount table tbody tr.excluded-row:not(.campus-yes-cost-row) td {
+      color: #cbd5e1;
+    }
+    #tableMount table tbody tr.excluded-row.campus-yes-cost-row td {
+      color: var(--text);
+    }
+    /* Include = binary 0/1: 0 = off (gray), 1 = on (teal), knob follows */
+    .col-include-toggle {
+      width: 58px;
+      min-width: 58px;
+      max-width: 64px;
+      text-align: center;
+      vertical-align: middle;
+      padding: 2px 4px;
+      box-sizing: border-box;
+    }
+    .row-include-switch {
+      position: relative;
+      display: inline-block;
+      vertical-align: middle;
+      cursor: pointer;
+    }
+    .row-include-switch input[role="switch"] {
+      position: absolute;
+      opacity: 0;
+      width: 0;
+      height: 0;
+      margin: 0;
+    }
+    .row-include-switch-slider {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 52px;
+      height: 22px;
+      padding: 0 6px;
+      box-sizing: border-box;
+      border-radius: 999px;
+      background: #d1d5db;
+      transition: background 0.15s ease;
+    }
+    .row-include-switch-bit {
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1;
+      z-index: 1;
+      user-select: none;
+      font-variant-numeric: tabular-nums;
+    }
+    .row-include-switch input:not(:checked) + .row-include-switch-slider {
+      background: #d1d5db;
+    }
+    .row-include-switch input:not(:checked) + .row-include-switch-slider .row-include-switch-0 {
+      color: #1e293b;
+    }
+    .row-include-switch input:not(:checked) + .row-include-switch-slider .row-include-switch-1 {
+      color: #94a3b8;
+    }
+    .row-include-switch input:checked + .row-include-switch-slider {
+      background: #0d9488;
+    }
+    .row-include-switch input:checked + .row-include-switch-slider .row-include-switch-0 {
+      color: rgba(255, 255, 255, 0.45);
+    }
+    .row-include-switch input:checked + .row-include-switch-slider .row-include-switch-1 {
+      color: #fff;
+    }
+    .row-include-switch-slider::after {
+      content: "";
+      position: absolute;
+      left: 3px;
+      top: 4px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+      transition: transform 0.15s ease;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .row-include-switch input:checked + .row-include-switch-slider::after {
+      transform: translateX(28px);
+    }
+    .row-include-switch--indeterminate .row-include-switch-slider {
+      background: #94a3b8;
+    }
+    .row-include-switch--indeterminate .row-include-switch-slider::after {
+      left: 50%;
+      margin-left: -7px;
+      transform: none;
+    }
+    .row-include-switch--indeterminate .row-include-switch-0,
+    .row-include-switch--indeterminate .row-include-switch-1 {
+      color: rgba(255, 255, 255, 0.85);
+    }
+    th:nth-child(1), td:nth-child(1) { width: 58px; padding: 2px 4px; }
+    th:nth-child(2), td:nth-child(2) { width: 7%; padding: 2px 4px; }
+    th:nth-child(3), td:nth-child(3) { width: 33%; }
+    th:nth-child(4), td:nth-child(4) { width: 12%; }
     th:nth-child(5), td:nth-child(5) { width: 14%; }
-    th:nth-child(6), td:nth-child(6) { width: 20%; }
-    /* Keep Project Type readable even when excluded */
-    .excluded-row td.project-type-cell {
+    th:nth-child(6), td:nth-child(6) { width: 14%; }
+    th:nth-child(7), td:nth-child(7) { width: 20%; }
+    /* User committed a planning SF/qty override — row reads as active (not schedule-only grey) */
+    #tableMount table tbody tr.planning-qty-committed-row td {
       color: var(--text);
     }
-    /* Condition score should never be greyed; color-coded */
+    #tableMount table tbody tr.planning-qty-committed-row td.muted {
+      color: var(--text);
+    }
+    /* Campus Yes + reference $ (shade / outdoor classroom): applicable content stays black */
+    .excluded-row.campus-yes-cost-row td {
+      color: var(--text);
+      font-weight: 400;
+    }
     .excluded-row td.condition-score-cell {
+      color: inherit;
+      font-weight: 400;
+    }
+    .excluded-row.campus-yes-cost-row td.condition-score-cell {
       color: var(--text);
-      font-weight: 900;
     }
-    .condition-score-cell.score-good {
-      color: #16a34a; /* green */
-      font-weight: 900;
-    }
+    .condition-score-cell.score-good,
     .condition-score-cell.score-poor {
-      color: #dc2626; /* red */
-      font-weight: 900;
+      color: var(--text);
+      font-weight: 400;
     }
-    .condition-score-cell.score-na {
-      color: var(--text); /* black */
-      font-weight: 900;
+    /* Keep condition column from stretching row height vs other cells */
+    td.condition-score-cell {
+      padding-top: 4px;
+      padding-bottom: 4px;
+      vertical-align: middle;
+      overflow: visible;
     }
-    /* Ensure Good/Poor still win even when row is excluded */
-    .excluded-row td.condition-score-cell.score-good {
-      color: #16a34a; /* green */
+    /* 0–1 condition metric: scale labels above bar, numeric value below marker */
+    .condition-score-widget {
+      min-width: 120px;
+      max-width: 220px;
     }
-    .excluded-row td.condition-score-cell.score-poor {
-      color: #dc2626; /* red */
+    .condition-score-widget--fci-muted {
+      opacity: 0.72;
     }
-    .excluded-row td.condition-score-cell.score-na {
-      color: var(--text); /* black */
+    .condition-score-num {
+      font-variant-numeric: tabular-nums;
+      font-weight: 400;
     }
-    .excluded-level td:last-child {
-      font-style: italic;
+    .condition-score-num--solo {
+      display: inline-block;
+    }
+    .condition-score-chart {
+      min-width: 0;
+      padding: 0 6px;
+      box-sizing: border-box;
+    }
+    .condition-score-track {
+      position: relative;
+      height: 6px;
+      margin: 0;
+    }
+    .condition-score-track--neutral {
+      background: #eef2f6;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      border-radius: 3px;
+    }
+    .condition-score-fill-clip {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      overflow: hidden;
+      border-radius: 3px 0 0 3px;
+      z-index: 0;
+    }
+    .condition-score-fill-clip--full {
+      border-radius: 3px;
+    }
+    .condition-score-track--neutral .condition-score-gradient,
+    .condition-score-track--neutral .condition-score-binary-fill {
+      border: none;
+      border-radius: 0;
+      box-sizing: border-box;
+    }
+    .condition-score-gradient {
+      height: 100%;
+      border-radius: 3px;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      background: linear-gradient(
+        90deg,
+        #991b1b 0%,
+        #ea580c 20%,
+        #ca8a04 36%,
+        #eab308 46%,
+        #fef9c3 52%,
+        #a7f3d0 68%,
+        #14b8a6 84%,
+        #115e59 100%
+      );
+    }
+    .condition-score-marker {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      transform: translateX(-50%);
+      border-radius: 1px;
+      pointer-events: none;
+    }
+    .condition-score-marker--cutoff {
+      width: 1px;
+      background: rgba(17, 24, 39, 0.9);
+      z-index: 2;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.65);
+    }
+    .condition-score-marker--value {
+      width: 2px;
+      background: #111827;
+      z-index: 3;
+      box-shadow: 0 0 0 1px #fff;
+    }
+    .condition-score-binary-fill {
+      height: 100%;
+      border-radius: 3px;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      background: linear-gradient(90deg, #991b1b 0%, #991b1b 49.5%, #115e59 50.5%, #115e59 100%);
+    }
+    .condition-score-value-under {
+      position: relative;
+      height: 12px;
+      margin-top: 1px;
+      overflow: visible;
+    }
+    .condition-score-value-under span {
+      position: absolute;
+      top: 0;
+      transform: translateX(-50%);
+      font-size: 11px;
+      font-weight: 400;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .condition-score-scale-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 8px;
+      color: var(--muted);
+      line-height: 1;
+      margin-top: 0;
+      margin-bottom: 3px;
+      padding: 0;
     }
     .excluded-row .priority-segment-btn {
       opacity: 1;
@@ -780,6 +1034,10 @@
         <input type="checkbox" id="includePKInEnrollmentToggle" title="Include Pre-K in enrollment numbers">
         Include PK in enrollment
       </label>
+      <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px;">
+        <input type="checkbox" id="useEducationalCapacityToggle" title="Use Educational Capacity for utilization and available seats when available">
+        Use Educational Capacity
+      </label>
       <div class="meta" id="schoolMeta"></div>
     </div>
 
@@ -838,18 +1096,9 @@
             <div id="assetFilterDropdown" class="multi-select-dropdown"></div>
           </div>
         </div>
-        <div class="control">
-          <label>Condition Source</label>
-          <div id="sourceMultiSelect" class="multi-select-wrap">
-            <button type="button" id="sourceFilterBtn" class="multi-select-btn">
-              <span id="sourceFilterLabel">All</span>
-              <span style="font-size:10px;">&#9660;</span>
-            </button>
-            <div id="sourceFilterDropdown" class="multi-select-dropdown"></div>
-          </div>
-        </div>
-        <div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
           <button class="btn" id="clearFiltersBtn" type="button">Clear filters</button>
+          <button class="btn" id="resetManualQtyOverridesBtn" type="button" title="Remove typed SF/qty saved in this browser; room schedule & project data fill again">Reset saved planning quantities</button>
         </div>
       </div>
 
@@ -857,7 +1106,7 @@
     </div>
   </div>
 
-  <script src="school-profile.js?v=20260403_4" defer></script>
+  <script src="school-profile.js?v=20260501_53" defer></script>
   <script src="global-search.js" defer></script>
 </body>
 </html>

@@ -103,6 +103,32 @@ function normProjectKey(s) {
   return normKeyLoose(s).replace(/\s*\/\s*/g, "/");
 }
 
+/** Rowwise CSV may use short AssetType for paired spaces (matches school-profile.js). */
+const PAIRED_MODERNIZE_ASSET_SHORT = [
+  { short: "Modernize admin", heavy: "Heavily modernize admin", light: "Lightly modernize admin" },
+  { short: "Modernize classrooms", heavy: "Heavily modernize classrooms", light: "Lightly modernize classrooms" },
+  { short: "Modernize gym / assembly space", heavy: "Heavily modernize gym / assembly space", light: "Lightly modernize gym / assembly space" },
+  { short: "Modernize cafeteria", heavy: "Heavily modernize cafeteria", light: "Lightly modernize cafeteria" },
+  { short: "Modernize multipurpose room", heavy: "Heavily modernize multipurpose room", light: "Lightly modernize multipurpose room" },
+];
+
+function expandRowwiseAssetTypePks(assetTypeNorm) {
+  const pkOne = normProjectKey(assetTypeNorm);
+  if (!pkOne) return [];
+  for (let i = 0; i < PAIRED_MODERNIZE_ASSET_SHORT.length; i++) {
+    const pair = PAIRED_MODERNIZE_ASSET_SHORT[i];
+    if (normProjectKey(pair.short) === pkOne) {
+      const h = normProjectKey(pair.heavy);
+      const l = normProjectKey(pair.light);
+      const out = [];
+      if (h) out.push(h);
+      if (l) out.push(l);
+      return out.length ? out : [pkOne];
+    }
+  }
+  return [pkOne];
+}
+
 function loadUnitCostLibraryProjects() {
   if (!fs.existsSync(UNITCOST_LIBRARY_PATH)) return [];
   const libText = fs.readFileSync(UNITCOST_LIBRARY_PATH, "utf8");
@@ -153,19 +179,24 @@ for (let r = 1; r < rows.length; r++) {
   const assetType = norm(row[idx.AssetType]);
   if (!school || !assetType) continue;
 
-  const pk = normProjectKey(assetType);
-  if (!pk) continue;
-  dataOnlyProjectKeys.add(pk);
-
-  if (!bySchoolProject.has(schoolKey)) bySchoolProject.set(schoolKey, new Map());
-  const m = bySchoolProject.get(schoolKey);
-  if (!m.has(pk)) m.set(pk, { score: "", unitValue: "" });
-  const rec = m.get(pk);
+  const pks = expandRowwiseAssetTypePks(assetType);
+  if (!pks.length) continue;
 
   const unitValue = norm(row[idx.UnitValue]);
   const score = idx.ConditionScore != null ? norm(row[idx.ConditionScore]) : "";
-  if (!rec.unitValue && unitValue) rec.unitValue = unitValue;
-  if (!rec.score && score) rec.score = score;
+
+  for (let pi = 0; pi < pks.length; pi++) {
+    const pk = pks[pi];
+    if (!pk) continue;
+    dataOnlyProjectKeys.add(pk);
+
+    if (!bySchoolProject.has(schoolKey)) bySchoolProject.set(schoolKey, new Map());
+    const m = bySchoolProject.get(schoolKey);
+    if (!m.has(pk)) m.set(pk, { score: "", unitValue: "" });
+    const rec = m.get(pk);
+    if (!rec.unitValue && unitValue) rec.unitValue = unitValue;
+    if (!rec.score && score) rec.score = score;
+  }
 }
 
 // One row per school

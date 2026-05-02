@@ -3596,8 +3596,8 @@
             },
             {
                 key: 'project_list_all_schools',
-                label: 'JeffCoProjectListAllSchools.csv',
-                url: 'JeffCoProjectListAllSchools.csv',
+                label: 'JeffCoProjectListAllSchools.no-stem-es-labs.csv',
+                url: 'JeffCoProjectListAllSchools.no-stem-es-labs.csv',
                 type: 'csv',
                 usedBy: 'School Profile project list (one row per school + asset type)',
                 notes: []
@@ -3608,7 +3608,9 @@
                 url: 'UnitCostLibrary.csv',
                 type: 'csv',
                 usedBy: 'Project categorization + unit costs/measures + condition thresholds',
-                notes: []
+                notes: [
+                    { type: 'info', text: 'Extra columns after Value (Scope*, SizeAssumptions) are documentation only; the live profile uses SystemCategory through Value.' }
+                ]
             },
             {
                 key: 'distances',
@@ -3886,7 +3888,7 @@
         // -----------------------------
         let schoolDataTableRows = null; // { rows, columns } for CSV export
         const DEFAULT_COLUMN_ORDER = [
-            'JeffCoFacilityID', 'UniqueID', 'Building Name', 'Articulation Area', 'Status', 'School Level', 'Capacity',
+            'JeffCoFacilityID', 'UniqueID', 'Building Name', 'Articulation Area', 'Status', 'School Level', 'Capacity', 'EducationalCapacity',
             'PKEnrollment', 'K+Enrollment', 'Enrollment',
             'AvailableSeats_inclPK', 'AvailableSeats_KPlusOnly', 'Utilization_KPlusOnly', 'Utilization_inclPK',
             'NonPKAttendanceAreaEnrollment', 'AttendanceAreaEnrollment', 'DistanceToUnderutilizedSchools',
@@ -3898,7 +3900,7 @@
 
         const DISPLAY_HEADERS = {
             'JeffCoFacilityID': 'JeffCo Facility ID', 'UniqueID': 'Unique ID', 'Building Name': 'Building Name', 'Articulation Area': 'Articulation Area',
-            'Status': 'Status', 'School Level': 'School Level', 'Capacity': 'Capacity', 'PKEnrollment': 'PK Enrollment',
+            'Status': 'Status', 'School Level': 'School Level', 'Capacity': 'Capacity', 'EducationalCapacity': 'Educational Capacity', 'PKEnrollment': 'PK Enrollment',
             'K+Enrollment': 'K+ Enrollment', 'Enrollment': 'Enrollment', '2030_PK': '2030 PK', '2030_Total': '2030 Total',
             'PK_EnrollmentGrowth': 'PK Enrollment Growth', 'K+EnrollmentGrowth': 'K+ Enrollment Growth',
             '2030_K+': '2030 K+ Enrollment',
@@ -3914,7 +3916,7 @@
         };
 
         const ROLLUP_GROUPS = [
-            { label: 'School Data', cols: ['JeffCoFacilityID', 'UniqueID', 'Building Name', 'Articulation Area', 'Status', 'School Level', 'Capacity'] },
+            { label: 'School Data', cols: ['JeffCoFacilityID', 'UniqueID', 'Building Name', 'Articulation Area', 'Status', 'School Level', 'Capacity', 'EducationalCapacity'] },
             { label: 'Seats & Utilization (2025)', cols: ['PKEnrollment', 'K+Enrollment', 'Enrollment', 'AvailableSeats_inclPK', 'AvailableSeats_KPlusOnly', 'Utilization_KPlusOnly', 'Utilization_inclPK', 'NonPKAttendanceAreaEnrollment', 'AttendanceAreaEnrollment', 'DistanceToUnderutilizedSchools'] },
             { label: 'Projected 2030', cols: ['2030_PK', '2030_K+', '2030_Total', 'AvailableSeats_2030_inclPK', 'AvailableSeats_2030_KPlusOnly', 'PK_EnrollmentGrowth', 'Utilization_2030_KPlusOnly', 'Utilization_2030_inclPK', 'K+EnrollmentGrowth', 'Future_EnrollmentGrowth'] },
             { label: 'Facility Data', cols: [' SquareFt ', 'BuildingScore', 'EducationalAdequacy', 'Below50PCTL_EA_Cat', 'SiteCapacity', 'RecentInvestments', 'Include_Flow_Chart'] }
@@ -3984,7 +3986,7 @@
                         fetch('Decision Data Export.csv', { cache: 'no-store' }).then(r => r.text()),
                         fetch('Map_Export.csv', { cache: 'no-store' }).then(r => r.text()),
                         loadODDistanceMap(),
-                        fetch('JeffCoProjectListAllSchools.csv', { cache: 'no-store' }).then(r => r.text()).catch(() => '')
+                        fetch('JeffCoProjectListAllSchools.no-stem-es-labs.csv', { cache: 'no-store' }).then(r => r.text()).catch(() => '')
                     ]);
                     const mapParsed = Papa.parse(mapRes, { header: true, skipEmptyLines: true });
                     const norm = s => (s || '').toString().trim().toLowerCase();
@@ -4012,6 +4014,14 @@
                         return inc && inc !== 'no';
                     });
                     const parseNum = (v) => { const n = parseFloat((v ?? '').toString().replace(/,/g, '').trim()); return Number.isFinite(n) ? n : null; };
+                    const getCapacitySource = () => {
+                        try {
+                            const raw = window.localStorage ? window.localStorage.getItem('jeffco_capacity_source_v1') : null;
+                            return raw === 'educational' ? 'educational' : 'capacity';
+                        } catch (_) {
+                            return 'capacity';
+                        }
+                    };
                     rows.forEach((row) => {
                         const uid = (row.UniqueID || row['UniqueID'] || '').toString().trim();
                         row['JeffCoFacilityID'] = facilityIdByUid[norm(uid)] || '';
@@ -4026,7 +4036,9 @@
                         const bldName = (row['Building Name'] || row.BuildingName || '').toString().trim();
                         const nameKeyNorm = bldName ? norm(bldName.replace(/\s+/g, ' ')) : '';
                         row['Articulation Area'] = artByKey[key] ?? artByKey[nameKeyNorm] ?? '';
-                        const cap = parseNum(row.Capacity || row['Capacity']) || 0;
+                        const capStd = parseNum(row.Capacity || row['Capacity']);
+                        const capEdu = parseNum(row.EducationalCapacity || row['EducationalCapacity'] || row['Educational Capacity']);
+                        const cap = getCapacitySource() === 'educational' ? capEdu : capStd;
                         const pkEnr = parseNum(row.PKEnrollment || row['PKEnrollment']) ?? 0;
                         const enr = parseNum(row.Enrollment || row['Enrollment']) ?? 0;
                         const kPlus = Math.max(0, enr - pkEnr);

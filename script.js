@@ -16,6 +16,8 @@ const ASSET_VERSION = '2026-02-05-1';
 
 // --- PK Enrollment: exclude by default (Enrollment - PKEnrollment) -------------------
 const PK_ENROLLMENT_STORAGE_KEY = 'jeffco_include_pk_enrollment_v2';
+const CAPACITY_SOURCE_STORAGE_KEY = 'jeffco_capacity_source_v1'; // "capacity" | "educational"
+const CAPACITY_SOURCE_DEFAULT = 'capacity';
 window.getIncludePKInEnrollment = function () {
   try {
     // Default: exclude PK / unchecked (return false when no preference stored)
@@ -35,16 +37,79 @@ window.getEffectiveEnrollment = function (row) {
   const pk = parseFloat((row.PKEnrollment ?? row['PKEnrollment'] ?? row['PK Enrollment'] ?? '').toString().replace(/,/g, '').trim()) || 0;
   return inc ? e : Math.max(0, e - pk);
 };
+window.getCapacitySource = function () {
+  try {
+    const raw = window.localStorage && window.localStorage.getItem(CAPACITY_SOURCE_STORAGE_KEY);
+    return raw === 'educational' ? 'educational' : CAPACITY_SOURCE_DEFAULT;
+  } catch (_) {
+    return CAPACITY_SOURCE_DEFAULT;
+  }
+};
+window.setCapacitySource = function (source) {
+  const next = source === 'educational' ? 'educational' : 'capacity';
+  try {
+    if (window.localStorage) window.localStorage.setItem(CAPACITY_SOURCE_STORAGE_KEY, next);
+  } catch (_) {}
+};
+window.getCapacitySourceLabel = function () {
+  const src = window.getCapacitySource && window.getCapacitySource();
+  return src === 'educational' ? 'Educational Capacity' : 'Capacity';
+};
+window.getEffectiveCapacityDetails = function (row) {
+  const parseMaybe = (v) => {
+    const n = parseFloat((v ?? '').toString().replace(/,/g, '').trim());
+    return Number.isFinite(n) ? n : null;
+  };
+  const rawCapacity = row ? (row.Capacity ?? row.capacity ?? row['Capacity'] ?? null) : null;
+  const rawEducational = row ? (row.EducationalCapacity ?? row['EducationalCapacity'] ?? row['Educational Capacity'] ?? null) : null;
+  const capacity = parseMaybe(rawCapacity);
+  const educationalCapacity = parseMaybe(rawEducational);
+  const source = (window.getCapacitySource && window.getCapacitySource()) || CAPACITY_SOURCE_DEFAULT;
+  if (source === 'educational') {
+    if (Number.isFinite(educationalCapacity) && educationalCapacity > 0) {
+      return {
+        value: educationalCapacity,
+        source: 'educational',
+        label: 'Educational Capacity',
+        missingEducational: false,
+        rawEducational
+      };
+    }
+    const rawText = (rawEducational ?? '').toString().trim();
+    const rawSuffix = rawText ? ` (${rawText})` : '';
+    return {
+      value: null,
+      source: 'educational',
+      label: 'Educational Capacity',
+      missingEducational: true,
+      rawEducational,
+      note: `Educational capacity does not exist${rawSuffix}.`
+    };
+  }
+  return {
+    value: Number.isFinite(capacity) && capacity > 0 ? capacity : null,
+    source: 'capacity',
+    label: 'Capacity',
+    missingEducational: false,
+    rawCapacity
+  };
+};
+window.getEffectiveCapacity = function (row) {
+  const details = window.getEffectiveCapacityDetails ? window.getEffectiveCapacityDetails(row) : null;
+  return details && Number.isFinite(details.value) && details.value > 0 ? details.value : null;
+};
 window.getEffectiveUtilization = function (row) {
-  if (!row) return 0;
-  const cap = parseFloat((row.Capacity ?? row.capacity ?? row['Capacity'] ?? '').toString().replace(/,/g, '').trim()) || 0;
-  if (!cap || cap <= 0) return 0;
-  return window.getEffectiveEnrollment(row) / cap;
+  if (!row) return null;
+  const cap = window.getEffectiveCapacity ? window.getEffectiveCapacity(row) : null;
+  if (!Number.isFinite(cap) || cap <= 0) return null;
+  const enr = window.getEffectiveEnrollment ? window.getEffectiveEnrollment(row) : null;
+  if (!Number.isFinite(enr)) return null;
+  return enr / cap;
 };
 window.getEffectiveAvailableSeats = function (row) {
   if (!row) return null;
-  const cap = parseFloat((row.Capacity ?? row.capacity ?? row['Capacity'] ?? '').toString().replace(/,/g, '').trim()) || 0;
-  if (!cap || cap <= 0) return null;
+  const cap = window.getEffectiveCapacity ? window.getEffectiveCapacity(row) : null;
+  if (!Number.isFinite(cap) || cap <= 0) return null;
   const effEnr = window.getEffectiveEnrollment ? window.getEffectiveEnrollment(row) : 0;
   return Math.round(cap - effEnr);
 };
@@ -169,8 +234,10 @@ const FCI_STATUS_COLORS = {
   deficient: '#dc2626',
   nodata: '#16a34a'
 };
-// Historic bond spending by articulation (links to Map_Export Articulation)
-const BOND_SPENDING_CSV_PATH = 'HistoricBondSpendingbyArticulation.csv';
+// Historic bond spending + enrollment growth by articulation (Map_Export Articulation)
+const BOND_SPENDING_CSV_PATH = 'HistoricArticulationData.csv';
+/** Sentinel for GeoJSON: no enrollment growth value from CSV */
+const ENROLLMENT_GROWTH_NODATA = -999;
 // EA classroom condition
 const EA_CLASSROOMS_CSV_PATH = 'EAClassrooms.csv';
 const EA_CONDITION_COLORS = {
@@ -189,8 +256,19 @@ const BUILDING_CONDITION_COLORS = {
 };
 let articulationAreasGeojson4326 = null;
 let articulationAreasLoaded = false;
-// articulation name -> { totalSpending, pctOfTotal } from HistoricBondSpendingbyArticulation.csv
+// articulation name -> { totalSpending, pctOfTotal, enrollmentGrowthPct? } from HistoricArticulationData.csv
 let bondSpendingByArticulation = new Map();
+
+function getBondSpendingEntryByName(name) {
+  if (!name) return null;
+  const exact = bondSpendingByArticulation.get(name);
+  if (exact) return exact;
+  const nl = name.toString().toLowerCase();
+  for (const [k, v] of bondSpendingByArticulation) {
+    if (k.toLowerCase() === nl) return v;
+  }
+  return null;
+}
 let fciRows = [];
 let fciBySchoolId = new Map(); // id -> { squareFt, overallFci, bySystem: Map }
 let fciSystems = [];
@@ -482,10 +560,62 @@ function getArticulationBondSpendingColorExpression() {
   ];
 }
 
+// Diverging scale: enrollment change 2015→2025 (% points), clamped ±50; grey = no data
+function getArticulationEnrollmentGrowthColorExpression() {
+  const v = [
+    'max',
+    -50,
+    ['min', 50, ['coalesce', ['get', '__enrollmentGrowthPct'], 0]]
+  ];
+  return [
+    'case',
+    ['==', ['get', '__enrollmentGrowthPct'], ENROLLMENT_GROWTH_NODATA],
+    '#94a3b8',
+    [
+      'interpolate',
+      ['linear'],
+      v,
+      -50, '#b91c1c',
+      -25, '#fca5a5',
+      0, '#f8fafc',
+      25, '#86efac',
+      50, '#15803d'
+    ]
+  ];
+}
+
 function getArticulationFillColorExpression() {
+  const enrollCb = document.getElementById('toggleEnrollmentGrowthColors');
+  if (enrollCb && enrollCb.checked) return getArticulationEnrollmentGrowthColorExpression();
   const bondCb = document.getElementById('toggleBondSpendingColors');
   if (bondCb && bondCb.checked) return getArticulationBondSpendingColorExpression();
   return getArticulationColorExpression();
+}
+
+/** Choropleth modes use full opacity; default area colors are 30% more transparent. */
+const ARTICULATION_FILL_OPACITY_CHOROPLETH = 0.82;
+const ARTICULATION_FILL_OPACITY_STANDARD = 0.82 * 0.7;
+
+function getArticulationFillOpacity() {
+  const enrollCb = document.getElementById('toggleEnrollmentGrowthColors');
+  const bondCb = document.getElementById('toggleBondSpendingColors');
+  if (enrollCb && enrollCb.checked) return ARTICULATION_FILL_OPACITY_CHOROPLETH;
+  if (bondCb && bondCb.checked) return ARTICULATION_FILL_OPACITY_CHOROPLETH;
+  return ARTICULATION_FILL_OPACITY_STANDARD;
+}
+
+function refreshArticulationAreaPaintColors() {
+  try {
+    const m = window.map;
+    if (!m || !m.getLayer('articulation-areas-fill')) return;
+    const expr = getArticulationFillColorExpression();
+    const opacity = getArticulationFillOpacity();
+    m.setPaintProperty('articulation-areas-fill', 'fill-color', expr);
+    m.setPaintProperty('articulation-areas-fill', 'fill-opacity', opacity);
+    if (m.getLayer('articulation-areas-outline')) {
+      m.setPaintProperty('articulation-areas-outline', 'line-color', expr);
+    }
+  } catch (e) {}
 }
 
 async function loadArticulationAreas4326() {
@@ -532,24 +662,18 @@ async function loadArticulationAreas4326() {
     });
   }
 
-  // Link historic bond spending % to each articulation area (from HistoricBondSpendingbyArticulation.csv)
-  // Use case-insensitive lookup since CSV/GeoJSON may differ in casing
-  const getBondEntry = (name) => {
-    if (!name) return null;
-    const exact = bondSpendingByArticulation.get(name);
-    if (exact) return exact;
-    const nameLower = name.toLowerCase();
-    for (const [k, v] of bondSpendingByArticulation) {
-      if (k.toLowerCase() === nameLower) return v;
-    }
-    return null;
-  };
+  // Link historic CSV metrics to each articulation polygon (case-insensitive name match)
   (gj.features || []).forEach((f) => {
     if (!f || !f.properties) return;
     const aaName = (f.properties.__aaName || '').toString().trim();
-    const entry = getBondEntry(aaName);
+    const entry = getBondSpendingEntryByName(aaName);
     f.properties.__bondSpendingPct = entry ? entry.pctOfTotal : null;
     if (entry) f.properties.__bondSpendingTotal = entry.totalSpending;
+    if (entry && Number.isFinite(entry.enrollmentGrowthPct)) {
+      f.properties.__enrollmentGrowthPct = Math.max(-50, Math.min(50, entry.enrollmentGrowthPct));
+    } else {
+      f.properties.__enrollmentGrowthPct = ENROLLMENT_GROWTH_NODATA;
+    }
   });
 
   articulationAreasGeojson4326 = gj;
@@ -560,22 +684,17 @@ async function loadArticulationAreas4326() {
 // Re-apply bond spending to cached GeoJSON when source is set (handles late bond data load)
 function ensureBondDataInArticulationGeoJSON(gj) {
   if (!gj || !gj.features) return gj;
-  const getBondEntry = (name) => {
-    if (!name) return null;
-    const exact = bondSpendingByArticulation.get(name);
-    if (exact) return exact;
-    const nameLower = name.toLowerCase();
-    for (const [k, v] of bondSpendingByArticulation) {
-      if (k.toLowerCase() === nameLower) return v;
-    }
-    return null;
-  };
   (gj.features || []).forEach((f) => {
     if (!f || !f.properties) return;
     const aaName = (f.properties.__aaName || '').toString().trim();
-    const entry = getBondEntry(aaName);
+    const entry = getBondSpendingEntryByName(aaName);
     f.properties.__bondSpendingPct = entry ? entry.pctOfTotal : null;
     if (entry) f.properties.__bondSpendingTotal = entry.totalSpending;
+    if (entry && Number.isFinite(entry.enrollmentGrowthPct)) {
+      f.properties.__enrollmentGrowthPct = Math.max(-50, Math.min(50, entry.enrollmentGrowthPct));
+    } else {
+      f.properties.__enrollmentGrowthPct = ENROLLMENT_GROWTH_NODATA;
+    }
   });
   return gj;
 }
@@ -933,7 +1052,12 @@ function applyBuildingMetricsToFeatures(features) {
   features.forEach((f) => {
     if (!f || !f.properties) return;
     const id = normalizeId(f.properties["UniqueID"]);
-    const score = buildingScoresById.get(id);
+    let score = buildingScoresById.get(id);
+    if (!Number.isFinite(score) && decisionAllByName && typeof decisionAllByName.get === "function") {
+      const nameKey = f.properties["Building Name"] || f.properties["School Name"] || "";
+      const row = decisionAllByName.get(normalizeName(nameKey));
+      score = row ? getBuildingScoreValue(row) : null;
+    }
     f.properties.__buildingScore = Number.isFinite(score) ? score : null;
     f.properties.__buildingCondition = getBuildingConditionFromValue(score, buildingQuartiles);
   });
@@ -1947,40 +2071,52 @@ document.addEventListener('DOMContentLoaded', function() {
           const m = window.map;
           if (!m) return;
           const vis = aaCb.checked ? 'visible' : 'none';
+          const labelsVis = aaCb.checked ? 'visible' : 'none';
           if (m.getLayer('articulation-areas-fill')) m.setLayoutProperty('articulation-areas-fill', 'visibility', vis);
           if (m.getLayer('articulation-areas-outline')) m.setLayoutProperty('articulation-areas-outline', 'visibility', vis);
-          const labelsCb = document.getElementById('toggleArticulationLabels');
-          const labelsVis = (aaCb.checked && labelsCb && labelsCb.checked) ? 'visible' : 'none';
           if (m.getLayer('articulation-areas-labels')) m.setLayoutProperty('articulation-areas-labels', 'visibility', labelsVis);
         } catch (e) {}
       };
       aaCb.addEventListener('change', updateArticulationVisibility);
-      const labelsCb = document.getElementById('toggleArticulationLabels');
-      if (labelsCb) labelsCb.addEventListener('change', updateArticulationVisibility);
     }
     const bondCb = document.getElementById('toggleBondSpendingColors');
-    const bondLegendCb = document.getElementById('toggleBondSpendingLegend');
+    const enrollCb = document.getElementById('toggleEnrollmentGrowthColors');
+    const dataLegendCb = document.getElementById('toggleArticulationDataLegend');
+
+    const updateArticulationHistoricLegends = () => {
+      const bondLeg = document.getElementById('bond-spending-map-legend');
+      const enrollLeg = document.getElementById('enrollment-growth-map-legend');
+      const legendOn = dataLegendCb && dataLegendCb.checked;
+      const showBondLeg = legendOn && bondCb && bondCb.checked;
+      const showEnrollLeg = legendOn && enrollCb && enrollCb.checked;
+      if (bondLeg) bondLeg.style.display = showBondLeg ? 'block' : 'none';
+      if (enrollLeg) enrollLeg.style.display = showEnrollLeg ? 'block' : 'none';
+    };
+
+    const wireArticulationHistoricToggles = () => {
+      refreshArticulationAreaPaintColors();
+      updateArticulationHistoricLegends();
+    };
+
     if (bondCb) {
-      const updateBondMapLegend = () => {
-        const leg = document.getElementById('bond-spending-map-legend');
-        const show = bondCb && bondCb.checked && (!bondLegendCb || bondLegendCb.checked);
-        if (leg) leg.style.display = show ? 'block' : 'none';
-      };
       bondCb.addEventListener('change', () => {
-        try {
-          const m = window.map;
-          if (m) {
-            const expr = getArticulationFillColorExpression();
-            if (m.getLayer('articulation-areas-fill')) m.setPaintProperty('articulation-areas-fill', 'fill-color', expr);
-            if (m.getLayer('articulation-areas-outline')) m.setPaintProperty('articulation-areas-outline', 'line-color', expr);
-          }
-          updateBondMapLegend();
-        } catch (e) {}
+        if (bondCb.checked && enrollCb) enrollCb.checked = false;
+        wireArticulationHistoricToggles();
       });
-      if (bondLegendCb) bondLegendCb.addEventListener('change', updateBondMapLegend);
-      updateBondMapLegend(); // initial state
-      window.__updateBondMapLegend = updateBondMapLegend; // expose for deferred refresh
     }
+    if (enrollCb) {
+      enrollCb.addEventListener('change', () => {
+        if (enrollCb.checked && bondCb) bondCb.checked = false;
+        wireArticulationHistoricToggles();
+      });
+    }
+    if (dataLegendCb) dataLegendCb.addEventListener('change', updateArticulationHistoricLegends);
+    updateArticulationHistoricLegends();
+    window.__updateArticulationHistoricLegends = updateArticulationHistoricLegends;
+    window.__updateBondMapLegend = () => {
+      refreshArticulationAreaPaintColors();
+      updateArticulationHistoricLegends();
+    };
     const savedStyle = getSavedMapStyle();
     styleRadios.forEach(r => { r.checked = r.value === savedStyle; });
 
@@ -2801,7 +2937,7 @@ function ensureBaseSourcesLayers() {
         layout: { visibility: aaVis },
         paint: {
           'fill-color': getArticulationFillColorExpression(),
-          'fill-opacity': 0.82
+          'fill-opacity': getArticulationFillOpacity()
         }
       };
       if (insertBefore) m.addLayer(layerDef, insertBefore);
@@ -2828,8 +2964,7 @@ function ensureBaseSourcesLayers() {
       try { m.setLayoutProperty('articulation-areas-outline', 'visibility', aaVis); } catch {}
     }
 
-    const labelsCb = document.getElementById('toggleArticulationLabels');
-    const labelsVis = (aaCb && aaCb.checked && labelsCb && labelsCb.checked) ? 'visible' : 'none';
+    const labelsVis = (aaCb && aaCb.checked) ? 'visible' : 'none';
     if (!m.getLayer('articulation-areas-labels')) {
       m.addLayer({
         id: 'articulation-areas-labels',
@@ -2865,6 +3000,7 @@ function ensureBaseSourcesLayers() {
         })
         .catch(() => {});
     } catch {}
+    try { refreshArticulationAreaPaintColors(); } catch {}
   } catch (e) {}
 
   // Main schools layer
@@ -4006,6 +4142,13 @@ map.on('load', () => {
 
   const geojsonPromise = fetch(withCacheBust('Schools.geojson')).then(res => res.json());
   const decisionDataPromise = window.decisionLogic.initialize();
+  decisionDataPromise.then(() => {
+    try {
+      if (typeof window.refreshStep1ArticulationDropdown === 'function') {
+        window.refreshStep1ArticulationDropdown();
+      }
+    } catch (e) { /* Step 1 optional */ }
+  }).catch(() => {});
   const decisionAllPromise = fetch(withCacheBust('Decision Data Export.csv'))
     .then(res => res.text())
     .then(text => new Promise(resolve => {
@@ -4125,12 +4268,15 @@ map.on('load', () => {
         if (!name) return;
         const spending = parseNumberLoose(r.TotalSpending) || 0;
         const pct = total > 0 ? (spending / total) * 100 : 0;
-        bondSpendingByArticulation.set(name, { totalSpending: spending, pctOfTotal: pct });
+        const egRaw = r.EnrollmentGrowth ?? r['Enrollment growth'] ?? r.enrollmentgrowth ?? '';
+        const eg = parseNumberLoose(egRaw);
+        const enrollmentGrowthPct = Number.isFinite(eg) ? eg : null;
+        bondSpendingByArticulation.set(name, { totalSpending: spending, pctOfTotal: pct, enrollmentGrowthPct });
       });
       return bondSpendingByArticulation;
     })
     .catch(err => {
-      console.warn("⚠️ Failed to load HistoricBondSpendingbyArticulation.csv:", err);
+      console.warn("⚠️ Failed to load HistoricArticulationData.csv:", err);
       bondSpendingByArticulation = new Map();
       return bondSpendingByArticulation;
     });
@@ -4502,7 +4648,7 @@ map.on('load', () => {
           layout: { visibility: aaVis },
           paint: {
             'fill-color': getArticulationFillColorExpression(),
-            'fill-opacity': 0.82
+            'fill-opacity': getArticulationFillOpacity()
           }
         });
         map.addLayer({
@@ -4517,8 +4663,7 @@ map.on('load', () => {
           }
         });
 
-        const labelsCbInit = document.getElementById('toggleArticulationLabels');
-        const labelsVisInit = (aaCb && aaCb.checked && labelsCbInit && labelsCbInit.checked) ? 'visible' : 'none';
+        const labelsVisInit = (aaCb && aaCb.checked) ? 'visible' : 'none';
         map.addLayer({
           id: 'articulation-areas-labels',
           type: 'symbol',
@@ -5218,10 +5363,16 @@ map.on('load', () => {
             );
           }).join('');
 
-          const bondEntry = bondSpendingByArticulation.get(areaName);
+          const bondEntry = getBondSpendingEntryByName(areaName);
           const bondLine = bondEntry
             ? `<div style="font-size:12px; color:#0369a1; font-weight:600; margin:0 0 6px 0;">Historic bond spending: ${fmtCurrency(bondEntry.totalSpending)} (${bondEntry.pctOfTotal.toFixed(1)}% of total)</div>`
             : '';
+          const growthLine =
+            bondEntry && Number.isFinite(bondEntry.enrollmentGrowthPct)
+              ? `<div style="font-size:12px; color:#065f46; font-weight:600; margin:0 0 6px 0;">Enrollment change (2015–2025): ${
+                  bondEntry.enrollmentGrowthPct > 0 ? '+' : ''
+                }${bondEntry.enrollmentGrowthPct.toFixed(0)}%</div>`
+              : '';
           const emptyHtml = `<div style="color:#6b7280; font-size:12px;">No schools found for this area.</div>`;
           return (
             `<div class="aa-popup-header aa-popup-drag" style="display:flex; align-items:center; gap:10px; font-weight:900; margin-bottom:2px; cursor:move; user-select:none;">` +
@@ -5230,6 +5381,7 @@ map.on('load', () => {
             `</div>` +
             `<div class="aa-popup-meta" style="font-size:12px; color:#6b7280; font-weight:600; margin:0 0 8px 0;">${total} total schools</div>` +
             `${bondLine}` +
+            `${growthLine}` +
             `<div class="aa-popup-body" style="border-top:1px solid #e5e7eb; padding-top:6px;">` +
             `<div style="font-size:11px; color:#6b7280; margin:0 0 6px 0;">${selectedCategoryLine}${selectedSystemsLine ? `<br>${selectedSystemsLine}` : ''}</div>` +
             `${buildAveragesHtml()}` +
@@ -5690,6 +5842,9 @@ map.on('load', () => {
       function buildSchoolPopupHtml(feature, schoolName, originUniqueId) {
         const capacity = feature?.properties?.['Capacity'];
         const utilization = feature?.properties?.['Utilization'];
+        const capSourceLabel = feature?.properties?.['_CapacitySourceLabel'] || (window.getCapacitySourceLabel ? window.getCapacitySourceLabel() : 'Capacity');
+        const eduCapMissing = String(feature?.properties?.['_EducationalCapacityMissing'] || '') === '1';
+        const eduCapNote = feature?.properties?.['_EducationalCapacityNote'];
         const fmtCurrencyK = (n) => {
           if (!Number.isFinite(n)) return '—';
           const k = Math.round(n / 1000);
@@ -5714,7 +5869,9 @@ map.on('load', () => {
         }
 
         if (capacity !== undefined && capacity !== null && capacity !== '') {
-          html += `<br><span>Capacity: ${capacity}</span>`;
+          html += `<br><span>${capSourceLabel}: ${capacity}</span>`;
+        } else if (eduCapMissing) {
+          html += `<br><span>${eduCapNote || 'Educational capacity does not exist.'}</span>`;
         }
         if (utilization !== undefined && utilization !== null && utilization !== '') {
           const utilNum = parseFloat(utilization);
@@ -5724,6 +5881,8 @@ map.on('load', () => {
           } else {
             html += `<br><span>Utilization: ${utilization}</span>`;
           }
+        } else if (eduCapMissing) {
+          html += `<br><span>Utilization: Educational capacity does not exist.</span>`;
         }
 
         // Show the selected "Color by" value
@@ -7189,10 +7348,12 @@ map.on('load', () => {
   // --- MAP/FLOWCHART TOGGLE ---
   // Define switch functions globally so they can be called from inline handlers
   window.switchToFlowchart = function() {
+    const step1View = document.getElementById('step1-school-view');
     const flowchartContainer = document.getElementById('main-flowchart-container');
     const mapContainer = document.getElementById('map-container');
     const toggleViewContainer = document.querySelector('#map-container .toggle-buttons');
-    
+
+    if (step1View) step1View.style.display = 'none';
     if (flowchartContainer) flowchartContainer.style.display = 'flex';
     if (mapContainer) mapContainer.style.display = 'none';
     
@@ -7223,10 +7384,12 @@ map.on('load', () => {
   };
 
   window.switchToMap = function() {
+    const step1View = document.getElementById('step1-school-view');
     const flowchartContainer = document.getElementById('main-flowchart-container');
     const mapContainer = document.getElementById('map-container');
     const toggleViewContainer = document.querySelector('#map-container .toggle-buttons');
-    
+
+    if (step1View) step1View.style.display = 'none';
     if (flowchartContainer) flowchartContainer.style.display = 'none';
     if (mapContainer) mapContainer.style.display = 'block';
     
@@ -7607,9 +7770,20 @@ function injectDecisionsIntoGeoJSON(geojson, decisions, options = {}) {
   const buildingQualityMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["BuildingScore"] ?? row["Building Score"])]));
   // Add a map for Utilization
   const getEff = window.getEffectiveEnrollment || (r => num(r["Enrollment"] ?? r[" Total Enrollment"] ?? r["Total Enrollment"]));
-  const getEffUtil = window.getEffectiveUtilization || ((r) => { const c = num(r.Capacity); const e = (window.getEffectiveEnrollment && window.getEffectiveEnrollment(r)) ?? num(r.Enrollment); return (c > 0 && Number.isFinite(e)) ? e / c : 0; });
+  const getEffUtil = window.getEffectiveUtilization || ((r) => {
+    const c = (window.getEffectiveCapacity && window.getEffectiveCapacity(r)) ?? num(r.Capacity);
+    const e = (window.getEffectiveEnrollment && window.getEffectiveEnrollment(r)) ?? num(r.Enrollment);
+    return (c > 0 && Number.isFinite(e)) ? e / c : null;
+  });
   const utilizationMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), getEffUtil(row)]));
   const capacityMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["Capacity"])]));
+  const educationalCapacityMap = new Map(decisions.map(row => [
+    normalizeName(row["Building Name"]),
+    row["EducationalCapacity"] ?? row["Educational Capacity"] ?? row.EducationalCapacity
+  ]));
+  const activeCapacityDetailsMap = new Map(
+    decisions.map(row => [normalizeName(row["Building Name"]), (window.getEffectiveCapacityDetails ? window.getEffectiveCapacityDetails(row) : null)])
+  );
   const getEffSeats = (r) => (window.getEffectiveAvailableSeats && window.getEffectiveAvailableSeats(r)) ?? 0;
   const availableSeatsMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), getEffSeats(row)]));
   const enrollmentMap = new Map(decisions.map(row => [
@@ -7700,9 +7874,17 @@ function injectDecisionsIntoGeoJSON(geojson, decisions, options = {}) {
     f.properties["Building Quality"] = buildingQualityMap.get(name) || 0;
     // Normalize utilization to a ratio (0..1+) when possible.
     const utilRaw = utilizationMap.get(name);
-    const utilNorm = normalizeUtilizationValue(utilRaw);
+    const utilNorm = Number.isFinite(utilRaw) ? normalizeUtilizationValue(utilRaw) : null;
+    const capDetails = activeCapacityDetailsMap.get(name);
     f.properties["Utilization"] = utilNorm;
-    f.properties["Capacity"] = capacityMap.get(name) || 0;
+    f.properties["Capacity"] =
+      (capDetails && Number.isFinite(capDetails.value)) ? capDetails.value : null;
+    f.properties["_CapacitySource"] = capDetails ? capDetails.source : (window.getCapacitySource ? window.getCapacitySource() : "capacity");
+    f.properties["_CapacitySourceLabel"] = capDetails ? capDetails.label : (window.getCapacitySourceLabel ? window.getCapacitySourceLabel() : "Capacity");
+    f.properties["_EducationalCapacityMissing"] = capDetails && capDetails.missingEducational ? "1" : "0";
+    f.properties["_EducationalCapacityNote"] = capDetails && capDetails.note ? capDetails.note : "";
+    f.properties["_RawCapacity"] = capacityMap.get(name) || null;
+    f.properties["EducationalCapacity"] = educationalCapacityMap.get(name) ?? null;
     f.properties["Available Seats"] = availableSeatsMap.get(name) || 0;
     const enrollmentVal = enrollmentMap.get(name);
     if (Number.isFinite(enrollmentVal)) {
@@ -9026,10 +9208,36 @@ document.addEventListener("DOMContentLoaded", function() {
       sendSliderData();
       if (typeof window.step1Rerender === "function") window.step1Rerender();
     }
+    function syncCapacityToggleFromStorage() {
+      const useEducational = (window.getCapacitySource && window.getCapacitySource()) === "educational";
+      [
+        document.getElementById("toggleUseEducationalCapacity"),
+        document.getElementById("step1UseEducationalCapacityToggle"),
+        document.getElementById("flowchartUseEducationalCapacity")
+      ].forEach(el => {
+        if (el) el.checked = !!useEducational;
+      });
+    }
+    window.syncCapacityToggleFromStorage = syncCapacityToggleFromStorage;
+    function onCapacityToggleChange(checked) {
+      if (window.setCapacitySource) window.setCapacitySource(checked ? "educational" : "capacity");
+      syncCapacityToggleFromStorage();
+      sendSliderData();
+      if (typeof window.step1Rerender === "function") window.step1Rerender();
+      if (typeof window.updateFlowchartSchoolInfo === "function") {
+        const selected = document.getElementById("mainFlowchartSchoolSelect");
+        if (selected && selected.value) window.updateFlowchartSchoolInfo(selected.value);
+      }
+    }
     syncPKToggleFromStorage();
+    syncCapacityToggleFromStorage();
     ["includePKInEnrollmentToggle", "step1IncludePKToggle", "toggleIncludePKInUtilization"].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener("change", () => onPKToggleChange(el.checked));
+    });
+    ["toggleUseEducationalCapacity", "step1UseEducationalCapacityToggle"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("change", () => onCapacityToggleChange(el.checked));
     });
 
     // Set initial values on load
@@ -10707,9 +10915,11 @@ document.addEventListener('DOMContentLoaded', function() {
 // the buttons remain clickable and at least toggle the views.
 if (typeof window.switchToFlowchart !== 'function') {
   window.switchToFlowchart = function() {
+    const step1View = document.getElementById('step1-school-view');
     const flowchartContainer = document.getElementById('main-flowchart-container');
     const mapContainer = document.getElementById('map-container');
 
+    if (step1View) step1View.style.display = 'none';
     if (flowchartContainer) flowchartContainer.style.display = 'flex';
     if (mapContainer) mapContainer.style.display = 'none';
 
@@ -10737,9 +10947,11 @@ if (typeof window.switchToFlowchart !== 'function') {
 
 if (typeof window.switchToMap !== 'function') {
   window.switchToMap = function() {
+    const step1View = document.getElementById('step1-school-view');
     const flowchartContainer = document.getElementById('main-flowchart-container');
     const mapContainer = document.getElementById('map-container');
 
+    if (step1View) step1View.style.display = 'none';
     if (flowchartContainer) flowchartContainer.style.display = 'none';
     if (mapContainer) mapContainer.style.display = 'block';
 
@@ -11307,7 +11519,10 @@ if (typeof window.switchToMap !== 'function') {
     const statusRaw = pickFirstNonEmpty(row, ['Status', 'status']) || '';
     const siteCapRaw = pickFirstNonEmpty(row, ['SiteCapacity', 'Site Capacity']) || '';
 
-    const cap = parseNumber(capRaw);
+    const capDetails = window.getEffectiveCapacityDetails ? window.getEffectiveCapacityDetails(row) : null;
+    const cap = (capDetails && Number.isFinite(capDetails.value)) ? capDetails.value : null;
+    const capSourceLabel = capDetails && capDetails.label ? capDetails.label : 'Capacity';
+    const capMissingNote = capDetails && capDetails.missingEducational ? (capDetails.note || 'Educational capacity does not exist.') : '';
     const enrollment = parseNumber(enrollmentRaw);
     const buildingScore0to10 = coerceBuildingScore0to10(buildingScoreRaw);
     const eduAdeq = parseNumber(eduAdeqRaw);
@@ -11357,9 +11572,11 @@ if (typeof window.switchToMap !== 'function') {
 
     // Render building tiles
     if (buildingTiles) {
-      const capStr = Number.isFinite(cap) ? fmtInt(cap) : (capRaw ? capRaw.toString().trim() : '—');
-      const effUtil = window.getEffectiveUtilization ? window.getEffectiveUtilization(row) : 0;
-      const utilStr = Number.isFinite(effUtil) ? formatPctSmart(effUtil, { assumeUnitIfSmall: true, decimals: 1 }) : '—';
+      const capStr = Number.isFinite(cap) ? fmtInt(cap) : (capMissingNote || (capRaw ? capRaw.toString().trim() : '—'));
+      const effUtil = window.getEffectiveUtilization ? window.getEffectiveUtilization(row) : null;
+      const utilStr = Number.isFinite(effUtil)
+        ? formatPctSmart(effUtil, { assumeUnitIfSmall: true, decimals: 1 })
+        : (capMissingNote ? 'Educational capacity does not exist' : '—');
       const seatsComputed = seatsComputedFromRow;
       const seatsStr = Number.isFinite(seatsComputed) ? fmtInt(seatsComputed) : '—';
       const bldgScoreStr = Number.isFinite(buildingScore0to10) ? `${buildingScore0to10.toFixed(2)}/10` : (buildingScoreRaw ? buildingScoreRaw.toString().trim() : '—');
@@ -11369,7 +11586,7 @@ if (typeof window.switchToMap !== 'function') {
       const sqftStr = Number.isFinite(sqftNum) ? fmtInt(sqftNum) : (sqftRaw ? sqftRaw.toString().trim() : '—');
 
       buildingTiles.innerHTML = [
-        kpiTileHtml({ theme: 'purple', label: capacityLabel, value: capStr }),
+        kpiTileHtml({ theme: 'purple', label: capSourceLabel || capacityLabel, value: capStr }),
         kpiTileHtml({ theme: 'purple', label: '25-26 Utilization %', value: utilStr }),
         kpiTileHtml({ theme: 'purple', label: 'Available Seats', value: seatsStr }),
         kpiTileHtml({ theme: 'purple', label: 'Building Score', value: bldgScoreStr }),
@@ -11404,8 +11621,6 @@ if (typeof window.switchToMap !== 'function') {
     const kpiGrid = document.getElementById('step1KpiGrid');
     const compareMode = document.getElementById('step1CompareMode');
     const compareSelects = document.getElementById('step1CompareSelects');
-    const compare1 = document.getElementById('step1CompareSchoolSelect1');
-    const compare2 = document.getElementById('step1CompareSchoolSelect2');
     const compareSection = document.getElementById('step1CompareSection');
     const compareGrid = document.getElementById('step1CompareGrid');
     const singleSection = document.getElementById('step1SingleSection');
@@ -11460,17 +11675,18 @@ if (typeof window.switchToMap !== 'function') {
       return cards.filter(Boolean).join('');
     }
 
-    function metricRow({ label, value, sub, barW, barC }) {
+    function metricRow({ label, value, sub, barW, barC, valueColor }) {
       if (!showEmptyMetrics && (!value || String(value).trim() === '')) return '';
       if (q && !norm(label).includes(q) && !norm(value).includes(q) && !norm(sub || '').includes(q)) return '';
       const bar = (typeof barW === 'number')
         ? `<div class="step1-bar" style="--w:${clamp(barW, 0, 100)}%; --c:${barC || '#007cbf'}"><span></span></div>`
         : ``;
       const subHtml = sub ? `<div class="step1-metric-sub">${htmlEscape(sub)}</div>` : ``;
+      const valueAttr = valueColor ? ` style="color:${valueColor}; font-weight:800;"` : '';
       return `<div class="step1-metric">
         <div class="step1-metric-row">
           <div class="step1-metric-label">${htmlEscape(label)}</div>
-          <div class="step1-metric-value">${htmlEscape(value)}</div>
+          <div class="step1-metric-value"${valueAttr}>${htmlEscape(value)}</div>
         </div>
         ${subHtml}
         ${bar}
@@ -11495,8 +11711,29 @@ if (typeof window.switchToMap !== 'function') {
     function buildCompareCard(r) {
       const schoolName = getSchoolName(r) || 'School';
 
+      /** pct = percent change (e.g. -12 or 8). Red scales darker as growth is more negative; green brighter as more positive. */
+      function compareEnrollmentGrowthColors(pct) {
+        if (!Number.isFinite(pct)) return { bar: '#94a3b8', value: '#64748b' };
+        if (Math.abs(pct) < 0.01) return { bar: '#cbd5e1', value: '#475569' };
+        if (pct < 0) {
+          const t = Math.min(1, -pct / 40);
+          const s = Math.round(52 + 46 * t);
+          const l = Math.round(74 - 46 * t);
+          const c = `hsl(0, ${s}%, ${l}%)`;
+          return { bar: c, value: c };
+        }
+        const t = Math.min(1, pct / 40);
+        const s = Math.round(62 + 35 * t);
+        const l = Math.round(44 + 20 * t);
+        const c = `hsl(148, ${s}%, ${l}%)`;
+        return { bar: c, value: c };
+      }
+
       const enrollment = parseNumber(r['Enrollment']);
-      const capacity = parseNumber(pickFirstNonEmpty(r, ['K-5 Capacity', 'K5 Capacity', 'Capacity']) || r['Capacity']);
+      const capDetails = window.getEffectiveCapacityDetails ? window.getEffectiveCapacityDetails(r) : null;
+      const capacity = (capDetails && Number.isFinite(capDetails.value)) ? capDetails.value : null;
+      const capLabel = capDetails && capDetails.label ? capDetails.label : 'Capacity';
+      const capMissingNote = capDetails && capDetails.missingEducational ? 'Educational capacity does not exist.' : '';
       const pk = parseNumber(pickFirstNonEmpty(r, ['PKEnrollment', 'PK Enrollment', 'PK Enrollment ']));
       const effEnr = window.getEffectiveEnrollment ? window.getEffectiveEnrollment(r) : enrollment;
       const effUtil = window.getEffectiveUtilization ? window.getEffectiveUtilization(r) : null;
@@ -11518,10 +11755,10 @@ if (typeof window.switchToMap !== 'function') {
         const utilSubText = (Number.isFinite(effEnr) && Number.isFinite(capacity) && capacity > 0) ? `${fmtInt(effEnr)} / ${fmtInt(capacity)} students` : '';
         metrics.push(metricRow({ label: 'Utilization (25-26)', value: fmtPct(utilPct), sub: utilSubText, barW: utilPct, barC: color }));
       } else {
-        metrics.push(metricRow({ label: 'Utilization (25-26)', value: '', sub: '', barW: null, barC: null }));
+        metrics.push(metricRow({ label: 'Utilization (25-26)', value: capMissingNote || '', sub: '', barW: null, barC: null }));
       }
       metrics.push(metricRow({ label: 'Enrollment (2025)', value: Number.isFinite(effEnr) ? fmtInt(effEnr) : '', sub: enrSub, barW: null }));
-      metrics.push(metricRow({ label: 'Capacity', value: Number.isFinite(capacity) ? fmtInt(capacity) : '', sub: 'Seats', barW: null }));
+      metrics.push(metricRow({ label: capLabel, value: Number.isFinite(capacity) ? fmtInt(capacity) : capMissingNote, sub: 'Seats', barW: null }));
       metrics.push(metricRow({ label: 'Available Seats', value: Number.isFinite(seatsComputed) ? fmtInt(seatsComputed) : '', sub: '', barW: null }));
       if (Number.isFinite(buildingScore)) {
         const pct = clamp((buildingScore / 10) * 100, 0, 100);
@@ -11546,9 +11783,16 @@ if (typeof window.switchToMap !== 'function') {
       }
       if (effGrowth != null && Number.isFinite(effGrowth)) {
         const pct = (effGrowth >= -1 && effGrowth <= 1) ? effGrowth * 100 : effGrowth;
-        const color = pct >= 5 ? '#16a34a' : (pct <= -5 ? '#dc2626' : '#64748b');
+        const { bar: growthBar, value: growthValue } = compareEnrollmentGrowthColors(pct);
         const growthSub = (effProjEnr != null && Number.isFinite(effProjEnr)) ? `Proj. 2030: ${fmtInt(effProjEnr)}` : '';
-        metrics.push(metricRow({ label: 'Future Enrollment Growth (2030)', value: fmtPct(pct), sub: growthSub, barW: clamp(Math.abs(pct), 0, 100), barC: color }));
+        metrics.push(metricRow({
+          label: 'Future Enrollment Growth (2030)',
+          value: fmtPct(pct),
+          sub: growthSub,
+          barW: clamp(Math.abs(pct), 0, 100),
+          barC: growthBar,
+          valueColor: growthValue
+        }));
       } else {
         const growthSub = (effProjEnr != null && Number.isFinite(effProjEnr)) ? `Proj. 2030: ${fmtInt(effProjEnr)}` : '';
         metrics.push(metricRow({ label: 'Future Enrollment Growth (2030)', value: '', sub: growthSub, barW: null }));
@@ -11586,24 +11830,326 @@ if (typeof window.switchToMap !== 'function') {
       return;
     }
 
-    // Compare mode: render cards side-by-side (primary + up to 2 comparisons)
+    // Compare mode: render cards side-by-side (primary + any picks from compare dropdowns)
     if (heading) heading.textContent = 'Compare schools';
     if (compareGrid) {
       const rows = getDecisionSchoolRows();
       const primaryName = getSchoolName(row) || '';
-      const selectedNames = [primaryName];
-      const n1 = compare1 && compare1.value ? compare1.value : '';
-      const n2 = compare2 && compare2.value ? compare2.value : '';
-      if (n1) selectedNames.push(n1);
-      if (n2) selectedNames.push(n2);
+      const extras = getStep1ComparePickNames();
+      const selectedNames = [primaryName, ...extras];
       const deduped = Array.from(new Set(selectedNames.map(s => String(s))));
       const selectedRows = deduped
         .map(nm => rows.find(r => norm(getSchoolName(r)) === norm(nm)))
         .filter(Boolean);
-      compareGrid.innerHTML = selectedRows.map(buildCompareCard).join('') || `<div style="color:#6b7280; font-size:13px;">Select one or two additional schools to compare.</div>`;
+      compareGrid.innerHTML = selectedRows.map(buildCompareCard).join('') || `<div style="color:#6b7280; font-size:13px;">Select schools in the compare rows above.</div>`;
       // Align the metric sections across cards by equalizing the top/header height.
-      requestAnimationFrame(() => equalizeCompareCardHeaderHeights(compareGrid));
+      requestAnimationFrame(() => {
+        equalizeCompareCardHeaderHeights(compareGrid);
+        if (typeof window.applyStep1CompareLayout === 'function') window.applyStep1CompareLayout();
+        // Second frame: clientWidth is reliable after layout / fit width
+        requestAnimationFrame(() => {
+          if (typeof window.applyStep1CompareLayout === 'function') window.applyStep1CompareLayout();
+          equalizeCompareCardHeaderHeights(compareGrid);
+        });
+      });
     }
+  }
+
+  const STEP1_COMPARE_DEFAULT_SLOTS = 5;
+  const STEP1_COMPARE_MAX_SLOTS = 14;
+
+  function getStep1CompareSelectElements() {
+    const list = document.getElementById('step1CompareSelectsList');
+    if (!list) return [];
+    return Array.from(list.querySelectorAll('select.step1-compare-school-select'));
+  }
+
+  function getStep1ComparePickNames() {
+    return getStep1CompareSelectElements()
+      .map((s) => (s && s.value ? String(s.value).trim() : ''))
+      .filter(Boolean);
+  }
+
+  function fillStep1CompareSelectOptions(selectEl, names) {
+    if (!selectEl) return;
+    const cur = selectEl.value;
+    while (selectEl.options.length > 1) selectEl.remove(1);
+    names.forEach((name) => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      selectEl.appendChild(opt);
+    });
+    if (cur && names.includes(cur)) selectEl.value = cur;
+  }
+
+  function refreshStep1CompareSelectOptions(names) {
+    getStep1CompareSelectElements().forEach((s) => fillStep1CompareSelectOptions(s, names));
+  }
+
+  function appendStep1CompareSlot(list, names, compareIndex, onRerender) {
+    const label = document.createElement('label');
+    label.style.cssText = 'display:flex; align-items:center; gap:6px; font-size:12px; color:#111827; flex-shrink:0;';
+    const span = document.createElement('span');
+    span.style.cssText = 'font-weight:800; white-space:nowrap;';
+    span.textContent = `Compare ${compareIndex}`;
+    const sel = document.createElement('select');
+    sel.className = 'step1-compare-school-select';
+    sel.style.cssText = 'flex-shrink:0; min-width: 220px; width: 220px; max-width: 220px; padding: 6px 8px; border:1px solid #d1d5db; border-radius:8px; background:#fff; font-size:12px;';
+    const ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = '-- Select School --';
+    sel.appendChild(ph);
+    fillStep1CompareSelectOptions(sel, names);
+    if (typeof onRerender === 'function') sel.addEventListener('change', onRerender);
+    label.appendChild(span);
+    label.appendChild(sel);
+    list.appendChild(label);
+  }
+
+  function ensureStep1CompareSlotsInitialized(names, onRerender) {
+    const list = document.getElementById('step1CompareSelectsList');
+    const addBtn = document.getElementById('step1AddCompareSlot');
+    if (!list) return;
+
+    if (list.dataset.slotsBuilt === '1') {
+      refreshStep1CompareSelectOptions(names);
+      populateStep1ArticulationCompareSelect(getDecisionSchoolRows());
+      return;
+    }
+
+    list.innerHTML = '';
+    for (let i = 1; i <= STEP1_COMPARE_DEFAULT_SLOTS; i += 1) {
+      appendStep1CompareSlot(list, names, i, onRerender);
+    }
+    list.dataset.slotsBuilt = '1';
+    if (addBtn) addBtn.disabled = getStep1CompareSelectElements().length >= STEP1_COMPARE_MAX_SLOTS;
+
+    if (addBtn && !addBtn.dataset.bound) {
+      addBtn.dataset.bound = '1';
+      addBtn.addEventListener('click', () => {
+        const rowsNow = getDecisionSchoolRows();
+        if (!rowsNow || rowsNow.length === 0) return;
+        const nm = Array.from(new Set(rowsNow.map(getSchoolName).filter(Boolean).map(String))).sort((a, b) => a.localeCompare(b));
+        const count = getStep1CompareSelectElements().length;
+        if (count >= STEP1_COMPARE_MAX_SLOTS) return;
+        appendStep1CompareSlot(list, nm, count + 1, () => {
+          if (typeof window.step1Rerender === 'function') window.step1Rerender();
+        });
+        addBtn.disabled = getStep1CompareSelectElements().length >= STEP1_COMPARE_MAX_SLOTS;
+      });
+    }
+  }
+
+  function normalizeArticulationKeyStep1(v) {
+    return String(v ?? '')
+      .replace(/\u00A0/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  }
+
+  function isValidArticulationAreaKey(key) {
+    return !!key && key !== 'noarticulationarea' && key !== 'no articulation area' && key !== 'n/a';
+  }
+
+  function collectArticulationAreasForStep1(rows) {
+    const byKey = new Map();
+    (rows || []).forEach((r) => {
+      const raw = pickFirstNonEmpty(r, ['Articulation Area', 'ArticulationArea', 'Articulation']);
+      const key = normalizeArticulationKeyStep1(raw);
+      if (!isValidArticulationAreaKey(key)) return;
+      const disp = String(raw).trim();
+      if (!byKey.has(key)) byKey.set(key, { label: disp, names: new Set() });
+      const nm = getSchoolName(r);
+      if (nm) byKey.get(key).names.add(String(nm).trim());
+    });
+    return Array.from(byKey.entries())
+      .map(([valueKey, { label, names }]) => ({
+        valueKey,
+        label,
+        count: names.size
+      }))
+      .filter((a) => a.count > 0)
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base', numeric: true }));
+  }
+
+  function schoolsInArticulationArea(rows, areaKey) {
+    return (rows || []).filter((r) => {
+      const raw = pickFirstNonEmpty(r, ['Articulation Area', 'ArticulationArea', 'Articulation']);
+      return normalizeArticulationKeyStep1(raw) === areaKey;
+    });
+  }
+
+  function populateStep1ArticulationCompareSelect(rows) {
+    const artSel = document.getElementById('step1CompareArticulationSelect');
+    if (!artSel) return;
+    const cur = artSel.value;
+    const areas = collectArticulationAreasForStep1(rows);
+    artSel.innerHTML = '';
+    const ph = document.createElement('option');
+    ph.value = '';
+    ph.textContent = 'Select an articulation area…';
+    artSel.appendChild(ph);
+    areas.forEach(({ valueKey, label, count }) => {
+      const o = document.createElement('option');
+      o.value = valueKey;
+      const sc = count === 1 ? '1 school' : `${count} schools`;
+      o.textContent = `${label} — ${sc}`;
+      artSel.appendChild(o);
+    });
+    if (cur && Array.from(artSel.options).some((o) => o.value === cur)) artSel.value = cur;
+  }
+
+  function setStep1CompareSlotCount(targetCompareSlots, allNames, onRerender) {
+    const list = document.getElementById('step1CompareSelectsList');
+    const addBtn = document.getElementById('step1AddCompareSlot');
+    if (!list || list.dataset.slotsBuilt !== '1') return;
+    const cap = Math.min(Math.max(0, targetCompareSlots), STEP1_COMPARE_MAX_SLOTS);
+    let selects = getStep1CompareSelectElements();
+    while (selects.length < cap) {
+      appendStep1CompareSlot(list, allNames, selects.length + 1, onRerender);
+      selects = getStep1CompareSelectElements();
+    }
+    while (selects.length > cap) {
+      const labels = list.querySelectorAll(':scope > label');
+      const last = labels[labels.length - 1];
+      if (last) last.remove();
+      else break;
+      selects = getStep1CompareSelectElements();
+    }
+    refreshStep1CompareSelectOptions(allNames);
+    if (addBtn) addBtn.disabled = selects.length >= STEP1_COMPARE_MAX_SLOTS;
+  }
+
+  function applyArticulationAreaCompareSelection(areaKey, onRerender) {
+    const rows = getDecisionSchoolRows();
+    const selectEl = document.getElementById('step1SchoolSelect');
+    const compareModeCb = document.getElementById('step1CompareMode');
+    if (!rows || !selectEl || !isValidArticulationAreaKey(areaKey)) return;
+
+    const namesInArea = Array.from(
+      new Set(
+        schoolsInArticulationArea(rows, areaKey)
+          .map((r) => getSchoolName(r))
+          .filter(Boolean)
+          .map(String)
+      )
+    ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }));
+
+    if (namesInArea.length === 0) return;
+
+    const maxSchools = STEP1_COMPARE_MAX_SLOTS + 1;
+    const useNames = namesInArea.length > maxSchools ? namesInArea.slice(0, maxSchools) : namesInArea;
+
+    const allNames = Array.from(new Set(rows.map(getSchoolName).filter(Boolean).map(String))).sort((a, b) => a.localeCompare(b));
+
+    if (compareModeCb) compareModeCb.checked = true;
+
+    selectEl.value = useNames[0];
+    const compareCount = Math.min(useNames.length - 1, STEP1_COMPARE_MAX_SLOTS);
+    setStep1CompareSlotCount(compareCount, allNames, onRerender);
+    const cmpSelects = getStep1CompareSelectElements();
+    for (let i = 0; i < compareCount; i += 1) {
+      const nm = useNames[i + 1];
+      if (cmpSelects[i]) cmpSelects[i].value = nm || '';
+    }
+
+    if (typeof onRerender === 'function') onRerender();
+  }
+
+  /** Rebuild articulation options after Map_Export merge (schoolData exists before articulation is applied). */
+  function refreshStep1ArticulationDropdown() {
+    const rows = getDecisionSchoolRows();
+    if (!rows || rows.length === 0) return;
+    populateStep1ArticulationCompareSelect(rows);
+    const names = Array.from(new Set(rows.map(getSchoolName).filter(Boolean).map(String))).sort((a, b) => a.localeCompare(b));
+    const list = document.getElementById('step1CompareSelectsList');
+    if (list && list.dataset.slotsBuilt === '1') {
+      refreshStep1CompareSelectOptions(names);
+    }
+  }
+  try { window.refreshStep1ArticulationDropdown = refreshStep1ArticulationDropdown; } catch {}
+
+  const STEP1_LS_CARD = 'step1CompareCardPx';
+  const STEP1_LS_FIT = 'step1CompareFitWidth';
+
+  function applyStep1CompareLayout() {
+    const grid = document.getElementById('step1CompareGrid');
+    const fitCb = document.getElementById('step1CompareFitWidth');
+    const cardRange = document.getElementById('step1CompareCardWidth');
+    const cardLbl = document.getElementById('step1CompareCardWidthLabel');
+    if (!grid) return;
+    const cards = grid.querySelectorAll('.step1-compare-card');
+    const n = cards.length;
+    const gap = parseFloat(getComputedStyle(grid).gap) || 8;
+
+    if (fitCb && fitCb.checked && n > 0) {
+      const w = grid.clientWidth;
+      if (w > 0) {
+        const cw = Math.floor((w - gap * Math.max(0, n - 1)) / n);
+        const cl = Math.max(140, Math.min(720, cw));
+        grid.style.setProperty('--step1-card-w', `${cl}px`);
+      }
+      if (cardRange) cardRange.disabled = true;
+      if (cardLbl) {
+        const v = (grid.style.getPropertyValue('--step1-card-w') || '').trim();
+        cardLbl.textContent = v || 'auto';
+      }
+    } else {
+      if (cardRange) {
+        cardRange.disabled = false;
+        grid.style.setProperty('--step1-card-w', `${cardRange.value}px`);
+      }
+      if (cardLbl && cardRange) cardLbl.textContent = `${cardRange.value}px`;
+    }
+  }
+  try { window.applyStep1CompareLayout = applyStep1CompareLayout; } catch {}
+
+  function bindStep1LayoutControlsOnce() {
+    if (window.__step1LayoutControlsBound) return;
+    const cardR = document.getElementById('step1CompareCardWidth');
+    const cardLbl = document.getElementById('step1CompareCardWidthLabel');
+    const fitCb = document.getElementById('step1CompareFitWidth');
+    if (!cardR || !cardLbl || !fitCb) return;
+    window.__step1LayoutControlsBound = true;
+
+    function persistCard() {
+      try { localStorage.setItem(STEP1_LS_CARD, cardR.value); } catch {}
+    }
+
+    let savedCard = null;
+    try { savedCard = localStorage.getItem(STEP1_LS_CARD); } catch {}
+    if (savedCard) {
+      const sv = Number(savedCard);
+      if (Number.isFinite(sv)) {
+        const lo = Number(cardR.min);
+        const hi = Number(cardR.max);
+        cardR.value = String(Math.min(Math.max(sv, lo), hi));
+      }
+    }
+    try { fitCb.checked = localStorage.getItem(STEP1_LS_FIT) === '1'; } catch {}
+
+    applyStep1CompareLayout();
+
+    cardR.addEventListener('input', () => {
+      if (fitCb.checked) return;
+      const grid = document.getElementById('step1CompareGrid');
+      if (grid) grid.style.setProperty('--step1-card-w', `${cardR.value}px`);
+      cardLbl.textContent = `${cardR.value}px`;
+      persistCard();
+    });
+
+    fitCb.addEventListener('change', () => {
+      try { localStorage.setItem(STEP1_LS_FIT, fitCb.checked ? '1' : '0'); } catch {}
+      applyStep1CompareLayout();
+      requestAnimationFrame(() => {
+        const g = document.getElementById('step1CompareGrid');
+        if (g && typeof window.equalizeCompareCardHeaderHeights === 'function') {
+          window.equalizeCompareCardHeaderHeights(g);
+        }
+      });
+    });
   }
 
   function setVisibleState(hasSelection) {
@@ -11619,36 +12165,13 @@ if (typeof window.switchToMap !== 'function') {
     const filterInput = document.getElementById('step1FieldFilter'); // optional (removed from UI)
     const showEmptyCb = document.getElementById('step1ShowEmptyFields'); // optional (removed from UI)
     const compareMode = document.getElementById('step1CompareMode');
-    const compare1 = document.getElementById('step1CompareSchoolSelect1');
-    const compare2 = document.getElementById('step1CompareSchoolSelect2');
 
     if (!select) return false;
 
     const rows = getDecisionSchoolRows();
     if (!rows || rows.length === 0) return false;
 
-    // Populate select once
-    if (select.options.length <= 1) {
-      const names = Array.from(new Set(rows.map(getSchoolName).filter(Boolean).map(String))).sort((a, b) => a.localeCompare(b));
-      names.forEach((name) => {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        select.appendChild(opt);
-      });
-
-      // Populate compare selects with same list
-      [compare1, compare2].forEach((cmp) => {
-        if (!cmp) return;
-        while (cmp.options.length > 1) cmp.remove(1);
-        names.forEach((name) => {
-          const opt = document.createElement('option');
-          opt.value = name;
-          opt.textContent = name;
-          cmp.appendChild(opt);
-        });
-      });
-    }
+    const names = Array.from(new Set(rows.map(getSchoolName).filter(Boolean).map(String))).sort((a, b) => a.localeCompare(b));
 
     function getSelectedRow() {
       const name = select.value;
@@ -11667,6 +12190,28 @@ if (typeof window.switchToMap !== 'function') {
     }
     window.step1Rerender = rerender;
 
+    // Populate main school select once; always sync compare slot options
+    if (select.options.length <= 1) {
+      names.forEach((name) => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        select.appendChild(opt);
+      });
+    }
+    ensureStep1CompareSlotsInitialized(names, rerender);
+    populateStep1ArticulationCompareSelect(rows);
+
+    const artSel = document.getElementById('step1CompareArticulationSelect');
+    if (artSel && !artSel.dataset.bound) {
+      artSel.dataset.bound = '1';
+      artSel.addEventListener('change', () => {
+        const key = artSel.value;
+        if (!key) return;
+        applyArticulationAreaCompareSelection(key, rerender);
+      });
+    }
+
     select.addEventListener('change', () => {
       // Clear filter each time user switches schools (keeps it simple)
       if (filterInput) filterInput.value = '';
@@ -11675,8 +12220,6 @@ if (typeof window.switchToMap !== 'function') {
     if (filterInput) filterInput.addEventListener('input', rerender);
     if (showEmptyCb) showEmptyCb.addEventListener('change', rerender);
     if (compareMode) compareMode.addEventListener('change', rerender);
-    if (compare1) compare1.addEventListener('change', rerender);
-    if (compare2) compare2.addEventListener('change', rerender);
 
     const step1PkTogg = document.getElementById('step1IncludePKToggle');
     if (step1PkTogg) {
@@ -11706,6 +12249,8 @@ if (typeof window.switchToMap !== 'function') {
     // Initial state
     setVisibleState(false);
 
+    bindStep1LayoutControlsOnce();
+
     // Keep compare cards aligned when the viewport changes size.
     if (!window.__step1CompareResizeBound) {
       window.__step1CompareResizeBound = true;
@@ -11713,6 +12258,7 @@ if (typeof window.switchToMap !== 'function') {
       window.addEventListener('resize', () => {
         if (t) clearTimeout(t);
         t = setTimeout(() => {
+          if (typeof window.applyStep1CompareLayout === 'function') window.applyStep1CompareLayout();
           const grid = document.getElementById('step1CompareGrid');
           if (grid && typeof window.equalizeCompareCardHeaderHeights === 'function') {
             window.equalizeCompareCardHeaderHeights(grid);

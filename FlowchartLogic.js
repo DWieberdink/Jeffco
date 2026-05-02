@@ -1832,8 +1832,10 @@ function getEffectiveEnrollmentFlow(row) {
 }
 function getEffectiveUtilizationFlow(row) {
   if (window.getEffectiveUtilization) return window.getEffectiveUtilization(row);
-  const cap = parseFloat((row.Capacity || '').toString().replace(/,/g, '').trim()) || 0;
-  if (!cap || cap <= 0) return 0;
+  const cap = window.getEffectiveCapacity
+    ? window.getEffectiveCapacity(row)
+    : (parseFloat((row.Capacity || '').toString().replace(/,/g, '').trim()) || 0);
+  if (!cap || cap <= 0) return null;
   return getEffectiveEnrollmentFlow(row) / cap;
 }
 
@@ -1874,7 +1876,7 @@ function getEnrollmentDecision(row, t) {
   // Check if utilization below threshold OR enrollment below level-specific threshold
   // Either condition must be true for the school to be considered underutilized.
   // Note: Using OR logic allows schools to be flagged if either utilization is low OR enrollment is low.
-  const utilizationBelowThreshold = utilization < t.utilization;
+  const utilizationBelowThreshold = Number.isFinite(utilization) ? utilization < t.utilization : false;
   const enrollmentBelowThreshold = enrollment < enrollmentThreshold;
   
   console.log(`📊 Enrollment decision for ${row["Building Name"]}:`);
@@ -1890,12 +1892,13 @@ function getEnrollmentDecision(row, t) {
 function evaluatePath(row, t) {
   console.log("🔍 Evaluating 4-flow path for school:", row["Building Name"]);
   console.log("🔍 Thresholds being used:", t);
+  const utilNow = getEffectiveUtilizationFlow(row);
   
   // Get all decision values
   const decisions = {
     // Flow 1 - Main Decision (F1_UTIL1 now includes enrollment logic)
     util1: getEnrollmentDecision(row, t),
-    util2: getEffectiveUtilizationFlow(row) > t.utilizationHigh ? "Yes" : "No", 
+    util2: (Number.isFinite(utilNow) && utilNow > t.utilizationHigh) ? "Yes" : "No", 
     dist: (() => {
       let schoolLevelRaw = row["School Level"] || '';
       let level = normalizeSchoolLevelFlow(schoolLevelRaw);
@@ -2910,12 +2913,15 @@ function updateFlowchartSchoolInfo(name) {
   const enroll = Number.isFinite(effectiveEnr) ? effectiveEnr.toString() : (Number.isFinite(enrollExcl) ? enrollExcl.toString() : (totalEnr ? totalEnr.toString() : "N/A"));
   const pk = Number.isFinite(pkEnr) ? pkEnr.toString() : (pkEnr ? pkEnr.toString() : "—");
   const total = Number.isFinite(totalEnr) ? totalEnr.toString() : "—";
-  const cap = parseFloat((getVal(row, ["Capacity"]) || "").toString().replace(/,/g, "").trim()) || 0;
-  const utilExcl = cap > 0 ? (enrollExcl / cap) * 100 : null;
-  const utilIncl = cap > 0 && totalEnr > 0 ? (totalEnr / cap) * 100 : null;
+  const capDetails = window.getEffectiveCapacityDetails ? window.getEffectiveCapacityDetails(row) : null;
+  const cap = (capDetails && Number.isFinite(capDetails.value) && capDetails.value > 0) ? capDetails.value : null;
+  const capLabel = capDetails && capDetails.label ? capDetails.label : "Capacity";
+  const capMissingNote = capDetails && capDetails.missingEducational ? (capDetails.note || "Educational capacity does not exist.") : "";
+  const utilExcl = cap ? (enrollExcl / cap) * 100 : null;
+  const utilIncl = cap && totalEnr > 0 ? (totalEnr / cap) * 100 : null;
   const incPKUtil = (window.getIncludePKInEnrollment && window.getIncludePKInEnrollment());
   const util = (incPKUtil && Number.isFinite(utilIncl) ? utilIncl : Number.isFinite(utilExcl) ? utilExcl : null);
-  const utilStr = util !== null ? util.toFixed(1) + "%" : "N/A";
+  const utilStr = util !== null ? util.toFixed(1) + "%" : (capMissingNote ? "Educational capacity does not exist" : "N/A");
   // Find the actual key for School Level (case-insensitive, trimmed)
   let schoolLevelKey = Object.keys(row).find(k => k.trim().toLowerCase() === "school level");
   let schoolType = (schoolLevelKey && row[schoolLevelKey] && row[schoolLevelKey].trim() !== "") ? row[schoolLevelKey] : "N/A";
@@ -2987,6 +2993,7 @@ function updateFlowchartSchoolInfo(name) {
     <span>Enrollment: <strong>${enroll}</strong></span>
     <span>PK: <strong>${pk}</strong></span>
     <span>Total: <strong>${total}</strong></span>
+    <span>${capLabel}: <strong>${cap ? cap.toLocaleString() : (capMissingNote || "N/A")}</strong></span>
     <span>Utilization: <strong>${utilStr}</strong></span>
     <span>Future Enrollment Growth (2030): <strong>${growth}</strong></span>
   </div>
@@ -2994,6 +3001,10 @@ function updateFlowchartSchoolInfo(name) {
     <label style='display:flex;align-items:center;gap:6px;cursor:pointer;'>
       <input type="checkbox" id="flowchartIncludePKUtilization" ${incPKUtil ? "checked" : ""} title="Include PK in utilization (${utilExclStr} → ${utilInclStr})">
       <span>Include PK in utilization</span>
+    </label>
+    <label style='display:flex;align-items:center;gap:6px;cursor:pointer;'>
+      <input type="checkbox" id="flowchartUseEducationalCapacity" ${(window.getCapacitySource && window.getCapacitySource()) === "educational" ? "checked" : ""} title="Use Educational Capacity for utilization and available seats when available">
+      <span>Use Educational Capacity</span>
     </label>
   </div>
   <div style='font-family:"Franklin Gothic Book", "Franklin Gothic", "Arial Narrow", Arial, sans-serif; font-size:11px; margin-bottom:1px; line-height:1.3; display:flex; flex-wrap:wrap; gap:8px; align-items:center;'>
@@ -3031,6 +3042,15 @@ function updateFlowchartSchoolInfo(name) {
       if (window.setIncludePKInEnrollment) window.setIncludePKInEnrollment(pkUtilCb.checked);
       // Sync all PK toggles (main app, Step 1) so they stay in sync
       if (typeof window.syncPKToggleFromStorage === "function") window.syncPKToggleFromStorage();
+      updateFlowchartSchoolInfo(name);
+      if (window.sendSliderData) window.sendSliderData();
+    });
+  }
+  const capModeCb = infoDiv.querySelector("#flowchartUseEducationalCapacity");
+  if (capModeCb) {
+    capModeCb.addEventListener("change", () => {
+      if (window.setCapacitySource) window.setCapacitySource(capModeCb.checked ? "educational" : "capacity");
+      if (typeof window.syncCapacityToggleFromStorage === "function") window.syncCapacityToggleFromStorage();
       updateFlowchartSchoolInfo(name);
       if (window.sendSliderData) window.sendSliderData();
     });
@@ -3164,7 +3184,15 @@ function showNearbyWelcomingSchools(originName) {
       const destRow = destKey ? destById.get(destKey) : null;
       const destName = (destRow && destRow["Building Name"]) || r["Destination Facility Name"] || (destKey ? `School (${destPrefix})` : "Unknown");
       const destGrades = r["Destination Grades"] || (destRow && destRow["School Level"]) || "N/A";
-      const capacity = destRow ? (destRow["Capacity"] || destRow.Capacity) : null;
+      const capDetailsDest = destRow && window.getEffectiveCapacityDetails
+        ? window.getEffectiveCapacityDetails(destRow)
+        : null;
+      const capacity = capDetailsDest && Number.isFinite(capDetailsDest.value)
+        ? capDetailsDest.value
+        : null;
+      const capacityNote = capDetailsDest && capDetailsDest.missingEducational
+        ? (capDetailsDest.note || "Educational capacity does not exist.")
+        : "";
       const available = destRow && window.getEffectiveAvailableSeats
         ? window.getEffectiveAvailableSeats(destRow)
         : (destRow ? (destRow["Available Seats"] || destRow["AvailableSeats"] || destRow.AvailableSeats) : null);
@@ -3180,6 +3208,7 @@ function showNearbyWelcomingSchools(originName) {
         grades: destGrades,
         distance: dist,
         capacity: capacity,
+        capacityNote: capacityNote,
         canAbsorb: availableNum,
         gradeOverlap: gradeOverlapClean
       };
@@ -3202,19 +3231,20 @@ function showNearbyWelcomingSchools(originName) {
 
   let html = "<div style='margin-top:2px;'><strong>Nearby schools within threshold:</strong></div>";
   html += "<table style='width:100%;border-collapse:collapse;margin-top:2px;'>";
+  const nearbyCapacityLabel = (window.getCapacitySourceLabel && window.getCapacitySourceLabel()) || "Capacity";
   html += "<thead><tr>" +
     "<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>Name</th>" +
     "<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>Grades</th>" +
     "<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>Overlapping Grades</th>" +
     "<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>Distance (mi)</th>" +
-    "<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>Capacity</th>" +
+    `<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>${nearbyCapacityLabel}</th>` +
     "<th style='border:1px solid #ccc;padding:2px 4px;font-weight:600;'>Open seats</th>" +
     "</tr></thead><tbody>";
 
   finalCandidates.forEach(c => {
     const capText = c.capacity !== undefined && c.capacity !== null && c.capacity !== ""
-      ? c.capacity
-      : "N/A";
+      ? Number(c.capacity).toLocaleString()
+      : (c.capacityNote || "N/A");
     const absorbText = c.canAbsorb !== null && c.canAbsorb !== undefined
       ? c.canAbsorb.toLocaleString()
       : "N/A";

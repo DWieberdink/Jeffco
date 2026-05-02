@@ -1,15 +1,30 @@
 # Unit cost library
 
-## Files
+## File
 
 | File | Role |
 |------|------|
-| **`UnitCostLibrary.csv`** | **Used by the app** (school profile, scripts). Columns: `SystemCategory`, `Project`, `Unit`, `UnitCost`, `Value`. |
-| **`UnitCostLibrary_withvalues.csv`** | Source workbook export (detailed ranges, scope notes, `#VALUE!` where Excel couldn’t resolve). **Not loaded by the browser.** |
+| **`UnitCostLibrary.csv`** | **Single source used by the app** (school profile, pivot scripts). |
 
-## Regenerating `UnitCostLibrary.csv`
+### Columns
 
-When you update `UnitCostLibrary_withvalues.csv`, run from the repo root:
+| Column | Used by app |
+|--------|-------------|
+| `SystemCategory` | Yes — groups projects (e.g. `05_heavy modernization`). |
+| `Project` | Yes — matches `AssetType` in `JeffCoProjectListAllSchools.csv`. |
+| `Unit` | Yes — measure (SF, Quantity, EA, Project cost, etc.). |
+| `UnitCost` | Yes — numeric rate, `Site specific`, `%`, or blank. |
+| `Value` | Yes — condition threshold input for the profile logic. |
+| `DirectCostHigh` | **No** — documentation (former high end of direct unit range from the cost study export). |
+| `ScopeAssumption` | **No** — documentation / scope narrative. |
+| `UpgradeScopeAssumption` | **No** — documentation. |
+| `SizeAssumptions` | **No** — documentation. |
+
+The browser loader only reads the first five fields for costing and ordering; extra columns are ignored but stay in the CSV for humans and exports.
+
+## Refreshing metadata from a new Excel export
+
+If you export a detailed sheet again, save it as **`UnitCostLibrary_withvalues.csv`** in the repo root (same shape as before: `Project`, `Project Type`, `Unit Measure Normalized`, range columns, scope columns, etc.), then run:
 
 ```bash
 node scripts/merge-unit-cost-library.mjs
@@ -17,12 +32,12 @@ node scripts/merge-unit-cost-library.mjs
 
 The script:
 
-1. Reads the **current** `UnitCostLibrary.csv` for the canonical **list and order** of projects (must stay aligned with `JeffCoProjectListAllSchools.csv` / pivot).
-2. Pulls costs from `UnitCostLibrary_withvalues.csv` using row matches on **Project Type** (= system category), **Project** name (with a few aliases), and **Unit Measure Normalized** (= `SF`, `Quantity`, `Acre`, `Percentage`).
-3. For **SF** rows, uses blended **ACF & hard cost** figures when present; falls back to direct ranges or the previous library value.
-4. For **Quantity** / **Acre**, prefers **Direct unit cost range (low)** so totals in the export aren’t mistaken for per-unit costs.
-5. Keeps **ADA** at the legacy `50` percentage basis (the detailed sheet uses a different scale).
-6. Leaves **kitchen / cafeteria** combined lines at legacy **`50`** where the source has `#VALUE!`.
-7. Skips rows that only exist in the detailed sheet (e.g. alternate units, `08_site infrastructure` line items) unless they are added to the canonical list first.
+1. Reads **`UnitCostLibrary.csv`** for the canonical **list, order, `UnitCost`, and `Value`** (those stay as-is so dashboard numbers do not change unless you edit them).
+2. When `UnitCostLibrary_withvalues.csv` is present, fills **`DirectCostHigh`** … **`SizeAssumptions`** from the matching detailed row (`Project Type` = system category, `Project` with the same aliases as before, unit matching with fallbacks for EA ↔ Quantity, blank unit, etc.).
+3. When the withvalues file is **absent**, rewrites the library from the existing unified CSV and **preserves** documentation columns already on disk.
 
-After merging, bump the school profile cache bust if needed so browsers reload the CSV.
+After a merge that changes `UnitCost` or `Value` manually in the CSV, bump the school profile cache bust if browsers should refetch.
+
+## What was removed
+
+The old **`UnitCostLibrary_withvalues.csv`** as a permanent second file is gone. Its information is folded into the documentation columns above, **one row per library project** (no duplicate alternate-unit rows in git). Rows that existed only in the detailed export (for example alternate Quantity vs SF marketing rows, or `08_site infrastructure` lines) are not kept unless you add matching projects to `UnitCostLibrary.csv` first.

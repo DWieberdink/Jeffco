@@ -301,12 +301,15 @@ window.prioritizationLogic = {
         if (typeof window !== 'undefined' && window.getEffectiveUtilization) {
           util = window.getEffectiveUtilization(school);
         } else {
-          const cap = parseFloat(school.Capacity || 0);
+          const cap = (typeof window !== 'undefined' && window.getEffectiveCapacity)
+            ? window.getEffectiveCapacity(school)
+            : parseFloat(school.Capacity || 0);
           const enr = parseFloat(school.Enrollment || 0) || 0;
           const pk = parseFloat(school.PKEnrollment || school['PK Enrollment'] || 0) || 0;
-          util = (cap > 0) ? Math.max(0, (enr - pk)) / cap : 0;
+          util = (cap > 0) ? Math.max(0, (enr - pk)) / cap : null;
         }
-        const pct = isFinite(util) ? util : 0;
+        const pct = isFinite(util) ? util : null;
+        if (!isFinite(pct)) return 0;
         return pct <= 1.5 ? pct * 100 : pct;
       }
       case "enrollment":

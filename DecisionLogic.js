@@ -269,8 +269,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   function getEffectiveUtilizationLocal(row) {
     if (window.getEffectiveUtilization) return window.getEffectiveUtilization(row);
-    const cap = parseFloat((row.Capacity || '').toString().replace(/,/g, '').trim()) || 0;
-    if (!cap || cap <= 0) return 0;
+    const cap = window.getEffectiveCapacity
+      ? window.getEffectiveCapacity(row)
+      : (parseFloat((row.Capacity || '').toString().replace(/,/g, '').trim()) || 0);
+    if (!cap || cap <= 0) return null;
     return getEffectiveEnrollmentLocal(row) / cap;
   }
 
@@ -312,7 +314,7 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // Check if utilization below threshold OR enrollment below level-specific threshold
     // Either condition must be true for the school to be considered underutilized (OR logic)
-    const utilizationBelowThreshold = utilization < t.utilization;
+    const utilizationBelowThreshold = Number.isFinite(utilization) ? utilization < t.utilization : false;
     const enrollmentBelowThreshold = enrollment < enrollmentThreshold;
     
     console.log(`📊 DecisionLogic - Enrollment decision for ${row["Building Name"]}:`);
@@ -327,10 +329,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function evaluateSchool(row, t = self.thresholds) {
     // Keep aligned with FlowchartLogic.js `evaluatePath` (flow numbers, overrides, decisions object, dist/dist4).
+    const utilNow = getEffectiveUtilizationLocal(row);
     const decisions = {
       // Flow 1 - Main Decision (F1_UTIL1 now includes enrollment logic)
       util1: getEnrollmentDecision(row, t),
-      util2: getEffectiveUtilizationLocal(row) > t.utilizationHigh ? "Yes" : "No",
+      util2: (Number.isFinite(utilNow) && utilNow > t.utilizationHigh) ? "Yes" : "No",
       dist: (() => {
         const distanceThreshold = getDistanceThresholdForSchoolLevel(row, t);
         return +row.DistanceUnderutilizedschools <= distanceThreshold ? "Yes" : "No";
