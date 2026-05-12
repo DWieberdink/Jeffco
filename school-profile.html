@@ -141,6 +141,136 @@
       font-weight: 900;
     }
 
+    .assets-card-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .assets-card-heading .section-title {
+      margin-bottom: 0;
+    }
+    .assets-heading-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .btn-icon-clear-filters {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .btn-icon-clear-filters:hover {
+      background: #f9fafb;
+      border-color: #cbd5e1;
+    }
+    .assets-settings-wrap {
+      position: relative;
+      flex-shrink: 0;
+    }
+    .btn-icon-assets-settings {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .btn-icon-assets-settings:hover {
+      background: #f9fafb;
+      border-color: #cbd5e1;
+    }
+    .assets-settings-dropdown {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: calc(100% + 5px);
+      min-width: 288px;
+      max-width: min(360px, 94vw);
+      padding: 12px 14px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+      z-index: 120;
+      font-size: 13px;
+      box-sizing: border-box;
+    }
+    .assets-settings-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 12px 0;
+      font-weight: 500;
+      line-height: 1.35;
+      color: var(--text);
+    }
+    .assets-settings-option:last-of-type {
+      margin-bottom: 10px;
+    }
+    .assets-settings-option-label {
+      flex: 1;
+      min-width: 0;
+      cursor: default;
+      padding-right: 4px;
+    }
+    .assets-settings-option .row-include-switch {
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .assets-settings-option--action {
+      flex-wrap: wrap;
+    }
+    .assets-settings-action-pill {
+      flex-shrink: 0;
+      appearance: none;
+      border: 1px solid #0d9488;
+      background: #fff;
+      color: #0f766e;
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 11px;
+      line-height: 1.25;
+      padding: 8px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+      max-width: 52%;
+      text-align: center;
+    }
+    .assets-settings-action-pill--wide {
+      width: 100%;
+      max-width: 100%;
+      font-size: 12px;
+      padding: 9px 14px;
+      font-weight: 600;
+    }
+    .assets-settings-action-pill:hover {
+      background: #f0fdfa;
+      border-color: #0f766e;
+    }
+    .assets-settings-action-pill:active {
+      background: #ccfbf1;
+    }
     .summary-name {
       font-size: 20px;
       font-weight: 900;
@@ -373,6 +503,72 @@
       background: #fff;
       color: var(--text);
     }
+
+    #facilityTypeFilter {
+      position: relative;
+    }
+    .facility-scope-dropdown {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      margin-top: 2px;
+      max-height: min(320px, 70vh);
+      overflow-y: auto;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      z-index: 100;
+      padding: 8px 10px;
+      box-sizing: border-box;
+      font-size: 13px;
+    }
+    .facility-scope-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      cursor: pointer;
+      margin: 0 0 6px 0;
+      line-height: 1.35;
+      font-weight: 500;
+      color: var(--text);
+    }
+    .facility-scope-row:last-child {
+      margin-bottom: 0;
+    }
+    .facility-scope-row input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      margin-top: 2px;
+      flex-shrink: 0;
+      cursor: pointer;
+      accent-color: var(--blue);
+    }
+    .facility-scope-row--primary {
+      font-weight: 600;
+      padding-bottom: 6px;
+      margin-bottom: 4px;
+      border-bottom: 1px solid var(--border);
+    }
+    .facility-scope-categories {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .facility-scope-sub {
+      padding-left: 18px;
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--muted);
+    }
+    .facility-scope-categories.is-district-mode .facility-scope-row:not(.facility-scope-sub) {
+      opacity: 0.48;
+    }
+    .facility-scope-categories.is-district-mode .facility-scope-sub {
+      opacity: 0.48;
+    }
     .multi-select-wrap { position: relative; }
     .multi-select-btn {
       width: 100%;
@@ -442,6 +638,35 @@
       margin-top: 8px;
       color: var(--muted);
       font-size: 12px;
+    }
+
+    .school-meta-rich {
+      line-height: 1.45;
+    }
+    .school-meta-inline {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 4px 10px;
+      column-gap: 14px;
+      row-gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .school-meta-item {
+      display: inline-block;
+      max-width: 100%;
+      vertical-align: baseline;
+    }
+    .school-meta-item .school-meta-k {
+      font-weight: 700;
+      color: var(--text);
+      margin-right: 4px;
+    }
+    .school-meta-sep {
+      color: #9ca3af;
+      user-select: none;
+      flex: 0 0 auto;
     }
 
     table {
@@ -541,6 +766,31 @@
     }
     .super-group-row.fci-deficiency td .group-subtotal {
       color: #7c5e24;
+    }
+    .fci-deficiency-tools {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+    .fci-deficiency-tool-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 30px;
+      padding: 0;
+      border: 1px solid #c9a96e;
+      border-radius: 6px;
+      background: #fff;
+      color: #4a3a14;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .fci-deficiency-tool-btn:hover {
+      background: #faf3e6;
+      border-color: #a88948;
     }
     .super-group-row td .group-header {
       display: flex;
@@ -668,6 +918,10 @@
     }
     #tableMount table tbody tr.excluded-row:not(.campus-yes-cost-row) td {
       color: #cbd5e1;
+    }
+    /* Include toggle off but row still shows a dollar replacement cost — keep body text readable */
+    #tableMount table tbody tr.excluded-but-has-rc:not(.campus-yes-cost-row) td {
+      color: var(--text);
     }
     #tableMount table tbody tr.excluded-row.campus-yes-cost-row td {
       color: var(--text);
@@ -800,6 +1054,14 @@
       padding-bottom: 4px;
       vertical-align: middle;
       overflow: visible;
+    }
+    .site-infra-fci-note {
+      display: inline-block;
+      font-size: 11px;
+      line-height: 1.35;
+      color: var(--muted);
+      font-style: italic;
+      max-width: 16em;
     }
     /* 0–1 condition metric: scale labels above bar, numeric value below marker */
     .condition-score-widget {
@@ -996,53 +1258,111 @@
           <span id="totalP4Cost" class="summary-cost">—</span>
         </div>
       </div>
-      <div class="control" style="max-width: 520px; margin-bottom: 8px;">
-        <label for="schoolSelect">Schools</label>
-        <div id="schoolMultiSelect" style="position:relative;">
-          <button type="button" id="schoolSelectBtn" style="width:100%;text-align:left;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;font-family:inherit;font-size:inherit;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
-            <span id="schoolSelectLabel">— Select schools —</span>
-            <span style="font-size:10px;">&#9660;</span>
-          </button>
-          <div id="schoolSelectDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:300px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:0 0 8px 8px;box-shadow:0 4px 12px rgba(0,0,0,0.12);z-index:100;padding:4px 0;">
+      <div class="facility-school-row" style="display:flex; flex-wrap:wrap; gap:12px 16px; align-items:flex-start; margin-bottom:10px;">
+        <div class="control" style="flex:1 1 260px; min-width:200px; max-width:560px;">
+          <label>Schools</label>
+          <div id="schoolMultiSelect" style="position:relative;">
+            <button type="button" id="schoolSelectBtn" style="width:100%;text-align:left;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;font-family:inherit;font-size:inherit;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
+              <span id="schoolSelectLabel">— Select schools —</span>
+              <span style="font-size:10px;">&#9660;</span>
+            </button>
+            <div id="schoolSelectDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:300px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:0 0 8px 8px;box-shadow:0 4px 12px rgba(0,0,0,0.12);z-index:100;padding:4px 0;">
+            </div>
+          </div>
+        </div>
+        <div class="control" style="flex:0 1 320px; min-width:200px;">
+          <label>Facility scope</label>
+          <div id="facilityTypeFilter">
+            <button type="button" id="facilityScopeBtn" class="multi-select-btn" aria-expanded="false" aria-haspopup="listbox">
+              <span id="facilityScopeLabel">Active District-Operated Sites</span>
+              <span style="font-size:10px;">&#9660;</span>
+            </button>
+            <div id="facilityScopeDropdown" class="facility-scope-dropdown" role="group" aria-label="Facility scope options">
+              <label class="facility-scope-row facility-scope-row--primary">
+                <input type="checkbox" id="deficiencyOnlyToggle" checked>
+                <span>Active District-Operated Sites</span>
+              </label>
+              <div class="facility-scope-categories" id="facilityScopeCategories">
+                <label class="facility-scope-row">
+                  <input type="checkbox" class="facility-type-cb" value="school">
+                  <span>Schools</span>
+                </label>
+                <label class="facility-scope-row facility-scope-sub" title="High schools with CTE programs — included when Schools is checked; or select alone for only these sites">
+                  <input type="checkbox" class="facility-type-cb" value="cte-pathway">
+                  <span>&#x2514; CTE Pathways</span>
+                </label>
+                <label class="facility-scope-row">
+                  <input type="checkbox" class="facility-type-cb" value="cte">
+                  <span>CTE</span>
+                </label>
+                <label class="facility-scope-row">
+                  <input type="checkbox" class="facility-type-cb" value="athletics">
+                  <span>Athletics</span>
+                </label>
+                <label class="facility-scope-row">
+                  <input type="checkbox" class="facility-type-cb" value="oels">
+                  <span>OELs</span>
+                </label>
+                <label class="facility-scope-row">
+                  <input type="checkbox" class="facility-type-cb" value="admin-support">
+                  <span>Admin &amp; Support</span>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-      <div id="facilityTypeFilter" style="margin-bottom:8px; padding:6px 10px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; font-size:13px;">
-        <div style="font-weight:600; margin-bottom:4px; color:#374151;">Facility Selection</div>
-        <div style="display:flex; flex-wrap:wrap; gap:4px 12px;">
-          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-weight:500;"><input type="checkbox" id="deficiencyOnlyToggle" checked> 122 Active Traditional Sites Only</label>
-        </div>
-        <div style="margin-top:4px; padding-top:4px; border-top:1px solid #e5e7eb; display:flex; flex-wrap:wrap; gap:12px 24px; align-items:flex-start;">
-          <div>
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="facility-type-cb" value="school"> Schools</label>
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;margin-left:20px;font-size:12px;color:#6b7280;" title="Subset of Schools: 17 high schools with CTE programs"><input type="checkbox" class="facility-type-cb" value="cte-pathway"> &#x2514; CTE Pathways</label>
-          </div>
-          <div style="display:flex; flex-wrap:wrap; gap:4px 12px;">
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="facility-type-cb" value="cte"> CTE</label>
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="facility-type-cb" value="athletics"> Athletics</label>
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="facility-type-cb" value="oels"> OELs</label>
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" class="facility-type-cb" value="admin-support"> Admin &amp; Support</label>
-          </div>
-        </div>
-      </div>
-      <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px;">
-        <input type="checkbox" id="includeFciToggle" title="Include FCI deficiency data even when school is slated for new construction or gut reno">
-        Include FCI for gut reno / new construction schools
-      </label>
       <p class="summary-name" id="schoolNameHeader">—</p>
-      <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 13px;">
-        <input type="checkbox" id="includePKInEnrollmentToggle" title="Include Pre-K in enrollment numbers">
-        Include PK in enrollment
-      </label>
-      <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 13px;">
-        <input type="checkbox" id="useEducationalCapacityToggle" title="Use Educational Capacity for utilization and available seats when available">
-        Use Educational Capacity
-      </label>
-      <div class="meta" id="schoolMeta"></div>
+      <div class="meta school-meta-rich" id="schoolMeta"></div>
     </div>
 
     <div class="card">
-      <h2 class="section-title">Assets / Projects</h2>
+      <div class="assets-card-heading">
+        <h2 class="section-title">Assets / Projects</h2>
+        <div class="assets-heading-actions">
+          <button type="button" id="clearFiltersBtn" class="btn-icon-clear-filters" title="Clear filters" aria-label="Clear filters">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" d="M4 5h16l-6 7.2V19l-4-2v-6.8L4 5z"/>
+              <circle cx="17.5" cy="17.5" r="3.25" fill="#fff" stroke="currentColor" stroke-width="1.5"/>
+              <path stroke="currentColor" stroke-width="1.35" stroke-linecap="round" d="M16.15 16.15l2.7 2.7m0-2.7l-2.7 2.7"/>
+            </svg>
+          </button>
+          <div class="assets-settings-wrap">
+          <button type="button" id="assetsSettingsBtn" class="btn-icon-assets-settings" title="List settings" aria-expanded="false" aria-controls="assetsSettingsDropdown" aria-haspopup="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.06-.68-1.66-.87l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.6.19-1.16.49-1.66.87l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.07.63-.07.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.06.68 1.66.87l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.6-.19 1.16-.49 1.66-.87l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+          </button>
+          <div id="assetsSettingsDropdown" class="assets-settings-dropdown" role="menu">
+            <div class="assets-settings-option">
+              <span class="assets-settings-option-label" id="includeFciToggleLabel">Include FCI for gut reno / new construction schools</span>
+              <label class="row-include-switch" title="Include FCI deficiency data even when school is slated for new construction or gut reno">
+                <input type="checkbox" id="includeFciToggle" role="switch" aria-labelledby="includeFciToggleLabel">
+                <span class="row-include-switch-slider" aria-hidden="true">
+                  <span class="row-include-switch-bit row-include-switch-0">0</span>
+                  <span class="row-include-switch-bit row-include-switch-1">1</span>
+                </span>
+              </label>
+            </div>
+            <div class="assets-settings-option">
+              <span class="assets-settings-option-label" id="showRowsWithoutRcToggleLabel">Show rows without replacement cost</span>
+              <label class="row-include-switch" title="When on, keeps assets visible even when there is no dollar replacement cost yet (site-specific, excluded, gaps). Off by default.">
+                <input type="checkbox" id="showRowsWithoutRcToggle" role="switch" aria-labelledby="showRowsWithoutRcToggleLabel">
+                <span class="row-include-switch-slider" aria-hidden="true">
+                  <span class="row-include-switch-bit row-include-switch-0">0</span>
+                  <span class="row-include-switch-bit row-include-switch-1">1</span>
+                </span>
+              </label>
+            </div>
+            <div class="assets-settings-option assets-settings-option--action">
+              <button type="button" id="turnOnAllRowsWithValuesBtn" class="assets-settings-action-pill assets-settings-action-pill--wide">
+                Turn on all rows with values
+              </button>
+            </div>
+          </div>
+          </div>
+        </div>
+      </div>
 
       <div class="controls" aria-label="Table controls">
         <div class="control">
@@ -1097,7 +1417,6 @@
           </div>
         </div>
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;">
-          <button class="btn" id="clearFiltersBtn" type="button">Clear filters</button>
           <button class="btn" id="resetManualQtyOverridesBtn" type="button" title="Remove typed SF/qty saved in this browser; room schedule & project data fill again">Reset saved planning quantities</button>
         </div>
       </div>
@@ -1106,7 +1425,7 @@
     </div>
   </div>
 
-  <script src="school-profile.js?v=20260501_53" defer></script>
+  <script src="school-profile.js?v=20260506_14" defer></script>
   <script src="global-search.js" defer></script>
 </body>
 </html>

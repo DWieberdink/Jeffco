@@ -12,7 +12,7 @@ if (!DEBUG) {
 }
 
 // Cache-bust static data files when needed (bump when CSV/GeoJSON changes).
-const ASSET_VERSION = '2026-02-05-1';
+const ASSET_VERSION = '2026-05-08-3';
 
 // --- PK Enrollment: exclude by default (Enrollment - PKEnrollment) -------------------
 const PK_ENROLLMENT_STORAGE_KEY = 'jeffco_include_pk_enrollment_v2';
@@ -33,7 +33,7 @@ window.setIncludePKInEnrollment = function (v) {
 window.getEffectiveEnrollment = function (row) {
   if (!row) return 0;
   const inc = window.getIncludePKInEnrollment && window.getIncludePKInEnrollment();
-  const e = parseFloat((row.Enrollment ?? row.enrollment ?? row['Enrollment'] ?? '').toString().replace(/,/g, '').trim()) || 0;
+  const e = parseFloat((row.Enrollment2025 ?? row['Enrollment2025'] ?? row.Enrollment ?? row.enrollment ?? row['Enrollment'] ?? '').toString().replace(/,/g, '').trim()) || 0;
   const pk = parseFloat((row.PKEnrollment ?? row['PKEnrollment'] ?? row['PK Enrollment'] ?? '').toString().replace(/,/g, '').trim()) || 0;
   return inc ? e : Math.max(0, e - pk);
 };
@@ -139,10 +139,10 @@ window.getEffectiveEnrollmentGrowth = function (row) {
   const inc = window.getIncludePKInEnrollment && window.getIncludePKInEnrollment();
   let current;
   if (inc) {
-    current = parse(row.Enrollment ?? row['Enrollment']) ?? 0;
+    current = parse(row.Enrollment2025 ?? row['Enrollment2025'] ?? row.Enrollment ?? row['Enrollment']) ?? 0;
   } else {
     const pk = parse(row.PKEnrollment ?? row['PKEnrollment']) ?? 0;
-    const total = parse(row.Enrollment ?? row['Enrollment']) ?? 0;
+    const total = parse(row.Enrollment2025 ?? row['Enrollment2025'] ?? row.Enrollment ?? row['Enrollment']) ?? 0;
     current = Math.max(0, total - pk);
   }
   const projected = window.getEffectiveProjectedEnrollment(row);
@@ -234,12 +234,11 @@ const FCI_STATUS_COLORS = {
   deficient: '#dc2626',
   nodata: '#16a34a'
 };
-// Historic bond spending + enrollment growth by articulation (Map_Export Articulation)
+// Historic bond spending by articulation; enrollment growth is computed client-side from Decision + Map_Export
 const BOND_SPENDING_CSV_PATH = 'HistoricArticulationData.csv';
 /** Sentinel for GeoJSON: no enrollment growth value from CSV */
 const ENROLLMENT_GROWTH_NODATA = -999;
 // EA classroom condition
-const EA_CLASSROOMS_CSV_PATH = 'EAClassrooms.csv';
 const EA_CONDITION_COLORS = {
   poor: '#dc2626',
   fair: '#f59e0b',
@@ -256,7 +255,7 @@ const BUILDING_CONDITION_COLORS = {
 };
 let articulationAreasGeojson4326 = null;
 let articulationAreasLoaded = false;
-// articulation name -> { totalSpending, pctOfTotal, enrollmentGrowthPct? } from HistoricArticulationData.csv
+// articulation name -> { totalSpending, pctOfTotal, enrollmentGrowthPct? } (growth computed after Decision + Map_Export load)
 let bondSpendingByArticulation = new Map();
 
 function getBondSpendingEntryByName(name) {
@@ -501,6 +500,147 @@ function parseCountLoose(v) {
   const n = parseNumberLoose(v);
   if (!Number.isFinite(n)) return null;
   return Math.round(n);
+}
+
+/** CDE suffixes for ORIGINAL_122 — keep in sync with school-profile.js */
+const ARTICULATION_GROWTH_ORIGINAL_122_SUFFIXES = new Set([
+  '0030', '0033', '0108', '0370', '0378', '0660', '0664', '0694', '0724', '0779',
+  '0950', '0951', '0952', '0965', '1001', '1244', '1318', '1522', '1861', '1864',
+  '1876', '1886', '1976', '2093', '2120', '2130', '2194', '2288', '2300', '2322',
+  '2496', '2550', '2616', '2820', '2832', '2836', '2866', '2963', '3025', '3088',
+  '3201', '3216', '3502', '3536', '3622', '3628', '3726', '4190', '4422', '4548',
+  '4549', '4550', '4798', '4830', '4942', '5004', '5024', '5036', '5222', '5350',
+  '5354', '5454', '5472', '5524', '5580', '5623', '5758', '5892', '5944', '6133',
+  '6135', '6285', '6286', '6330', '6470', '6539', '6804', '6808', '6848', '7114',
+  '7128', '7190', '7238', '7239', '7282', '7468', '7483', '7529', '7708', '7753',
+  '7780', '7833', '7870', '7962', '8036', '8090', '8102', '8209', '8223', '8276',
+  '8280', '8300', '8381', '8432', '8856', '9008', '9052', '9058', '9232', '9234',
+  '9245', '9299', '9328', '9342', '9412', '9424', '9428', '9429', '9432', '9490',
+  '9510', '9648'
+]);
+
+/** Closed sites included in articulation rollups — keep in sync with scripts/compute-articulation-enrollment-growth.mjs */
+const ARTICULATION_GROWTH_CLOSED_UIDS = new Set([
+  'CO-1420-5972', 'CO-1420-9154', 'CO-1420-4802', 'CO-1420-6806', 'CO-1420-1790',
+  'CO-1420-6828', 'CO-1420-4478', 'CO-1420-2946', 'CO-1420-3624', 'CO-1420-9678',
+  'CO-1420-9638', 'CO-1420-0776', 'CO-1420-0109', 'CO-1420-3450', 'CO-1420-0148',
+  'CO-1420-6844', 'CO-1420-8248', 'CO-1420-6090', 'CO-1420-8834'
+]);
+
+function getUidSuffixFor122(uid) {
+  const parts = String(uid || '').split('-');
+  return (parts[parts.length - 1] || '').toString().trim();
+}
+
+function uidInArticulationGrowthUniverse(uid) {
+  const u = String(uid || '').trim();
+  if (ARTICULATION_GROWTH_CLOSED_UIDS.has(u)) return true;
+  return ARTICULATION_GROWTH_ORIGINAL_122_SUFFIXES.has(getUidSuffixFor122(u));
+}
+
+function parseGrowthFractionArticulation(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s || /^#n\/a$/i.test(s)) return null;
+  if (s === '-1') return null;
+  const n = Number(String(s).replace(/,/g, ''));
+  return Number.isFinite(n) ? n : null;
+}
+
+function deriveArticulationE15FromPct(e25, pctRaw) {
+  const r = parseGrowthFractionArticulation(pctRaw);
+  if (r == null) return null;
+  const d = 1 + r;
+  if (Math.abs(d) < 1e-12) return null;
+  const v = e25 / d;
+  return Number.isFinite(v) ? Math.max(0, v) : null;
+}
+
+function getArticulationE15E25ForRow(row, has2015col) {
+  const e25Raw = parseNumberLoose(row.Enrollment2025 ?? row['Enrollment2025'] ?? row.Enrollment ?? row['Enrollment']);
+  const e25 = Math.max(0, e25Raw ?? 0);
+  if (has2015col) {
+    const e15v = parseNumberLoose(row.Enrollment2015 ?? row['Enrollment2015']);
+    const e15 = e15v != null && Number.isFinite(e15v) ? Math.max(0, e15v) : 0;
+    return { e15, e25 };
+  }
+  const e15 = deriveArticulationE15FromPct(e25, row['10 Year Percent Change 2015-2025']) ?? 0;
+  return { e15, e25 };
+}
+
+function buildUidToArticulationFromMapExport(mapRows) {
+  const m = new Map();
+  (mapRows || []).forEach((r) => {
+    const code = String(r['Building Code'] ?? '').trim();
+    const art = String(r.Articulation ?? '').trim();
+    if (code) m.set(code, art);
+  });
+  return m;
+}
+
+function computeArticulationEnrollmentGrowthByArea(decisionRows, mapRows) {
+  const sample = Array.isArray(decisionRows) && decisionRows[0] ? decisionRows[0] : null;
+  const has2015 = !!(sample && Object.prototype.hasOwnProperty.call(sample, 'Enrollment2015'));
+  const uidToArt = buildUidToArticulationFromMapExport(mapRows);
+  const byArea = new Map();
+  let d15 = 0;
+  let d25 = 0;
+  (decisionRows || []).forEach((row) => {
+    const uid = String(row['UniqueID'] ?? row.UniqueID ?? '').trim();
+    if (!uidInArticulationGrowthUniverse(uid)) return;
+    const { e15, e25 } = getArticulationE15E25ForRow(row, has2015);
+    d15 += e15;
+    d25 += e25;
+    const rawArt = uidToArt.get(uid) || '';
+    const ak = normalizeArticulationAreaKey(rawArt);
+    if (ak && ak !== 'noarticulationarea' && ak !== 'n/a') {
+      const label = rawArt.trim();
+      if (!byArea.has(label)) byArea.set(label, { s15: 0, s25: 0 });
+      const b = byArea.get(label);
+      b.s15 += e15;
+      b.s25 += e25;
+    }
+  });
+  const growthPct = (s15, s25) => {
+    if (!(s15 > 0)) return null;
+    return ((s25 - s15) / s15) * 100;
+  };
+  const areaPctByKey = new Map();
+  byArea.forEach((v, label) => {
+    const nk = normalizeArticulationAreaKey(label);
+    const g = growthPct(v.s15, v.s25);
+    if (Number.isFinite(g)) areaPctByKey.set(nk, g);
+  });
+  return { areaPctByKey, districtPct: growthPct(d15, d25) };
+}
+
+function mergeComputedArticulationEnrollmentGrowth(decisionRows, mapExportRows) {
+  try {
+    const { areaPctByKey, districtPct } = computeArticulationEnrollmentGrowthByArea(decisionRows, mapExportRows);
+    bondSpendingByArticulation.forEach((entry, name) => {
+      const nk = normalizeArticulationAreaKey(name);
+      if (nk === 'districtwide') {
+        entry.enrollmentGrowthPct = Number.isFinite(districtPct) ? districtPct : null;
+      } else {
+        const v = areaPctByKey.get(nk);
+        entry.enrollmentGrowthPct = Number.isFinite(v) ? v : null;
+      }
+    });
+  } catch (e) {
+    console.warn('⚠️ Failed to compute articulation enrollment growth:', e);
+  }
+}
+
+function refreshArticulationGeojsonBondEnrollmentProps() {
+  if (!articulationAreasGeojson4326 || !articulationAreasGeojson4326.features) return;
+  try {
+    ensureBondDataInArticulationGeoJSON(articulationAreasGeojson4326);
+    const m = window.map;
+    if (m && m.getSource && m.getSource('articulation-areas')) {
+      m.getSource('articulation-areas').setData(articulationAreasGeojson4326);
+    }
+  } catch (e) {
+    console.warn('⚠️ Failed to refresh articulation enrollment overlay:', e);
+  }
 }
 
 // Reusable percentile/quantile helper (client-side)
@@ -946,8 +1086,21 @@ function buildEaModel(rows) {
   const countsByName = new Map();
   const scores = [];
   (rows || []).forEach((r) => {
-    const id = normalizeId(r?.["School Code"] ?? r?.["SchoolCode"] ?? r?.SchoolCode);
-    const nameRaw = r?.EASchoolName ?? r?.["School Name"] ?? r?.SchoolName ?? '';
+    const id = normalizeId(
+      r?.UniqueID ??
+      r?.["UniqueID"] ??
+      r?.["Unique Id"] ??
+      r?.["School Code"] ??
+      r?.["SchoolCode"] ??
+      r?.SchoolCode
+    );
+    const nameRaw =
+      r?.EASchoolName ??
+      r?.["School Name"] ??
+      r?.SchoolName ??
+      r?.["Building Name"] ??
+      r?.BuildingName ??
+      "";
     const nameVariants = buildNameVariants(nameRaw);
     const score = getEaRowValue(r);
     if (!Number.isFinite(score)) return;
@@ -1501,9 +1654,7 @@ function rebuildMapLabelLayerIndex() {
       src === 'schools' ||
       src === 'selected-school' ||
       layerIdLower.startsWith('schools-') ||
-      layerIdLower.startsWith('selected-school-') ||
-      layerIdLower.includes('sending-school') ||
-      layerIdLower.includes('receiving-school')
+      layerIdLower.startsWith('selected-school-')
     ) {
       return null;
     }
@@ -1702,39 +1853,6 @@ function applyMapStyle(styleId) {
   }
 }
 
-// --- Halo animation (Sending School) ----------------------------------------
-let haloInterval = null;
-let haloRadius = 15;
-let haloGrowing = true;
-
-function startBlinkingHalo() {
-  if (haloInterval) clearInterval(haloInterval);
-  haloRadius = 15;
-  haloGrowing = true;
-  haloInterval = setInterval(() => {
-    if (!map || !map.getLayer || !map.getLayer('sending-school-halo')) return;
-    map.setPaintProperty('sending-school-halo', 'circle-radius', haloRadius);
-    map.setPaintProperty('sending-school-halo', 'circle-opacity', 0.5 + 0.5 * Math.sin(Date.now() / 300));
-    if (haloGrowing) {
-      haloRadius += 1;
-      if (haloRadius >= 30) haloGrowing = false;
-    } else {
-      haloRadius -= 1;
-      if (haloRadius <= 15) haloGrowing = true;
-    }
-  }, 50);
-}
-
-function stopBlinkingHalo() {
-  if (haloInterval) {
-    clearInterval(haloInterval);
-    haloInterval = null;
-  }
-  if (map && map.getLayer && map.getLayer('sending-school-halo')) {
-    map.setPaintProperty('sending-school-halo', 'circle-opacity', 0);
-  }
-}
-
 // Application initialization
 document.addEventListener('DOMContentLoaded', function() {
   // Tour now starts after password authentication (see index.html password overlay)
@@ -1756,7 +1874,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const closeLeftPanelBtn = document.getElementById('closeLeftPanelBtn');
     const closeRightPanelBtn = document.getElementById('closeRightPanelBtn');
     const startTourBtn = document.getElementById('menuStartTour');
-    const closureScenariosBtn = document.getElementById('menuClosureScenarios');
     const dataLogicBtn = document.getElementById('menuDataLogic');
     const schoolProjectListBtn = document.getElementById('menuSchoolProjectList');
     const rightSidebar = document.getElementById('map-sidebar');
@@ -1978,12 +2095,6 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (startBtn) {
           startBtn.click();
         }
-      });
-    }
-    if (closureScenariosBtn) {
-      closureScenariosBtn.addEventListener('click', () => {
-        hideMenu();
-        window.open('closure-scenarios.html', '_blank');
       });
     }
     if (dataLogicBtn) {
@@ -2423,10 +2534,6 @@ window.geojsonData = null; // Will be set when geojson is loaded
 let geojsonData;
 let originalGeojsonData; // Keep a copy of the original unfiltered data
 // (cleanup) Removed unused state placeholders (initialDecisionData, mapIsReady).
-let selectedEnrollment = 0;
-// Student roster used for Model Simulation (OD_Students.csv)
-let odStudentsBySchoolName = new Map(); // normalized Attend School Name -> Array<{ studentId, currentSchoolName, lng, lat }>
-let odStudentsLoadPromise = null;
 let selectedTypes = [];
 let minEnrollment = 0;
 let maxEnrollment = 2000;
@@ -2447,57 +2554,6 @@ let decisionAllRows = []; // Full Decision Data Export.csv rows (includes exclud
 let decisionAllByName = new Map(); // normalized name -> row
 let decisionAllById = new Map();   // normalized UniqueID -> row
 let articulationSchoolsByArea = new Map(); // area name -> array of school names
-
-function ensureOdStudentsLoaded() {
-  if (odStudentsLoadPromise) return odStudentsLoadPromise;
-  odStudentsLoadPromise = new Promise((resolve) => {
-    try {
-      Papa.parse(withCacheBust("OD_Students.csv"), {
-        download: true,
-        header: true,
-        delimiter: ",",
-        skipEmptyLines: true,
-        complete: function (results) {
-          try {
-            odStudentsBySchoolName = new Map();
-            const rows = (results && results.data) ? results.data : [];
-            rows.forEach((r) => {
-              const schoolName = normalize(r["Attend School Name"] || r.AttendSchoolName || "");
-              const studentId = (r.OBJECTID != null && String(r.OBJECTID).trim() !== "") ? String(r.OBJECTID).trim() : String(r.StudentID || "").trim();
-              const lng = parseFloat((r.Longitude || "").toString().trim());
-              const lat = parseFloat((r.Latitude || "").toString().trim());
-              if (!schoolName || !studentId) return;
-              if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
-              if (!odStudentsBySchoolName.has(schoolName)) odStudentsBySchoolName.set(schoolName, []);
-              odStudentsBySchoolName.get(schoolName).push({
-                studentId,
-                currentSchoolName: r["Attend School Name"] || r.AttendSchoolName || "",
-                lng,
-                lat
-              });
-            });
-            console.log("✅ OD_Students loaded. Schools:", odStudentsBySchoolName.size, "Students:", rows.length);
-          } catch (e) {
-            console.error("❌ Failed to index OD_Students.csv:", e);
-            odStudentsBySchoolName = new Map();
-          } finally {
-            resolve();
-          }
-        },
-        error: function (err) {
-          console.error("❌ Failed to load OD_Students.csv:", err);
-          odStudentsBySchoolName = new Map();
-          resolve();
-        }
-      });
-    } catch (e) {
-      console.error("❌ Failed to start OD_Students load:", e);
-      odStudentsBySchoolName = new Map();
-      resolve();
-    }
-  });
-  return odStudentsLoadPromise;
-}
 
 // Normalize school level strings from data to our filter values
 function normalizeSchoolLevel(level) {
@@ -3108,56 +3164,6 @@ function ensureBaseSourcesLayers() {
     });
   }
 
-  // Assigned schools source/layer (for assignments)
-  if (!m.getSource('assigned-schools')) {
-    m.addSource('assigned-schools', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-  }
-  if (!m.getLayer('assigned-schools-layer')) {
-    m.addLayer({
-      id: 'assigned-schools-layer',
-      type: 'circle',
-      source: 'assigned-schools',
-      paint: {
-        'circle-radius': ['interpolate', ['linear'], ['get', 'assigned'], 0, 4, 10, 8, 50, 16, 100, 24],
-        'circle-color': '#FF530D',
-        'circle-opacity': 0.8,
-        'circle-stroke-color': '#333',
-        'circle-stroke-width': 1
-      }
-    });
-  }
-
-  // Sending school halo source/layer
-  if (!m.getSource('sending-school')) {
-    m.addSource('sending-school', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-  }
-  if (!m.getLayer('sending-school-halo')) {
-    m.addLayer({
-      id: 'sending-school-halo',
-      type: 'circle',
-      source: 'sending-school',
-      paint: {
-        'circle-radius': 15,
-        'circle-color': '#FFD700',
-        'circle-opacity': 0.8,
-        'circle-blur': 0.6
-      }
-    });
-  }
-
-  // Isochrone source/layer (leave empty unless computed)
-  if (!m.getSource('isochrone')) {
-    m.addSource('isochrone', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-  }
-  if (!m.getLayer('isochrone-layer')) {
-    m.addLayer({
-      id: 'isochrone-layer',
-      type: 'fill',
-      source: 'isochrone',
-      paint: { 'fill-color': '#1E90FF', 'fill-opacity': 0.3 }
-    });
-  }
-
   // Reapply current filters after ensuring sources/layers exist
   try {
     updateLayer();
@@ -3693,7 +3699,6 @@ function normalize(str) {
 
 // ✅ Move updateLegend function outside map.on('load') for global access
 // Always showing decisions view (toggle buttons removed)
-const showingAssignments = false;
 let flowCheckboxStates = {
   'flow-expansion': true,
   'flow-maintenance': true,
@@ -3722,9 +3727,7 @@ function updateLegend() {
   // Update the toggle label to reflect current mode (Decision Types Legend vs Assignment View)
   if (legendToggle) {
     const baseLabel =
-      showingAssignments
-        ? 'Assignment View'
-        : (colorMode === 'building')
+      (colorMode === 'building')
         ? 'Building Score Legend'
           : (colorMode === 'classroom')
             ? 'Classroom Condition Legend'
@@ -3760,10 +3763,6 @@ function updateLegend() {
       "Welcoming School with Building Replacement": '#15803d',
       "Closure (Goes to Welcoming School)": '#E8A0A0'  // Light red (soft)
     }
-  };
-
-  const assignmentLegend = {
-    "Assigned Students": '#FF530D'
   };
 
   // Title is now handled by the legend toggle header; no separate title inside content
@@ -3810,28 +3809,7 @@ function updateLegend() {
     });
   };
 
-  if (showingAssignments) {
-    for (const [label, color] of Object.entries(assignmentLegend)) {
-      const row = document.createElement('div');
-      row.className = 'legend-row';
-      row.style.cssText = 'margin-bottom: 1px; padding: 0; display: flex; align-items: center;';
-      
-      // Create color swatch
-      const swatch = document.createElement('span');
-      swatch.className = 'legend-swatch';
-      swatch.style.cssText = `background:${color}; width: 12px; height: 12px; border-radius: 2px; margin-right: 4px; border: 1px solid #ccc; display: inline-block;`;
-      
-      // Create label text
-      const labelText = document.createElement('span');
-      labelText.textContent = label;
-      labelText.style.cssText = 'font-size: 13px; color: #555;';
-      
-      row.appendChild(swatch);
-      row.appendChild(labelText);
-      legendContent.appendChild(row);
-    }
-  } else {
-    if (colorMode === 'building') {
+  if (colorMode === 'building') {
       const hdr = document.createElement('div');
       hdr.textContent = 'Building Score';
       hdr.style.cssText = 'font-weight:900; margin: 4px 0 6px 0; color:#111827;';
@@ -4056,81 +4034,6 @@ function updateLegend() {
       }
     }
 
-  }
-}
-
-// ✅ Global popup for assignment circles
-let assignmentPopup = null;
-
-function setupAssignmentPopup() {
-  console.log("🔧 Setting up assignment popup...");
-  
-  // Check if the layer exists
-  if (!map.getLayer('assigned-schools-layer')) {
-    console.error("❌ assigned-schools-layer does not exist!");
-    return;
-  }
-  
-  // Check layer visibility
-  const layerVisibility = map.getLayoutProperty('assigned-schools-layer', 'visibility');
-  console.log("👁️ Layer visibility:", layerVisibility);
-  
-  // Check if source exists and has data
-  const source = map.getSource('assigned-schools');
-  if (source) {
-    console.log("📊 Source exists, current data:", source._data);
-    console.log("📊 Number of features in source:", source._data?.features?.length || 0);
-  } else {
-    console.error("❌ assigned-schools source does not exist!");
-  }
-  
-  if (!assignmentPopup) {
-    assignmentPopup = new mapboxgl.Popup({
-      closeButton: false,
-      closeOnClick: false
-    });
-    console.log("✅ Created new assignment popup");
-  }
-  
-  // Remove existing listeners to avoid duplicates
-  map.off('mouseenter', 'assigned-schools-layer');
-  map.off('mouseleave', 'assigned-schools-layer');
-  
-  console.log("🎯 Adding mouse event listeners to assigned-schools-layer...");
-  
-  // Add popup for assigned-schools layer
-  map.on('mouseenter', 'assigned-schools-layer', (e) => {
-    console.log("🖱️ Mouse entered assigned-schools layer!");
-    console.log("🖱️ Event features:", e.features);
-    console.log("🖱️ First feature properties:", e.features[0]?.properties);
-    
-    if (e.features && e.features.length > 0) {
-      map.getCanvas().style.cursor = 'pointer';
-      const coordinates = e.features[0].geometry.coordinates.slice();
-      const schoolName = e.features[0].properties.name;
-      const assignedCount = e.features[0].properties.assigned;
-      
-      console.log("🏫 School:", schoolName, "Assigned:", assignedCount);
-      
-      const popupContent = `
-        <strong>${schoolName}</strong><br>
-        <span style="color: #FF530D; font-weight: bold;">📚 Received ${assignedCount} students</span>
-      `;
-      
-      assignmentPopup.setLngLat(coordinates).setHTML(popupContent).addTo(map);
-      console.log("✅ Popup added for:", schoolName);
-    } else {
-      console.warn("⚠️ No features found in mouseenter event");
-    }
-  });
-
-  map.on('mouseleave', 'assigned-schools-layer', () => {
-    console.log("🖱️ Mouse left assigned-schools layer");
-    map.getCanvas().style.cursor = '';
-    assignmentPopup.remove();
-  });
-  
-  console.log("✅ Assignment popup setup complete");
 }
 
 map.on('load', () => {
@@ -4160,19 +4063,6 @@ map.on('load', () => {
     }))
     .catch(err => {
       console.warn("⚠️ Failed to load full Decision Data Export.csv:", err);
-      return [];
-    });
-  const eaPromise = fetch(withCacheBust(EA_CLASSROOMS_CSV_PATH))
-    .then(res => res.text())
-    .then(text => new Promise(resolve => {
-      Papa.parse(text, {
-        header: true,
-        skipEmptyLines: true,
-        complete: results => resolve(results.data || [])
-      });
-    }))
-    .catch(err => {
-      console.warn("⚠️ Failed to load EAClassrooms.csv:", err);
       return [];
     });
   const fciPromise = fetch(withCacheBust(FCI_DEFICIENCY_CSV_PATH))
@@ -4226,12 +4116,38 @@ map.on('load', () => {
       });
       schoolDistancesByOrigin = grouped;
       window.schoolDistancesByOrigin = grouped;
+      // Mirror school-to-school rows in the shape legacy map code expected from OD_Draft (nearby highlight).
+      const rowsByOrigin = {};
+      const minByOrigin = {};
+      Object.keys(grouped).forEach((originKey) => {
+        (grouped[originKey] || []).forEach((r) => {
+          const d = r.distanceMiles;
+          if (!Number.isFinite(d)) return;
+          if (!rowsByOrigin[originKey]) rowsByOrigin[originKey] = [];
+          rowsByOrigin[originKey].push({
+            "Network Distance (Miles)": d,
+            NetworkDistanceMiles: d,
+            "Destination CDE Prefix": r.destId,
+            DestinationCDEPrefix: r.destId,
+            "Destination Facility Name": r.destName,
+            "Destination Grades": r.destGrades
+          });
+          if (minByOrigin[originKey] === undefined || d < minByOrigin[originKey]) minByOrigin[originKey] = d;
+        });
+      });
+      window.distanceToWelcomingRowsByOrigin = rowsByOrigin;
+      window.distanceToWelcomingMap = minByOrigin;
+      if (!window.distanceToWelcomingMapByName || typeof window.distanceToWelcomingMapByName !== "object") {
+        window.distanceToWelcomingMapByName = {};
+      }
       console.log("📏 Loaded school-to-school distances for origins:", Object.keys(grouped).length);
     })
     .catch(err => {
       console.warn("⚠️ Failed to load SchooltoSchoolDistances.csv:", err);
       schoolDistancesByOrigin = {};
       window.schoolDistancesByOrigin = {};
+      window.distanceToWelcomingRowsByOrigin = {};
+      window.distanceToWelcomingMap = {};
     });
 
   const mapExportPromise = fetch(withCacheBust('Map_Export.csv'))
@@ -4268,10 +4184,7 @@ map.on('load', () => {
         if (!name) return;
         const spending = parseNumberLoose(r.TotalSpending) || 0;
         const pct = total > 0 ? (spending / total) * 100 : 0;
-        const egRaw = r.EnrollmentGrowth ?? r['Enrollment growth'] ?? r.enrollmentgrowth ?? '';
-        const eg = parseNumberLoose(egRaw);
-        const enrollmentGrowthPct = Number.isFinite(eg) ? eg : null;
-        bondSpendingByArticulation.set(name, { totalSpending: spending, pctOfTotal: pct, enrollmentGrowthPct });
+        bondSpendingByArticulation.set(name, { totalSpending: spending, pctOfTotal: pct, enrollmentGrowthPct: null });
       });
       return bondSpendingByArticulation;
     })
@@ -4281,8 +4194,8 @@ map.on('load', () => {
       return bondSpendingByArticulation;
     });
 
-  Promise.all([geojsonPromise, decisionDataPromise, decisionAllPromise, eaPromise, fciPromise, distancesPromise, mapExportPromise, bondSpendingPromise])
-    .then(([geojson, decisionData, decisionAll, eaRowsData, fciRowsData, _distances, mapExportRows, _bondSpending]) => {
+  Promise.all([geojsonPromise, decisionDataPromise, decisionAllPromise, fciPromise, distancesPromise, mapExportPromise, bondSpendingPromise])
+    .then(([geojson, decisionData, decisionAll, fciRowsData, _distances, mapExportRows, _bondSpending]) => {
       void _distances; void _bondSpending; // preloaded for side-effects; bondSpendingByArticulation populated
       console.log("✅ GeoJSON, Decision Data, full Decision export, and Map Export are loaded.");
 
@@ -4316,6 +4229,9 @@ map.on('load', () => {
       window.decisionAllById = decisionAllById;
       window.decisionAllByName = decisionAllByName;
 
+      mergeComputedArticulationEnrollmentGrowth(decisionAllRows, mapExportRowsData);
+      try { refreshArticulationGeojsonBondEnrollmentProps(); } catch (_) {}
+
       // Build building condition model (BuildingScore from Decision Data Export)
       try {
         const bModel = buildBuildingConditionModel(decisionAllRows);
@@ -4329,7 +4245,7 @@ map.on('load', () => {
 
       // Build EA classroom condition model
       try {
-        const eaModel = buildEaModel(eaRowsData);
+        const eaModel = buildEaModel(decisionAllRows);
         eaScoresById = eaModel.byId;
         eaClassroomCountsById = eaModel.countsById || new Map();
         eaScoresByName = eaModel.byName || new Map();
@@ -5959,16 +5875,6 @@ map.on('load', () => {
           }
         }
 
-        if (showingAssignments) {
-          const assignedSource = map.getSource('assigned-schools');
-          if (assignedSource && assignedSource._data?.features) {
-            const assignedFeature = assignedSource._data.features.find(f => f.properties.name === schoolName);
-            if (assignedFeature) {
-              html += `<br><span style="color: #FF530D; font-weight: bold;">📚 Received ${assignedFeature.properties.assigned} students</span>`;
-            }
-          }
-        }
-
         return html;
       }
 
@@ -6074,26 +5980,6 @@ map.on('load', () => {
       map.on('mouseleave', 'schools-pie-layer', () => {
         map.getCanvas().style.cursor = '';
       });
-
-      map.addSource('assigned-schools', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] }
-      });
-      
-      map.addLayer({
-        id: 'assigned-schools-layer',
-        type: 'circle',
-        source: 'assigned-schools',
-        paint: {
-          'circle-radius': ['interpolate', ['linear'], ['get', 'assigned'], 0, 4, 10, 8, 50, 16, 100, 24],
-          'circle-color': '#FF530D',
-          'circle-opacity': 0.8,
-          'circle-stroke-color': '#333',
-          'circle-stroke-width': 1
-        }
-      });
-      
-      setupAssignmentPopup();
 
       // Define helper so dropdowns and the flowchart "Show on map" button can
       // highlight the selected origin school and zoom the map to it.
@@ -6217,14 +6103,27 @@ map.on('load', () => {
           }
           return;
         }
-        if (!originUniqueId || !window.map || !window.geojsonData || !window.distanceToWelcomingRowsByOrigin || !window.decisionLogic) {
+        if (!originUniqueId || !window.map || !window.geojsonData || !window.decisionLogic) {
           return;
         }
         
         const originKey = (originUniqueId.toString().trim() || "").toLowerCase();
-        const rowsByOrigin = window.distanceToWelcomingRowsByOrigin || {};
-        const candidatesRaw = rowsByOrigin[originKey];
-        if (!Array.isArray(candidatesRaw)) {
+        const schoolRows = window.schoolDistancesByOrigin && window.schoolDistancesByOrigin[originKey];
+        const legacyRows = window.distanceToWelcomingRowsByOrigin && window.distanceToWelcomingRowsByOrigin[originKey];
+        const candidatesRaw =
+          Array.isArray(schoolRows) && schoolRows.length
+            ? schoolRows.map((r) => ({
+                "Network Distance (Miles)": r.distanceMiles,
+                NetworkDistanceMiles: r.distanceMiles,
+                "Destination CDE Prefix": r.destId,
+                DestinationCDEPrefix: r.destId,
+                "Destination Facility Name": r.destName,
+                "Destination Grades": r.destGrades
+              }))
+            : Array.isArray(legacyRows) && legacyRows.length
+              ? legacyRows
+              : null;
+        if (!candidatesRaw || !candidatesRaw.length) {
           if (window.map.getLayer('nearby-destinations-layer')) {
             window.map.setFilter('nearby-destinations-layer', ['in', ['get', 'UniqueID'], ['literal', []]]);
           }
@@ -6277,105 +6176,6 @@ map.on('load', () => {
         }
       };
 
-      // Populate excludedSchools select with all school names
-      const excludedSchoolsSelect = document.getElementById('excludedSchools');
-      if (excludedSchoolsSelect) {
-        excludedSchoolsSelect.innerHTML = '';
-        // Group schools by type
-        const groups = {
-          'Elementary and K-8 Schools': [],
-          'High Schools': [],
-          'Other Schools': []
-        };
-        geojsonData.features.forEach(f => {
-          const name = f.properties['Building Name'];
-          const type = f.properties['School Level'];
-          if (type === 'High School') {
-            groups['High Schools'].push(name);
-          } else if (groups[type]) {
-            groups[type].push(name);
-          } else {
-            groups['Other Schools'].push(name);
-          }
-        });
-        // Helper to create optgroup with select-all
-        function addGroup(label, schools) {
-          if (!schools.length) return;
-          const group = document.createElement('optgroup');
-          group.label = label;
-          // Add select-all option
-          const selectAllOption = document.createElement('option');
-          selectAllOption.value = '__select_all_' + label.replace(/\s/g, '_');
-          selectAllOption.textContent = 'Select All ' + label;
-          group.appendChild(selectAllOption);
-          schools.forEach(name => {
-            const option = document.createElement('option');
-            option.value = name;
-            if (label === 'Other Schools') {
-              // Find the type for this school
-              const feature = geojsonData.features.find(f => f.properties['Building Name'] === name);
-              const type = feature && feature.properties['School Level'] ? feature.properties['School Level'] : 'Unknown';
-              option.textContent = `${name} (${type})`;
-            } else {
-              option.textContent = name;
-            }
-            group.appendChild(option);
-          });
-          excludedSchoolsSelect.appendChild(group);
-        }
-        addGroup('Elementary and K-8 Schools', groups['Elementary and K-8 Schools']);
-        addGroup('High Schools', groups['High Schools']);
-        addGroup('Other Schools', groups['Other Schools']);
-        // Choices.js setup
-        if (window.Choices) {
-          if (excludedSchoolsSelect.choicesInstance) {
-            excludedSchoolsSelect.choicesInstance.destroy();
-          }
-          excludedSchoolsSelect.choicesInstance = new Choices(excludedSchoolsSelect, {
-            removeItemButton: true,
-            searchResultLimit: 20,
-            placeholder: true,
-            placeholderValue: 'Select schools to exclude',
-            shouldSort: false
-          });
-          // Add event listener for select-all
-          excludedSchoolsSelect.addEventListener('change', function() {
-            const selected = Array.from(excludedSchoolsSelect.selectedOptions).map(opt => opt.value);
-            // Handle select-all for each group
-            ['Elementary and K-8 Schools', 'High Schools', 'Other Schools'].forEach(label => {
-              const selectAllValue = '__select_all_' + label.replace(/\s/g, '_');
-              if (selected.includes(selectAllValue)) {
-                // Select all schools in this group
-                const group = Array.from(excludedSchoolsSelect.querySelectorAll('optgroup[label="' + label + '"] option'))
-                  .filter(opt => !opt.value.startsWith('__select_all_'));
-                group.forEach(opt => opt.selected = true);
-                // Deselect the select-all option
-                excludedSchoolsSelect.querySelector('option[value="' + selectAllValue + '"]').selected = false;
-                // Update Choices.js UI
-                excludedSchoolsSelect.choicesInstance.setChoiceByValue(group.map(opt => opt.value));
-              }
-            });
-          });
-        }
-      }
-
-      // --- Blinking Halo for Sending School ---
-      // Add the sending-school-halo layer on map load
-      map.addSource('sending-school', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] }
-      });
-      map.addLayer({
-        id: 'sending-school-halo',
-        type: 'circle',
-        source: 'sending-school',
-        paint: {
-          'circle-radius': 15,
-          'circle-color': '#FFD700',
-          'circle-opacity': 0.8,
-          'circle-blur': 0.6
-        }
-      });
     })
     .catch(error => {
       console.error("❌ Failed to load initial map data:", error);
@@ -6713,7 +6513,7 @@ map.on('load', () => {
     }
 
     const enrollValues = data
-      .map(r => parseFloat(r.Enrollment || r["Enrollment"] || r[" Total Enrollment"] || r["Total Enrollment"] || 0))
+      .map(r => parseFloat(r.Enrollment2025 || r["Enrollment2025"] || r.Enrollment || r["Enrollment"] || r[" Total Enrollment"] || r["Total Enrollment"] || 0))
       .filter(v => Number.isFinite(v) && v > 0);
     if (!enrollValues.length) {
       return;
@@ -7313,14 +7113,6 @@ map.on('load', () => {
     if (typeof window.applyMapColorByMode === 'function') window.applyMapColorByMode();
   } catch (e) {}
 
-  if (map.getLayer('assigned-schools-layer')) {
-    map.setLayoutProperty(
-      'assigned-schools-layer',
-      'visibility',
-      'none'
-    );
-  }
-
   updateLegend();
   // Initialize decisions view if available
   if (typeof window.showDecisionsView === 'function') {
@@ -7769,10 +7561,10 @@ function injectDecisionsIntoGeoJSON(geojson, decisions, options = {}) {
   const decisionMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), row["decision"] || "Unknown"]));
   const buildingQualityMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), num(row["BuildingScore"] ?? row["Building Score"])]));
   // Add a map for Utilization
-  const getEff = window.getEffectiveEnrollment || (r => num(r["Enrollment"] ?? r[" Total Enrollment"] ?? r["Total Enrollment"]));
+  const getEff = window.getEffectiveEnrollment || (r => num(r["Enrollment2025"] ?? r["Enrollment"] ?? r[" Total Enrollment"] ?? r["Total Enrollment"]));
   const getEffUtil = window.getEffectiveUtilization || ((r) => {
     const c = (window.getEffectiveCapacity && window.getEffectiveCapacity(r)) ?? num(r.Capacity);
-    const e = (window.getEffectiveEnrollment && window.getEffectiveEnrollment(r)) ?? num(r.Enrollment);
+    const e = (window.getEffectiveEnrollment && window.getEffectiveEnrollment(r)) ?? num(r.Enrollment2025 ?? r.Enrollment);
     return (c > 0 && Number.isFinite(e)) ? e / c : null;
   });
   const utilizationMap = new Map(decisions.map(row => [normalizeName(row["Building Name"]), getEffUtil(row)]));
@@ -7792,7 +7584,7 @@ function injectDecisionsIntoGeoJSON(geojson, decisions, options = {}) {
   ]));
   const totalEnrollmentMap = new Map(decisions.map(row => [
     normalizeName(row["Building Name"]),
-    num(row["Enrollment"] ?? row[" Total Enrollment"] ?? row["Total Enrollment"])
+    num(row["Enrollment2025"] ?? row["Enrollment"] ?? row[" Total Enrollment"] ?? row["Total Enrollment"])
   ]));
   const pkEnrollmentMap = new Map(decisions.map(row => [
     normalizeName(row["Building Name"]),
@@ -8046,42 +7838,8 @@ function initializeDropdownFilters(schoolData) {
   };
 }
 
-// ✅ Move slider setup inside DOMContentLoaded to ensure elements are loaded
+// Strategic sorting: sync #schoolSelect with the map "selected-school" highlight (legacy assignment / isochrone UI removed).
 document.addEventListener('DOMContentLoaded', function() {
-  // ✅ Set up slider event listeners
-  const distanceWeightSlider = document.getElementById('distanceWeightSlider');
-  const distanceWeightLabel = document.getElementById('distanceWeightLabel');
-  const enrollmentWeightSlider = document.getElementById('enrollmentWeightSlider');
-  const enrollmentWeightLabel = document.getElementById('enrollmentWeightLabel');
-  const buildingWeightSlider = document.getElementById('buildingWeightSlider');
-  const buildingWeightLabel = document.getElementById('buildingWeightLabel');
-
-  if (distanceWeightSlider && distanceWeightLabel) {
-    distanceWeightSlider.addEventListener('input', () => {
-      distanceWeightLabel.textContent = distanceWeightSlider.value;
-    });
-  }
-  if (enrollmentWeightSlider && enrollmentWeightLabel) {
-    enrollmentWeightSlider.addEventListener('input', () => {
-      enrollmentWeightLabel.textContent = enrollmentWeightSlider.value;
-    });
-  }
-  if (buildingWeightSlider && buildingWeightLabel) {
-    buildingWeightSlider.addEventListener('input', () => {
-      buildingWeightLabel.textContent = buildingWeightSlider.value;
-    });
-  }
-
-  const select = document.getElementById('schoolSelect');
-  const isoDistanceSelect = document.getElementById('isoDistance');
-  const manualBtn = document.getElementById('manualBtn');
-  const modelBtn = document.getElementById('modelBtn');
-  const manualView = document.getElementById('manualView');
-  const modelView = document.getElementById('modelView');
-
-  let selectedFeatureForIsochrone = null;
-
-  // Wire up collapsible legend for Decision Types on the map
   (function setupCollapsibleLegend() {
     const legend = document.getElementById('map-legend');
     const toggle = document.getElementById('legend-toggle');
@@ -8089,10 +7847,8 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
-    // Ensure initial state chevron matches the legend's collapsed/expanded class.
     const chevron = toggle.querySelector('span.chevron');
     if (chevron) {
-      // Chevron glyph stays constant; CSS handles rotation based on collapsed/expanded state.
       chevron.textContent = '▸';
     }
 
@@ -8101,527 +7857,33 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   })();
 
-  function triggerIsochroneUpdate() {
-      if(selectedFeatureForIsochrone) {
-          const [lng, lat] = selectedFeatureForIsochrone.geometry.coordinates;
-          const distance = isoDistanceSelect.value;
-          drawIsochrone([lng, lat], distance);
-      }
-  }
+  const select = document.getElementById('schoolSelect');
+  if (!select) return;
 
-  select.addEventListener('change', async function () {
+  select.addEventListener('change', function () {
     const selectedSchoolName = this.value;
-    selectedFeatureForIsochrone = geojsonData.features.find(
-      f => normalize(f.properties['Building Name']) === normalize(selectedSchoolName)
+    const data = window.geojsonData;
+    if (!data || !Array.isArray(data.features) || !map || typeof map.getSource !== 'function') return;
+
+    const selectedFeature = data.features.find(
+      (f) => normalize(f.properties['Building Name']) === normalize(selectedSchoolName)
     );
 
-    // Update the highlight layer data source
     const highlightSource = map.getSource('selected-school');
-    if (highlightSource) {
-      if (selectedFeatureForIsochrone) {
-        highlightSource.setData({
-          type: 'FeatureCollection',
-          features: [selectedFeatureForIsochrone]
-        });
-      } else {
-        // If "-- Select --" is chosen, clear the highlight
-        highlightSource.setData({
-          type: 'FeatureCollection',
-          features: []
-        });
-      }
-    }
-    
-    if (!selectedFeatureForIsochrone) {
-        // Clear isochrone if no school is selected
-        if (map.getSource('isochrone')) {
-            map.getSource('isochrone').setData({ type: 'FeatureCollection', features: [] });
-        }
-        document.querySelector("#isoTable tbody").innerHTML = "";
-        return;
-    }
-    
-    selectedEnrollment = parseInt(selectedFeatureForIsochrone.properties['Enrollment']) || 0;
-    // Removed automatic flyTo to respect user-set zoom level
+    if (!highlightSource) return;
 
-    // Only trigger isochrone update if in manual mode
-    if (manualView.style.display !== 'none') {
-        triggerIsochroneUpdate();
+    if (selectedFeature) {
+      highlightSource.setData({
+        type: 'FeatureCollection',
+        features: [selectedFeature]
+      });
     } else {
-        // Clear isochrone if switching to model mode
-        if (map.getSource('isochrone')) {
-            map.getSource('isochrone').setData({ type: 'FeatureCollection', features: [] });
-        }
-        document.querySelector("#isoTable tbody").innerHTML = "";
-    }
-
-    // Model Simulation roster now uses OD_Students.csv (student home coordinates)
-    // The roster is loaded lazily when running the simulation (Assign button).
-
-    // --- Blinking Halo Logic ---
-    const sendingSource = map.getSource('sending-school');
-    if (sendingSource) {
-      if (selectedFeatureForIsochrone) {
-        sendingSource.setData({
-          type: 'FeatureCollection',
-          features: [selectedFeatureForIsochrone]
-        });
-        startBlinkingHalo();
-      } else {
-        sendingSource.setData({ type: 'FeatureCollection', features: [] });
-        stopBlinkingHalo();
-      }
+      highlightSource.setData({
+        type: 'FeatureCollection',
+        features: []
+      });
     }
   });
-
-  if (isoDistanceSelect) {
-    isoDistanceSelect.addEventListener('change', triggerIsochroneUpdate);
-  } else {
-    console.warn("⚠️ isoDistanceSelect not found; isochrone updates disabled");
-  }
-
-  if (manualBtn && modelBtn && manualView && modelView) {
-    manualBtn.addEventListener('click', () => {
-      manualView.style.display = 'block';
-      modelView.style.display = 'none';
-      manualBtn.classList.add('active');
-      modelBtn.classList.remove('active');
-      
-      // Trigger isochrone update when switching to manual mode if a school is selected
-      if (selectedFeatureForIsochrone) {
-          triggerIsochroneUpdate();
-      }
-    });
-
-    modelBtn.addEventListener('click', () => {
-      manualView.style.display = 'none';
-      modelView.style.display = 'block';
-      manualBtn.classList.remove('active');
-      modelBtn.classList.add('active');
-      
-      // Clear isochrone when switching to model mode
-      if (map.getSource('isochrone')) {
-          map.getSource('isochrone').setData({ type: 'FeatureCollection', features: [] });
-      }
-      const isoTableBody = document.querySelector("#isoTable tbody");
-      if (isoTableBody) isoTableBody.innerHTML = "";
-    });
-  } else {
-    console.warn("⚠️ Manual/model controls not found; skipping mode toggle setup");
-  }
-
-  // ✅ Debug assign button existence
-  const assignButton = document.getElementById('assignButton');
-  console.log("🔍 Assign button check during setup:");
-  console.log("  assignButton exists:", !!assignButton);
-  if (assignButton) {
-    console.log("  assignButton text:", assignButton.textContent);
-    console.log("  assignButton id:", assignButton.id);
-  }
-
-  if (assignButton) {
-    assignButton.addEventListener('click', async () => {
-    console.log("🔘 Assign button clicked!");
-    
-    // ✅ Get modal elements
-    const progressModal = document.getElementById('assignmentProgress');
-    const assignedCountElement = document.getElementById('assignedCount');
-    const cancelButton = document.getElementById('cancelAssignment');
-    
-    console.log("🔍 Modal elements check:");
-    console.log("  progressModal exists:", !!progressModal);
-    console.log("  assignedCountElement exists:", !!assignedCountElement);
-    console.log("  cancelButton exists:", !!cancelButton);
-    
-    // ✅ Show modal and initialize progress
-    if (progressModal && assignedCountElement) {
-      progressModal.style.display = 'block';
-      assignedCountElement.textContent = '0';
-      console.log("📊 Modal displayed and progress initialized to 0");
-    } else {
-      console.error("❌ Modal elements not found!");
-      return;
-    }
-
-    // ✅ Add cancel functionality
-    let assignmentCancelled = false;
-    if (cancelButton) {
-      cancelButton.onclick = () => {
-        assignmentCancelled = true;
-        progressModal.style.display = 'none';
-        console.log("❌ Assignment cancelled by user");
-      };
-    }
-
-    // ✅ Function to hide modal
-    const hideModal = () => {
-      if (progressModal) {
-        progressModal.style.display = 'none';
-        console.log("✅ Modal hidden");
-      }
-    };
-
-    // ✅ Function to update progress
-    const updateProgress = (count) => {
-      if (assignedCountElement) {
-        assignedCountElement.textContent = count;
-        console.log("📊 Progress updated:", count);
-      }
-    };
-
-    try {
-        const selectedSchoolName = select.options[select.selectedIndex].textContent;
-        console.log("🏫 Selected school:", selectedSchoolName);
-
-        await ensureOdStudentsLoaded();
-
-        const studentsToAssign = odStudentsBySchoolName.get(normalize(selectedSchoolName)) || [];
-        console.log("👥 Students to assign (OD_Students):", studentsToAssign.length);
-
-        if (studentsToAssign.length === 0) {
-          alert("No students found for the selected school.");
-          hideModal();
-          return;
-        }
-
-        const excluded = new Set(Array.from(document.getElementById("excludedSchools").selectedOptions).map(opt => normalize(opt.value)));
-        console.log("🚫 Excluded schools:", excluded.size);
-
-        const featureByName = new Map(geojsonData.features.map(f => [normalize(f.properties["Building Name"]), f]));
-        const schoolLookup = new Map(geojsonData.features.map(f => [normalize(f.properties["Building Name"]), f.properties]));
-
-        const milesCrow = (lng1, lat1, lng2, lat2) => {
-          const toRad = (d) => (d * Math.PI) / 180;
-          const R = 3958.8; // miles
-          const dLat = toRad(lat2 - lat1);
-          const dLon = toRad(lng2 - lng1);
-          const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-          return R * c;
-        };
-
-        // ✅ Get slider values directly from DOM elements
-        const weightDistance = parseFloat(document.getElementById('distanceWeightSlider')?.value || 1);
-        const weightEnrollment = parseFloat(document.getElementById('enrollmentWeightSlider')?.value || 1);
-        const weightBuilding = parseFloat(document.getElementById('buildingWeightSlider')?.value || 1);
-        console.log("⚖️ Weights - Distance:", weightDistance, "Enrollment:", weightEnrollment, "Building:", weightBuilding);
-        
-        // ✅ Calculate normalization factors for better scoring
-        let maxDistance = 0;
-        let maxQuality = 0;
-        let maxUtilization = 0;
-        
-        // Find max distance for normalization (student home -> candidate school)
-        const candidateFeatures = geojsonData.features.filter(f => {
-          const destName = normalize(f.properties["Building Name"]);
-          if (!destName) return false;
-          if (destName === normalize(selectedSchoolName)) return false;
-          if (excluded.has(destName)) return false;
-          return true;
-        });
-        for (const s of studentsToAssign) {
-          for (const f of candidateFeatures) {
-            const c = f.geometry && f.geometry.coordinates ? f.geometry.coordinates : null;
-            if (!c || c.length < 2) continue;
-            const d = milesCrow(Number(s.lng), Number(s.lat), Number(c[0]), Number(c[1]));
-            if (Number.isFinite(d)) maxDistance = Math.max(maxDistance, d);
-          }
-        }
-        
-        for (const feature of geojsonData.features) {
-          const enrollment = parseInt(feature.properties["Enrollment"]) || 0;
-          const quality = parseFloat(feature.properties["Building Quality"]) || 0;
-          const utilization = parseFloat(feature.properties["Utilization"]) || 0;
-          
-          maxEnrollment = Math.max(maxEnrollment, enrollment);
-          maxQuality = Math.max(maxQuality, quality);
-          maxUtilization = Math.max(maxUtilization, utilization);
-        }
-        
-        console.log("📊 Normalization factors - Max Distance:", maxDistance, "Max Enrollment:", maxEnrollment, "Max Quality:", maxQuality, "Max Utilization:", maxUtilization);
-        
-        const finalAssignments = {};
-        console.log("🔄 Starting assignment algorithm...");
-        
-        // ✅ Track assigned counts for each school to enforce seat limits
-        const assignedCounts = {};
-        geojsonData.features.forEach(f => {
-            assignedCounts[normalize(f.properties["Building Name"])] = 0;
-        });
-        
-        // ✅ Process students with progress tracking
-        let processedCount = 0;
-        
-        for (const student of studentsToAssign) {
-            // ✅ Check if assignment was cancelled
-            if (assignmentCancelled) {
-              console.log("❌ Assignment cancelled during processing");
-              return;
-            }
-            
-            let bestSchool = null;
-            let bestScore = -Infinity;
-
-            for (const f of candidateFeatures) {
-                const destName = normalize(f.properties["Building Name"]);
-                const destProperties = schoolLookup.get(destName);
-                if (!destProperties) continue;
-
-                const coords = f.geometry && f.geometry.coordinates ? f.geometry.coordinates : null;
-                if (!coords || coords.length < 2) continue;
-                const distance = milesCrow(Number(student.lng), Number(student.lat), Number(coords[0]), Number(coords[1]));
-                if (!Number.isFinite(distance)) continue;
-
-                // ✅ Check seat availability (capacity constraint)
-                const enrollment = parseInt(destProperties["Enrollment"]) || 0;
-                const capacity = parseInt(destProperties["Capacity"]) || 0;
-                const assignedSoFar = assignedCounts[destName] || 0;
-                if ((enrollment + assignedSoFar) >= capacity) {
-                    continue; // Skip if assigning would exceed capacity
-                }
-
-                const quality = parseFloat(destProperties["Building Quality"]) || 0;
-                const utilization = parseFloat(destProperties["Utilization"]) || 0;
-
-                // Lower Building Quality (BuildingTreshhold) is better
-                const qualityScore = maxQuality > 0 ? (1 - (quality / maxQuality)) : 0; // Lower is better
-                const distanceScore = maxDistance > 0 ? (1 - (distance / maxDistance)) : 0; // Closer is better
-                const enrollmentScore = maxUtilization > 0 ? (utilization / maxUtilization) : 0; // Higher utilization is better
-
-                const score =
-                  (weightDistance * distanceScore) +
-                  (weightEnrollment * enrollmentScore) +
-                  (weightBuilding * qualityScore);
-
-                // Debug logging for first few choices
-                console.log(`🏫 ${destName}: Student=${student.studentId}, Distance=${distance.toFixed(2)}(${distanceScore.toFixed(3)}), Utilization=${(utilization * 100).toFixed(1)}%(${enrollmentScore.toFixed(3)}), Quality=${quality}(${qualityScore.toFixed(3)}), Total=${score.toFixed(3)}`);
-
-                if (score > bestScore) {
-                  bestScore = score;
-                  bestSchool = destProperties["Building Name"] || f.properties["Building Name"];
-                }
-            }
-
-            if (bestSchool) {
-                finalAssignments[student.studentId] = bestSchool;
-                // ✅ Increment assigned count for the chosen school
-                assignedCounts[normalize(bestSchool)]++;
-            }
-            
-            // ✅ Update progress
-            processedCount++;
-            updateProgress(processedCount);
-            
-            // Allow UI to update every 5 students
-            if (processedCount % 5 === 0) {
-              await new Promise(resolve => setTimeout(resolve, 0));
-            }
-        }
-        
-        // ✅ Check if assignment was cancelled before proceeding
-        if (assignmentCancelled) {
-          console.log("❌ Assignment cancelled after processing");
-          return;
-        }
-        
-        console.log("✅ Assignment algorithm completed. Assignments:", Object.keys(finalAssignments).length);
-
-        const summaryCounts = {};
-        for (const school of Object.values(finalAssignments)) {
-            summaryCounts[school] = (summaryCounts[school] || 0) + 1;
-        }
-        
-        // ✅ Update map with assignment results
-        const assignedFeatures = geojsonData.features
-          .filter(f => summaryCounts[f.properties['Building Name']])
-          .map(f => {
-            const assignedCount = summaryCounts[f.properties['Building Name']];
-            return {
-              type: 'Feature',
-              geometry: f.geometry,
-              properties: {
-                name: f.properties['Building Name'],
-                assigned: assignedCount
-              }
-            };
-          });
-
-        const assignedGeoJSON = {
-          type: 'FeatureCollection',
-          features: assignedFeatures
-        };
-
-        // Update the assigned-schools source on the map
-        if (map.getSource('assigned-schools')) {
-          console.log("🗺️ Updating assigned-schools source with data:", assignedGeoJSON);
-          console.log("📊 Number of assigned features:", assignedGeoJSON.features.length);
-          console.log("🏫 Assigned schools:", assignedGeoJSON.features.map(f => f.properties.name));
-          
-          map.getSource('assigned-schools').setData(assignedGeoJSON);
-          map.setLayoutProperty('assigned-schools-layer', 'visibility', 'visible');
-          
-          // ✅ Check if data was set correctly
-          setTimeout(() => {
-            const source = map.getSource('assigned-schools');
-            console.log("🔍 Source data after update:", source._data);
-            console.log("👁️ Layer visibility after update:", map.getLayoutProperty('assigned-schools-layer', 'visibility'));
-          }, 100);
-          
-          // ✅ Popup is already set up when layer was created
-          console.log("✅ Assigned-schools layer updated");
-        } else {
-          console.error("❌ assigned-schools source not found!");
-        }
-        
-        // Keep main layer coloring consistent with "Color by" toggle
-        try {
-          if (typeof window.applyMapColorByMode === 'function') window.applyMapColorByMode();
-        } catch (e) {}
-        
-        // Toggle buttons removed - always showing decisions view
-        
-        // Update the legend
-        updateLegend();
-        
-        const sortedSummary = Object.entries(summaryCounts).sort((a, b) => b[1] - a[1]);
-        let output = `<strong style='font-size:18px;'>Student Assignments</strong><br/>`;
-        output += `<table style=\"width:100%;margin-top:8px;border-collapse:collapse;font-family:'Franklin Gothic Book','Franklin Gothic','Arial Narrow',Arial,sans-serif;\">`;
-        output += `<thead><tr style=\"background-color:#f2f2f2;\">\n                    <th style=\"border:1px solid #ccc;padding:6px;text-align:left;width:70%;min-width:220px;font-family:'Franklin Gothic Book','Franklin Gothic','Arial Narrow',Arial,sans-serif;\">School Name</th>\n                    <th style=\"border:1px solid #ccc;padding:6px;text-align:center;width:30%;min-width:50px;font-family:'Franklin Gothic Book','Franklin Gothic','Arial Narrow',Arial,sans-serif;\"># Students</th></tr>\n                    </thead><tbody>`;
-        for (const [school, count] of sortedSummary) {
-            output += `<tr><td class=\"truncate-cell\" data-tooltip=\"${school}\" style=\"width:70%;min-width:220px;font-family:'Franklin Gothic Book','Franklin Gothic','Arial Narrow',Arial,sans-serif;\">${school}</td>\n                    <td style=\"border:1px solid #ccc;padding:6px;text-align:center;width:30%;min-width:50px;font-family:'Franklin Gothic Book','Franklin Gothic','Arial Narrow',Arial,sans-serif;\">${count}</td></tr>`;
-        }
-        output += `</tbody></table>`;
-        
-        const chartLabels = [];
-        const baseEnrollment = [];
-        const simulatedAdds = [];
-        const capacity = [];
-
-        for (const [schoolName, added] of Object.entries(summaryCounts)) {
-            const school = geojsonData.features.find(f => f.properties['Building Name'] === schoolName);
-            if (school) {
-                const current = parseInt(school.properties['Enrollment']) || 0;
-                const cap = parseInt(school.properties['Capacity']) || 0;
-                chartLabels.push(schoolName);
-                baseEnrollment.push(current);
-                simulatedAdds.push(added);
-                capacity.push(cap);
-            }
-        }
-
-        let totalOriginalDistance = 0;
-        let totalAssignedDistance = 0;
-        let studentCount = 0;
-
-        const originFeature = featureByName.get(normalize(selectedSchoolName));
-        const originCoords = originFeature && originFeature.geometry ? originFeature.geometry.coordinates : null;
-
-        studentsToAssign.forEach(student => {
-            const sid = student.studentId;
-            if (originCoords && originCoords.length >= 2) {
-              const d0 = milesCrow(Number(student.lng), Number(student.lat), Number(originCoords[0]), Number(originCoords[1]));
-              if (Number.isFinite(d0)) totalOriginalDistance += d0;
-            }
-
-            const assignedSchool = finalAssignments[sid];
-            const destFeature = assignedSchool ? featureByName.get(normalize(assignedSchool)) : null;
-            const destCoords = destFeature && destFeature.geometry ? destFeature.geometry.coordinates : null;
-            if (destCoords && destCoords.length >= 2) {
-              const d1 = milesCrow(Number(student.lng), Number(student.lat), Number(destCoords[0]), Number(destCoords[1]));
-              if (Number.isFinite(d1)) totalAssignedDistance += d1;
-            }
-
-            studentCount++;
-        });
-
-        const avgOriginal = totalOriginalDistance / studentCount;
-        const avgAssigned = totalAssignedDistance / studentCount;
-        
-        const resultsData = {
-            summaryHTML: output,
-            enrollmentChartData: {
-                labels: chartLabels,
-                datasets: [
-                    { label: 'Current Enrollment', data: baseEnrollment, backgroundColor: '#0033A0', barThickness: 12 },
-                    { label: 'New Assignments', data: simulatedAdds, backgroundColor: '#FFC72C', barThickness: 12 },
-                    { label: 'Capacity', data: capacity, type: 'line', borderColor: '#FF530D', borderWidth: 3, pointStyle: 'line', pointRadius: 7, pointHoverRadius: 7, rotation: 90, fill: false, showLine: false, yAxisID: 'y' }
-                ]
-            },
-            distanceChartData: {
-                labels: ['Current School', 'Assigned School'],
-                datasets: [{ label: 'Avg Distance (mi)', data: [avgOriginal.toFixed(2), avgAssigned.toFixed(2)], backgroundColor: ['#0033A0', '#ffcc00'] }]
-            },
-            assignments: finalAssignments,
-            selectedSchoolName: selectedSchoolName
-        };
-
-        console.log("📤 Sending results directly to DecisionLogic...");
-        if (window.decisionLogic && window.decisionLogic.handleAssignmentResults) {
-            console.log("📤 Sending results directly to DecisionLogic...");
-            window.decisionLogic.handleAssignmentResults(resultsData);
-        } else {
-            console.error("❌ DecisionLogic handler not found!");
-        }
-
-        // ✅ Hide the modal when assignment completes
-        hideModal();
-        console.log("✅ Assignment process completed successfully!");
-
-        // Open the Model Output: Impact Analysis section
-        const scenarioOutputPanel = document.getElementById('scenario-output-panel');
-        if (scenarioOutputPanel) {
-          scenarioOutputPanel.open = true;
-        }
-
-        // Update the travel distance impact chart with real data
-        if (window.distanceChartInstance) {
-          window.distanceChartInstance.data = {
-            labels: ['Current School', 'Assigned School'],
-            datasets: [{
-              label: 'Avg Distance (mi)',
-              data: [avgOriginal.toFixed(2), avgAssigned.toFixed(2)],
-              backgroundColor: ['#0033A0', '#ffcc00']
-            }]
-          };
-          window.distanceChartInstance.update();
-          // Hide the placeholder text
-          const placeholder = document.getElementById('distanceChartPlaceholder');
-          if (placeholder && placeholder.parentNode) {
-            console.log('Removing distanceChartPlaceholder from DOM');
-            placeholder.parentNode.removeChild(placeholder);
-          }
-        }
-
-        // Hide the enrollment chart placeholder as well
-        const enrollPlaceholder = document.getElementById('enrollmentChartPlaceholder');
-        if (enrollPlaceholder) enrollPlaceholder.style.display = 'none';
-
-        // When updating the model output section, ensure the font is set for the entire container
-        // Find the model output container and set its font family
-        const modelOutputContainer = document.getElementById('scenario-output-panel');
-        if (modelOutputContainer) {
-          modelOutputContainer.style.fontFamily = "'Franklin Gothic Book','Franklin Gothic','Arial Narrow',Arial,sans-serif";
-        }
-
-        console.log('Simulation completed, checking for and removing distanceChartPlaceholder if present');
-        const placeholder = document.getElementById('distanceChartPlaceholder');
-        if (placeholder && placeholder.parentNode) {
-          console.log('Removing distanceChartPlaceholder from DOM');
-          placeholder.parentNode.removeChild(placeholder);
-        }
-
-    } catch (error) {
-        console.error('❌ Error in assignment process:', error);
-        // ✅ Hide the modal on error too
-        hideModal();
-        alert('An error occurred during the assignment process. Please try again.');
-    }
-    });
-  } else {
-    console.warn("⚠️ assignButton not found; assignment click handler not attached");
-  }
 });
 
 // Wire up the always-visible "Show on map" button next to the main flowchart
@@ -8649,287 +7911,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
-
-let currentIsochronePolygon = null;
-
-async function drawIsochrone(centerCoords, distanceMeters) {
-  if (!centerCoords || !distanceMeters) return;
-  try {
-      const url = `https://api.mapbox.com/isochrone/v1/mapbox/driving/${centerCoords[0]},${centerCoords[1]}?contours_meters=${distanceMeters}&polygons=true&access_token=${mapboxgl.accessToken}`;
-      const res = await fetch(url);
-      const data = await res.json();
-      
-      if (!data.features || data.features.length === 0) {
-          console.warn("No isochrone feature returned from API.");
-          if (map.getSource('isochrone')) {
-            map.getSource('isochrone').setData({ type: 'FeatureCollection', features: [] });
-          }
-          return;
-      }
-      const simplified = turf.simplify(data.features[0], { tolerance: 0.001, highQuality: true });
-      
-      if (map.getSource('isochrone')) {
-        map.getSource('isochrone').setData(simplified);
-      } else {
-        map.addSource('isochrone', { type: 'geojson', data: simplified });
-        map.addLayer({
-          id: 'isochrone-layer',
-          type: 'fill',
-          source: 'isochrone',
-          paint: { 'fill-color': '#1E90FF', 'fill-opacity': 0.3 }
-        });
-      }
-      
-      currentIsochronePolygon = simplified;
-      filterSchoolsInIsochrone(currentIsochronePolygon);
-  } catch (err) {
-    console.error('Failed to fetch or display isochrone:', err);
-  }
-}
-
-function filterSchoolsInIsochrone(polygon) {
-  const isoTableBody = document.querySelector("#isoTable tbody");
-  if (!isoTableBody) return;
-
-  let visibleFeatures = geojsonData.features.filter(f => turf.booleanPointInPolygon(f.geometry, polygon));
-  // Always exclude the selected school from manual assignment options
-  const schoolSelect = document.getElementById('schoolSelect');
-  if (schoolSelect && schoolSelect.value) {
-    visibleFeatures = visibleFeatures.filter(f => f.properties['Building Name'] !== schoolSelect.value);
-  }
-  // Exclude the selected school if decision type is 'Candidate for Closure/Merger'
-  const decisionFilter = document.getElementById('decisionFilter');
-  if (decisionFilter && schoolSelect && decisionFilter.value === 'Candidate for Closure/Merger') {
-    const selectedSchool = schoolSelect.value;
-    // (Already excluded above)
-    // --- Add info above the table ---
-    const manualView = document.getElementById('manualView');
-    const isoTable = document.getElementById('isoTable');
-    if (manualView && isoTable && selectedSchool) {
-      // Find the selected school in geojsonData
-      const selectedFeature = geojsonData.features.find(
-        f => f.properties['Building Name'] === selectedSchool
-      );
-      const enrollment = selectedFeature ? (selectedFeature.properties['Enrollment'] || 0) : 0;
-      // Create or update the info div above the table
-      let infoDiv = document.getElementById('closureMergerInfo');
-      if (!infoDiv) {
-        infoDiv = document.createElement('div');
-        infoDiv.id = 'closureMergerInfo';
-        infoDiv.style.marginBottom = '10px';
-        isoTable.parentNode.insertBefore(infoDiv, isoTable);
-      }
-      infoDiv.innerHTML = `<strong>Selected School:</strong> ${selectedSchool}<br><strong>Number of students to be assigned:</strong> ${enrollment}`;
-    }
-  } else {
-    // Remove the info div if it exists
-    const infoDiv = document.getElementById('closureMergerInfo');
-    if (infoDiv) infoDiv.remove();
-  }
-
-  isoTableBody.innerHTML = '';
-  visibleFeatures.forEach(f => {
-    const row = document.createElement('tr');
-    const name = f.properties['Building Name'];
-    const originalSeats = parseInt(f.properties['Available Seats']) || 0;
-
-    row.innerHTML = `
-      <td class="truncate-cell" data-tooltip="${name}">${name}</td>
-      <td class="percent-cell">
-        <span class="assign-percent-btns" style="display:inline-flex; flex-direction:column; align-items:center; margin-right:2px;">
-          <button type="button" class="assign-percent-up" tabindex="-1">&#x25B2;</button>
-          <button type="button" class="assign-percent-down" tabindex="-1">&#x25BC;</button>
-        </span>
-        <input type="text" class="assign-percent" maxlength="3" pattern="[0-9]*" inputmode="numeric" value="0" style="width:50px; text-align:center; margin:0;" />
-        <span>%</span>
-      </td>
-      <td class="assigned-count text-center">0</td>
-      <td class="updated-seats text-center">${originalSeats}</td>
-    `;
-    isoTableBody.appendChild(row);
-  });
-
-  addPercentageListeners(visibleFeatures);
-  // Add up/down button listeners for % Assigned
-  document.querySelectorAll('.assign-percent-up').forEach((btn) => {
-    btn.addEventListener('click', function() {
-      const input = btn.closest('td').querySelector('.assign-percent');
-      let val = parseInt(input.value) || 0;
-      if (val < 100) {
-        input.value = val + 1;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    });
-  });
-  document.querySelectorAll('.assign-percent-down').forEach((btn) => {
-    btn.addEventListener('click', function() {
-      const input = btn.closest('td').querySelector('.assign-percent');
-      let val = parseInt(input.value) || 0;
-      if (val > 0) {
-        input.value = val - 1;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    });
-  });
-}
-
-function addPercentageListeners(visibleFeatures) {
-  const inputs = document.querySelectorAll('.assign-percent');
-  // Add or get warning message element above the table
-  let warningDiv = document.getElementById('manualAssignWarning');
-  const isoTable = document.getElementById('isoTable');
-  if (!warningDiv && isoTable) {
-    warningDiv = document.createElement('div');
-    warningDiv.id = 'manualAssignWarning';
-    warningDiv.style.color = '#e74c3c';
-    warningDiv.style.fontWeight = 'bold';
-    warningDiv.style.marginBottom = '8px';
-    warningDiv.style.display = 'none';
-    isoTable.parentNode.insertBefore(warningDiv, isoTable);
-  }
-
-  function showWarning(msg) {
-    if (warningDiv) {
-      warningDiv.textContent = msg;
-      warningDiv.style.display = 'block';
-    }
-  }
-  function hideWarning() {
-    if (warningDiv) {
-      warningDiv.style.display = 'none';
-      warningDiv.textContent = '';
-    }
-  }
-
-  inputs.forEach((input, i) => {
-    function switchToAssignmentsView() {
-      const assignmentsBtn = document.getElementById('toggleViewAssignments');
-      if (assignmentsBtn && !assignmentsBtn.classList.contains('active')) {
-        assignmentsBtn.click();
-      }
-    }
-    input.addEventListener('focus', function() {
-      if (input.value === "0") {
-        input.value = "";
-      }
-    });
-    input.addEventListener('input', switchToAssignmentsView);
-    input.addEventListener('input', () => {
-      if(i >= visibleFeatures.length) return;
-      // Calculate total assigned if this input is changed
-      let totalAssigned = 0;
-      const assignedCounts = [];
-      inputs.forEach((inp, idx) => {
-        let percent = parseFloat(inp.value) || 0;
-        let assigned = Math.round((percent / 100) * selectedEnrollment);
-        assignedCounts[idx] = assigned;
-        totalAssigned += assigned;
-      });
-      // If over limit, adjust this input
-      if (totalAssigned > selectedEnrollment) {
-        // Calculate how many students are already assigned (excluding this input)
-        let assignedOther = 0;
-        inputs.forEach((inp, idx) => {
-          if (idx !== i) {
-            let percent = parseFloat(inp.value) || 0;
-            assignedOther += Math.round((percent / 100) * selectedEnrollment);
-          }
-        });
-        // Set this input so total = selectedEnrollment
-        let maxForThis = Math.max(0, selectedEnrollment - assignedOther);
-        let maxPercent = selectedEnrollment > 0 ? Math.floor((maxForThis / selectedEnrollment) * 100) : 0;
-        input.value = maxPercent;
-        // Update assigned cell and updated seats
-        const assignedCell = input.closest('tr').querySelector('.assigned-count');
-        const updatedCell = input.closest('tr').querySelector('.updated-seats');
-        assignedCell.textContent = maxForThis;
-        const originalSeats = parseInt(visibleFeatures[i].properties['Available Seats']) || 0;
-        updatedCell.textContent = originalSeats - maxForThis;
-        showWarning('Cannot assign more than 100% of students.');
-      } else {
-        // Normal update
-        const percent = parseFloat(input.value) || 0;
-        const assignedCell = input.closest('tr').querySelector('.assigned-count');
-        const updatedCell = input.closest('tr').querySelector('.updated-seats');
-        const assignedStudents = Math.round((percent / 100) * selectedEnrollment);
-        const originalSeats = parseInt(visibleFeatures[i].properties['Available Seats']) || 0;
-        const remainingSeats = originalSeats - assignedStudents;
-        assignedCell.textContent = assignedStudents;
-        updatedCell.textContent = remainingSeats;
-        // Check if total assigned is now valid, hide warning if so
-        // (recalculate totalAssigned in case it changed)
-        let validTotal = 0;
-        inputs.forEach((inp) => {
-          let percent = parseFloat(inp.value) || 0;
-          validTotal += Math.round((percent / 100) * selectedEnrollment);
-        });
-        if (validTotal <= selectedEnrollment) {
-          hideWarning();
-        }
-      }
-
-      // --- Update number of students to be assigned in closure/merger info ---
-      const decisionFilter = document.getElementById('decisionFilter');
-      const infoDiv = document.getElementById('closureMergerInfo');
-      if (infoDiv && decisionFilter && decisionFilter.value === 'Candidate for Closure/Merger') {
-        // Sum all assigned students
-        let totalAssigned = 0;
-        document.querySelectorAll('.assign-percent').forEach(input2 => {
-          const percent2 = parseFloat(input2.value) || 0;
-          totalAssigned += Math.round((percent2 / 100) * selectedEnrollment);
-        });
-        // Find the original enrollment from the infoDiv (parse from the HTML)
-        const match = infoDiv.innerHTML.match(/Number of students to be assigned:<\/strong> (\d+)/);
-        let originalEnrollment = selectedEnrollment;
-        if (match) {
-          // If the number has already been updated, recalculate from selectedEnrollment
-          originalEnrollment = selectedEnrollment;
-        }
-        const remaining = Math.max(0, originalEnrollment - totalAssigned);
-        // Update only the number in the infoDiv
-        infoDiv.innerHTML = infoDiv.innerHTML.replace(/(Number of students to be assigned:<\/strong> )\d+/, `$1${remaining}`);
-      }
-
-      // --- Update map assignments in real time for manual entry ---
-      // Only if 'Show Assignments' is active
-      // Build summaryCounts from current table
-      let summaryCounts = {};
-      document.querySelectorAll('#isoTable tbody tr').forEach((row) => {
-        const nameCell = row.querySelector('td');
-        const assignedCell = row.querySelector('.assigned-count');
-        if (nameCell && assignedCell) {
-          const schoolName = nameCell.textContent.trim();
-          const assigned = parseInt(assignedCell.textContent) || 0;
-          if (assigned > 0) summaryCounts[schoolName] = assigned;
-        }
-      });
-      // Build assignedFeatures for the map
-      const assignedFeatures = geojsonData.features
-        .filter(f => summaryCounts[f.properties['Building Name']])
-        .map(f => {
-          const assignedCount = summaryCounts[f.properties['Building Name']];
-          return {
-            type: 'Feature',
-            geometry: f.geometry,
-            properties: {
-              name: f.properties['Building Name'],
-              assigned: assignedCount
-            }
-          };
-        });
-      const assignedGeoJSON = {
-        type: 'FeatureCollection',
-        features: assignedFeatures
-      };
-      if (map.getSource('assigned-schools')) {
-        map.getSource('assigned-schools').setData(assignedGeoJSON);
-        if (map.getLayer('assigned-schools-layer')) {
-          map.setLayoutProperty('assigned-schools-layer', 'visibility', assignedFeatures.length > 0 ? 'visible' : 'none');
-        }
-      }
-    });
-  });
-}
 
 // ✅ New script to connect sidebar sliders to the DecisionLogic iframe - REPLACED
 document.addEventListener("DOMContentLoaded", function() {
@@ -11510,7 +10491,7 @@ if (typeof window.switchToMap !== 'function') {
       pickFirstNonEmpty(row, ['BuildingScore', 'Building Score']);
 
     const capRaw = pickFirstNonEmpty(row, ['K-5 Capacity', 'K5 Capacity', 'Capacity']) || '';
-    const enrollmentRaw = pickFirstNonEmpty(row, ['Enrollment']) || '';
+    const enrollmentRaw = pickFirstNonEmpty(row, ['Enrollment2025', 'Enrollment']) || '';
     const seatsComputedFromRow = (window.getEffectiveAvailableSeats && window.getEffectiveAvailableSeats(row)) ?? null;
     const buildingScoreRaw = pickFirstNonEmpty(row, ['BuildingScore', 'Building Score']) || '';
     const eduAdeqRaw = pickFirstNonEmpty(row, ['EducationalAdequacy', 'Educational Adequacy']) || '';
@@ -11729,7 +10710,7 @@ if (typeof window.switchToMap !== 'function') {
         return { bar: c, value: c };
       }
 
-      const enrollment = parseNumber(r['Enrollment']);
+      const enrollment = parseNumber(r['Enrollment2025'] ?? r['Enrollment']);
       const capDetails = window.getEffectiveCapacityDetails ? window.getEffectiveCapacityDetails(r) : null;
       const capacity = (capDetails && Number.isFinite(capDetails.value)) ? capDetails.value : null;
       const capLabel = capDetails && capDetails.label ? capDetails.label : 'Capacity';

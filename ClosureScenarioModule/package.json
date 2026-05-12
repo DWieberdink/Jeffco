@@ -1,0 +1,11 @@
+{
+  "name": "jeffco-closure-scenarios",
+  "private": true,
+  "description": "Standalone closure / student reassignment scenario tool",
+  "scripts": {
+    "serve": "http-server . -p 8767 -c-1"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

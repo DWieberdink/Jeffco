@@ -3,10 +3,10 @@
      - "<AssetType> score" (optional; from ConditionScore if column exists in input)
      - "<AssetType> UnitValue" (from UnitValue)
 
-   Input:  JeffCoProjectListAllSchools.csv
-   Output: JeffCoProjectListAllSchools_pivot_UnitValue.csv
+   Input:  JeffCoProjectListAllSchools_rowwise.csv
+   Output: JeffCoProjectListAllSchools.csv (dashboard pivot)
 
-   Drops columns: SystemCategory, ConditionSource, Unit, ReplacementCost, Notes
+   Drops columns: SystemCategory, ConditionSource, Unit, ReplacementCost, Notes (if present on rowwise input)
    Keeps identifiers: UniqueID, SchoolName
 */
 

@@ -7,7 +7,7 @@
  */
 import fs from "node:fs";
 
-const PROJECT_CSV = "JeffCoProjectListAllSchools.no-stem-es-labs.csv";
+const PROJECT_CSV = "JeffCoProjectListAllSchools.csv";
 const DECISION_CSV = "Decision Data Export.csv";
 
 /** Must match school-profile.js ORIGINAL_122 */

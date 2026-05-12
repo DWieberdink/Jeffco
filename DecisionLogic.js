@@ -95,113 +95,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Load distance to welcoming schools from OD_Draft.csv (origin -> min distance to any destination).
-  // Keyed by CurrentSchoolCode (UniqueID format, e.g., "CO-1420-8276").
-  function loadDistanceToWelcomingMap() {
-    return new Promise((resolve) => {
-      const cached = window.distanceToWelcomingMap;
-      if (cached && typeof cached === "object" && Object.keys(cached).length > 0) {
-        resolve(cached);
-        return;
-      }
-
-      Papa.parse("./OD_Draft.csv", {
-        download: true,
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          try {
-            // OD_Draft is student-level: each row = one student's home-to-destination distance.
-            // Raw MIN is skewed by students who live next to another school → near 0 for most schools.
-            // Use MEDIAN per (origin,dest) pair, then MIN over destinations for each origin.
-            const pairDistances = {}; // "(originKey|destKey)" -> [dist1, dist2, ...]
-            const pairMeta = {}; // "(originKey|destKey)" -> { destCode, destName, destGrades } (from last row)
-            const norm = s => (s || "").toString().trim().toLowerCase();
-            const normName = s => norm((s || "").toString().trim().replace(/\s+/g, " "));
-            const median = (arr) => {
-              if (!arr.length) return NaN;
-              const s = [...arr].sort((a, b) => a - b);
-              const m = Math.floor(s.length / 2);
-              return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-            };
-
-            (results.data || []).forEach((row) => {
-              const originCode = (row["CurrentSchoolCode"] || row.CurrentSchoolCode || "").toString().trim();
-              const originName = (row["CurrentSchoolName"] || row.CurrentSchoolName || "").toString().trim();
-              if (!originCode) return;
-
-              const destCode = (row["DestinationSchoolCode"] || row.DestinationSchoolCode || "").toString().trim();
-              if (norm(originCode) === norm(destCode)) return; // exclude same-school
-
-              const dist = parseFloat((row["LinearDistance_Miles"] || row.LinearDistance_Miles || "").toString().trim());
-              if (!isFinite(dist)) return;
-
-              const originKey = norm(originCode);
-              const destKey = norm(destCode);
-              const pairKey = `${originKey}|${destKey}`;
-              if (!pairDistances[pairKey]) pairDistances[pairKey] = [];
-              pairDistances[pairKey].push(dist);
-              pairMeta[pairKey] = {
-                destCode,
-                destName: row["DestinationSchoolName"] || row.DestinationSchoolName || "",
-                destGrades: row["DestinationSchoolGrades"] || row.DestinationSchoolGrades || ""
-              };
-            });
-
-            // Build map: for each origin, min of (median dist to each dest)
-            const map = {};
-            const mapByName = {};
-            const rowsByOrigin = {};
-            Object.keys(pairDistances).forEach((pairKey) => {
-              const [originKey, destKey] = pairKey.split("|");
-              const med = median(pairDistances[pairKey]);
-              if (!Number.isFinite(med)) return;
-              if (map[originKey] === undefined || med < map[originKey]) map[originKey] = med;
-              const meta = pairMeta[pairKey];
-              if (meta && meta.destCode) {
-                if (!rowsByOrigin[originKey]) rowsByOrigin[originKey] = [];
-                rowsByOrigin[originKey].push({
-                  "Network Distance (Miles)": med,
-                  "NetworkDistanceMiles": med,
-                  "Destination CDE Prefix": meta.destCode,
-                  "DestinationCDEPrefix": meta.destCode,
-                  "Destination Facility Name": meta.destName,
-                  "Destination Grades": meta.destGrades
-                });
-              }
-            });
-            // mapByName: use first-seen originName per originKey (build reverse lookup from a pass)
-            const originKeyToName = {};
-            (results.data || []).forEach((row) => {
-              const oc = (row["CurrentSchoolCode"] || row.CurrentSchoolCode || "").toString().trim();
-              const on = (row["CurrentSchoolName"] || row.CurrentSchoolName || "").toString().trim();
-              if (!oc || !on) return;
-              const key = norm(oc);
-              if (!originKeyToName[key]) originKeyToName[key] = normName(on);
-            });
-            Object.keys(map).forEach((k) => {
-              const n = originKeyToName[k];
-              if (n) mapByName[n] = map[k];
-            });
-
-            console.log("✅ Loaded distance-to-welcoming map from OD_Draft.csv (median per origin-dest) for", Object.keys(map).length, "schools");
-            window.distanceToWelcomingMap = map;
-            window.distanceToWelcomingMapByName = mapByName;
-            window.distanceToWelcomingRowsByOrigin = rowsByOrigin;
-            resolve(map);
-          } catch (e) {
-            console.error("❌ Error processing OD_Draft.csv:", e);
-            resolve({});
-          }
-        },
-        error: (err) => {
-          console.error("❌ Failed to load OD_Draft.csv:", err);
-          resolve({});
-        },
-      });
-    });
-  }
-
   function classifyRow(decision) {
     if (decision.includes("Closure")) return "Closure";
     if (decision.includes("Monitoring")) return "Monitoring";
@@ -262,7 +155,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function getEffectiveEnrollmentLocal(row) {
     if (window.getEffectiveEnrollment) return window.getEffectiveEnrollment(row);
-    const e = parseFloat((row.Enrollment || '').toString().replace(/,/g, '').trim()) || 0;
+    const e = parseFloat((row.Enrollment2025 || row['Enrollment2025'] || row.Enrollment || '').toString().replace(/,/g, '').trim()) || 0;
     const pk = parseFloat((row.PKEnrollment || row['PKEnrollment'] || row['PK Enrollment'] || '').toString().replace(/,/g, '').trim()) || 0;
     const inc = (window.getIncludePKInEnrollment && window.getIncludePKInEnrollment());
     return inc ? e : Math.max(0, e - pk);
@@ -1393,11 +1286,9 @@ document.addEventListener("DOMContentLoaded", () => {
             row.BuildingScore = bs.toFixed(2);
           });
 
-          // Load Articulation Area from Map_Export.csv and distance-to-welcoming, then apply both
-          Promise.all([
-            loadArticulationFromMapExport(),
-            loadDistanceToWelcomingMap()
-          ]).then(([articulationByKey, distanceMap]) => {
+          // Load Articulation Area from Map_Export.csv. DistanceUnderutilizedschools stays as provided
+          // in Decision Data Export.csv; map/flowchart use SchooltoSchoolDistances.csv from script.js.
+          loadArticulationFromMapExport().then((articulationByKey) => {
             if (articulationByKey && typeof articulationByKey === "object") {
               self.schoolData.forEach((row) => {
                 const uid = (row.UniqueID || row["UniqueID"] || row["Unique Id"] || "").toString().trim();
@@ -1407,27 +1298,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 row.ArticulationArea = val;
               });
               console.log("✅ Applied Articulation Area from Map_Export.csv");
-            }
-            if (distanceMap && typeof distanceMap === "object") {
-              const normId = (s) => (s || "").toString().trim().toLowerCase();
-              const normName = (s) => normId((s || "").toString().trim().replace(/\s+/g, " "));
-              const mapByName = window.distanceToWelcomingMapByName || {};
-              self.schoolData.forEach((row) => {
-                const uniqueId = row.UniqueID || row["UniqueID"] || row["Unique Id"];
-                const key = normId(uniqueId);
-                let dist = key ? distanceMap[key] : undefined;
-                if (dist === undefined) {
-                  const name = row["Building Name"] || row.BuildingName || "";
-                  const nameKey = normName(name);
-                  dist = nameKey ? mapByName[nameKey] : undefined;
-                }
-                if (dist !== undefined) {
-                  row.DistanceUnderutilizedschools = dist;
-                }
-              });
-              console.log("✅ Applied distance-to-welcoming values to decision data");
-            } else {
-              console.warn("⚠️ Distance map unavailable; using existing DistanceUnderutilizedschools values from Decision Data Export.csv");
             }
 
             self.recalculateEverything(); // Perform initial calculation & render tables
@@ -1462,7 +1332,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let closureCount = 0;
     self.schoolData.forEach(row => {
       // Robust enrollment field lookup
-      const enrollmentRaw = row.Enrollment || row['Enrollment'] || row[' Enrollment'] || row['Enrollment '] || row['Enrollemnt'] || row['Enrolled'] || row['enrollment'] || row['enrollment_total'] || undefined;
+      const enrollmentRaw = row.Enrollment2025 || row['Enrollment2025'] || row.Enrollment || row['Enrollment'] || row[' Enrollment'] || row['Enrollment '] || row['Enrollemnt'] || row['Enrolled'] || row['enrollment'] || row['enrollment_total'] || undefined;
       const enrollmentParsed = parseFloat((enrollmentRaw || '').toString().replace(/,/g, '').trim());
       console.log('📝', row['Building Name'], '| Raw:', enrollmentRaw, '| Parsed:', enrollmentParsed, '| Type:', typeof enrollmentParsed);
       const oldDecision = row.decision;

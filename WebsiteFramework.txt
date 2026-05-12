@@ -72,12 +72,11 @@ css
 Copy
 Edit
 └── Input data for decision evaluation (loaded in DecisionLogic.js)
-OD_Draft.csv
+SchooltoSchoolDistances.csv
 arduino
 Copy
 Edit
-└── NOT yet directly used
-   (future potential for OD modeling — origin/destination analysis)
+└── School-to-school distance matrix (script.js) for map / flowchart; DistanceUnderutilizedschools on each school comes from Decision Data Export unless you merge another source in tooling.
 NHPSSchools.geojson
 java
 Copy

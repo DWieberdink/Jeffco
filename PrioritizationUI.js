@@ -18,7 +18,7 @@ window.prioritizationUI = {
   // - "scores": show normalized 0–100 indices used for weighting (does NOT change ranking)
   metricDisplayMode: "values",
   _outcomeFlyoutStyleInjected: false,
-  // Impact Analysis table: optional columns (persisted in localStorage)
+  // Strategy Prioritization table: optional columns (persisted in localStorage)
   impactTableShowProjectType: true,
   impactTableShowStrategyGroup: true,
 
@@ -59,7 +59,7 @@ window.prioritizationUI = {
       .replace(/>/g, "&gt;");
   },
 
-  /** Checkboxes above weight sliders (Impact Analysis column visibility). */
+  /** Checkboxes above weight sliders (Strategy Prioritization column visibility). */
   buildImpactTableColumnToggleHtml: function (isCombined) {
     var projChecked = this.impactTableShowProjectType !== false ? " checked" : "";
     var stratChecked = this.impactTableShowStrategyGroup !== false ? " checked" : "";

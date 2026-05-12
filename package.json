@@ -5,7 +5,13 @@
     "merge:unitcost": "node scripts/merge-unit-cost-library.mjs",
     "strip:light-mod-dupes": "node scripts/remove-light-modernization-duplicate-rows.mjs",
     "label:csv-modernization": "node scripts/set-project-list-modernization-label.mjs",
-    "shorten:csv-modernize-asset": "node scripts/shorten-paired-modernize-assettype.mjs"
+    "shorten:csv-modernize-asset": "node scripts/shorten-paired-modernize-assettype.mjs",
+    "compute:articulation-growth": "node scripts/compute-articulation-enrollment-growth.mjs",
+    "migrate:decision-enrollment-cols": "node scripts/migrate-decision-enrollment-columns.mjs",
+    "precompute:ea-classrooms": "node scripts/precompute-ea-classrooms-decision-export.mjs",
+    "strip:project-list-notes": "node scripts/strip-notes-jeffco-project-list.mjs",
+    "strip:fci-columns": "node scripts/strip-fci-unreferenced-columns.mjs",
+    "reorder:decision-export": "node scripts/reorder-decision-export-columns.mjs"
   },
   "devDependencies": {
     "eslint": "^9.25.1",

@@ -7,12 +7,12 @@
 */
 
 (function () {
-  const ASSETS_CSV_PATH = "JeffCoProjectListAllSchools.no-stem-es-labs.csv";
+  const ASSETS_CSV_PATH = "JeffCoProjectListAllSchools.csv";
   const DECISION_CSV_PATH = "Decision Data Export.csv";
   const UNITCOST_LIBRARY_CSV_PATH = "UnitCostLibrary.csv";
   const ROOM_SCHEDULE_CSV_PATH = "Jeffco Room Schedule.csv";
   // Bump this to force browsers to refetch CSV/JS.
-  const CACHE_BUST = "20260501_47";
+  const CACHE_BUST = "20260506_14";
   const PRIORITY_OVERRIDES_STORAGE_KEY = "jeffco_priority_overrides_per_row_v1";
   const MANUAL_QTY_OVERRIDES_STORAGE_KEY = "jeffco_manual_site_qty_overrides_v2";
   /** Bump version when include defaults change so old localStorage overrides do not mask new behavior. */
@@ -138,8 +138,93 @@
   let sortState = { key: "SystemCategory", dir: "asc" };
   const collapsedGroups = new Set();
   const collapsedSuperGroups = new Set();
-  /** Keys for FCI asset rollups the user has explicitly collapsed (default = expanded / detail rows visible). */
+  /** Non–site-infra FCI: keys for asset rollups the user collapsed (default = expanded). */
   const collapsedFciAssets = new Set();
+  /** 08_site infrastructure*: asset rollup expanded state (default collapsed until expanded here). */
+  const expandedFciSiteInfraAssets = new Set();
+
+  function isSiteInfrastructureFciGroupKey(groupKey) {
+    return /^08_site infrastructure/i.test(norm(groupKey));
+  }
+
+  /** Aligns with render() `getSuperGroupKey` — used outside render for FCI bulk expand/collapse. */
+  function getProjectSuperGroupKey(groupName) {
+    const g = norm(groupName).toLowerCase();
+    if (
+      g.startsWith("00") ||
+      g.startsWith("01") ||
+      g.startsWith("02") ||
+      g.startsWith("03") ||
+      g.startsWith("04") ||
+      g.startsWith("05") ||
+      g.startsWith("06")
+    )
+      return "Projects";
+    if (g.startsWith("08")) return "FCI Deficiency";
+    return null;
+  }
+
+  /** Distinct FCI asset rollup bands (tan P1–P4 subgroup rows) in the current filtered table. */
+  function countFciAssetBands() {
+    let n = 0;
+    viewRows.forEach((g) => {
+      if (getProjectSuperGroupKey(g.__group) !== "FCI Deficiency") return;
+      const seenAt = new Set();
+      (g.__rows || []).forEach((r) => {
+        const at = norm(r?.AssetType) || "(Unknown)";
+        if (seenAt.has(at)) return;
+        seenAt.add(at);
+        n++;
+      });
+    });
+    return n;
+  }
+
+  function allFciAssetBandsExpanded() {
+    let bands = 0;
+    let expanded = 0;
+    viewRows.forEach((g) => {
+      if (getProjectSuperGroupKey(g.__group) !== "FCI Deficiency") return;
+      const groupKey = g.__group;
+      const seenAt = new Set();
+      (g.__rows || []).forEach((r) => {
+        const at = norm(r?.AssetType) || "(Unknown)";
+        if (seenAt.has(at)) return;
+        seenAt.add(at);
+        bands++;
+        const ck = groupKey + "||" + at;
+        const isExp = isSiteInfrastructureFciGroupKey(groupKey)
+          ? expandedFciSiteInfraAssets.has(ck)
+          : !collapsedFciAssets.has(ck);
+        if (isExp) expanded++;
+      });
+    });
+    return bands > 0 && expanded === bands;
+  }
+
+  /** Expand or collapse only FCI asset-level bands (P1–P4 rollups), not 08 category rows or the FCI super-row. */
+  function toggleAllFciAssetBands() {
+    const wantExpand = !allFciAssetBandsExpanded();
+    viewRows.forEach((g) => {
+      if (getProjectSuperGroupKey(g.__group) !== "FCI Deficiency") return;
+      const groupKey = g.__group;
+      const seenAt = new Set();
+      (g.__rows || []).forEach((r) => {
+        const at = norm(r?.AssetType) || "(Unknown)";
+        if (seenAt.has(at)) return;
+        seenAt.add(at);
+        const ck = groupKey + "||" + at;
+        if (isSiteInfrastructureFciGroupKey(groupKey)) {
+          if (wantExpand) expandedFciSiteInfraAssets.add(ck);
+          else expandedFciSiteInfraAssets.delete(ck);
+        } else {
+          if (wantExpand) collapsedFciAssets.delete(ck);
+          else collapsedFciAssets.add(ck);
+        }
+      });
+    });
+    render();
+  }
   let selectedSchoolNameFromQuery = "";
   let selectedUniqueIdFromQuery = "";
   let resolvedSchoolName = "";
@@ -208,6 +293,57 @@
   const PK_ENROLLMENT_KEY_V2 = "jeffco_include_pk_enrollment_v2";
   const PK_ENROLLMENT_KEY_V1 = "jeffco_include_pk_enrollment_v1";
   const CAPACITY_SOURCE_STORAGE_KEY = "jeffco_capacity_source_v1";
+  /** When true, rows without a dollar replacement cost remain visible (audit / gaps). Default off = hide those rows. */
+  const SHOW_ROWS_WITHOUT_RC_KEY = "jeffco_profile_show_rows_without_rc_v1";
+  const SHOW_ROWS_WITHOUT_RC_DEFAULTS_REV_KEY = "jeffco_show_rows_without_rc_defaults_off_v1";
+  const RELEVANT_ROWS_ONLY_LEGACY_KEY = "jeffco_profile_relevant_rows_only_v1";
+
+  function ensureShowRowsWithoutRcDefaultOffOnce() {
+    try {
+      if (!window.localStorage) return;
+      if (window.localStorage.getItem(SHOW_ROWS_WITHOUT_RC_DEFAULTS_REV_KEY)) return;
+      window.localStorage.setItem(SHOW_ROWS_WITHOUT_RC_KEY, "0");
+      window.localStorage.setItem(SHOW_ROWS_WITHOUT_RC_DEFAULTS_REV_KEY, "1");
+    } catch {
+      // ignore
+    }
+  }
+
+  function migrateRowsWithoutRcPreferenceOnce() {
+    try {
+      if (!window.localStorage) return;
+      if (window.localStorage.getItem(SHOW_ROWS_WITHOUT_RC_KEY) !== null) return;
+      const leg = window.localStorage.getItem(RELEVANT_ROWS_ONLY_LEGACY_KEY);
+      if (leg === "1") {
+        window.localStorage.setItem(SHOW_ROWS_WITHOUT_RC_KEY, "0");
+      } else if (leg === "0") {
+        window.localStorage.setItem(SHOW_ROWS_WITHOUT_RC_KEY, "1");
+      } else {
+        window.localStorage.setItem(SHOW_ROWS_WITHOUT_RC_KEY, "0");
+      }
+      window.localStorage.removeItem(RELEVANT_ROWS_ONLY_LEGACY_KEY);
+    } catch {
+      // ignore
+    }
+  }
+
+  function getShowRowsWithoutReplacementCost() {
+    migrateRowsWithoutRcPreferenceOnce();
+    ensureShowRowsWithoutRcDefaultOffOnce();
+    try {
+      return window.localStorage && window.localStorage.getItem(SHOW_ROWS_WITHOUT_RC_KEY) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function setShowRowsWithoutReplacementCost(v) {
+    try {
+      if (window.localStorage) window.localStorage.setItem(SHOW_ROWS_WITHOUT_RC_KEY, v ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  }
   function getIncludePKInEnrollment() {
     try {
       if (!window.localStorage) return false;
@@ -271,19 +407,34 @@
     return d && Number.isFinite(d.value) && d.value > 0 ? d.value : null;
   }
 
-  /** Default ON: FCI (08_) stays in planning totals for gut/new-construction paths unless the user explicitly turns it off ("0"). */
-  function getIncludeFciForMajor() {
+  /** Opt-in: FCI (08_) for gut/new-construction paths only when localStorage is "1". */
+  const INCLUDE_FCI_MAJOR_STORAGE_KEY = "includeFciForMajor";
+  /** One-time: baseline both asset-settings switches to off for existing profiles. */
+  const INCLUDE_FCI_MAJOR_DEFAULTS_REV_KEY = "jeffco_include_fci_major_defaults_off_v1";
+
+  function ensureIncludeFciMajorDefaultOffOnce() {
     try {
-      if (!window.localStorage) return true;
-      return window.localStorage.getItem("includeFciForMajor") !== "0";
+      if (!window.localStorage) return;
+      if (window.localStorage.getItem(INCLUDE_FCI_MAJOR_DEFAULTS_REV_KEY)) return;
+      window.localStorage.setItem(INCLUDE_FCI_MAJOR_STORAGE_KEY, "0");
+      window.localStorage.setItem(INCLUDE_FCI_MAJOR_DEFAULTS_REV_KEY, "1");
     } catch {
-      return true;
+      // ignore
+    }
+  }
+
+  function getIncludeFciForMajor() {
+    ensureIncludeFciMajorDefaultOffOnce();
+    try {
+      return !!(window.localStorage && window.localStorage.getItem(INCLUDE_FCI_MAJOR_STORAGE_KEY) === "1");
+    } catch {
+      return false;
     }
   }
   function getEffectiveEnrollment(row) {
     if (!row) return 0;
     const inc = getIncludePKInEnrollment();
-    const e = parseFloat((row.Enrollment ?? row.enrollment ?? "").toString().replace(/,/g, "").trim()) || 0;
+    const e = parseFloat((row.Enrollment2025 ?? row["Enrollment2025"] ?? row.Enrollment ?? row.enrollment ?? "").toString().replace(/,/g, "").trim()) || 0;
     const pk = parseFloat((row.PKEnrollment ?? row["PKEnrollment"] ?? row["PK Enrollment"] ?? "").toString().replace(/,/g, "").trim()) || 0;
     return inc ? e : Math.max(0, e - pk);
   }
@@ -292,6 +443,89 @@
     const cap = getEffectiveCapacity(row);
     if (!cap || cap <= 0) return null;
     return getEffectiveEnrollment(row) / cap;
+  }
+
+  function parseDecisionEnrollmentTotal(row) {
+    if (!row) return null;
+    const n = parseFloat((row.Enrollment2025 ?? row["Enrollment2025"] ?? row.Enrollment ?? row.enrollment ?? "").toString().replace(/,/g, "").trim());
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function parseDecisionPkEnrollment(row) {
+    if (!row) return 0;
+    const n = parseFloat(
+      (row.PKEnrollment ?? row["PKEnrollment"] ?? row["PK Enrollment"] ?? "").toString().replace(/,/g, "").trim()
+    );
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }
+
+  function parseDecisionTotalCapacity(row) {
+    if (!row) return null;
+    const n = parseFloat((row.Capacity ?? row.capacity ?? row["Capacity"] ?? "").toString().replace(/,/g, "").trim());
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+
+  function parseDecisionEducationalCapacity(row) {
+    if (!row) return null;
+    const n = parseFloat(
+      (row.EducationalCapacity ?? row["EducationalCapacity"] ?? row["Educational Capacity"] ?? "").toString().replace(/,/g, "").trim()
+    );
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+
+  function escSchoolMetaHtml(s) {
+    return norm(String(s ?? "")).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function schoolMetaItem(label, value) {
+    let display;
+    if (typeof value === "number" && Number.isFinite(value)) {
+      display = value.toLocaleString(DISPLAY_NUMBER_LOCALE);
+    } else {
+      display = escSchoolMetaHtml(String(value ?? ""));
+    }
+    return `<span class="school-meta-item"><span class="school-meta-k">${escSchoolMetaHtml(label)}</span>${display}</span>`;
+  }
+
+  function buildSchoolDetailsMetaHtml(decision, opts) {
+    const {
+      resolvedFacilityId,
+      resolvedUniqueId,
+      status,
+      level,
+      sqfDisplay,
+      resolvedDecisionOutcome,
+    } = opts;
+    const parts = [];
+    const fid = resolvedFacilityId || resolvedUniqueId;
+    if (fid) parts.push(schoolMetaItem("JeffCo Facility ID", fid));
+    if (status) parts.push(schoolMetaItem("Status", status));
+    if (level) parts.push(schoolMetaItem("Level", level));
+
+    const totalCap = decision ? parseDecisionTotalCapacity(decision) : null;
+    const eduCap = decision ? parseDecisionEducationalCapacity(decision) : null;
+    if (totalCap !== null) parts.push(schoolMetaItem("Total capacity", totalCap));
+    if (eduCap !== null) parts.push(schoolMetaItem("Educational capacity", eduCap));
+
+    const totalEnr = decision ? parseDecisionEnrollmentTotal(decision) : null;
+    const pkVal = decision ? parseDecisionPkEnrollment(decision) : 0;
+    const pkApplicable = pkVal > 0;
+
+    if (pkApplicable) {
+      if (totalEnr !== null) parts.push(schoolMetaItem("Total enrollment", totalEnr));
+      parts.push(schoolMetaItem("PK enrollment", pkVal));
+      if (totalEnr !== null) {
+        parts.push(schoolMetaItem("Enrollment without Pre-K", Math.max(0, totalEnr - pkVal)));
+      }
+    } else if (totalEnr !== null) {
+      parts.push(schoolMetaItem("Enrollment", totalEnr));
+    }
+
+    if (sqfDisplay) parts.push(schoolMetaItem("SQF", sqfDisplay));
+    if (resolvedDecisionOutcome) parts.push(schoolMetaItem("Decision", resolvedDecisionOutcome));
+
+    const sep = '<span class="school-meta-sep" aria-hidden="true"> · </span>';
+    return `<div class="school-meta-inline">${parts.join(sep)}</div>`;
   }
 
   /** Same rules as script.js (this page does not load script.js). */
@@ -336,10 +570,10 @@
     const inc = getIncludePKInEnrollment();
     let current;
     if (inc) {
-      current = parse(row.Enrollment ?? row["Enrollment"]) ?? 0;
+      current = parse(row.Enrollment2025 ?? row["Enrollment2025"] ?? row.Enrollment ?? row["Enrollment"]) ?? 0;
     } else {
       const pk = parse(row.PKEnrollment ?? row["PKEnrollment"]) ?? 0;
-      const total = parse(row.Enrollment ?? row["Enrollment"]) ?? 0;
+      const total = parse(row.Enrollment2025 ?? row["Enrollment2025"] ?? row.Enrollment ?? row["Enrollment"]) ?? 0;
       current = Math.max(0, total - pk);
     }
     const projected = getEffectiveProjectedEnrollmentLocal(row);
@@ -408,7 +642,7 @@
   /** Enrollment minus PK (seat-equivalent); stable for utilization vs toggles. */
   function getDecisionEnrollment(row) {
     if (!row) return 0;
-    const e = parseFloat((row.Enrollment ?? row.enrollment ?? "").toString().replace(/,/g, "").trim()) || 0;
+    const e = parseFloat((row.Enrollment2025 ?? row["Enrollment2025"] ?? row.Enrollment ?? row.enrollment ?? "").toString().replace(/,/g, "").trim()) || 0;
     const pk =
       parseFloat(
         (row.PKEnrollment ?? row["PKEnrollment"] ?? row["PK Enrollment"] ?? "").toString().replace(/,/g, "").trim()
@@ -544,139 +778,7 @@
     return t.middleDistance || 5.0;
   }
 
-  /**
-   * Matches DecisionLogic.js `loadDistanceToWelcomingMap` — Decision Data Export has no distance column;
-   * the dashboard merges miles from OD_Draft.csv into `DistanceUnderutilizedschools`.
-   */
-  function loadDistanceToWelcomingMapForProfile() {
-    return new Promise((resolve) => {
-      const cached = window.distanceToWelcomingMap;
-      if (cached && typeof cached === "object" && Object.keys(cached).length > 0) {
-        resolve(cached);
-        return;
-      }
-      if (typeof Papa === "undefined" || !Papa.parse) {
-        console.warn("⚠️ PapaParse unavailable; distance-to-welcoming map not loaded.");
-        resolve({});
-        return;
-      }
-      Papa.parse("./OD_Draft.csv", {
-        download: true,
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          try {
-            const pairDistances = {};
-            const pairMeta = {};
-            const norm = (s) => (s || "").toString().trim().toLowerCase();
-            const normName = (s) => norm((s || "").toString().trim().replace(/\s+/g, " "));
-            const median = (arr) => {
-              if (!arr.length) return NaN;
-              const s = [...arr].sort((a, b) => a - b);
-              const m = Math.floor(s.length / 2);
-              return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-            };
-
-            (results.data || []).forEach((row) => {
-              const originCode = (row["CurrentSchoolCode"] || row.CurrentSchoolCode || "").toString().trim();
-              if (!originCode) return;
-
-              const destCode = (row["DestinationSchoolCode"] || row.DestinationSchoolCode || "").toString().trim();
-              if (norm(originCode) === norm(destCode)) return;
-
-              const dist = parseFloat(
-                (row["LinearDistance_Miles"] || row.LinearDistance_Miles || "").toString().trim()
-              );
-              if (!isFinite(dist)) return;
-
-              const originKey = norm(originCode);
-              const destKey = norm(destCode);
-              const pairKey = `${originKey}|${destKey}`;
-              if (!pairDistances[pairKey]) pairDistances[pairKey] = [];
-              pairDistances[pairKey].push(dist);
-              pairMeta[pairKey] = {
-                destCode,
-                destName: row["DestinationSchoolName"] || row.DestinationSchoolName || "",
-                destGrades: row["DestinationSchoolGrades"] || row.DestinationSchoolGrades || "",
-              };
-            });
-
-            const map = {};
-            const mapByName = {};
-            const rowsByOrigin = {};
-            Object.keys(pairDistances).forEach((pairKey) => {
-              const [originKey, destKey] = pairKey.split("|");
-              const med = median(pairDistances[pairKey]);
-              if (!Number.isFinite(med)) return;
-              if (map[originKey] === undefined || med < map[originKey]) map[originKey] = med;
-              const meta = pairMeta[pairKey];
-              if (meta && meta.destCode) {
-                if (!rowsByOrigin[originKey]) rowsByOrigin[originKey] = [];
-                rowsByOrigin[originKey].push({
-                  "Network Distance (Miles)": med,
-                  NetworkDistanceMiles: med,
-                  "Destination CDE Prefix": meta.destCode,
-                  DestinationCDEPrefix: meta.destCode,
-                  "Destination Facility Name": meta.destName,
-                  "Destination Grades": meta.destGrades,
-                });
-              }
-            });
-            const originKeyToName = {};
-            (results.data || []).forEach((row) => {
-              const oc = (row["CurrentSchoolCode"] || row.CurrentSchoolCode || "").toString().trim();
-              const on = (row["CurrentSchoolName"] || row.CurrentSchoolName || "").toString().trim();
-              if (!oc || !on) return;
-              const key = norm(oc);
-              if (!originKeyToName[key]) originKeyToName[key] = normName(on);
-            });
-            Object.keys(map).forEach((k) => {
-              const n = originKeyToName[k];
-              if (n) mapByName[n] = map[k];
-            });
-
-            window.distanceToWelcomingMap = map;
-            window.distanceToWelcomingMapByName = mapByName;
-            window.distanceToWelcomingRowsByOrigin = rowsByOrigin;
-            console.log(
-              "✅ School profile: loaded distance-to-welcoming map from OD_Draft.csv for",
-              Object.keys(map).length,
-              "schools"
-            );
-            resolve(map);
-          } catch (e) {
-            console.error("❌ Error processing OD_Draft.csv:", e);
-            resolve({});
-          }
-        },
-        error: (err) => {
-          console.error("❌ Failed to load OD_Draft.csv:", err);
-          resolve({});
-        },
-      });
-    });
-  }
-
-  function applyDistanceToWelcomingRows(decisionRows) {
-    const distanceMap = window.distanceToWelcomingMap;
-    const mapByName = window.distanceToWelcomingMapByName || {};
-    if (!distanceMap || typeof distanceMap !== "object") return;
-    const normId = (s) => (s || "").toString().trim().toLowerCase();
-    const normName = (s) => normId((s || "").toString().trim().replace(/\s+/g, " "));
-    (decisionRows || []).forEach((row) => {
-      const uniqueId = row.UniqueID || row["UniqueID"] || row["Unique Id"];
-      const key = normId(uniqueId);
-      let dist = key ? distanceMap[key] : undefined;
-      if (dist === undefined) {
-        const name = row["Building Name"] || row.BuildingName || "";
-        const nameKey = normName(name);
-        dist = nameKey ? mapByName[nameKey] : undefined;
-      }
-      if (dist !== undefined) {
-        row.DistanceUnderutilizedschools = dist;
-      }
-    });
-  }
+  /** Distance to underutilized / welcoming schools: use values already present on Decision Data Export rows. */
 
   /** Canonical level for project-line filtering (School Level + Building Name + Multi → K-8 heuristic). */
   function getEffectiveSchoolLevelKey(decision) {
@@ -1986,19 +2088,9 @@
     const decision = resolvedUniqueId ? decisionByUid.get(resolvedUniqueId) : decisionByNameKey.get(normName(resolvedSchoolName));
     const buildingName = norm(decision?.["Building Name"] ?? resolvedSchoolName) || "—";
     elSchoolNameHeader.textContent = buildingName;
-    const pkVal = parseFloat((decision?.PKEnrollment ?? decision?.["PKEnrollment"] ?? decision?.["PK Enrollment"] ?? "").toString().replace(/,/g, "").trim()) || 0;
-    if (getIncludePKInEnrollment() && pkVal > 0) {
-      const badge = document.createElement("span");
-      badge.textContent = " (incl. PK)";
-      badge.style.cssText = "font-size:0.65em;color:#2563eb;font-weight:400;vertical-align:middle;";
-      elSchoolNameHeader.appendChild(badge);
-    }
 
     const status = norm(decision?.Status);
     const level = norm(decision?.["School Level"]);
-    const capDetails = getEffectiveCapacityDetails(decision || {});
-    const cap = Number.isFinite(capDetails?.value) ? capDetails.value.toLocaleString(DISPLAY_NUMBER_LOCALE) : "";
-    const enr = norm(decision?.Enrollment);
     const sqfRaw = norm(
       decision?.[" SquareFt "] ??
         decision?.SquareFt ??
@@ -2067,19 +2159,15 @@
       additionPlanningState.selectedKey = selectedTarget ? selectedTarget.key : null;
     }
 
-    const metaBits = [];
     const resolvedFacilityId = resolvedUniqueId ? facilityIdByUid.get(resolvedUniqueId) : "";
-    if (resolvedFacilityId) metaBits.push(`JeffCo Facility ID: ${resolvedFacilityId}`);
-    else if (resolvedUniqueId) metaBits.push(`JeffCo Facility ID: ${resolvedUniqueId}`);
-    if (status) metaBits.push(`Status: ${status}`);
-    if (level) metaBits.push(`Level: ${level}`);
-    if (cap) metaBits.push(`${capDetails?.label || "Capacity"}: ${cap}`);
-    else if (capDetails?.missingEducational) metaBits.push(capDetails.note || "Educational capacity does not exist.");
-    const enrEff = getEffectiveEnrollment(decision);
-    if (Number.isFinite(enrEff) || enr) metaBits.push(`Enrollment: ${Number.isFinite(enrEff) ? enrEff.toLocaleString(DISPLAY_NUMBER_LOCALE) : enr}${!getIncludePKInEnrollment() && norm(decision?.PKEnrollment) ? ` (excl. PK: ${norm(decision.PKEnrollment)})` : ""}`);
-    if (sqf) metaBits.push(`SQF: ${sqf}`);
-    if (resolvedDecisionOutcome) metaBits.push(`Decision: ${resolvedDecisionOutcome}`);
-    elSchoolMeta.textContent = metaBits.join(" • ");
+    elSchoolMeta.innerHTML = buildSchoolDetailsMetaHtml(decision || null, {
+      resolvedFacilityId,
+      resolvedUniqueId,
+      status,
+      level,
+      sqfDisplay: sqf,
+      resolvedDecisionOutcome,
+    });
 
     // Get all rowwise records for this school, then build profile rows.
     const rawSchoolRows = getRowwiseRowsForSelection(resolvedUniqueId, resolvedSchoolName);
@@ -2233,6 +2321,7 @@
     suppressLightModernizationWhenHeavyIncluded(schoolRows);
     applySiteSpecificReplacementCostLabels(schoolRows);
     applyManualQtySiteSpecificLabels(schoolRows);
+    applyFurnitureUpgradesLumpSumReplacementCosts(schoolRows, decision);
 
     schoolRows = (schoolRows || []).filter((r) => !r.__hiddenBySchoolLevel);
     snapshotNaturalRowIncludeState(schoolRows);
@@ -2340,7 +2429,7 @@
    * Include toggle default (1 = in totals):
    * - ALWAYS_OFF: landscaping, expand parking, improve drop-off / pick-up zone (never default on).
    * - DEFAULT_OFF (asset keys below): opt-in for heavy/light cafeteria & gym (all listed), resurface; also applies outside 04.
-   * - 04_campus upgrade: Furniture upgrades default on only when metric ≤ UnitCostLibrary Value (~0.5); branding and improve drop-off default off (opt-in); shade & outdoor classroom
+   * - 04_campus upgrade: Furniture upgrades replacement cost uses lump-sum budgets by level ($750k ES/K–8, $1.5M MS, $3M HS and K–12); include default still uses metric ≤ library Value; branding and improve drop-off default off (opt-in); shade & outdoor classroom
    *   default on only when Good (“Yes”); other 04 lines default off.
    * - 06_light modernization / legacy modernization row “Lightly modernize corridors”: default on only when condition metric is strictly below 0.5 (fixed cutoff; not library Value 0.6).
    * - Elsewhere: on when project-list condition input exists and row is in capital need; 00_general / 01 / 02 / 08_* follow exclusion flags only.
@@ -2361,6 +2450,37 @@
   );
 
   const FURNITURE_UPGRADES_ASSET_PK = normProjectKey("Furniture upgrades");
+  /** Lump-sum planning replacement cost for 04_campus upgrade → Furniture upgrades (by school level). */
+  const FURNITURE_UPGRADE_BUDGET_ES_USD = 750000;
+  const FURNITURE_UPGRADE_BUDGET_MS_USD = 1500000;
+  const FURNITURE_UPGRADE_BUDGET_HS_K12_USD = 3000000;
+
+  /**
+   * Planning budget for Furniture upgrades row: ES/K–8 $750k, MS $1.5M, HS and K–12 $3M.
+   */
+  function getFurnitureUpgradesPlanningBudgetUsd(decisionRow) {
+    if (!decisionRow) return null;
+    let level = normalizeSchoolLevel(String(decisionRow["School Level"] ?? decisionRow.SchoolLevel ?? ""));
+    if (!level) level = normalizeSchoolLevel(String(decisionRow["Building Name"] ?? ""));
+    if (level === "elementary" || level === "k8") return FURNITURE_UPGRADE_BUDGET_ES_USD;
+    if (level === "middle") return FURNITURE_UPGRADE_BUDGET_MS_USD;
+    if (level === "high" || level === "k12") return FURNITURE_UPGRADE_BUDGET_HS_K12_USD;
+    return null;
+  }
+
+  /** After unit-cost × qty, replace Furniture upgrades with level-based lump sum when in capital need (not Good). */
+  function applyFurnitureUpgradesLumpSumReplacementCosts(rows, decisionRow) {
+    const budget = getFurnitureUpgradesPlanningBudgetUsd(decisionRow);
+    if (budget === null || !Number.isFinite(budget)) return;
+    (rows || []).forEach((r) => {
+      if (norm(r?.SystemCategory) !== "04_campus upgrade") return;
+      if (manualPlanningAssetKey(r) !== FURNITURE_UPGRADES_ASSET_PK) return;
+      if (norm(r?.ConditionScore || r?.__libraryScore).toLowerCase() === "good") return;
+      if (r.__excludedReason === "heavy_mod") return;
+      if (/not included/i.test(norm(r?.ReplacementCost))) return;
+      r.ReplacementCost = formatLocaleUsdInteger(Math.round(budget));
+    });
+  }
   const FRONT_SCHOOL_BRANDING_ASSET_PK = normProjectKey("Front of school branding, landscape upgrades");
   const LIGHTLY_MODERNIZE_CORRIDORS_ASSET_PK = normProjectKey("Lightly modernize corridors");
 
@@ -2556,6 +2676,44 @@
     updateTotalReplacementCostDisplay();
   }
 
+  /** Set Include on for every row that shows a positive dollar replacement cost (bulk enable default-off lines). */
+  function turnOnAllRowsWithValues() {
+    if (!schoolRows || !schoolRows.length) return;
+    let changed = false;
+
+    function visitLeafRow(r) {
+      if (!r || r.__hiddenBySchoolLevel) return;
+      const rc = parseNumberMaybe(r.ReplacementCost);
+      if (rc === null || !Number.isFinite(rc) || rc <= 0) return;
+      if (rowIncludeToggleEffectiveDesired(r)) return;
+      const key = getRowKey(r);
+      if (!key) return;
+      rowIncludeToggleOverrides[key] = true;
+      const leg = getRowKeyLegacy(r);
+      if (leg && leg !== key) delete rowIncludeToggleOverrides[leg];
+      changed = true;
+    }
+
+    schoolRows.forEach((r) => {
+      if (r.__isRollup && r.__rollupRows && r.__rollupRows.length) {
+        r.__rollupRows.forEach(visitLeafRow);
+      } else {
+        visitLeafRow(r);
+      }
+    });
+
+    if (!changed) return;
+    saveRowIncludeToggleOverrides();
+    pruneRowIncludeToggleOverridesAgainstDefaults(schoolRows);
+    if (selectedSchoolUids.size > 1) applyMultiSchoolSelection();
+    else {
+      applyRowIncludeToggleOverrides(schoolRows);
+      applyFilters();
+      render();
+      updateTotalReplacementCostDisplay();
+    }
+  }
+
   function createRowIncludeToggleControl(row) {
     const lab = document.createElement("label");
     lab.className = "row-include-switch";
@@ -2647,6 +2805,33 @@
       .replace(/^\((.*)\)$/, "-$1");
     const n = Number(cleaned);
     return Number.isFinite(n) ? n : null;
+  }
+
+  /**
+   * Used when "Show rows without replacement cost" is off (default): hide rows that lack a planning dollar amount.
+   * Row qualifies when it parses to a positive $ amount and counts toward planning totals (__excludedFromTotals false).
+   * Rows that still show $ but are excluded from totals do not qualify. For 08_site infrastructure*, UnitValue "None"
+   * counts as no replacement cost.
+   */
+  function rowHasReplacementCostInformation(r) {
+    if (!r) return false;
+    if (r.__excludedFromTotals) return false;
+    const sysLo = norm(r.SystemCategory).toLowerCase();
+    const isSiteInfra = sysLo === "08_site infrastructure" || sysLo === "08_site infrastructure_new";
+    if (isSiteInfra) {
+      const uv = norm(String(r.UnitValue ?? "")).toLowerCase();
+      if (uv === "none") return false;
+    }
+    if (r.__isRollup) {
+      const n = parseNumberMaybe(r.ReplacementCost);
+      return n !== null && Number.isFinite(n) && n > 0;
+    }
+    const rcStr = norm(String(r.ReplacementCost ?? ""));
+    if (!rcStr) return false;
+    if (/not included/i.test(rcStr)) return false;
+    if (isReplacementCostPlaceholder(r.ReplacementCost)) return false;
+    const n = parseNumberMaybe(r.ReplacementCost);
+    return n !== null && Number.isFinite(n) && n > 0;
   }
 
   function parseUnitCostNumber(unitCostStr) {
@@ -2811,6 +2996,27 @@
   }
   function isSiteInfrastructureRow(row) {
     return !!(row && isSiteInfrastructureSystemCategory(row.SystemCategory));
+  }
+
+  /** Decision export / header names differ from project-list SchoolName; match both. */
+  function matchesNewBuildingSiteInfraExemptSchool(nameRaw) {
+    const s = norm(nameRaw).toLowerCase();
+    if (!s) return false;
+    if (/marshdale/.test(s) && (/\bes\b/.test(s) || /elementary/.test(s))) return true;
+    if (/prospect\s+valley/.test(s) && (/\bes\b/.test(s) || /elementary/.test(s))) return true;
+    if (/warren\s+tech\s+south/.test(s)) return true;
+    if (/three\s+creeks/.test(s) && /k\s*-?\s*8/.test(s)) return true;
+    if (/fletcher\s+miller/.test(s)) return true;
+    return false;
+  }
+
+  function shouldShowNewBuildingSiteInfraFciNote() {
+    if (!selectedSchoolUids || selectedSchoolUids.size !== 1) return false;
+    const headerText = norm((elSchoolNameHeader && elSchoolNameHeader.textContent) || "")
+      .replace(/\(\s*incl\.\s*PK\s*\)/gi, "")
+      .trim();
+    const candidates = [resolvedSchoolName, norm(schoolRows[0]?.SchoolName), headerText].filter(Boolean);
+    return candidates.some((n) => matchesNewBuildingSiteInfraExemptSchool(n));
   }
 
   function formatConditionScoreDisplay(row) {
@@ -3774,6 +3980,7 @@
         const hay = DISPLAY_COLS.map((c) => norm(getCellValue(r, c))).join(" | ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
+      if (!getShowRowsWithoutReplacementCost() && !rowHasReplacementCostInformation(r)) return false;
       return true;
     });
 
@@ -3801,6 +4008,136 @@
     });
 
     viewRows = out;
+  }
+
+  function computeGroupByP(rows) {
+    const byP = { "1": 0, "2": 0, "3": 0, "4": 0 };
+    (rows || []).forEach((r) => {
+      if (r && r.__excludedFromTotals) return;
+      if (r && r.__isRollup && r.__rollupRows) {
+        r.__rollupRows.forEach((sub) => {
+          if (sub && sub.__excludedFromTotals) return;
+          const rc = parseNumberMaybe(sub?.ReplacementCost);
+          if (rc === null) return;
+          const p = norm(getPriorityForRow(sub));
+          if (byP.hasOwnProperty(p)) byP[p] += rc;
+          else byP["2"] += rc;
+        });
+      } else {
+        const rc = parseNumberMaybe(r?.ReplacementCost);
+        if (rc === null) return;
+        const p = norm(getPriorityForRow(r));
+        if (byP.hasOwnProperty(p)) byP[p] += rc;
+        else byP["2"] += rc;
+      }
+    });
+    return byP;
+  }
+
+  function computeFciAssetRollupByP(assetRows) {
+    const byP = { "1": 0, "2": 0, "3": 0, "4": 0 };
+    (assetRows || []).forEach((ar) => {
+      if (ar && ar.__excludedFromTotals) return;
+      const rc = parseNumberMaybe(ar?.ReplacementCost);
+      if (rc === null) return;
+      const p = norm(getPriorityForRow(ar));
+      if (byP.hasOwnProperty(p)) byP[p] += rc;
+      else byP["2"] += rc;
+    });
+    return byP;
+  }
+
+  function getExportPriorityFilterLabel() {
+    const filteredPriorities = getFilteredPriorities();
+    const totalPriorityCbs = document.querySelectorAll(".priority-filter-cb").length;
+    const allPrioritiesSelected = filteredPriorities.size === 0 || filteredPriorities.size === totalPriorityCbs;
+    return allPrioritiesSelected
+      ? "P1–P4"
+      : "P" + Array.from(filteredPriorities).sort().join(", P");
+  }
+
+  /**
+   * Rows currently visible in the assets table after super/group/FCI-asset collapse (matches on-screen table body).
+   */
+  function collectVisibleExportSections() {
+    function getSuperGroupKey(groupName) {
+      const g = norm(groupName).toLowerCase();
+      if (g.startsWith("00") || g.startsWith("01") || g.startsWith("02") || g.startsWith("03") || g.startsWith("04") || g.startsWith("05") || g.startsWith("06")) return "Projects";
+      if (g.startsWith("08")) return "FCI Deficiency";
+      return null;
+    }
+
+    const sections = [];
+    const superGroupOrder = [];
+    const superGroupMap = new Map();
+    viewRows.forEach((g) => {
+      const sgKey = getSuperGroupKey(g.__group) || g.__group;
+      if (!superGroupMap.has(sgKey)) {
+        superGroupMap.set(sgKey, []);
+        superGroupOrder.push(sgKey);
+      }
+      superGroupMap.get(sgKey).push(g);
+    });
+
+    superGroupOrder.forEach((sgKey) => {
+      const groups = superGroupMap.get(sgKey);
+      const isSuperGroup = groups.length > 1 || (getSuperGroupKey(groups[0].__group) !== null && groups[0].__group !== sgKey);
+      if (isSuperGroup && collapsedSuperGroups.has(sgKey)) return;
+
+      const isFciParent = sgKey === "FCI Deficiency";
+
+      groups.forEach((g) => {
+        const groupKey = g.__group;
+        if (collapsedGroups.has(groupKey)) return;
+
+        if (isFciParent) {
+          const fciAssetGroups = new Map();
+          (g.__rows || []).forEach((r) => {
+            const at = norm(r?.AssetType) || "(Unknown)";
+            if (!fciAssetGroups.has(at)) fciAssetGroups.set(at, []);
+            fciAssetGroups.get(at).push(r);
+          });
+          const sortedEntries = Array.from(fciAssetGroups.entries()).sort((a, b) =>
+            a[0].localeCompare(b[0], undefined, { sensitivity: "base", numeric: true })
+          );
+          const priorityLabel = getExportPriorityFilterLabel();
+          const catByP = computeGroupByP(g.__rows);
+          const catSum = catByP["1"] + catByP["2"] + catByP["3"] + catByP["4"];
+          const items = [];
+          items.push({ type: "categorySubtotal", groupKey, byP: catByP, sum: catSum });
+
+          sortedEntries.forEach(([at, assetRows]) => {
+            if (!assetRows.length) return;
+            const collapseKey = groupKey + "||" + at;
+            const isSiteInfra = isSiteInfrastructureFciGroupKey(groupKey);
+            const isAssetCollapsed = isSiteInfra
+              ? !expandedFciSiteInfraAssets.has(collapseKey)
+              : collapsedFciAssets.has(collapseKey);
+            const assetByP = computeFciAssetRollupByP(assetRows);
+            const assetSum = assetByP["1"] + assetByP["2"] + assetByP["3"] + assetByP["4"];
+            /* Match on-screen table: rollup band always prints; detail rows only when band is expanded. */
+            items.push({
+              type: "rollup",
+              assetType: at,
+              byP: assetByP,
+              sum: assetSum,
+              priorityLabel,
+            });
+            if (!isAssetCollapsed) {
+              assetRows.forEach((r) => items.push({ type: "row", row: r }));
+            }
+          });
+
+          sections.push({ groupKey, isFci: true, items });
+        } else {
+          const rowsOut = [];
+          (g.__rows || []).forEach((r) => rowsOut.push(r));
+          if (rowsOut.length) sections.push({ groupKey, isFci: false, rows: rowsOut });
+        }
+      });
+    });
+
+    return sections;
   }
 
   function render() {
@@ -3852,30 +4189,6 @@
       return null;
     }
 
-    function computeGroupByP(rows) {
-      const byP = { "1": 0, "2": 0, "3": 0, "4": 0 };
-      (rows || []).forEach((r) => {
-        if (r && r.__excludedFromTotals) return;
-        if (r && r.__isRollup && r.__rollupRows) {
-          r.__rollupRows.forEach((sub) => {
-            if (sub && sub.__excludedFromTotals) return;
-            const rc = parseNumberMaybe(sub?.ReplacementCost);
-            if (rc === null) return;
-            const p = norm(getPriorityForRow(sub));
-            if (byP.hasOwnProperty(p)) byP[p] += rc;
-            else byP["2"] += rc;
-          });
-        } else {
-          const rc = parseNumberMaybe(r?.ReplacementCost);
-          if (rc === null) return;
-          const p = norm(getPriorityForRow(r));
-          if (byP.hasOwnProperty(p)) byP[p] += rc;
-          else byP["2"] += rc;
-        }
-      });
-      return byP;
-    }
-
     const superGroupOrder = [];
     const superGroupMap = new Map();
     viewRows.forEach((g) => {
@@ -3914,19 +4227,57 @@
         sgLabel.appendChild(sgArrow);
         sgLabel.appendChild(document.createTextNode(sgKey));
         sgHeader.appendChild(sgLabel);
-        const sgSub = document.createElement("span");
-        sgSub.className = "group-subtotal";
-        sgSub.textContent = superTotal ? formatLocaleUsdInteger(superTotal) : "";
-        if (superTotal) {
-          sgSub.title = ["P1: " + formatLocaleUsdInteger(superByP["1"]),
-            "P2: " + formatLocaleUsdInteger(superByP["2"]),
-            "P3: " + formatLocaleUsdInteger(superByP["3"]),
-            "P4: " + formatLocaleUsdInteger(superByP["4"])].join("\n");
+        if (sgKey === "FCI Deficiency") {
+          if (countFciAssetBands() > 0) {
+            const tools = document.createElement("div");
+            tools.className = "fci-deficiency-tools";
+            const allBandsOut = allFciAssetBandsExpanded();
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "fci-deficiency-tool-btn";
+            btn.title = allBandsOut
+              ? "Collapse all P1–P4 asset bands (sub-rows under each category)"
+              : "Expand all P1–P4 asset bands (sub-rows under each category)";
+            btn.setAttribute(
+              "aria-label",
+              allBandsOut ? "Collapse all P1–P4 asset bands" : "Expand all P1–P4 asset bands"
+            );
+            btn.innerHTML = allBandsOut
+              ? '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+                '<circle cx="5" cy="7" r="1.6" fill="currentColor"/><rect x="9" y="6" width="7" height="2.2" rx="1" fill="currentColor"/>' +
+                '<circle cx="5" cy="12" r="1.6" fill="currentColor"/><rect x="9" y="11" width="7" height="2.2" rx="1" fill="currentColor"/>' +
+                '<circle cx="5" cy="17" r="1.6" fill="currentColor"/><rect x="9" y="16" width="7" height="2.2" rx="1" fill="currentColor"/>' +
+                '<path d="M18.5 8V5.5H16M18.5 16v2.5H16M21 7l-2.5 2-2.5-2M21 17l-2.5-2-2.5 2" stroke="currentColor" stroke-width="1.35" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
+                "</svg>"
+              : '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+                '<circle cx="5" cy="7" r="1.6" fill="currentColor"/><rect x="9" y="6" width="7" height="2.2" rx="1" fill="currentColor"/>' +
+                '<circle cx="5" cy="12" r="1.6" fill="currentColor"/><rect x="9" y="11" width="7" height="2.2" rx="1" fill="currentColor"/>' +
+                '<circle cx="5" cy="17" r="1.6" fill="currentColor"/><rect x="9" y="16" width="7" height="2.2" rx="1" fill="currentColor"/>' +
+                '<path d="M18.5 5.5V9M18.5 15v3.5M16 7l2.5-2 2.5 2M16 17l2.5 2 2.5-2" stroke="currentColor" stroke-width="1.35" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
+                "</svg>";
+            btn.addEventListener("click", (e) => {
+              e.stopPropagation();
+              toggleAllFciAssetBands();
+            });
+            tools.appendChild(btn);
+            sgHeader.appendChild(tools);
+          }
+        } else {
+          const sgSub = document.createElement("span");
+          sgSub.className = "group-subtotal";
+          sgSub.textContent = superTotal ? formatLocaleUsdInteger(superTotal) : "";
+          if (superTotal) {
+            sgSub.title = ["P1: " + formatLocaleUsdInteger(superByP["1"]),
+              "P2: " + formatLocaleUsdInteger(superByP["2"]),
+              "P3: " + formatLocaleUsdInteger(superByP["3"]),
+              "P4: " + formatLocaleUsdInteger(superByP["4"])].join("\n");
+          }
+          sgHeader.appendChild(sgSub);
         }
-        sgHeader.appendChild(sgSub);
         sgTd.appendChild(sgHeader);
         sgTr.appendChild(sgTd);
-        sgTr.addEventListener("click", () => {
+        sgTr.addEventListener("click", (e) => {
+          if (e.target.closest(".fci-deficiency-tools")) return;
           if (collapsedSuperGroups.has(sgKey)) collapsedSuperGroups.delete(sgKey);
           else collapsedSuperGroups.add(sgKey);
           render();
@@ -4088,63 +4439,71 @@
           ? "P1–P4"
           : "P" + Array.from(filteredPriorities).sort().join(", P");
 
-        fciAssetGroups.forEach((assetRows, at) => {
-          if (assetRows.length > 1) {
-            const collapseKey = groupKey + "||" + at;
-            const isAssetCollapsed = collapsedFciAssets.has(collapseKey);
+        const fciSortedAssetEntries = Array.from(fciAssetGroups.entries()).sort((a, b) =>
+          a[0].localeCompare(b[0], undefined, { sensitivity: "base", numeric: true })
+        );
 
-            const byP = { "1": 0, "2": 0, "3": 0, "4": 0 };
-            assetRows.forEach((ar) => {
-              if (ar && ar.__excludedFromTotals) return;
-              const rc = parseNumberMaybe(ar?.ReplacementCost);
-              if (rc === null) return;
-              const p = norm(getPriorityForRow(ar));
-              if (byP.hasOwnProperty(p)) byP[p] += rc;
-              else byP["2"] += rc;
-            });
-            const sum = byP["1"] + byP["2"] + byP["3"] + byP["4"];
+        fciSortedAssetEntries.forEach(([at, assetRows]) => {
+          if (!assetRows.length) return;
 
-            const rollupTr = document.createElement("tr");
-            rollupTr.className = "fci-rollup-row" + (isAssetCollapsed ? " collapsed" : "");
-            rollupTr.style.cursor = "pointer";
-            const rollupToggleTd = document.createElement("td");
-            rollupToggleTd.className = "col-include-toggle fci-rollup-toggle-spacer";
-            rollupTr.appendChild(rollupToggleTd);
-            DISPLAY_COLS.forEach((col) => {
-              const cell = document.createElement("td");
-              if (col === "Project Type") {
-                const arrow = document.createElement("span");
-                arrow.className = "group-arrow";
-                arrow.textContent = "▼";
-                cell.appendChild(arrow);
-                cell.appendChild(document.createTextNode(at));
-              } else if (col === "Priority") {
-                cell.textContent = priorityLabel;
-                cell.style.textAlign = "center";
-                cell.style.fontSize = "11px";
-              } else if (col === "ReplacementCost") {
-                cell.textContent = sum ? formatLocaleUsdInteger(sum) : "";
-                const tooltip = ["P1: " + formatLocaleUsdInteger(byP["1"]),
-                  "P2: " + formatLocaleUsdInteger(byP["2"]),
-                  "P3: " + formatLocaleUsdInteger(byP["3"]),
-                  "P4: " + formatLocaleUsdInteger(byP["4"])];
-                cell.title = tooltip.join("\n");
-              } else {
-                cell.textContent = "";
-              }
-              rollupTr.appendChild(cell);
-            });
-            rollupTr.addEventListener("click", () => {
-              if (collapsedFciAssets.has(collapseKey)) collapsedFciAssets.delete(collapseKey);
-              else collapsedFciAssets.add(collapseKey);
-              render();
-            });
-            tbody.appendChild(rollupTr);
+          const collapseKey = groupKey + "||" + at;
+          const isSiteInfra = isSiteInfrastructureFciGroupKey(groupKey);
+          const isAssetCollapsed = isSiteInfra
+            ? !expandedFciSiteInfraAssets.has(collapseKey)
+            : collapsedFciAssets.has(collapseKey);
 
-            if (!isAssetCollapsed) {
-              assetRows.forEach((r) => renderSingleRow(r));
+          const byP = { "1": 0, "2": 0, "3": 0, "4": 0 };
+          assetRows.forEach((ar) => {
+            if (ar && ar.__excludedFromTotals) return;
+            const rc = parseNumberMaybe(ar?.ReplacementCost);
+            if (rc === null) return;
+            const p = norm(getPriorityForRow(ar));
+            if (byP.hasOwnProperty(p)) byP[p] += rc;
+            else byP["2"] += rc;
+          });
+          const sum = byP["1"] + byP["2"] + byP["3"] + byP["4"];
+
+          const rollupTr = document.createElement("tr");
+          rollupTr.className = "fci-rollup-row" + (isAssetCollapsed ? " collapsed" : "");
+          rollupTr.style.cursor = "pointer";
+          const rollupToggleTd = document.createElement("td");
+          rollupToggleTd.className = "col-include-toggle fci-rollup-toggle-spacer";
+          rollupTr.appendChild(rollupToggleTd);
+          DISPLAY_COLS.forEach((col) => {
+            const cell = document.createElement("td");
+            if (col === "Project Type") {
+              const arrow = document.createElement("span");
+              arrow.className = "group-arrow";
+              arrow.textContent = "▼";
+              cell.appendChild(arrow);
+              cell.appendChild(document.createTextNode(at));
+            } else if (col === "Priority") {
+              cell.textContent = priorityLabel;
+              cell.style.textAlign = "center";
+              cell.style.fontSize = "11px";
+            } else if (col === "ReplacementCost") {
+              cell.textContent = sum ? formatLocaleUsdInteger(sum) : "";
+              const tooltip = ["P1: " + formatLocaleUsdInteger(byP["1"]),
+                "P2: " + formatLocaleUsdInteger(byP["2"]),
+                "P3: " + formatLocaleUsdInteger(byP["3"]),
+                "P4: " + formatLocaleUsdInteger(byP["4"])];
+              cell.title = tooltip.join("\n");
+            } else {
+              cell.textContent = "";
             }
-          } else {
+            rollupTr.appendChild(cell);
+          });
+          rollupTr.addEventListener("click", () => {
+            if (isSiteInfra) {
+              if (expandedFciSiteInfraAssets.has(collapseKey)) expandedFciSiteInfraAssets.delete(collapseKey);
+              else expandedFciSiteInfraAssets.add(collapseKey);
+            } else if (collapsedFciAssets.has(collapseKey)) collapsedFciAssets.delete(collapseKey);
+            else collapsedFciAssets.add(collapseKey);
+            render();
+          });
+          tbody.appendChild(rollupTr);
+
+          if (!isAssetCollapsed) {
             assetRows.forEach((r) => renderSingleRow(r));
           }
         });
@@ -4158,6 +4517,12 @@
           tr.classList.add("excluded-row");
           if (r.__excludedReason === "level") tr.classList.add("excluded-level");
           if (r.__excludedReason === "good" || r.__excludedReason === "heavy_mod") tr.classList.add("excluded-good");
+        }
+        {
+          const rcNum = r ? parseNumberMaybe(r.ReplacementCost) : null;
+          if (r && r.__excludedFromTotals && rcNum !== null && rcNum > 0 && !r.__isRollup) {
+            tr.classList.add("excluded-but-has-rc");
+          }
         }
         if (
           r &&
@@ -4338,7 +4703,17 @@
               if (isSiteInfrastructureRow(r)) {
                 cell.textContent = "";
                 cell.title = "";
-                cell.classList.add("muted");
+                cell.classList.remove("muted");
+                if (shouldShowNewBuildingSiteInfraFciNote()) {
+                  const span = document.createElement("span");
+                  span.className = "site-infra-fci-note";
+                  span.textContent = "No FCI — new building.";
+                  span.title =
+                    "There is no FCI for site infrastructure because this campus includes a new building.";
+                  cell.appendChild(span);
+                } else {
+                  cell.classList.add("muted");
+                }
               } else {
               const text = getCellValue(r, col);
               const display = norm(text) ? text : "—";
@@ -4466,6 +4841,7 @@
     collapsedGroups.clear();
     collapsedSuperGroups.clear();
     collapsedFciAssets.clear();
+    expandedFciSiteInfraAssets.clear();
     if (elSearch) elSearch.value = "";
   }
 
@@ -4664,6 +5040,7 @@
       suppressLightModernizationWhenHeavyIncluded(rows);
       applySiteSpecificReplacementCostLabels(rows);
       applyManualQtySiteSpecificLabels(rows);
+      applyFurnitureUpgradesLumpSumReplacementCosts(rows, decision);
 
       snapshotNaturalRowIncludeState(rows);
       pruneRowIncludeToggleOverridesAgainstDefaults(rows);
@@ -4825,22 +5202,6 @@
 
     schoolRows = rollupRows;
     elSchoolNameHeader.textContent = names.length <= 3 ? names.join(", ") : `${names.length} Facilities`;
-    if (getIncludePKInEnrollment()) {
-      let anyPK = false;
-      selectedSchoolUids.forEach((id) => {
-        if (anyPK) return;
-        const uid = id.startsWith("name:") ? "" : id;
-        const dec = uid ? decisionByUid.get(uid) : null;
-        const pk = parseFloat((dec?.PKEnrollment ?? dec?.["PKEnrollment"] ?? dec?.["PK Enrollment"] ?? "").toString().replace(/,/g, "").trim()) || 0;
-        if (pk > 0) anyPK = true;
-      });
-      if (anyPK) {
-        const badge = document.createElement("span");
-        badge.textContent = " (incl. PK)";
-        badge.style.cssText = "font-size:0.65em;color:#2563eb;font-weight:400;vertical-align:middle;";
-        elSchoolNameHeader.appendChild(badge);
-      }
-    }
     elSchoolMeta.textContent = `${names.length} facilities selected • ${rollupRows.length} rollup project rows`;
 
     populateFilters();
@@ -4851,12 +5212,22 @@
 
   function downloadFilteredCsv() {
     const flat = [];
-    viewRows.forEach((g) => {
-      (g.__rows || []).forEach((r) => {
-        const out = {};
-        DISPLAY_COLS.forEach((c) => (out[c] = getCellValue(r, c) ?? ""));
-        flat.push(out);
-      });
+    collectVisibleExportSections().forEach((sec) => {
+      if (sec.isFci) {
+        (sec.items || []).forEach((it) => {
+          if (it.type !== "row") return;
+          const r = it.row;
+          const out = {};
+          DISPLAY_COLS.forEach((c) => (out[c] = getCellValue(r, c) ?? ""));
+          flat.push(out);
+        });
+      } else {
+        (sec.rows || []).forEach((r) => {
+          const out = {};
+          DISPLAY_COLS.forEach((c) => (out[c] = getCellValue(r, c) ?? ""));
+          flat.push(out);
+        });
+      }
     });
 
     const csv = Papa.unparse(flat, { quotes: true });
@@ -4887,14 +5258,23 @@
     const facilityCount = selectedSchoolUids && selectedSchoolUids.size ? selectedSchoolUids.size : 0;
     const isMultiFacilityRollup = facilityCount > 1;
 
+    const pdfSections = collectVisibleExportSections();
+
     let anySchoolLabel = false;
     let tableRowCount = 0;
-    (viewRows || []).forEach((g) => {
+    pdfSections.forEach((sec) => {
       tableRowCount += 1;
-      (g.__rows || []).forEach((r) => {
-        if (r.__schoolLabel) anySchoolLabel = true;
-        tableRowCount += 1;
-      });
+      if (sec.isFci) {
+        (sec.items || []).forEach((it) => {
+          tableRowCount += 1;
+          if (it.type === "row" && it.row && it.row.__schoolLabel) anySchoolLabel = true;
+        });
+      } else {
+        (sec.rows || []).forEach((r) => {
+          if (r.__schoolLabel) anySchoolLabel = true;
+          tableRowCount += 1;
+        });
+      }
     });
 
     // Portrait: smaller base when many category+data rows (e.g. select-all rollup).
@@ -4910,7 +5290,6 @@
     if (isMultiFacilityRollup && facilityCount >= 100) fontPt = Math.min(fontPt, 5);
 
     const headerLabels = [];
-    headerLabels.push("Include");
     if (anySchoolLabel) headerLabels.push("Facility");
     DISPLAY_COLS.forEach((c) => {
       const key = typeof c === "string" ? c : c.key || c;
@@ -4925,40 +5304,92 @@
     let pdfDataRowIdx = 0;
     /** Estimated table height (pt) for 2-page print fit */
     let estTablePt = 0;
-    (viewRows || []).forEach((g) => {
-      estTablePt += Math.max(13, fontPt * 1.05 + 9);
-      const gname = esc(norm(g.__group) || "(Uncategorized)");
-      bodyParts.push(`<tr class="pdf-group"><td colspan="${colCount}">${gname}</td></tr>`);
-      (g.__rows || []).forEach((r) => {
-        const proj = norm(getCellValue(r, "Project Type"));
-        const fac = anySchoolLabel ? norm(r.__schoolLabel || "") : "";
-        const longText = Math.max(proj.length, fac.length, 24);
-        const wrapLines = Math.min(5, 1 + Math.floor(longText / 36));
-        estTablePt += Math.max(11, fontPt * 1.2 * wrapLines + 6);
-        const campusYesPdf =
-          isCampusYesNoReferenceAssetRow(r) &&
-          norm(r?.ConditionScore || r?.__libraryScore).toLowerCase() === "good";
-        const rowClass =
-          (r.__excludedFromTotals ? "pdf-ex " : "") +
-          (campusYesPdf ? "pdf-campus-yes " : "") +
-          "pdf-data" +
-          (pdfDataRowIdx % 2 === 1 ? " pdf-zebra" : "");
-        pdfDataRowIdx += 1;
-        const cells = [];
-        cells.push(r.__excludedFromTotals ? "Off" : "On");
-        if (anySchoolLabel) cells.push(esc(r.__schoolLabel || "—"));
-        DISPLAY_COLS.forEach((c) => {
-          const key = typeof c === "string" ? c : c.key || c;
-          cells.push(esc(getCellValue(r, key) ?? ""));
-        });
-        bodyParts.push(`<tr class="${rowClass}"><td>` + cells.join("</td><td>") + "</td></tr>");
+
+    function pushPdfDataRow(r) {
+      const proj = norm(getCellValue(r, "Project Type"));
+      const fac = anySchoolLabel ? norm(r.__schoolLabel || "") : "";
+      const longText = Math.max(proj.length, fac.length, 24);
+      const wrapLines = Math.min(5, 1 + Math.floor(longText / 36));
+      estTablePt += Math.max(11, fontPt * 1.2 * wrapLines + 6);
+      const campusYesPdf =
+        isCampusYesNoReferenceAssetRow(r) &&
+        norm(r?.ConditionScore || r?.__libraryScore).toLowerCase() === "good";
+      const rcPdf = parseNumberMaybe(r?.ReplacementCost);
+      const pdfExcludedButRc =
+        r.__excludedFromTotals && rcPdf !== null && rcPdf > 0 && !r.__isRollup;
+      const rowClass =
+        (r.__excludedFromTotals ? "pdf-ex " : "") +
+        (pdfExcludedButRc ? "pdf-ex-has-rc " : "") +
+        (campusYesPdf ? "pdf-campus-yes " : "") +
+        "pdf-data" +
+        (pdfDataRowIdx % 2 === 1 ? " pdf-zebra" : "");
+      pdfDataRowIdx += 1;
+      const cells = [];
+      if (anySchoolLabel) cells.push(esc(r.__schoolLabel || "—"));
+      DISPLAY_COLS.forEach((c) => {
+        const key = typeof c === "string" ? c : c.key || c;
+        cells.push(esc(getCellValue(r, key) ?? ""));
       });
+      bodyParts.push(`<tr class="${rowClass}"><td>` + cells.join("</td><td>") + "</td></tr>");
+    }
+
+    function pushPdfFciSubtotalRow(kind, title, priorityText, sumRounded, byP) {
+      estTablePt += Math.max(11, fontPt * 1.15 + 6);
+      const tip = ["P1: " + formatLocaleUsdInteger(byP["1"]),
+        "P2: " + formatLocaleUsdInteger(byP["2"]),
+        "P3: " + formatLocaleUsdInteger(byP["3"]),
+        "P4: " + formatLocaleUsdInteger(byP["4"])].join("\n");
+      const rcStr = sumRounded > 0 ? formatLocaleUsdInteger(Math.round(sumRounded)) : "";
+      const cells = [];
+      if (anySchoolLabel) cells.push("—");
+      DISPLAY_COLS.forEach((c) => {
+        const key = typeof c === "string" ? c : c.key || c;
+        if (key === "Project Type") cells.push(esc(title));
+        else if (key === "Priority") cells.push(esc(priorityText));
+        else if (key === "ReplacementCost") cells.push(esc(rcStr));
+        else cells.push("");
+      });
+      const cls = kind === "category" ? "pdf-fci-subtotal pdf-fci-subtotal--category" : "pdf-fci-subtotal pdf-fci-subtotal--rollup";
+      bodyParts.push(
+        `<tr class="${cls}" title="${esc(tip)}"><td>` + cells.join("</td><td>") + "</td></tr>"
+      );
+    }
+
+    pdfSections.forEach((sec) => {
+      estTablePt += Math.max(13, fontPt * 1.05 + 9);
+      const gname = esc(norm(sec.groupKey) || "(Uncategorized)");
+      bodyParts.push(`<tr class="pdf-group"><td colspan="${colCount}">${gname}</td></tr>`);
+      if (sec.isFci) {
+        (sec.items || []).forEach((it) => {
+          if (it.type === "categorySubtotal") {
+            pushPdfFciSubtotalRow(
+              "category",
+              "▼ Subtotal · " + norm(it.groupKey),
+              getExportPriorityFilterLabel(),
+              it.sum,
+              it.byP
+            );
+          } else if (it.type === "rollup") {
+            pushPdfFciSubtotalRow(
+              "rollup",
+              "▼ " + norm(it.assetType),
+              it.priorityLabel || getExportPriorityFilterLabel(),
+              it.sum,
+              it.byP
+            );
+          } else if (it.type === "row") {
+            pushPdfDataRow(it.row);
+          }
+        });
+      } else {
+        (sec.rows || []).forEach((r) => pushPdfDataRow(r));
+      }
     });
     const tbody = bodyParts.join("");
 
     const schoolTitle = esc((elSchoolNameHeader && elSchoolNameHeader.innerText) || "Project list");
     const docTitle = norm(elSchoolNameHeader && elSchoolNameHeader.innerText) || "Project list";
-    const meta = esc((elSchoolMeta && elSchoolMeta.textContent) || "");
+    const meta = esc((elSchoolMeta && elSchoolMeta.innerText) || "");
     const tot = esc((elTotalReplacementCost && elTotalReplacementCost.textContent) || "—");
     const p1 = esc((elTotalP1Cost && elTotalP1Cost.textContent) || "—");
     const p2 = esc((elTotalP2Cost && elTotalP2Cost.textContent) || "—");
@@ -4986,7 +5417,7 @@
 
     const def122 = document.getElementById("deficiencyOnlyToggle");
     const facBits = [];
-    if (def122 && def122.checked) facBits.push("122 active traditional sites only");
+    if (def122 && def122.checked) facBits.push("active district-operated sites");
     document.querySelectorAll(".facility-type-cb:checked").forEach((cb) => {
       const v = cb.value;
       const map = {
@@ -5029,7 +5460,7 @@
     const marginHIn = isMultiFacilityRollup || tableRowCount > 72 ? 0.34 : 0.45;
     const marginV = marginVIn * PT * 2;
     const contentPerPage = pageH - marginV;
-    const metaRough = (elSchoolMeta && elSchoolMeta.textContent) || "";
+    const metaRough = (elSchoolMeta && elSchoolMeta.innerText) || "";
     let summaryReserve =
       228 +
       (additionBlock ? 52 : 0) +
@@ -5153,6 +5584,18 @@ table.data tbody tr.pdf-group td {
   border: 1px solid #b8cce0;
   page-break-after: avoid;
 }
+table.data tbody tr.pdf-fci-subtotal td {
+  background: #f5e6c8;
+  color: #4a3a14;
+  font-weight: 700;
+  font-size: calc(${fontPt}pt - 0.3pt);
+  padding: ${cellPad};
+  border: 1px solid #c9a96e;
+  border-top-width: 1.5px;
+}
+table.data tbody tr.pdf-fci-subtotal--category td {
+  font-weight: 800;
+}
 table.data tbody tr.pdf-data.pdf-zebra td { background: #f7fafc; }
 table.data tbody tr.pdf-ex td { color: #64748b; }
 table.data tbody tr.pdf-ex.pdf-zebra td { background: #f1f5f9; color: #64748b; }
@@ -5165,17 +5608,30 @@ table.data tbody tr.pdf-ex.pdf-campus-yes.pdf-zebra td {
   background: #f7fafc;
   color: #111;
 }
+table.data tbody tr.pdf-ex.pdf-ex-has-rc td { color: #111; }
+table.data tbody tr.pdf-ex.pdf-ex-has-rc.pdf-zebra td { background: #f7fafc; color: #111; }
 thead { display: table-header-group; }
 tfoot { display: table-footer-group; }
 .pdf-foot { font-size: 6pt; color: #64748b; margin-top: 6pt; line-height: 1.3; }
-/* Column widths (portrait) */
-table.data th:nth-child(1), table.data td:nth-child(1) { width: ${anySchoolLabel ? "11%" : "7%"}; }
-table.data th:nth-child(2), table.data td:nth-child(2) { width: ${anySchoolLabel ? "8%" : "34%"}; }
-table.data th:nth-child(3), table.data td:nth-child(3) { width: ${anySchoolLabel ? "30%" : "12%"}; }
-table.data th:nth-child(4), table.data td:nth-child(4) { width: ${anySchoolLabel ? "12%" : "14%"}; }
-table.data th:nth-child(5), table.data td:nth-child(5) { width: ${anySchoolLabel ? "14%" : "14%"}; }
-table.data th:nth-child(6), table.data td:nth-child(6) { width: ${anySchoolLabel ? "13%" : "14%"}; }
-table.data th:nth-child(7), table.data td:nth-child(7) { width: ${anySchoolLabel ? "12%" : "19%"}; }
+/* Column widths (portrait): Priority narrow, Project Type wide; Unit Cost wider + nowrap so “/QUANTITY” stays one line */
+table.data th:nth-child(1), table.data td:nth-child(1) { width: ${anySchoolLabel ? "13%" : "7%"}; }
+table.data th:nth-child(2), table.data td:nth-child(2) { width: ${anySchoolLabel ? "6%" : "34%"}; }
+table.data th:nth-child(3), table.data td:nth-child(3) { width: ${anySchoolLabel ? "26%" : "10%"}; }
+table.data th:nth-child(4), table.data td:nth-child(4) { width: ${anySchoolLabel ? "9%" : "17%"}; }
+table.data th:nth-child(5), table.data td:nth-child(5) { width: ${anySchoolLabel ? "15%" : "12%"}; }
+table.data th:nth-child(6), table.data td:nth-child(6) { width: ${anySchoolLabel ? "11%" : "20%"}; }
+${anySchoolLabel ? `table.data th:nth-child(7), table.data td:nth-child(7) { width: 20%; }\n` : ""}
+${anySchoolLabel ? `table.data th:nth-child(5), table.data td:nth-child(5) {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+` : `table.data th:nth-child(4), table.data td:nth-child(4) {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+`}
 </style></head><body>
 <div class="pdf-banner">School Facility Planning Webtool · School Profile · Exported ${stamp}</div>
 <h1>${schoolTitle}</h1>
@@ -5188,7 +5644,7 @@ ${meta ? `<p class="pdf-meta">${meta}</p>` : ""}
 <p class="pdf-filters"><strong>Facility selection:</strong> ${facLine}<br><strong>Table filters:</strong> ${filtBlock}</p>
 ${additionBlock}
 <table class="data"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
-<p class="pdf-foot">Grey text = row excluded from totals (decision, score, or N/A). Shade structure and new outdoor classroom <strong>Yes</strong> rows print in black (reference cost).${pdfZoomPct < 99 ? ` Print zoom set to ${pdfZoomPct}% to target two pages (Chrome/Edge).` : ""} If a third page appears, reduce print margins slightly.</p>
+<p class="pdf-foot">Export lists only table rows visible with your current expand/collapse state (super-groups, categories, and 08 site-infrastructure P1–P4 bands). Grey text = excluded from totals unless the row still shows a dollar replacement amount (then body prints black). Shade structure and new outdoor classroom <strong>Yes</strong> rows print in black (reference cost).${pdfZoomPct < 99 ? ` Print zoom set to ${pdfZoomPct}% to target two pages (Chrome/Edge).` : ""} If a third page appears, reduce print margins slightly.</p>
 </body></html>`;
 
     const w = window.open("", "_blank");
@@ -5224,8 +5680,6 @@ ${additionBlock}
     ])
       .then(async ([decRows, assetRows, unitCostLibRows, roomScheduleRows]) => {
         decisionRows = decRows || [];
-        await loadDistanceToWelcomingMapForProfile();
-        applyDistanceToWelcomingRows(decisionRows);
         buildDecisionIndexes(decisionRows);
 
         unitCostIndex = buildUnitCostLibraryIndex(unitCostLibRows || []);
@@ -5408,6 +5862,45 @@ ${additionBlock}
           const facilityTypeCbs = elFacilityTypeFilter
             ? Array.from(elFacilityTypeFilter.querySelectorAll(".facility-type-cb"))
             : [];
+          const elFacilityScopeCategories = document.getElementById("facilityScopeCategories");
+          const elFacilityScopeBtn = document.getElementById("facilityScopeBtn");
+          const elFacilityScopeDropdown = document.getElementById("facilityScopeDropdown");
+          const elFacilityScopeLabel = document.getElementById("facilityScopeLabel");
+
+          const FACILITY_SCOPE_LABELS = {
+            school: "Schools",
+            "cte-pathway": "CTE Pathways",
+            cte: "CTE",
+            athletics: "Athletics",
+            oels: "OELs",
+            "admin-support": "Admin & Support",
+          };
+
+          function updateFacilityScopeLabel() {
+            if (!elFacilityScopeLabel || !elDeficiencyToggle) return;
+            if (elDeficiencyToggle.checked) {
+              elFacilityScopeLabel.textContent = "Active District-Operated Sites";
+              return;
+            }
+            const parts = [];
+            facilityTypeCbs.forEach((cb) => {
+              if (cb.checked) parts.push(FACILITY_SCOPE_LABELS[cb.value] || cb.value);
+            });
+            elFacilityScopeLabel.textContent = parts.length ? parts.join(", ") : "— Select scope —";
+          }
+
+          function syncFacilityScopeCategoriesDimming() {
+            if (elFacilityScopeCategories) {
+              elFacilityScopeCategories.classList.toggle("is-district-mode", !!isOriginal122Mode());
+            }
+            updateFacilityScopeLabel();
+          }
+
+          function closeFacilityScopeDropdown() {
+            if (!elFacilityScopeDropdown || !elFacilityScopeBtn) return;
+            elFacilityScopeDropdown.style.display = "none";
+            elFacilityScopeBtn.setAttribute("aria-expanded", "false");
+          }
 
           function getActiveFacilityTypes() {
             const types = new Set();
@@ -5477,34 +5970,43 @@ ${additionBlock}
             allCb.checked = true;
             allCb.indeterminate = false;
             updateSelectAllLabel();
+            syncFacilityScopeCategoriesDimming();
             onSchoolSelectionChanged();
           }
 
-          // "122 Active Traditional Sites Only" checked -> uncheck all type checkboxes
           if (elDeficiencyToggle) {
             elDeficiencyToggle.addEventListener("change", () => {
               if (elDeficiencyToggle.checked) {
-                facilityTypeCbs.forEach((cb) => { cb.checked = false; });
+                facilityTypeCbs.forEach((cb) => {
+                  cb.checked = false;
+                });
               }
               applyFacilityVisibility();
             });
           }
 
-          // Any type checkbox checked -> uncheck "122 active"
           facilityTypeCbs.forEach((ftCb) => {
             ftCb.addEventListener("change", () => {
-              if (ftCb.checked && elDeficiencyToggle && elDeficiencyToggle.checked) {
+              if (ftCb.checked && elDeficiencyToggle) {
                 elDeficiencyToggle.checked = false;
               }
-              // If no types checked and 122 not checked, nothing to show
               const anyTypeChecked = facilityTypeCbs.some((c) => c.checked);
               if (!anyTypeChecked && elDeficiencyToggle && !elDeficiencyToggle.checked) {
-                // Re-check 122 active as fallback
                 elDeficiencyToggle.checked = true;
               }
               applyFacilityVisibility();
             });
           });
+
+          if (elFacilityScopeBtn && elFacilityScopeDropdown) {
+            elFacilityScopeBtn.addEventListener("click", (e) => {
+              e.stopPropagation();
+              const wasOpen = elFacilityScopeDropdown.style.display !== "none";
+              elFacilityScopeDropdown.style.display = wasOpen ? "none" : "block";
+              elFacilityScopeBtn.setAttribute("aria-expanded", wasOpen ? "false" : "true");
+            });
+            elFacilityScopeDropdown.addEventListener("click", (e) => e.stopPropagation());
+          }
 
           schoolCbs.forEach((cb) => cb.addEventListener("change", onSchoolSelectionChanged));
 
@@ -5518,7 +6020,7 @@ ${additionBlock}
             onSchoolSelectionChanged();
           });
 
-          // Initial state: "122 active" checked, type cbs unchecked
+          // Initial state: district-operated (122) scope checked, type cbs unchecked
           applyFacilityVisibility();
 
           searchInput.addEventListener("input", () => {
@@ -5548,9 +6050,13 @@ ${additionBlock}
               }
             });
             document.addEventListener("click", (e) => {
-              const container = document.getElementById("schoolMultiSelect");
-              if (container && !container.contains(e.target)) {
+              const schoolWrap = document.getElementById("schoolMultiSelect");
+              if (schoolWrap && !schoolWrap.contains(e.target)) {
                 elSchoolSelectDropdown.style.display = "none";
+              }
+              const facilityWrap = document.getElementById("facilityTypeFilter");
+              if (facilityWrap && !facilityWrap.contains(e.target)) {
+                closeFacilityScopeDropdown();
               }
             });
           }
@@ -5559,33 +6065,17 @@ ${additionBlock}
           window.__onSchoolSelectionChanged = onSchoolSelectionChanged;
         }
 
-        const pkToggle = document.getElementById("includePKInEnrollmentToggle");
-        if (pkToggle) {
-          pkToggle.checked = getIncludePKInEnrollment();
-          pkToggle.addEventListener("change", () => {
-            setIncludePKInEnrollment(pkToggle.checked);
-            applyMultiSchoolSelection();
-          });
-        }
-        const capToggle = document.getElementById("useEducationalCapacityToggle");
-        if (capToggle) {
-          capToggle.checked = getCapacitySource() === "educational";
-          capToggle.addEventListener("change", () => {
-            setCapacitySource(capToggle.checked ? "educational" : "capacity");
-            applyMultiSchoolSelection();
-          });
-        }
-
         const fciToggle = document.getElementById("includeFciToggle");
         if (fciToggle) {
-          try {
-            fciToggle.checked = window.localStorage.getItem("includeFciForMajor") !== "0";
-          } catch {
-            fciToggle.checked = true;
-          }
+          fciToggle.checked = getIncludeFciForMajor();
           fciToggle.addEventListener("change", () => {
-            if (fciToggle.checked) window.localStorage.setItem("includeFciForMajor", "1");
-            else window.localStorage.setItem("includeFciForMajor", "0");
+            try {
+              if (window.localStorage) {
+                window.localStorage.setItem(INCLUDE_FCI_MAJOR_STORAGE_KEY, fciToggle.checked ? "1" : "0");
+              }
+            } catch {
+              // ignore
+            }
             applyMultiSchoolSelection();
           });
         }
@@ -5654,6 +6144,49 @@ ${additionBlock}
       applyFilters();
       render();
     });
+
+    function closeAssetsSettingsDropdown() {
+      const dd = document.getElementById("assetsSettingsDropdown");
+      const btn = document.getElementById("assetsSettingsBtn");
+      if (dd) dd.style.display = "none";
+      if (btn) btn.setAttribute("aria-expanded", "false");
+    }
+
+    const assetsSettingsBtn = document.getElementById("assetsSettingsBtn");
+    const assetsSettingsDropdown = document.getElementById("assetsSettingsDropdown");
+    if (assetsSettingsBtn && assetsSettingsDropdown) {
+      assetsSettingsBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const wasOpen = assetsSettingsDropdown.style.display !== "none";
+        assetsSettingsDropdown.style.display = wasOpen ? "none" : "block";
+        assetsSettingsBtn.setAttribute("aria-expanded", wasOpen ? "false" : "true");
+      });
+      assetsSettingsDropdown.addEventListener("click", (e) => e.stopPropagation());
+    }
+
+    const showRowsWithoutRcToggle = document.getElementById("showRowsWithoutRcToggle");
+    if (showRowsWithoutRcToggle) {
+      showRowsWithoutRcToggle.checked = getShowRowsWithoutReplacementCost();
+      showRowsWithoutRcToggle.addEventListener("change", () => {
+        setShowRowsWithoutReplacementCost(showRowsWithoutRcToggle.checked);
+        applyFilters();
+        render();
+      });
+    }
+
+    const turnOnAllRowsBtn = document.getElementById("turnOnAllRowsWithValuesBtn");
+    if (turnOnAllRowsBtn) {
+      turnOnAllRowsBtn.addEventListener("click", () => {
+        turnOnAllRowsWithValues();
+        closeAssetsSettingsDropdown();
+      });
+    }
+
+    document.addEventListener("click", (e) => {
+      const wrap = document.querySelector(".assets-settings-wrap");
+      if (wrap && !wrap.contains(e.target)) closeAssetsSettingsDropdown();
+    });
+
     // Priority multi-select dropdown
     const priorityFilterCbs = document.querySelectorAll(".priority-filter-cb");
     function onPriorityFilterChanged() {

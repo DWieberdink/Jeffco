@@ -1825,7 +1825,7 @@ function getSelectedSchoolData() {
 
 function getEffectiveEnrollmentFlow(row) {
   if (window.getEffectiveEnrollment) return window.getEffectiveEnrollment(row);
-  const e = parseFloat((row.Enrollment || '').toString().replace(/,/g, '').trim()) || 0;
+  const e = parseFloat((row.Enrollment2025 || row['Enrollment2025'] || row.Enrollment || '').toString().replace(/,/g, '').trim()) || 0;
   const pk = parseFloat((row.PKEnrollment || row['PKEnrollment'] || row['PK Enrollment'] || '').toString().replace(/,/g, '').trim()) || 0;
   const inc = (window.getIncludePKInEnrollment && window.getIncludePKInEnrollment());
   return inc ? e : Math.max(0, e - pk);
@@ -2871,7 +2871,7 @@ function loadMapExportData(callback) {
 function getEnrollmentFromMapExport(schoolName) {
   if (!mapExportData) return null;
   const row = mapExportData.find(r => (r["Building Name"] || "").trim() === schoolName.trim());
-  return row ? row["Enrollment"] : null;
+  return row ? (row["Enrollment2025"] ?? row["Enrollment"]) : null;
 }
 
 // Update updateFlowchartSchoolInfo to use Map_Export.csv for enrollment
@@ -2907,7 +2907,7 @@ function updateFlowchartSchoolInfo(name) {
   }
   // Use PK-aware helpers for enrollment display (consistent with flow logic)
   const effectiveEnr = (window.getEffectiveEnrollment && window.getEffectiveEnrollment(row)) ?? getEffectiveEnrollmentFlow(row);
-  const totalEnr = parseFloat((getVal(row, ["Enrollment"]) || "").toString().replace(/,/g, "").trim()) || 0;
+  const totalEnr = parseFloat((getVal(row, ["Enrollment2025", "Enrollment"]) || "").toString().replace(/,/g, "").trim()) || 0;
   const pkEnr = parseFloat((getVal(row, ["PKEnrollment", "PK Enrollment"]) || "").toString().replace(/,/g, "").trim()) || 0;
   const enrollExcl = Math.max(0, totalEnr - pkEnr);
   const enroll = Number.isFinite(effectiveEnr) ? effectiveEnr.toString() : (Number.isFinite(enrollExcl) ? enrollExcl.toString() : (totalEnr ? totalEnr.toString() : "N/A"));

@@ -21,7 +21,6 @@
     { label: "Dashboard (Main Map)", keywords: "dashboard map home main", page: "index", action: { type: "nav", href: "index.html" } },
     { label: "School Project List", keywords: "school project list assets profile", page: "any", action: { type: "nav", href: "school-profile.html" } },
     { label: "Data & Logic Tool", keywords: "data logic tool documentation sources", page: "any", action: { type: "nav", href: "data-viewer.html" } },
-    { label: "Closure Scenarios", keywords: "closure scenario consolidation student reassignment", page: "any", action: { type: "nav", href: "closure-scenarios.html" } },
   ];
   NAV.forEach(function (n) {
     INDEX.push({ label: n.label, keywords: n.label + " " + n.keywords, category: "Navigation", action: n.action });
@@ -64,7 +63,7 @@
   [
     { label: "Summary Table", tabId: "summary-tab", keywords: "summary table results count decision" },
     { label: "Decision by School", tabId: "decision-tab", keywords: "decision by school results table export csv" },
-    { label: "Impact Analysis", tabId: "impact-tab", keywords: "impact analysis strategy candidate groups prioritized" },
+    { label: "Strategy Prioritization", tabId: "impact-tab", keywords: "strategy prioritization impact analysis strategy candidate groups prioritized" },
   ].forEach(function (t) {
     INDEX.push({ label: t.label, keywords: t.label + " " + t.keywords, category: "Results Tabs", action: { type: "tab", tabId: t.tabId } });
   });
@@ -95,7 +94,6 @@
     { label: "Overview (Data & Logic)", tabName: "overview", keywords: "overview data logic documentation" },
     { label: "Decision Categories", tabName: "decision-categories", keywords: "decision categories strategy groups logic explanation" },
     { label: "School Profile Logic", tabName: "school-profile-logic", keywords: "school profile logic project list fci" },
-    { label: "Closure Scenarios Logic", tabName: "closure-scenarios-logic", keywords: "closure scenarios logic student reassignment" },
     { label: "Data Sources", tabName: "data-sources", keywords: "data sources csv files decision export map" },
   ].forEach(function (t) {
     INDEX.push({ label: t.label, keywords: t.label + " " + t.keywords, category: "Data & Logic", action: { type: "data-viewer-tab", tabName: t.tabName } });

@@ -304,7 +304,7 @@ window.prioritizationLogic = {
           const cap = (typeof window !== 'undefined' && window.getEffectiveCapacity)
             ? window.getEffectiveCapacity(school)
             : parseFloat(school.Capacity || 0);
-          const enr = parseFloat(school.Enrollment || 0) || 0;
+          const enr = parseFloat(school.Enrollment2025 || school['Enrollment2025'] || school.Enrollment || 0) || 0;
           const pk = parseFloat(school.PKEnrollment || school['PK Enrollment'] || 0) || 0;
           util = (cap > 0) ? Math.max(0, (enr - pk)) / cap : null;
         }
@@ -313,7 +313,7 @@ window.prioritizationLogic = {
         return pct <= 1.5 ? pct * 100 : pct;
       }
       case "enrollment":
-        return parseInt(school.Enrollment || 0, 10);
+        return parseInt(school.Enrollment2025 || school['Enrollment2025'] || school.Enrollment || 0, 10);
       case "highNeedStudents": {
         // Decision Data Export: HighNeedStudents (share high-need enrollment; 0–1 or 0–100).
         const hnRaw =
@@ -675,7 +675,7 @@ window.prioritizationLogic = {
     let totalWhite = 0;
 
     schools.forEach(school => {
-      const enrollment = parseInt(school.Enrollment || 0, 10);
+      const enrollment = parseInt(school.Enrollment2025 || school['Enrollment2025'] || school.Enrollment || 0, 10);
       totalStudents += enrollment;
       
       const needPct = this.getRawMetricValue(school, "highNeedStudents") || 0;
