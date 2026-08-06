@@ -21,3 +21,7 @@ dist/
 # Nested handoff bundles and tool outputs
 JeffcoDashboard/developer/
 JeffcoDashboard/.app-data/
+
+# Raw origin-destination extract (~74 MB). Nothing loads it; the app uses
+# OD_Students.csv instead, and its size stalls the GitHub Pages publish.
+JeffcoDashboard/Facility Data/OD_Draft.csv
