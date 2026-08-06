@@ -1,0 +1,589 @@
+JeffCoFacilityID,UniqueID,SchoolName,SystemCategory,AssetType,PriorityScore,ConditionSource,EquipmentType,Quantity,UnitCost,ReplacementCost,SourceSchoolLabel
+603,581 Conference Place,581 Conference Pl,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,5,1550,7750,581 Conference
+603,581 Conference Place,581 Conference Pl,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,3,2250,6750,581 Conference
+603,581 Conference Place,581 Conference Pl,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,581 Conference
+101,CO-1420-0030,Adams ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,7,1550,10850,Adams
+101,CO-1420-0030,Adams ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,3,2250,6750,Adams
+101,CO-1420-0030,Adams ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Adams
+520,CO-1420-0108,Alameda Int'l Jr-Sr HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,1,1550,1550,Alameda Intl
+520,CO-1420-0108,Alameda Int'l Jr-Sr HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,1,2450,2450,Alameda Intl
+520,CO-1420-0108,Alameda Int'l Jr-Sr HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,17,1550,26350,Alameda Intl
+520,CO-1420-0108,Alameda Int'l Jr-Sr HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Alameda Intl
+520,CO-1420-0108,Alameda Int'l Jr-Sr HS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Alameda Intl
+SOLD-5,CO-1420-0148,Allendale ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Allendale
+SOLD-5,CO-1420-0148,Allendale ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,2,1600,3200,Allendale
+772;773;774,,Applewood Cottages,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Applewood Serving Kids Network
+775,CO-1420-0109,Arvada K-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,4,2450,9800,Arvada K8
+775,CO-1420-0109,Arvada K-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,2,1550,3100,Arvada K8
+775,CO-1420-0109,Arvada K-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Arvada K8
+775,CO-1420-0109,Arvada K-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,8,1600,12800,Arvada K8
+303,CO-1420-0664,Bear Creek HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,1,2450,2450,Bear Creek HS
+303,CO-1420-0664,Bear Creek HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,8,1550,12400,Bear Creek HS
+303,CO-1420-0664,Bear Creek HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,6,2250,13500,Bear Creek HS
+303,CO-1420-0664,Bear Creek HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,13,1600,20800,Bear Creek HS
+303,CO-1420-0664,Bear Creek HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Pelco,26,2450,63700,Bear Creek HS
+303,CO-1420-0664,Bear Creek HS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,10,3605,36050,Bear Creek HS
+510,CO-1420-0660,Bear Creek K-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,5,2450,12250,Bear Creek K-8
+510,CO-1420-0660,Bear Creek K-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,5,1550,7750,Bear Creek K-8
+510,CO-1420-0660,Bear Creek K-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,3,2250,6750,Bear Creek K-8
+510,CO-1420-0660,Bear Creek K-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Bear Creek K-8
+510,CO-1420-0660,Bear Creek K-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Pelco,3,2450,7350,Bear Creek K-8
+510,CO-1420-0660,Bear Creek K-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Pelco PTZ,1,3600,3600,Bear Creek K-8
+510,CO-1420-0660,Bear Creek K-8,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Bear Creek K-8
+510,CO-1420-0660,Bear Creek K-8,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,5,3605,18025,Bear Creek K-8
+201,CO-1420-0694,Bell MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,6,1550,9300,Bell
+201,CO-1420-0694,Bell MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,6,2450,14700,Bell
+201,CO-1420-0694,Bell MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,15,1550,23250,Bell
+201,CO-1420-0694,Bell MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,5,2250,11250,Bell
+201,CO-1420-0694,Bell MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,2,1600,3200,Bell
+201,CO-1420-0694,Bell MS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Bell
+201,CO-1420-0694,Bell MS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,4,3605,14420,Bell
+102,CO-1420-0724,Belmar School of Integrated Arts,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Belmar
+102,CO-1420-0724,Belmar School of Integrated Arts,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Belmar
+102,CO-1420-0724,Belmar School of Integrated Arts,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Belmar
+103,CO-1420-0779,Bergen Valley ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,6,1550,9300,Bergen
+103,CO-1420-0779,Bergen Valley ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Bergen
+103,CO-1420-0779,Bergen Valley ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Bergen
+103,CO-1420-0779,Bergen Valley ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Bergen
+103,CO-1420-0779,Bergen Valley ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Bergen
+103,CO-1420-0779,Bergen Valley ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Bergen Valley
+104,CO-1420-0951,Blue Heron ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,5,1550,7750,Blue Heron
+104,CO-1420-0951,Blue Heron ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Blue Heron
+104,CO-1420-0951,Blue Heron ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Blue Heron
+104,CO-1420-0951,Blue Heron ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Blue Heron
+513,CO-1420-0952,Bradford K-8 North,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,3,2250,6750,Bradford N
+513,CO-1420-0952,Bradford K-8 North,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Bradford N
+512,CO-1420-0950,Bradford K-8 South,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,3,1550,4650,Bradford S
+512,CO-1420-0950,Bradford K-8 South,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,4,2250,9000,Bradford S
+512,CO-1420-0950,Bradford K-8 South,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Bradford S
+512,CO-1420-0950,Bradford K-8 South,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Bradford S
+304,CO-1420-0965,Brady Exploration School,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,1,1550,1550,Brady Explore
+304,CO-1420-0965,Brady Exploration School,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,5,2250,11250,Brady Explore
+304,CO-1420-0965,Brady Exploration School,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,6,1600,9600,Brady Explore
+304,CO-1420-0965,Brady Exploration School,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Pelco,10,2450,24500,Brady Explore
+304,CO-1420-0965,Brady Exploration School,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Brady Explore
+304,CO-1420-0965,Brady Exploration School,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Brady Explore
+105,CO-1420-1244,Campbell Preschool,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Campbell
+105,CO-1420-1244,Campbell Preschool,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Campbell
+105,CO-1420-1244,Campbell Preschool,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Campbell
+105,CO-1420-1244,Campbell Preschool,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Campbell
+202,CO-1420-1318,Carmody MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,2,2450,4900,Carmody
+202,CO-1420-1318,Carmody MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,13,1550,20150,Carmody
+202,CO-1420-1318,Carmody MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,4,2250,9000,Carmody
+202,CO-1420-1318,Carmody MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,14,1600,22400,Carmody
+202,CO-1420-1318,Carmody MS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Carmody
+202,CO-1420-1318,Carmody MS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Carmody
+776,CO-1420-1790,Colorow ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,3,1550,4650,Colorow
+776,CO-1420-1790,Colorow ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Colorow
+776,CO-1420-1790,Colorow ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Colorow
+776,CO-1420-1790,Colorow ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Colorow
+106,CO-1420-1861,Columbine Hills ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,8,1550,12400,Columbine Hills
+106,CO-1420-1861,Columbine Hills ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Columbine Hills
+106,CO-1420-1861,Columbine Hills ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Columbine Hills
+106,CO-1420-1861,Columbine Hills ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Columbine Hills
+754,,Conifer Water Treatment Plant,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Conifer Fresh Water Treatment Network
+751,,Conifer Wastewater Treatment Plant,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Conifer Waste Water Treatment Network
+203,CO-1420-4798,Connections Learning Center,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,2,2450,4900,Connections
+203,CO-1420-4798,Connections Learning Center,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,7,1550,10850,Connections
+203,CO-1420-4798,Connections Learning Center,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,3,2250,6750,Connections
+203,CO-1420-4798,Connections Learning Center,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Connections
+203,CO-1420-4798,Connections Learning Center,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Pelco,5,2450,12250,Connections
+203,CO-1420-4798,Connections Learning Center,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Connections (CLC)
+107,CO-1420-1876,Coronado ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Coronado
+107,CO-1420-1876,Coronado ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Coronado
+107,CO-1420-1876,Coronado ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Coronado
+204,CO-1420-1976,Creighton MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,5,1550,7750,Creighton
+204,CO-1420-1976,Creighton MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,2,2450,4900,Creighton
+204,CO-1420-1976,Creighton MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,7,1550,10850,Creighton
+204,CO-1420-1976,Creighton MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,5,2250,11250,Creighton
+204,CO-1420-1976,Creighton MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-4M,2,2350,4700,Creighton
+204,CO-1420-1976,Creighton MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,7,1600,11200,Creighton
+204,CO-1420-1976,Creighton MS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Creighton
+204,CO-1420-1976,Creighton MS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,7,3605,25235,Creighton
+521,CO-1420-2120,D'Evelyn Jr-Sr HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,6,1550,9300,D'Evelyn Jr/Sr
+521,CO-1420-2120,D'Evelyn Jr-Sr HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,6,1550,9300,D'Evelyn Jr/Sr
+521,CO-1420-2120,D'Evelyn Jr-Sr HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,9,2250,20250,D'Evelyn Jr/Sr
+521,CO-1420-2120,D'Evelyn Jr-Sr HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,5,1600,8000,D'Evelyn Jr/Sr
+521,CO-1420-2120,D'Evelyn Jr-Sr HS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,D'Evelyn Jr/Sr
+521,CO-1420-2120,D'Evelyn Jr-Sr HS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,5,3605,18025,D'Evelyn Jr/Sr
+108,CO-1420-8090,Deane ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,3,1550,4650,Deane
+108,CO-1420-8090,Deane ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,5,1600,8000,Deane
+108,CO-1420-8090,Deane ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Deane
+108,CO-1420-8090,Deane ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Deane
+205,CO-1420-2130,Deer Creek MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,5,2250,11250,Deer Creek
+205,CO-1420-2130,Deer Creek MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Pelco,8,2450,19600,Deer Creek
+205,CO-1420-2130,Deer Creek MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Pelco PTZ,3,3600,10800,Deer Creek
+205,CO-1420-2130,Deer Creek MS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Deer Creek
+205,CO-1420-2130,Deer Creek MS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Deer Creek
+109,CO-1420-9432,Dennison ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,6,2250,13500,Dennison
+109,CO-1420-9432,Dennison ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Dennison
+109,CO-1420-9432,Dennison ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Dennison
+109,CO-1420-9432,Dennison ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,9,3605,32445,Dennison
+110,CO-1420-2194,Devinny ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,3,1550,4650,Devinny
+110,CO-1420-2194,Devinny ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,4,2250,9000,Devinny
+110,CO-1420-2194,Devinny ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Devinny
+110,CO-1420-2194,Devinny ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Devinny
+206,CO-1420-2288,Drake MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,10,1550,15500,Drake
+206,CO-1420-2288,Drake MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,5,2250,11250,Drake
+206,CO-1420-2288,Drake MS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Drake
+207,CO-1420-2300,Dunstan MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,10,1550,15500,Dunstan
+207,CO-1420-2300,Dunstan MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,4,2450,9800,Dunstan
+207,CO-1420-2300,Dunstan MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,5,1550,7750,Dunstan
+207,CO-1420-2300,Dunstan MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,5,2250,11250,Dunstan
+207,CO-1420-2300,Dunstan MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-4M,2,2350,4700,Dunstan
+207,CO-1420-2300,Dunstan MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av-H3-4M,2,2550,5100,Dunstan
+207,CO-1420-2300,Dunstan MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Dunstan
+207,CO-1420-2300,Dunstan MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Pelco,11,2450,26950,Dunstan
+207,CO-1420-2300,Dunstan MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Pelco PTZ,1,3600,3600,Dunstan
+207,CO-1420-2300,Dunstan MS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Dunstan
+207,CO-1420-2300,Dunstan MS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,5,3605,18025,Dunstan
+111,CO-1420-2322,Dutch Creek ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,2,1550,3100,Dutch Creek
+111,CO-1420-2322,Dutch Creek ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,5,2250,11250,Dutch Creek
+111,CO-1420-2322,Dutch Creek ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Dutch Creek
+111,CO-1420-2322,Dutch Creek ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Dutch Creek
+111,CO-1420-2322,Dutch Creek ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Dutch Creek
+601,,Education Service Center,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,1,1550,1550,Ed Center
+601,,Education Service Center,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,1,2450,2450,Ed Center
+601,,Education Service Center,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,4,1550,6200,Ed Center
+601,,Education Service Center,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Ed Center
+601,,Education Service Center,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,23,1600,36800,Ed Center
+601,,Education Service Center,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1  (dock),1,650,650,Ed Center
+601,,Education Service Center,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,4,3605,14420,Ed Center
+112,CO-1420-2496,Edgewater ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,2,1550,3100,Edgewater
+112,CO-1420-2496,Edgewater ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,4,1550,6200,Edgewater
+112,CO-1420-2496,Edgewater ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Edgewater
+112,CO-1420-2496,Edgewater ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Edgewater
+112,CO-1420-2496,Edgewater ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Edgewater
+112,CO-1420-2496,Edgewater ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Edgewater
+113,CO-1420-2550,Eiber ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,3,1550,4650,Eiber
+113,CO-1420-2550,Eiber ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Eiber
+113,CO-1420-2550,Eiber ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Eiber
+113,CO-1420-2550,Eiber ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Eiber
+114,CO-1420-2616,Elk Creek ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Elk Creek
+114,CO-1420-2616,Elk Creek ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Elk Creek
+114,CO-1420-2616,Elk Creek ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Elk Creek
+777,CO-1420-8248,Emory ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,1,1550,1550,Emory
+777,CO-1420-8248,Emory ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,30,1600,48000,Emory
+309,CO-1420-2836,Evergreen HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,1,2450,2450,Evergreen HS
+309,CO-1420-2836,Evergreen HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,6,1550,9300,Evergreen HS
+309,CO-1420-2836,Evergreen HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,3,2250,6750,Evergreen HS
+309,CO-1420-2836,Evergreen HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Pelco,15,2450,36750,Evergreen HS
+309,CO-1420-2836,Evergreen HS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,9,3605,32445,Evergreen HS
+208,CO-1420-2832,Evergreen MS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1 (2),1,1300,1300,Evergreen MS
+208,CO-1420-2832,Evergreen MS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,4,3605,14420,Evergreen MS
+209,CO-1420-2820,Everitt MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,13,1550,20150,Everitt
+209,CO-1420-2820,Everitt MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,4,2250,9000,Everitt
+209,CO-1420-2820,Everitt MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Everitt
+209,CO-1420-2820,Everitt MS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Everitt
+209,CO-1420-2820,Everitt MS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Everitt
+115,CO-1420-2866,Fairmount ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,2,1550,3100,Fairmount
+115,CO-1420-2866,Fairmount ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Fairmount
+115,CO-1420-2866,Fairmount ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Fairmount
+210,CO-1420-2963,Falcon Bluffs MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,22,1550,34100,Falcon Bluffs
+210,CO-1420-2963,Falcon Bluffs MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,13,2250,29250,Falcon Bluffs
+210,CO-1420-2963,Falcon Bluffs MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av-H3-4M,2,2550,5100,Falcon Bluffs
+210,CO-1420-2963,Falcon Bluffs MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Falcon Bluffs
+210,CO-1420-2963,Falcon Bluffs MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Pelco,2,2450,4900,Falcon Bluffs
+210,CO-1420-2963,Falcon Bluffs MS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Falcon Bluffs
+210,CO-1420-2963,Falcon Bluffs MS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,5,3605,18025,Falcon Bluffs
+,,FDCCS network,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,3,3605,10815,FDCCS network
+778,CO-1420-2946,Fitzmorris ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Fitzmorris
+778,CO-1420-2946,Fitzmorris ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1 (2),1,1300,1300,Fitzmorris
+501,CO-1420-5892,Fletcher Miller Special School,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,4,2250,9000,Fletcher Miller
+501,CO-1420-5892,Fletcher Miller Special School,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Fletcher Miller
+116,CO-1420-3025,Foothills ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,6,1550,9300,Foothills
+116,CO-1420-3025,Foothills ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,8,2250,18000,Foothills
+116,CO-1420-3025,Foothills ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Foothills
+116,CO-1420-3025,Foothills ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Foothills
+116,CO-1420-3025,Foothills ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,3,3605,10815,Foothills
+502,CO-1420-3088,Foster Dual Language PK-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,5,1550,7750,Foster
+502,CO-1420-3088,Foster Dual Language PK-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,3,2250,6750,Foster
+502,CO-1420-3088,Foster Dual Language PK-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-4M,1,2350,2350,Foster
+502,CO-1420-3088,Foster Dual Language PK-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Foster
+502,CO-1420-3088,Foster Dual Language PK-8,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Foster
+502,CO-1420-3088,Foster Dual Language PK-8,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Foster
+602,Frank DeAngelis Center,Frank DeAngelis Center,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,29,1550,44950,Frank DeAngelis Ctr
+602,Frank DeAngelis Center,Frank DeAngelis Center,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Frank DeAngelis Ctr
+503,CO-1420-3201,Free Horizon Montessori,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,8,1550,12400,Free Horizon
+503,CO-1420-3201,Free Horizon Montessori,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,7,2250,15750,Free Horizon
+503,CO-1420-3201,Free Horizon Montessori,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Free Horizon
+503,CO-1420-3201,Free Horizon Montessori,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Free Horizon
+503,CO-1420-3201,Free Horizon Montessori,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Free Horizon
+117,CO-1420-3216,Fremont ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,1,1550,1550,Fremont
+117,CO-1420-3216,Fremont ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,6,2250,13500,Fremont
+117,CO-1420-3216,Fremont ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Fremont
+117,CO-1420-3216,Fremont ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Fremont
+117,CO-1420-3216,Fremont ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Fremont
+SOLD-2,CO-1420-3450,Glennon Heights ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,4,1550,6200,Glennon Heights
+SOLD-2,CO-1420-3450,Glennon Heights ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Glennon Heights
+118,CO-1420-3536,Governor's Ranch ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,3,1550,4650,Governor's Ranch
+118,CO-1420-3536,Governor's Ranch ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,8,2250,18000,Governor's Ranch
+118,CO-1420-3536,Governor's Ranch ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Governor's Ranch
+118,CO-1420-3536,Governor's Ranch ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Governor's Ranch
+118,CO-1420-3536,Governor's Ranch ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Governor's Ranch
+119,CO-1420-3622,Green Gables ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,7,1550,10850,Green Gables
+119,CO-1420-3622,Green Gables ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Green Gables
+119,CO-1420-3622,Green Gables ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Green Gables
+119,CO-1420-3622,Green Gables ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Green Gables
+779,CO-1420-3624,Green Mountain ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,5,1550,7750,Green Mtn ES
+779,CO-1420-3624,Green Mountain ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Green Mtn ES
+779,CO-1420-3624,Green Mountain ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Green Mtn ES
+779,CO-1420-3624,Green Mountain ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Green Mtn ES
+120,CO-1420-3726,Hackberry Hill ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Hackberry Hill
+121,CO-1420-4190,Hutchinson ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,3,1550,4650,Hutchinson
+121,CO-1420-4190,Hutchinson ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Hutchinson
+121,CO-1420-4190,Hutchinson ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Hutchinson
+121,CO-1420-4190,Hutchinson ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Hutchinson
+121,CO-1420-4190,Hutchinson ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Hutchinson
+122,CO-1420-6539,Jefferson County Open Elementary School,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,6,2250,13500,Jeffco Open
+122,CO-1420-6539,Jefferson County Open Elementary School,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-4M,2,2350,4700,Jeffco Open
+122,CO-1420-6539,Jefferson County Open Elementary School,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,4,3605,14420,Jeffco Open
+,CO-1420-4127,Jeffco Remote Learning Program,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Jeffco Remote
+,CO-1420-4127,Jeffco Remote Learning Program,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,2,1600,3200,Jeffco Remote
+410;411,CO-1420-4307,Irwin Preschool,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Jeffco Remote (Irwin)
+522,CO-1420-4422,Jefferson Jr-Sr HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,1,1550,1550,Jefferson Jr/Sr
+522,CO-1420-4422,Jefferson Jr-Sr HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,8,1550,12400,Jefferson Jr/Sr
+522,CO-1420-4422,Jefferson Jr-Sr HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,13,2250,29250,Jefferson Jr/Sr
+522,CO-1420-4422,Jefferson Jr-Sr HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-4M,2,2350,4700,Jefferson Jr/Sr
+522,CO-1420-4422,Jefferson Jr-Sr HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,4,1600,6400,Jefferson Jr/Sr
+522,CO-1420-4422,Jefferson Jr-Sr HS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Jefferson Jr/Sr
+522,CO-1420-4422,Jefferson Jr-Sr HS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,9,3605,32445,Jefferson Jr/Sr
+211,CO-1420-4548,Ken Caryl MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,4,1550,6200,Ken Caryl
+211,CO-1420-4548,Ken Caryl MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,4,1550,6200,Ken Caryl
+211,CO-1420-4548,Ken Caryl MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,4,2250,9000,Ken Caryl
+211,CO-1420-4548,Ken Caryl MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,12,1600,19200,Ken Caryl
+211,CO-1420-4548,Ken Caryl MS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Ken Caryl
+211,CO-1420-4548,Ken Caryl MS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,5,3605,18025,Ken Caryl
+123,CO-1420-4549,Kendallvue ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,6,1550,9300,Kendallvue
+123,CO-1420-4549,Kendallvue ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Kendallvue
+123,CO-1420-4549,Kendallvue ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Kendallvue
+124,CO-1420-4550,Kendrick Lakes ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,5,1550,7750,Kendrick Lakes
+124,CO-1420-4550,Kendrick Lakes ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Kendrick Lakes
+712,,Jeffco Stadium,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,4,2250,9000,Kipling Stadium
+712,,Jeffco Stadium,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Kipling Stadium
+125,CO-1420-4830,Kyffin ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,4,1550,6200,Kyffin
+125,CO-1420-4830,Kyffin ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,1,2450,2450,Kyffin
+125,CO-1420-4830,Kyffin ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,1,1550,1550,Kyffin
+125,CO-1420-4830,Kyffin ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Kyffin
+125,CO-1420-4830,Kyffin ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,2,1600,3200,Kyffin
+125,CO-1420-4830,Kyffin ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Kyffin
+125,CO-1420-4830,Kyffin ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Kyffin
+126,CO-1420-5004,Lasley ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Lasley
+126,CO-1420-5004,Lasley ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Lasley
+127,CO-1420-5024,Lawrence ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,2,1550,3100,Lawrence
+127,CO-1420-5024,Lawrence ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,5,2250,11250,Lawrence
+127,CO-1420-5024,Lawrence ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Lawrence
+127,CO-1420-5024,Lawrence ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Lawrence
+127,CO-1420-5024,Lawrence ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Lawrence
+128,CO-1420-5036,Leawood ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,7,2250,15750,Leawood
+128,CO-1420-5036,Leawood ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Leawood
+128,CO-1420-5036,Leawood ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Leawood
+128,CO-1420-5036,Leawood ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Leawood
+129,CO-1420-5222,Little ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,2,1550,3100,Little
+129,CO-1420-5222,Little ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,5,2250,11250,Little
+129,CO-1420-5222,Little ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Little
+604,Litz,Litz Preschool,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,2,1600,3200,Litz
+604,Litz,Litz Preschool,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Litz
+313,CO-1420-5623,Long View HS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Longview (in McLain)
+313,CO-1420-5623,Long View HS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Longview (in McLain)
+130,CO-1420-5350,Lukas ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,5,1550,7750,Lukas
+130,CO-1420-5350,Lukas ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Lukas
+130,CO-1420-5350,Lukas ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Lukas
+130,CO-1420-5350,Lukas ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Lukas
+131,CO-1420-5354,Lumberg ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,4,1550,6200,Lumberg
+131,CO-1420-5354,Lumberg ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,4,2250,9000,Lumberg
+131,CO-1420-5354,Lumberg ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-4M,1,2350,2350,Lumberg
+131,CO-1420-5354,Lumberg ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,2,1600,3200,Lumberg
+131,CO-1420-5354,Lumberg ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Lumberg
+131,CO-1420-5354,Lumberg ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Lumberg
+212,CO-1420-5454,Mandalay MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,3,2250,6750,Mandalay
+212,CO-1420-5454,Mandalay MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Mandalay
+212,CO-1420-5454,Mandalay MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Pelco,5,2450,12250,Mandalay
+212,CO-1420-5454,Mandalay MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Pelco PTZ,1,3600,3600,Mandalay
+212,CO-1420-5454,Mandalay MS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Mandalay
+212,CO-1420-5454,Mandalay MS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,3,3605,10815,Mandalay
+213,CO-1420-5472,Manning School,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,2,2450,4900,Manning
+213,CO-1420-5472,Manning School,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,6,1550,9300,Manning
+213,CO-1420-5472,Manning School,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,3,2250,6750,Manning
+213,CO-1420-5472,Manning School,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Manning
+213,CO-1420-5472,Manning School,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Manning
+213,CO-1420-5472,Manning School,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,3,3605,10815,Manning
+132,CO-1420-5524,Maple Grove ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,6,1600,9600,Maple Grove
+132,CO-1420-5524,Maple Grove ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Maple Grove
+132,CO-1420-5524,Maple Grove ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Maple Grove
+133,CO-1420-5580,Marshdale ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,1,2450,2450,Marshdale
+133,CO-1420-5580,Marshdale ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,4,1550,6200,Marshdale
+133,CO-1420-5580,Marshdale ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Marshdale
+314,CO-1420-0033,McLain Community HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,4,1550,6200,McLain
+314,CO-1420-0033,McLain Community HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,McLain
+314,CO-1420-0033,McLain Community HS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,26,1600,41600,McLain
+314,CO-1420-0033,McLain Community HS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,McLain
+314,CO-1420-0033,McLain Community HS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,5,3605,18025,McLain
+134,CO-1420-5758,Meiklejohn ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,4,1550,6200,Meiklejohn
+134,CO-1420-5758,Meiklejohn ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Meiklejohn
+134,CO-1420-5758,Meiklejohn ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Meiklejohn
+135,CO-1420-5944,Mitchell ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,1,2450,2450,Mitchell
+135,CO-1420-5944,Mitchell ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,1,1550,1550,Mitchell
+135,CO-1420-5944,Mitchell ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Mitchell
+135,CO-1420-5944,Mitchell ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Mitchell
+135,CO-1420-5944,Mitchell ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Mitchell
+781,CO-1420-5972,Molholm ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,5,1550,7750,Molholm
+781,CO-1420-5972,Molholm ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Molholm
+781,CO-1420-5972,Molholm ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Molholm
+781,CO-1420-5972,Molholm ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Molholm
+782,CO-1420-6090,Moore MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,8,1550,12400,Moore
+782,CO-1420-6090,Moore MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,1,2450,2450,Moore
+782,CO-1420-6090,Moore MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,6,1550,9300,Moore
+782,CO-1420-6090,Moore MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Moore
+782,CO-1420-6090,Moore MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Moore
+136,CO-1420-6133,Mortensen ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,3,2250,6750,Mortensen
+136,CO-1420-6133,Mortensen ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Mortensen
+136,CO-1420-6133,Mortensen ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Mortensen
+136,CO-1420-6133,Mortensen ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Mortensen
+137,CO-1420-6135,Mount Carbon ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,1,2450,2450,Mount Carbon
+137,CO-1420-6135,Mount Carbon ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,9,1550,13950,Mount Carbon
+137,CO-1420-6135,Mount Carbon ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,4,2250,9000,Mount Carbon
+137,CO-1420-6135,Mount Carbon ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-4M,1,2350,2350,Mount Carbon
+137,CO-1420-6135,Mount Carbon ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Mount Carbon
+137,CO-1420-6135,Mount Carbon ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Mount Carbon
+137,CO-1420-6135,Mount Carbon ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Mount Carbon
+505,,Mount View Youth Service Center,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,5,1550,7750,Mountview
+221,,Mount Evans OELS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Mt BlueSky
+221,,Mount Evans OELS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,9,3605,32445,Mt BlueSky
+214,CO-1420-6330,North Arvada MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,2,1550,3100,N Arvada
+214,CO-1420-6330,North Arvada MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,3,2450,7350,N Arvada
+214,CO-1420-6330,North Arvada MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,6,1550,9300,N Arvada
+214,CO-1420-6330,North Arvada MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,4,2250,9000,N Arvada
+214,CO-1420-6330,North Arvada MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,N Arvada
+214,CO-1420-6330,North Arvada MS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,N Arvada
+214,CO-1420-6330,North Arvada MS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,3,3605,10815,N Arvada
+783,CO-1420-9154,New Classical Academy at Vivian,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,2,1550,3100,Vivian
+783,CO-1420-9154,New Classical Academy at Vivian,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,5,2250,11250,Vivian
+783,CO-1420-9154,New Classical Academy at Vivian,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Vivian
+138,CO-1420-6285,Norma Anderson Early Learning Center,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,2,1550,3100,Norma Anderson
+138,CO-1420-6285,Norma Anderson Early Learning Center,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,2,1600,3200,Norma Anderson
+138,CO-1420-6285,Norma Anderson Early Learning Center,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Norma Anderson
+139,CO-1420-6286,Normandy ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,1,1550,1550,Normandy
+139,CO-1420-6286,Normandy ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,3,2250,6750,Normandy
+139,CO-1420-6286,Normandy ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-4M,2,2350,4700,Normandy
+139,CO-1420-6286,Normandy ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Normandy
+139,CO-1420-6286,Normandy ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Normandy
+715,North Area Athletic Complex,North Area Athletic Complex,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,3,3605,10815,North Area Athletic Complex
+743,North Area Transportation Center - Indiana,North Area Transportation Center - Indiana,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,North Trans
+215,CO-1420-6470,Oberon MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,1,2450,2450,Oberon
+215,CO-1420-6470,Oberon MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,5,2250,11250,Oberon
+215,CO-1420-6470,Oberon MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-4M,1,2350,2350,Oberon
+215,CO-1420-6470,Oberon MS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Oberon
+215,CO-1420-6470,Oberon MS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Oberon
+140,CO-1420-6804,Parmalee ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,1,2450,2450,Parmalee
+140,CO-1420-6804,Parmalee ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,6,1550,9300,Parmalee
+140,CO-1420-6804,Parmalee ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,4,2250,9000,Parmalee
+140,CO-1420-6804,Parmalee ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Parmalee
+140,CO-1420-6804,Parmalee ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Parmalee
+784,CO-1420-6806,Parr ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,3,1550,4650,Parr
+784,CO-1420-6806,Parr ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,5,2250,11250,Parr
+784,CO-1420-6806,Parr ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Parr
+724;725;726;727,Patterson Cottages,Patterson Cottages,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,7,1550,10850,Patterson
+724;725;726;727,Patterson Cottages,Patterson Cottages,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Patterson
+724;725;726;727,Patterson Cottages,Patterson Cottages,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Patterson
+724;725;726;727,Patterson Cottages,Patterson Cottages,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Patterson
+142,CO-1420-6848,Peak Expeditionary School at Pennington,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,3,1550,4650,Peak
+142,CO-1420-6848,Peak Expeditionary School at Pennington,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Peak
+142,CO-1420-6848,Peak Expeditionary School at Pennington,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Peak
+142,CO-1420-6848,Peak Expeditionary School at Pennington,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Peak (Pennington)
+142,CO-1420-6848,Peak Expeditionary School at Pennington,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Peak (Pennington)
+785,CO-1420-6828,Peck ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,5,1550,7750,Peck
+785,CO-1420-6828,Peck ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Peck
+785,CO-1420-6828,Peck ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Peck
+786,CO-1420-6844,Peiffer ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,3,1550,4650,Peiffer
+786,CO-1420-6844,Peiffer ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Peiffer
+786,CO-1420-6844,Peiffer ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Peiffer
+786,CO-1420-6844,Peiffer ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Peiffer
+143,CO-1420-7128,Powderhorn ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,1,1550,1550,Powderhorn
+143,CO-1420-7128,Powderhorn ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,3,1550,4650,Powderhorn
+143,CO-1420-7128,Powderhorn ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Powderhorn
+143,CO-1420-7128,Powderhorn ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-4M,1,2350,2350,Powderhorn
+143,CO-1420-7128,Powderhorn ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Powderhorn
+143,CO-1420-7128,Powderhorn ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Powderhorn
+144,CO-1420-7190,Prospect Valley ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,13,2250,29250,Prospect Valley
+701;702;703;704;705;706;708,,Support Services Campus (809 Quail),02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,4,1550,6200,Quail
+701;702;703;704;705;706;708,,Support Services Campus (809 Quail),02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,4,2450,9800,Quail
+701;702;703;704;705;706;708,,Support Services Campus (809 Quail),02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,9,1550,13950,Quail
+701;702;703;704;705;706;708,,Support Services Campus (809 Quail),02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,11,2250,24750,Quail
+701;702;703;704;705;706;708,,Support Services Campus (809 Quail),02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,8,1600,12800,Quail
+701;702;703;704;705;706;708,,Support Services Campus (809 Quail),02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Quail
+701;702;703;704;705;706;708,,Support Services Campus (809 Quail),02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,4,3605,14420,Quail
+145,CO-1420-7238,Ralston ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,1,1550,1550,Ralston
+145,CO-1420-7238,Ralston ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Ralston
+145,CO-1420-7238,Ralston ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Ralston
+145,CO-1420-7238,Ralston ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Ralston
+145,CO-1420-7238,Ralston ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Ralston
+146,CO-1420-7282,Red Rocks ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,2,1550,3100,Red Rocks
+146,CO-1420-7282,Red Rocks ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,4,1550,6200,Red Rocks
+146,CO-1420-7282,Red Rocks ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Red Rocks
+146,CO-1420-7282,Red Rocks ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Red Rocks
+146,CO-1420-7282,Red Rocks ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Red Rocks
+146,CO-1420-7282,Red Rocks ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Red Rocks
+147,CO-1420-7483,Rooney Ranch ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,6,1550,9300,Rooney Ranch
+147,CO-1420-7483,Rooney Ranch ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,2,1600,3200,Rooney Ranch
+147,CO-1420-7483,Rooney Ranch ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Rooney Ranch
+147,CO-1420-7483,Rooney Ranch ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Rooney Ranch
+148,CO-1420-7468,Rose Stein International ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,4,1550,6200,Rose Stein
+148,CO-1420-7468,Rose Stein International ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Rose Stein
+148,CO-1420-7468,Rose Stein International ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Rose Stein
+149,CO-1420-7529,Ryan ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,3,1550,4650,Ryan
+149,CO-1420-7529,Ryan ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Ryan
+149,CO-1420-7529,Ryan ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Ryan
+149,CO-1420-7529,Ryan ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Ryan
+149,CO-1420-7529,Ryan ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Ryan
+150,CO-1420-7708,Secrest ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,1,1550,1550,Secrest
+150,CO-1420-7708,Secrest ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,9,2250,20250,Secrest
+150,CO-1420-7708,Secrest ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Secrest
+150,CO-1420-7708,Secrest ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Secrest
+150,CO-1420-7708,Secrest ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Secrest
+151,CO-1420-7753,Semper ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,3,1550,4650,Semper
+151,CO-1420-7753,Semper ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Semper
+151,CO-1420-7753,Semper ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Semper
+152,CO-1420-7780,Shaffer ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Shaffer
+152,CO-1420-7780,Shaffer ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Shaffer
+152,CO-1420-7780,Shaffer ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Shaffer
+153,CO-1420-7833,Shelton ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,1,1550,1550,Shelton
+153,CO-1420-7833,Shelton ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Shelton
+153,CO-1420-7833,Shelton ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Shelton
+153,CO-1420-7833,Shelton ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Shelton
+153,CO-1420-7833,Shelton ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Shelton
+SOLD-3,CO-1420-4478,Sheridan Green ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,5,1550,7750,Sheridan Green
+SOLD-3,CO-1420-4478,Sheridan Green ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Sheridan Green
+SOLD-3,CO-1420-4478,Sheridan Green ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Sheridan Green
+154,CO-1420-7870,Sierra ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,3,1550,4650,Sierra
+154,CO-1420-7870,Sierra ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,4,2450,9800,Sierra
+154,CO-1420-7870,Sierra ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,3,1550,4650,Sierra
+154,CO-1420-7870,Sierra ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Sierra
+154,CO-1420-7870,Sierra ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,2,1600,3200,Sierra
+154,CO-1420-7870,Sierra ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Sierra
+155,CO-1420-7962,Slater ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Slater
+155,CO-1420-7962,Slater ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Slater
+155,CO-1420-7962,Slater ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Slater
+504,CO-1420-8036,Sobesky Academy,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,8,1550,12400,Sobesky Admy
+504,CO-1420-8036,Sobesky Academy,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,10,2450,24500,Sobesky Admy
+504,CO-1420-8036,Sobesky Academy,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,1,1550,1550,Sobesky Admy
+504,CO-1420-8036,Sobesky Academy,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Sobesky Admy
+504,CO-1420-8036,Sobesky Academy,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Sobesky Admy
+504,CO-1420-8036,Sobesky Academy,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Sobesky Admy
+504,CO-1420-8036,Sobesky Academy,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Sobesky Admy
+741,South Area Transportation Center,South Area Transportation Center,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,4,2250,9000,South Trans
+741,South Area Transportation Center,South Area Transportation Center,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,South Trans
+156,CO-1420-8102,South Lakewood ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,3,2250,6750,S Lakewood
+156,CO-1420-8102,South Lakewood ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,S Lakewood
+156,CO-1420-8102,South Lakewood ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,S Lakewood
+156,CO-1420-8102,South Lakewood ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,S Lakewood
+157,CO-1420-8223,Stevens ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,3,1550,4650,Stevens
+157,CO-1420-8223,Stevens ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,5,2250,11250,Stevens
+157,CO-1420-8223,Stevens ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,8,1600,12800,Stevens
+157,CO-1420-8223,Stevens ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Pelco,3,2450,7350,Stevens
+157,CO-1420-8223,Stevens ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1 (2),1,1300,1300,Stevens
+158,CO-1420-8276,Stober ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,5,1550,7750,Stober
+158,CO-1420-8276,Stober ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Stober
+158,CO-1420-8276,Stober ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Stober
+158,CO-1420-8276,Stober ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Stober
+158,CO-1420-8276,Stober ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,3,3605,10815,Stober
+159,CO-1420-8280,Stony Creek ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,2,1550,3100,Stony Creek
+159,CO-1420-8280,Stony Creek ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Stony Creek
+159,CO-1420-8280,Stony Creek ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Stony Creek
+160,CO-1420-8300,Stott ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Stott
+160,CO-1420-8300,Stott ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Stott
+216,CO-1420-8381,Summit Ridge MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,3,2450,7350,Summit Ridge
+216,CO-1420-8381,Summit Ridge MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,27,1550,41850,Summit Ridge
+216,CO-1420-8381,Summit Ridge MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,7,2250,15750,Summit Ridge
+216,CO-1420-8381,Summit Ridge MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Summit Ridge
+216,CO-1420-8381,Summit Ridge MS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,4,3605,14420,Summit Ridge
+161,CO-1420-8432,Swanson ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,5,1550,7750,Swanson
+161,CO-1420-8432,Swanson ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Swanson
+161,CO-1420-8432,Swanson ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Swanson
+161,CO-1420-8432,Swanson ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Swanson
+161,CO-1420-8432,Swanson ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Swanson
+SOLD-4,CO-1420-8834,Thomson ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,5,1550,7750,Thomson
+SOLD-4,CO-1420-8834,Thomson ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Thomson
+SOLD-4,CO-1420-8834,Thomson ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Thomson
+511,CO-1420-8856,Three Creeks K-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,2,1550,3100,Three Creeks
+511,CO-1420-8856,Three Creeks K-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,8,2450,19600,Three Creeks
+511,CO-1420-8856,Three Creeks K-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,11,1550,17050,Three Creeks
+511,CO-1420-8856,Three Creeks K-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,6,2250,13500,Three Creeks
+511,CO-1420-8856,Three Creeks K-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-4M,1,2350,2350,Three Creeks
+511,CO-1420-8856,Three Creeks K-8,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av-H3-4M,1,2550,2550,Three Creeks
+511,CO-1420-8856,Three Creeks K-8,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Three Creeks
+714,Trailblazer Stadium,Trailblazer Stadium,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,4,2250,9000,Trailblazer Stadium
+162,CO-1420-9008,Ute Meadows ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Ute Meadows
+162,CO-1420-9008,Ute Meadows ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Ute Meadows
+162,CO-1420-9008,Ute Meadows ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Ute Meadows
+162,CO-1420-9008,Ute Meadows ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,3,3605,10815,Ute Meadows
+163,CO-1420-9052,Van Arsdale ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Van Arsdale
+163,CO-1420-9052,Van Arsdale ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Van Arsdale
+163,CO-1420-9052,Van Arsdale ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,4,3605,14420,Van Arsdale
+164,CO-1420-9058,Vanderhoof ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Vanderhoof
+164,CO-1420-9058,Vanderhoof ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Vanderhoof
+164,CO-1420-9058,Vanderhoof ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Vanderhoof
+164,CO-1420-9058,Vanderhoof ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Vanderhoof
+165,CO-1420-9232,Warder ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,2,1550,3100,Warder
+165,CO-1420-9232,Warder ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,4,2250,9000,Warder
+165,CO-1420-9232,Warder ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,6,1600,9600,Warder
+165,CO-1420-9232,Warder ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Warder
+401,CO-1420-9234,Warren Tech Central,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,6,1550,9300,Warren Tech Central
+401,CO-1420-9234,Warren Tech Central,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,3,2250,6750,Warren Tech Central
+401,CO-1420-9234,Warren Tech Central,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1 (south door),1,650,650,Warren Tech Central
+401,CO-1420-9234,Warren Tech Central,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,6,3605,21630,Warren Tech Central
+402,CO-1420-9245,Warren Tech North,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,2,1550,3100,Warren Tech North
+402,CO-1420-9245,Warren Tech North,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,4,2250,9000,Warren Tech North
+402,CO-1420-9245,Warren Tech North,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Warren Tech North
+402,CO-1420-9245,Warren Tech North,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Warren Tech North
+403,CO-1420-1001,Warren Tech South,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,4,2250,9000,Warren Tech South
+217,CO-1420-9299,Wayne Carle MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,7,1550,10850,Wayne Carle
+217,CO-1420-9299,Wayne Carle MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,2,2450,4900,Wayne Carle
+217,CO-1420-9299,Wayne Carle MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,3,1550,4650,Wayne Carle
+217,CO-1420-9299,Wayne Carle MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Wayne Carle
+217,CO-1420-9299,Wayne Carle MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Wayne Carle
+217,CO-1420-9299,Wayne Carle MS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Wayne Carle
+217,CO-1420-9299,Wayne Carle MS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Wayne Carle
+166,CO-1420-9328,Weber ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,2,1550,3100,Weber
+166,CO-1420-9328,Weber ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,8,1550,12400,Weber
+166,CO-1420-9328,Weber ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,Weber
+166,CO-1420-9328,Weber ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-4M,1,2350,2350,Weber
+166,CO-1420-9328,Weber ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Weber
+166,CO-1420-9328,Weber ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Weber
+167,CO-1420-9342,Welchester ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,Welchester
+167,CO-1420-9342,Welchester ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Welchester
+167,CO-1420-9342,Welchester ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Welchester
+167,CO-1420-9342,Welchester ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Welchester
+168,CO-1420-9424,West Jefferson ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,2,1550,3100,W Jefferson ES
+168,CO-1420-9424,West Jefferson ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Jefferson Academy (at Coal Creek)
+168,CO-1420-9424,West Jefferson ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,W Jefferson ES
+168,CO-1420-9424,West Jefferson ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Jefferson Academy (at Coal Creek)
+168,CO-1420-9424,West Jefferson ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,3,3605,10815,W Jefferson ES
+168,CO-1420-9424,West Jefferson ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,1,3605,3605,Jefferson Academy (at Coal Creek)
+218,CO-1420-9428,West Jefferson MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3,2,1550,3100,W Jefferson MS
+218,CO-1420-9428,West Jefferson MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H3-3M,6,2450,14700,W Jefferson MS
+218,CO-1420-9428,West Jefferson MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,6,1550,9300,W Jefferson MS
+218,CO-1420-9428,West Jefferson MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,1,2250,2250,W Jefferson MS
+218,CO-1420-9428,West Jefferson MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,4,1600,6400,W Jefferson MS
+218,CO-1420-9428,West Jefferson MS,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Pelco,4,2450,9800,W Jefferson MS
+218,CO-1420-9428,West Jefferson MS,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,W Jefferson MS
+218,CO-1420-9428,West Jefferson MS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,6,3605,21630,W Jefferson MS
+169,CO-1420-9429,West Woods ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,2,1550,3100,West Woods
+169,CO-1420-9429,West Woods ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,2,2250,4500,West Woods
+169,CO-1420-9429,West Woods ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,West Woods
+169,CO-1420-9429,West Woods ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,West Woods
+169,CO-1420-9429,West Woods ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,4,3605,14420,West Woods
+170,CO-1420-9412,Westgate ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Westgate
+170,CO-1420-9412,Westgate ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Westgate
+171,CO-1420-9490,Westridge ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,3,1550,4650,Westridge
+171,CO-1420-9490,Westridge ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,3,2250,6750,Westridge
+171,CO-1420-9490,Westridge ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Westridge
+171,CO-1420-9490,Westridge ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Westridge
+171,CO-1420-9490,Westridge ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Westridge
+787,CO-1420-9638,Wilmore-Davis ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4,2,1550,3100,Wilmore Davis
+787,CO-1420-9638,Wilmore-Davis ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Av H4-3M,3,2250,6750,Wilmore Davis
+787,CO-1420-9638,Wilmore-Davis ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,1,1600,1600,Wilmore Davis
+172,CO-1420-9648,Wilmot ES,02.1_SafetyandSecurityProjects,Door Phone,1,Infrastructure costs April 2026,8028 g1,1,650,650,Wilmot
+172,CO-1420-9648,Wilmot ES,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,2,3605,7210,Wilmot
+222,,Windy Peak OELS,02.1_SafetyandSecurityProjects,POE Switch,1,Infrastructure costs April 2026,POE Switch,8,3605,28840,Windy Peak Network
+788,CO-1420-9678,Witt ES,02.1_SafetyandSecurityProjects,Camera,1,Infrastructure costs April 2026,Axis,10,1600,16000,Witt

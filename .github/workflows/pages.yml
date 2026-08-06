@@ -21,12 +21,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Static site: publish repository root (no build step).
-      # Note: node_modules is not committed, so it won't be included in the artifact.
+      # Static site: publish the JeffcoDashboard app folder (no build step).
+      # Note: node_modules / desktop binaries are gitignored and not included.
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: JeffcoDashboard
 
   deploy:
     environment:

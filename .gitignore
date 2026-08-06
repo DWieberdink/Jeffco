@@ -6,3 +6,18 @@ yarn-error.log*
 dist/
 .env
 .cursor/
+.app-data/
+
+# Local desktop / build artifacts (do not publish)
+**/.app-data/
+**/bin/
+**/obj/
+*.exe
+*.dll
+*.pdb
+*.user
+*.cache
+
+# Nested handoff bundles and tool outputs
+JeffcoDashboard/developer/
+JeffcoDashboard/.app-data/

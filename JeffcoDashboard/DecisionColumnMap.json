@@ -1,0 +1,6 @@
+{
+  "_comment": "Only include columns you renamed. Key = dashboard name, value = your exact CSV header. Restart after saving.",
+  "columns": {
+    "SquareFt": "SquareFt"
+  }
+}

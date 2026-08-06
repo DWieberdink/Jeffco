@@ -1,0 +1,4 @@
+{
+  "readme": "Copy this file to DashboardLocalPaths.json in the repo root (next to index.html). That file is gitignored. Set workspaceFolder to the folder that contains the Data Source subfolder; the Data viewer will show the full Data Source path and copy buttons.",
+  "workspaceFolder": "C:/Users/your.name/OneDrive - Your Firm/Dashboards/Jeffco_Dashboard"
+}
