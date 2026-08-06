@@ -1,8 +1,11 @@
 name: Deploy GitHub Pages
 
+# Pages is currently configured as "Deploy from a branch" (main / root), so GitHub's
+# own build already publishes every push. Running this workflow on push as well makes
+# two deployments contend for the same Pages environment and both time out, so it is
+# manual-only. Re-add the push trigger if Settings > Pages > Source is switched to
+# "GitHub Actions" (which also lets us publish JeffcoDashboard/ as the site root).
 on:
-  push:
-    branches: ["main"]
   workflow_dispatch: {}
 
 permissions:
