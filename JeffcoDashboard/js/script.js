@@ -9519,14 +9519,15 @@ function startOnboardingWalkthrough(options = {}) {
       title: 'Welcome to the Jeffco Facility Planning Dashboard',
       text:
         'This dashboard helps Jeffco explore facility planning options by combining school-level indicators, a map view, and decision logic into a single workflow.' +
-        ' Use the <strong>Menu</strong> (hamburger icon or the step badge in the top bar) to move between steps.' +
+        ' Use the <strong>Menu</strong> (hamburger icon or the step badge in the top bar) to move between the four steps.' +
         '<ul style="margin:8px 0 8px 18px; padding:0;">' +
-          '<li><strong>Step 1 – School-level Data</strong>: Pick a school to see building and enrollment details, or compare several schools side-by-side.</li>' +
-          '<li><strong>Step 2 – Map</strong>: Explore patterns on the map.</li>' +
-          '<li><strong>Step 3 – Sort by Strategic Decision</strong>: Adjust thresholds in the <strong>controls column</strong> (left); outcomes appear in <strong>results tables</strong> (bottom). Toggle Map / Flowchart under <strong>Page View</strong> in the menu.</li>' +
-          '<li><strong>Step 4 – Prioritization</strong>: Set weights in the controls column; review ranked lists in the bottom tables.</li>' +
+          '<li><strong>Step 1 – School Portfolio Explore</strong>: Compare articulation areas, then drill into a single school or compare several side-by-side.</li>' +
+          '<li><strong>Step 2 – Explore the Interactive Map</strong>: Locate schools by facility data or strategic decision.</li>' +
+          '<li><strong>Step 3 – Sort by Strategic Decision</strong>: Adjust thresholds in the <strong>controls column</strong> (left); outcomes appear in the <strong>results tables</strong> (bottom). Switch Map / Flowchart under <strong>Page View</strong> in the menu.</li>' +
+          '<li><strong>Step 4 – Prioritize within Strategy Groups</strong>: Weight the criteria in the controls column; review ranked schools in the bottom tables.</li>' +
         '</ul>' +
-        'You can jump to a specific module at any time using the dropdown, or run the full tour.',
+        'Two extra pages open in their own tab from the menu: <strong>School Project List</strong> (per-school projects and costs) and <strong>Data and Logic</strong> (data sources and calculations).' +
+        ' You can jump to any part of this tour with the <strong>Jump to</strong> dropdown, or walk through all of it with <strong>Next</strong>.',
       isIntro: true
     },
     {
@@ -9554,38 +9555,52 @@ function startOnboardingWalkthrough(options = {}) {
       ensureProcessStep: 1
     },
     {
-      target: '#step1SchoolSelect',
+      target: '.step1-portfolio-filter-bar',
       tourKey: 'step1',
-      title: 'Focusing on: School picker (Step 1)',
+      title: 'Focusing on: Filters (Step 1)',
       text:
-        '<strong>Highlighted in yellow:</strong> the <strong>School</strong> dropdown at the top of Step 1. ' +
-        'Choose a school to load its profile — you will see building facts, enrollment KPIs, and utilization bars for that school.',
+        '<strong>Highlighted in yellow:</strong> the Step 1 filter bar. ' +
+        '<strong>Articulation Area</strong> and <strong>School</strong> are multi-select buttons — click one to open a checklist and tick as many as you need. ' +
+        'The two checkboxes change how every enrollment number on this step is calculated: <strong>Include PK</strong> adds Pre-K to enrollment, utilization, and available seats, and ' +
+        '<strong>Use Educational Capacity</strong> swaps program-fit capacity in for reported capacity.',
       ensureProcessStep: 1,
       ensureMenuClosed: true
     },
     {
-      target: '#step1SingleSection',
-      title: 'Focusing on: School details (Step 1)',
+      target: '#step1DistrictAreaCompare',
+      title: 'Focusing on: Articulation area comparison (Step 1)',
       text:
-        '<strong>Highlighted in yellow:</strong> the detail panels for the school you selected. ' +
-        '<strong>Building Information</strong> lists square footage, age, and condition-style metrics; <strong>Enrollment</strong> shows counts, capacity, utilization, and available seats. ' +
-        'Use <strong>Include PK</strong> or <strong>Use Educational Capacity</strong> above to change how enrollment metrics are calculated.',
+        '<strong>Highlighted in yellow:</strong> the district summary and the articulation area table. ' +
+        'Every area is one row with schools, capacity, enrollment, utilization, available seats, Building Score, and Educational Adequacy. Click any column header to sort. ' +
+        'Tick the checkbox on a row to roll that area into the summary above, or click the row itself to open a side panel listing the schools in that area — ' +
+        'from there you can check individual schools and press <strong>Compare Selected Schools</strong>.',
+      ensureProcessStep: 1,
+      ensureMenuClosed: true
+    },
+    {
+      target: '#step1AreaDetailPanel',
+      title: 'Focusing on: Schools in an area (Step 1)',
+      text:
+        '<strong>Highlighted in yellow:</strong> the side panel that opens when you click an area row. ' +
+        'The KPIs at the top summarize the whole area; the table below is one row per school, with the same capacity, enrollment, utilization, seats, Building Score, and Educational Adequacy columns. ' +
+        'Click a school row to expand its detail, tick the schools you want, then press <strong>Compare Selected Schools</strong> at the bottom. ' +
+        'Use \u2b1c to widen the panel or \u00d7 to close it.',
       ensureProcessStep: 1,
       ensureMenuClosed: true,
-      ensureStep1SchoolSelected: true,
-      ensureStep1CompareOff: true
+      ensureStep1AreaPanel: true
     },
     {
       target: '#step1CompareControls',
       title: 'Focusing on: Compare Selected Schools (Step 1)',
       text:
-        '<strong>Highlighted in yellow:</strong> the <strong>Compare Selected Schools</strong> controls. ' +
-        'Turn on the checkbox to switch from a single-school view to side-by-side cards. ' +
-        'Pick extra schools in the rows that appear, use <strong>+</strong> for more slots, or choose an <strong>Articulation area</strong> at the top to load all schools in that area at once.',
+        '<strong>Highlighted in yellow:</strong> the <strong>Compare Selected Schools</strong> controls, which appear once schools are loaded for comparison. ' +
+        'Each dropdown is one school in the comparison; use <strong>+</strong> to add another slot, or change a dropdown to swap a school out. ' +
+        'Unticking the checkbox clears the comparison and returns you to the area table above.',
       ensureProcessStep: 1,
       ensureMenuClosed: true,
       ensureStep1SchoolSelected: true,
-      ensureStep1CompareOff: true
+      ensureStep1CompareOn: true,
+      ensureStep1CompareSamples: true
     },
     {
       target: '#step1CompareGrid',
@@ -9670,7 +9685,7 @@ function startOnboardingWalkthrough(options = {}) {
       title: 'Focusing on: Show tables strip (bottom)',
       text:
         '<strong>Highlighted in yellow:</strong> the thin strip with the <strong>Show tables</strong> button (results are collapsed to give the map more room). ' +
-        'Click it to expand the tables again. Only this bottom area can <strong>Float</strong>; the controls column on the left does not.',
+        'Click it to expand the tables again. Only this bottom area can <strong>Float</strong> as a movable, resizable window \u2014 the controls column on the left always stays docked.',
       ensureProcessStep: 3,
       ensureMapView: true,
       ensureBottomTablesCollapsed: true
@@ -9679,9 +9694,10 @@ function startOnboardingWalkthrough(options = {}) {
       target: '.bottom-panel-tabs',
       title: 'Focusing on: Results table tabs (bottom)',
       text:
-        '<strong>Highlighted in yellow:</strong> the tab bar for <strong>results tables</strong> at the bottom (not the controls column). ' +
-        'On Steps 3–4: <strong>Strategic Decision Summary</strong> (counts by group), <strong>Decision by School</strong> (each school’s outcome), and on Step 4 <strong>Strategy Prioritization</strong> (ranked lists). ' +
-        'Use <strong>Hide tables</strong> above the tabs to collapse back to the strip you saw on the previous step.',
+        '<strong>Highlighted in yellow:</strong> the tab bar for the <strong>results tables</strong> at the bottom (not the controls column). ' +
+        'Three tabs: <strong>Strategic Decision Summary</strong> (counts by group \u2014 click a group row to expand its decisions), ' +
+        '<strong>Decision by School</strong> (one row per school with its outcome), and <strong>Strategy Prioritization</strong> (ranked schools, Step 4). ' +
+        'The buttons on the right of this bar act on whichever tab is open.',
       ensureProcessStep: 3,
       ensureBottomTablesExpanded: true
     },
@@ -9719,7 +9735,9 @@ function startOnboardingWalkthrough(options = {}) {
       title: 'Focusing on: Prioritization (controls column)',
       text:
         '<strong>Highlighted in yellow:</strong> the <strong>Prioritization</strong> section in the controls column (left). ' +
-        'Choose a strategy group, then adjust weight sliders. Ranked output appears in the bottom results tables, not here.',
+        'Each slider is one criterion \u2014 raise a weight to pull schools that score highly on it toward the top. ' +
+        'Ranked output appears in the bottom results tables, not here, and updates as you drag. ' +
+        'Use <strong>Reset all to defaults</strong> at the top of the panel to start over.',
       ensureProcessStep: 4,
       ensureLeftSidebar: true
     },
@@ -9728,16 +9746,58 @@ function startOnboardingWalkthrough(options = {}) {
       title: 'Focusing on: Strategy Prioritization tab (bottom)',
       text:
         '<strong>Highlighted in yellow:</strong> the <strong>Strategy Prioritization</strong> tab in the bottom results tables. ' +
-        'Here you see ranked schools for the group you picked in the controls column. Use the group tabs and values/scores toggle above the table.',
+        'This is the ranked list produced by the weights you just set. Each row is a school with its Priority Score and the metrics behind it; ' +
+        'use the filter icon in any column header to narrow the list.',
       ensureProcessStep: 4,
       ensureBottomTablesExpanded: true,
       activateImpactTab: true
     },
     {
+      target: '.bottom-panel-tab-actions',
+      tourKey: 'tableTools',
+      title: 'Focusing on: Table toolbar (bottom right)',
+      text:
+        '<strong>Highlighted in yellow:</strong> the table toolbar, grouped left to right into what the table <em>shows</em>, what you <em>do</em> with the data, and the <em>panel</em> itself:' +
+        '<ul style="margin:8px 0 8px 18px; padding:0;">' +
+          '<li><strong>Columns \u25be</strong> \u2014 tick which optional columns appear (Strategy Group, Project Type).</li>' +
+          '<li><strong>Values / Scores</strong> \u2014 switch between raw values (%, miles, counts) and the normalized 0\u2013100 scores. This never changes the ranking.</li>' +
+          '<li><strong>Clear filters</strong> \u2014 reset every column filter in the table.</li>' +
+          '<li><strong>\u2b07</strong> \u2014 export the current table to CSV.</li>' +
+          '<li><strong>\u29c9</strong> Float \u2014 lift the tables into a movable window: drag the title bar to move, any edge or corner to resize, double-click to fill the screen.</li>' +
+          '<li><strong>\u2304</strong> Hide tables \u2014 collapse back down to the thin strip.</li>' +
+        '</ul>' +
+        'Hover any icon to see its name. The Summary and Decision by School tabs show a shorter version of this toolbar.',
+      ensureProcessStep: 4,
+      ensureBottomTablesExpanded: true,
+      activateImpactTab: true
+    },
+    {
+      target: '#menuSchoolProjectList',
+      tourKey: 'modules',
+      title: 'School Project List (opens in a new tab)',
+      text:
+        '<strong>Highlighted in yellow:</strong> <strong>School Project List</strong> under <strong>Planning modules</strong>. ' +
+        'It opens a separate page with the full project list for a school: Project Calculator totals, Facility Deficiency, Safety &amp; Security, and the ' +
+        'Food and Nutrition / Information Technology sections. Switch between <strong>By school</strong> and <strong>Custom</strong> there to group and total the projects your own way.',
+      openMenu: true,
+      ensureProcessStep: 4
+    },
+    {
+      target: '#menuDataLogic',
+      title: 'Data and Logic (opens in a new tab)',
+      text:
+        '<strong>Highlighted in yellow:</strong> <strong>Data and Logic</strong> under <strong>Help &amp; Data</strong>. ' +
+        'Use it to check where a number came from: an overview of the workflow, the assumptions behind each step, and a <strong>Data Sources</strong> tab where you can ' +
+        'preview every underlying CSV and read what each column means.',
+      openMenu: true,
+      ensureProcessStep: 4
+    },
+    {
       target: 'body',
       title: 'All set',
       text:
-        'You’re ready to explore. Use the step badge or hamburger menu anytime to switch steps, and re-open <strong>How to Use | Start Tour</strong> under <strong>Help &amp; Data</strong> to run this walkthrough again.',
+        'You\u2019re ready to explore. Use the step badge or hamburger menu anytime to switch steps, and re-open <strong>How to Use | Start Tour</strong> under <strong>Help &amp; Data</strong> to run this walkthrough again. ' +
+        'Individual panels also have their own <strong>?</strong> help icons for the details behind each calculation.',
       ensureMenuClosed: true
     }
   ];
@@ -9746,6 +9806,8 @@ function startOnboardingWalkthrough(options = {}) {
   let overlay = null;
   let popup = null;
   let tourHighlights = [];
+  /** Rect the yellow box was drawn around, or null when nothing could be highlighted. */
+  let lastHighlightRect = null;
   let keyHandler = null;
   let resizeHandler = null;
   const body = document.body;
@@ -9870,6 +9932,49 @@ function startOnboardingWalkthrough(options = {}) {
     return TOUR_Z;
   }
 
+  function isTourElementVisible(el) {
+    if (!el || el.nodeType !== 1) return false;
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 8 || rect.height < 8) return false;
+    const style = window.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+    return Number(style.opacity || '1') > 0.05;
+  }
+
+  /**
+   * Bring a highlight target on screen. Deliberately not a smooth scroll: the
+   * caller measures the element immediately afterwards, and a smooth scroll is
+   * still animating at that point, which leaves the yellow box at the element's
+   * old position (often below the fold).
+   */
+  function scrollTourTargetIntoView(el) {
+    if (!el || typeof el.scrollIntoView !== 'function') return;
+    try {
+      el.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'nearest' });
+      const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+      const r = el.getBoundingClientRect();
+      // "nearest" can still leave tall or bottom-anchored elements out of view.
+      if (r.bottom < 40 || r.top > vh - 40) {
+        el.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+      }
+    } catch (e) {}
+  }
+
+  /**
+   * Panels get hidden as the UI changes, and a hidden element measures 0x0 —
+   * which used to paint a stray highlight in the top-left corner instead of
+   * around anything. Fall back to the nearest ancestor that has real size, and
+   * report null when there is genuinely nothing on screen to point at.
+   */
+  function firstVisibleTourElement(el) {
+    let node = el;
+    for (let hops = 0; node && node !== document.body && hops < 6; hops += 1) {
+      if (isTourElementVisible(node)) return node;
+      node = node.parentElement;
+    }
+    return null;
+  }
+
   function ensureProcessStep(stepNum) {
     try {
       if (typeof window._goToStep === 'function') {
@@ -9917,6 +10022,17 @@ function startOnboardingWalkthrough(options = {}) {
     } else if (typeof window.step1Rerender === 'function') {
       window.step1Rerender();
     }
+  }
+
+  /** Open the Step 1 area side panel (by clicking the first area row) so it can be highlighted. */
+  function ensureStep1AreaDetailPanel() {
+    const panel = document.getElementById('step1AreaDetailPanel');
+    if (panel && !panel.hidden) return true;
+    const firstRow = document.querySelector('#step1AreaTableBody tr[data-area-key]');
+    if (!firstRow) return false;
+    const cell = firstRow.querySelector('td.col-area') || firstRow;
+    cell.click();
+    return true;
   }
 
   function ensureStep1CompareSampleSchools() {
@@ -10132,9 +10248,11 @@ function startOnboardingWalkthrough(options = {}) {
       step.ensureStep1SchoolSelected ||
       step.ensureStep1CompareOn ||
       step.ensureStep1CompareOff ||
-      step.ensureStep1CompareSamples
+      step.ensureStep1CompareSamples ||
+      step.ensureStep1AreaPanel
     ) {
       setTimeout(() => {
+        if (step.ensureStep1AreaPanel) ensureStep1AreaDetailPanel();
         if (step.ensureStep1SchoolSelected) ensureStep1SchoolSelected();
         if (step.ensureStep1CompareOff) ensureStep1CompareMode(false);
         else if (step.ensureStep1CompareOn) ensureStep1CompareMode(true);
@@ -10201,13 +10319,6 @@ function startOnboardingWalkthrough(options = {}) {
       return;
     }
 
-    // Scroll target into view unless it's the intro body step
-    if (!step.isIntro && step.target !== 'body') {
-      try {
-        target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-      } catch (e) {}
-    }
-
     drawHighlight(target, step);
     drawPopup(target, step, stepIdx);
   }
@@ -10245,11 +10356,19 @@ function startOnboardingWalkthrough(options = {}) {
     let desiredLeft = margin;
     let desiredTop = margin;
 
-    if (step.isIntro || step.target === 'body') {
+    // Centre the card whenever there is no highlight to sit beside, otherwise it
+    // gets pinned to the top-left corner pointing at nothing.
+    if (step.isIntro || step.target === 'body' || !lastHighlightRect) {
       desiredLeft = (vw - popupRect.width) / 2;
       desiredTop = Math.max(margin, Math.round(vh * 0.18));
-    } else {
-      const rect = target.getBoundingClientRect();
+      popup.style.left = `${clamp(desiredLeft, margin, Math.max(margin, vw - popupRect.width - margin))}px`;
+      popup.style.top = `${clamp(desiredTop, margin, Math.max(margin, vh - popupRect.height - margin))}px`;
+      popup.style.right = '';
+      popup.style.transform = '';
+      return;
+    }
+    {
+      const rect = lastHighlightRect;
       const targetNearBottom = rect.top > vh * 0.55;
       const isBottomUiStep =
         isResultsTablesTourStep(step) ||
@@ -10575,6 +10694,7 @@ function startOnboardingWalkthrough(options = {}) {
   function drawHighlight(target, step) {
     restoreMenuZIndex();
     restoreResultsPanelZIndex();
+    lastHighlightRect = null;
 
     const z = tourZIndexForStep(step);
     if (isMenuTourStep(step)) boostMenuAboveTourOverlay();
@@ -10689,7 +10809,24 @@ function startOnboardingWalkthrough(options = {}) {
           rect = fallback.getBoundingClientRect();
         }
       }
-     
+
+      // Last line of defence: never draw a highlight around something invisible.
+      const visibleEl = firstVisibleTourElement(highlightEl);
+      if (!visibleEl) {
+        lastHighlightRect = null;
+        return;
+      }
+      if (visibleEl !== highlightEl) {
+        highlightEl = visibleEl;
+        pad = Math.min(pad, 4);
+      }
+      // Scroll last, then measure, so the box lands where the element ends up.
+      if (step.target !== 'body' && !isMenuTourStep(step)) {
+        scrollTourTargetIntoView(highlightEl);
+      }
+      rect = highlightEl.getBoundingClientRect();
+      lastHighlightRect = rect;
+
       highlight = document.createElement('div');
       highlight.style.position = 'fixed';
       highlight.style.left = (rect.left - pad) + 'px';
@@ -10801,12 +10938,14 @@ function startOnboardingWalkthrough(options = {}) {
     [
       { v: 'full', t: 'Full tour (restart)' },
       { v: 'navigation', t: 'Menu & Navigation' },
-      { v: 'step1', t: 'Step 1 — School-level data' },
-      { v: 'step2', t: 'Step 2 — Map' },
+      { v: 'step1', t: 'Step 1 — School Portfolio Explore' },
+      { v: 'step2', t: 'Step 2 — Interactive Map' },
       { v: 'step3', t: 'Step 3 — Sort by Strategic Decision' },
-      { v: 'step4', t: 'Step 4 — Prioritization' },
       { v: 'showTables', t: 'Results tables (Show tables)' },
-      { v: 'flowchart', t: 'Flowchart (Steps 3–4)' }
+      { v: 'flowchart', t: 'Flowchart (Steps 3–4)' },
+      { v: 'step4', t: 'Step 4 — Prioritize within Strategy Groups' },
+      { v: 'tableTools', t: 'Results table toolbar' },
+      { v: 'modules', t: 'Project List & Data and Logic' }
     ].forEach(o => {
       const opt = document.createElement('option');
       opt.value = o.v;
@@ -11025,12 +11164,16 @@ function startOnboardingWalkthrough(options = {}) {
   };
   document.addEventListener('keydown', keyHandler, true);
 
-  // Keep the popup inside the viewport on resize
+  // Redraw on resize so the yellow box keeps tracking its target, not just the popup.
   resizeHandler = () => {
     try {
       const step = steps[currentStep];
-      const target = document.querySelector(step?.target || 'body');
-      if (popup && target && step) positionPopup(target, step);
+      if (!popup || !step) return;
+      const target = document.querySelector(step.target || 'body');
+      if (!target) return;
+      clearTourLayers();
+      drawHighlight(target, step);
+      drawPopup(target, step, currentStep);
     } catch (e) {}
   };
   window.addEventListener('resize', resizeHandler);
