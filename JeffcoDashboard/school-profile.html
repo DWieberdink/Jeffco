@@ -1132,10 +1132,30 @@
       background: #faf7ff;
       border-bottom: 1px solid var(--border);
     }
+    /*
+     * Height is user-resizable: drag the grip at the bottom-right. The chosen
+     * height is remembered, so it survives the table re-rendering.
+     */
     .fcs-comments-panel {
+      position: relative;
+      /* Border-box keeps the saved height and the rendered height identical. */
+      box-sizing: border-box;
       padding: 12px 16px 14px 34px;
-      max-height: 420px;
-      overflow-y: auto;
+      min-height: 90px;
+      overflow: auto;
+      resize: vertical;
+    }
+    .fcs-comments-resize-hint {
+      position: sticky;
+      bottom: -4px;
+      display: block;
+      margin-top: 6px;
+      padding-right: 16px;
+      text-align: right;
+      font-size: 11px;
+      color: #9ca3af;
+      pointer-events: none;
+      user-select: none;
     }
     .fcs-comments-head {
       font-size: 12px;
@@ -3098,7 +3118,7 @@
   <script src="js/school-name-display.js?v=20260630_1"></script>
   <script src="js/decision-export-fields.js?v=20260517_1" defer></script>
   <script src="js/dashboard-decision-column-map.js?v=20260517_1" defer></script>
-  <script src="js/school-profile.js?v=20260807_03" defer></script>
+  <script src="js/school-profile.js?v=20260807_06" defer></script>
   <script src="js/global-search.js" defer></script>
 </body>
 </html>

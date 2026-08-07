@@ -20,7 +20,7 @@
   /** 02.3 FCS survey: one comment per row (school leader / facility manager). */
   const FCS_COMMENTS_CSV_PATH = _data("02.3_FCS_Explore_Projects.csv");
   // Bump this to force browsers to refetch CSV/JS.
-  const CACHE_BUST = "20260807_03";
+  const CACHE_BUST = "20260807_06";
   const UNKNOWN_ARTICULATION_LABEL = "No articulation area";
   /** Super-section banners in the assets / projects table (fixed display order). */
   const SELECTED_PROJECTS_SUPER_LABEL = "Selected Projects";
@@ -2051,6 +2051,23 @@
   let fcsCommentsByFacilityId = new Map();
   /** School keys whose "School leader priorities" dropdown is currently open. */
   const expandedFcsCommentSchools = new Set();
+  const FCS_PANEL_HEIGHT_KEY = "jeffco_fcs_comments_panel_height_v1";
+  const FCS_PANEL_MIN_HEIGHT = 90;
+  const FCS_PANEL_AUTO_MAX_HEIGHT = 420;
+
+  function readFcsPanelHeight() {
+    try {
+      const raw = Number(localStorage.getItem(FCS_PANEL_HEIGHT_KEY));
+      if (Number.isFinite(raw) && raw >= FCS_PANEL_MIN_HEIGHT) return Math.round(raw);
+    } catch (_) {}
+    return null;
+  }
+
+  function writeFcsPanelHeight(px) {
+    try {
+      localStorage.setItem(FCS_PANEL_HEIGHT_KEY, String(Math.round(px)));
+    } catch (_) {}
+  }
 
   function getSchoolFromQuery() {
     const params = new URLSearchParams(window.location.search);
@@ -2438,6 +2455,7 @@
           SystemCategory: "08_Facilities Deficiency",
           AssetType: asset,
           PriorityScore: priority,
+          __csvPriority: priority,
           ConditionSource: "02.2 Facilities Deficiency Projects",
           ReplacementCost: 0,
         };
@@ -2455,6 +2473,7 @@
       SystemCategory: agg.SystemCategory,
       AssetType: agg.AssetType,
       PriorityScore: agg.PriorityScore,
+      __csvPriority: agg.__csvPriority || agg.PriorityScore,
       ConditionSource: agg.ConditionSource,
       ReplacementCost:
         agg.ReplacementCost > 0 ? Number(agg.ReplacementCost.toFixed(2)).toString() : "None",
@@ -2501,6 +2520,13 @@
     const totalPriorityCbs = document.querySelectorAll(".priority-filter-cb").length;
     const filterByPriority =
       filteredPriorities.size > 0 && filteredPriorities.size < totalPriorityCbs;
+    // When the parent rollup rows already represent a specific P1–P4 set (e.g. the
+    // Custom pivot is nested under Priority 1), only return matching line items.
+    const rollupPriorities = new Set();
+    (assetRows || []).forEach((r) => {
+      const p = norm(getPriorityForRow(r) || r?.__csvPriority || r?.PriorityScore);
+      if (p === "1" || p === "2" || p === "3" || p === "4") rollupPriorities.add(p);
+    });
 
     const matched = new Set();
     facilityKeys.forEach((fk) => {
@@ -2517,6 +2543,7 @@
     matched.forEach((d) => {
       const p = norm(d.__csvPriority || d.PriorityScore);
       if (filterByPriority && !filteredPriorities.has(p)) return;
+      if (rollupPriorities.size && p && !rollupPriorities.has(p)) return;
       if (!multiFacility) {
         out.push(d);
         return;
@@ -4391,7 +4418,48 @@
       });
       panel.appendChild(ratingEl);
     });
+
+    const hint = document.createElement("span");
+    hint.className = "fcs-comments-resize-hint";
+    hint.textContent = "Drag the corner to resize ⤡";
+    panel.appendChild(hint);
+
+    makeFcsPanelResizable(panel);
     return panel;
+  }
+
+  /**
+   * Gives the panel an explicit height so the CSS resize grip works, then keeps
+   * whatever height the user drags to for every panel from then on.
+   */
+  function makeFcsPanelResizable(panel) {
+    const stored = readFcsPanelHeight();
+    let appliedHeight = stored;
+    if (stored) panel.style.height = `${stored}px`;
+
+    if (!stored) {
+      requestAnimationFrame(() => {
+        if (panel.style.height) return;
+        // Height is still auto here, so offsetHeight is the natural border-box height.
+        const natural = panel.offsetHeight;
+        if (!natural) return;
+        appliedHeight = Math.min(
+          Math.max(natural, FCS_PANEL_MIN_HEIGHT),
+          FCS_PANEL_AUTO_MAX_HEIGHT
+        );
+        panel.style.height = `${appliedHeight}px`;
+      });
+    }
+
+    if (typeof ResizeObserver !== "function") return;
+    const observer = new ResizeObserver(() => {
+      const current = panel.offsetHeight;
+      if (!current || appliedHeight == null) return;
+      if (Math.abs(current - appliedHeight) <= 2) return;
+      appliedHeight = current;
+      writeFcsPanelHeight(current);
+    });
+    observer.observe(panel);
   }
 
   /** Detail row holding the expanded comment panel; spans the full table width. */
@@ -4912,6 +4980,12 @@
   function getPriorityForRow(row) {
     if (row?.__isRollup && row?.__rollupPriority) return row.__rollupPriority;
     if (row?.__csvPriority) return row.__csvPriority;
+    // Prefer the CSV PriorityScore when present so Facilities Deficiency (and similar)
+    // rollups are bucketed under the correct P1–P4 instead of the asset-type default.
+    const fromScore = norm(row?.PriorityScore ?? row?.["PriorityScore"]);
+    if (fromScore === "1" || fromScore === "2" || fromScore === "3" || fromScore === "4") {
+      return fromScore;
+    }
     const key = getRowKey(row);
     const override = key ? priorityOverrides?.[key] : null;
     return override || defaultPriorityForRow(row);
@@ -7898,12 +7972,26 @@
     const assetType = norm(node.label) || displayProjectTypeLabel(assetRows[0]);
     const sample = node.rows[0] || {};
     const details = getMasterDeficiencyDetailsForAsset(assetRows, assetType);
+    // Parent metrics come from the priority-filtered rollup rows in node.rows.
+    // Only show line items that belong to those same P1–P4 buckets so the
+    // children always add up to the Plumbing / Facilities Deficiency subtotal.
+    const allowedPriorities = new Set();
+    assetRows.forEach((r) => {
+      const p = norm(getPriorityForRow(r));
+      if (p === "1" || p === "2" || p === "3" || p === "4") allowedPriorities.add(p);
+    });
+    (node.rows || []).forEach((pr) => {
+      const p = norm(pr?.priority);
+      if (p === "1" || p === "2" || p === "3" || p === "4") allowedPriorities.add(p);
+    });
     const included = getIncludedPriorities();
     const out = [];
     details.forEach((d) => {
       const projectLabel = displayProjectTypeLabel(d) || d.__masterDetailLabel || assetType;
       if (!strategyPivotColumnValuePasses("project", projectLabel)) return;
       const p = norm(d.__csvPriority || d.PriorityScore);
+      if (allowedPriorities.size && p && !allowedPriorities.has(p)) return;
+      if (p && !strategyPivotColumnValuePasses("priority", p)) return;
       if (p && included.size && !included.has(p)) return;
       const detailRow = {
         ...d,
@@ -8544,6 +8632,9 @@
             const rc = parseNumberMaybe(ar?.ReplacementCost);
             if (rc === null) return;
             const p = norm(getPriorityForRow(ar));
+            // Keep the asset rollup $ in sync with the active Priority filter so
+            // the subtotal matches the line items shown underneath.
+            if (!allPrioritiesSelected && filteredPriorities.size && !filteredPriorities.has(p)) return;
             if (byP.hasOwnProperty(p)) byP[p] += rc;
             else byP["2"] += rc;
           });
@@ -9820,7 +9911,9 @@ ${additionBlock}
         ? window.loadDecisionColumnMap()
         : Promise.resolve();
 
-    elSchoolMeta.textContent = `Loading school summary (${DECISION_CSV_PATH}), projects (${ASSETS_CSV_PATH}), safety & security (${SAFETY_SECURITY_CSV_PATH}), facilities deficiency (${FACILITIES_DEFICIENCY_CSV_PATH}), unit cost library (${UNITCOST_LIBRARY_CSV_PATH}), room schedule (${ROOM_SCHEDULE_CSV_PATH}), and map export (${MAP_EXPORT_CSV_PATH})…`;
+    // Keep this human-readable: the file paths behind it are developer detail and
+    // briefly flashed raw-looking URLs in the header while the CSVs loaded.
+    elSchoolMeta.textContent = "Loading school data…";
 
     Promise.all([
       columnMapReady,
