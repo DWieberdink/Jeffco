@@ -418,6 +418,11 @@
       align-items: center;
       gap: 8px;
     }
+    /* Columns / Reset order only apply to the Custom pivot; the display rule
+       above would otherwise defeat the [hidden] attribute in By school view. */
+    .strategy-pivot-toolbar[hidden] {
+      display: none;
+    }
     .strategy-toolbar-btn {
       height: 38px;
       padding: 0 12px;
@@ -1065,6 +1070,149 @@
     }
     tr.selected-projects-mirror.excluded-row td {
       background: #f8fafc;
+    }
+
+    /* ---- School leader priorities (02.3 FCS survey comments) ---- */
+    .fcs-comment-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      flex: 0 0 28px;
+      margin-left: 4px;
+      border-radius: 5px;
+      color: #6d28d9;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.12s ease, color 0.12s ease;
+    }
+    .fcs-comment-toggle:hover,
+    .fcs-comment-toggle:focus-visible {
+      background: rgba(109, 40, 217, 0.12);
+      color: #4c1d95;
+      outline: none;
+    }
+    .fcs-comment-caret {
+      display: inline-block;
+      font-size: 24px;
+      line-height: 1;
+      transform: rotate(-90deg);
+      transition: transform 0.12s ease;
+    }
+    .fcs-comment-caret::before {
+      content: "▾";
+    }
+    .fcs-comment-toggle.is-open .fcs-comment-caret {
+      transform: rotate(0deg);
+    }
+    /* Hover cloud lives on <body> so clipped table cells cannot cut it off. */
+    .fcs-tip {
+      position: fixed;
+      z-index: 600;
+      max-width: 260px;
+      padding: 6px 10px;
+      background: #1f2937;
+      color: #f9fafb;
+      font-size: 12px;
+      line-height: 1.35;
+      border-radius: 8px;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.12s ease;
+    }
+    .fcs-tip.is-visible {
+      opacity: 1;
+      visibility: visible;
+    }
+    tr.fcs-comments-row > td {
+      padding: 0;
+      background: #faf7ff;
+      border-bottom: 1px solid var(--border);
+    }
+    .fcs-comments-panel {
+      padding: 12px 16px 14px 34px;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+    .fcs-comments-head {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #6d28d9;
+      margin-bottom: 10px;
+    }
+    .fcs-rating-group {
+      margin-bottom: 12px;
+    }
+    .fcs-rating-group:last-child {
+      margin-bottom: 0;
+    }
+    .fcs-rating-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e9d5ff;
+    }
+    .fcs-rating-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      background: #6b7280;
+    }
+    .fcs-rating-badge--1 { background: #b91c1c; }
+    .fcs-rating-badge--2 { background: #ea580c; }
+    .fcs-rating-badge--3 { background: #ca8a04; }
+    .fcs-rating-badge--4 { background: #2563eb; }
+    .fcs-rating-badge--5 { background: #16a34a; }
+    .fcs-rating-badge--na { background: #94a3b8; }
+    .fcs-rating-text {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+    .fcs-count {
+      font-size: 12px;
+      color: #6b7280;
+    }
+    .fcs-category-group {
+      margin: 8px 0 0 28px;
+    }
+    .fcs-category-head {
+      font-size: 12px;
+      font-weight: 600;
+      color: #374151;
+    }
+    .fcs-role-group {
+      margin: 4px 0 0 14px;
+    }
+    .fcs-role-head {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: #7c3aed;
+    }
+    .fcs-comment-list {
+      margin: 2px 0 0;
+      padding-left: 18px;
+    }
+    .fcs-comment {
+      font-size: 13px;
+      line-height: 1.45;
+      color: #1f2937;
+      margin-bottom: 3px;
+      white-space: normal;
     }
     .list-view-toggle {
       display: inline-flex;
@@ -2950,7 +3098,7 @@
   <script src="js/school-name-display.js?v=20260630_1"></script>
   <script src="js/decision-export-fields.js?v=20260517_1" defer></script>
   <script src="js/dashboard-decision-column-map.js?v=20260517_1" defer></script>
-  <script src="js/school-profile.js?v=20260806_06" defer></script>
+  <script src="js/school-profile.js?v=20260807_03" defer></script>
   <script src="js/global-search.js" defer></script>
 </body>
 </html>

@@ -18,25 +18,27 @@ window.prioritizationUI = {
   // - "scores": show normalized 0–100 indices used for weighting (does NOT change ranking)
   metricDisplayMode: "values",
   _outcomeFlyoutStyleInjected: false,
-  // Strategy Prioritization table: optional columns (persisted in localStorage)
+  // Strategy Prioritization table: optional columns (on by default; persisted in localStorage)
   impactTableShowProjectType: true,
   impactTableShowStrategyGroup: true,
 
   _loadImpactTableColumnPrefs: function () {
+    // Both columns default ON. Bumped key suffix ignores older prefs that had them off.
     try {
-      var p = localStorage.getItem("jeffco_impact_col_project");
-      if (p === "0") this.impactTableShowProjectType = false;
-      else if (p === "1") this.impactTableShowProjectType = true;
-      var s = localStorage.getItem("jeffco_impact_col_strategy");
-      if (s === "0") this.impactTableShowStrategyGroup = false;
-      else if (s === "1") this.impactTableShowStrategyGroup = true;
-    } catch (e) {}
+      var p = localStorage.getItem("jeffco_impact_col_project_v2");
+      var s = localStorage.getItem("jeffco_impact_col_strategy_v2");
+      this.impactTableShowProjectType = p !== "0";
+      this.impactTableShowStrategyGroup = s !== "0";
+    } catch (e) {
+      this.impactTableShowProjectType = true;
+      this.impactTableShowStrategyGroup = true;
+    }
   },
 
   _saveImpactTableColumnPrefs: function () {
     try {
-      localStorage.setItem("jeffco_impact_col_project", this.impactTableShowProjectType ? "1" : "0");
-      localStorage.setItem("jeffco_impact_col_strategy", this.impactTableShowStrategyGroup ? "1" : "0");
+      localStorage.setItem("jeffco_impact_col_project_v2", this.impactTableShowProjectType ? "1" : "0");
+      localStorage.setItem("jeffco_impact_col_strategy_v2", this.impactTableShowStrategyGroup ? "1" : "0");
     } catch (e) {}
   },
 

@@ -27,12 +27,12 @@
   <script src="js/school-name-display.js?v=20260630_1"></script>
   <script src="js/decision-export-fields.js?v=20260518_1" defer></script>
   <script src="js/dashboard-decision-column-map.js?v=20260518_1" defer></script>
-  <script src="js/DecisionLogic.js?v=20260806_06" defer></script>
+  <script src="js/DecisionLogic.js?v=20260807_01" defer></script>
   <script src="js/PrioritizationLogic.js?v=20260806_06" defer></script>
-  <script src="js/PrioritizationUI.js?v=20260806_06" defer></script>
+  <script src="js/PrioritizationUI.js?v=20260807_01" defer></script>
   <script src="js/FlowchartLogic.js?v=20260806_06" defer></script>
   <script src="js/dashboard-year-labels.js?v=20260516_1" defer></script>
-  <script src="js/script.js?v=20260806_07" defer></script>
+  <script src="js/script.js?v=20260807_02" defer></script>
   <script src="js/global-search.js" defer></script>
   
 
@@ -368,7 +368,8 @@
       line-height: 1.2;
       flex: 0 1 auto;
       min-width: 0;
-      white-space: nowrap;
+      /* Wrap rather than clip: the sidebar is narrow and user-resizable. */
+      white-space: normal;
     }
     .sidebar-panel-title-row {
       display: flex;
@@ -376,7 +377,6 @@
       gap: 6px;
       flex: 1 1 auto;
       min-width: 0;
-      overflow: hidden;
     }
     .sidebar-panel-chrome-actions {
       display: inline-flex;
@@ -384,6 +384,22 @@
       gap: 6px;
       flex: 0 0 auto;
       justify-content: flex-end;
+      margin-left: auto;
+    }
+    /*
+     * Steps 3–4 are the only steps with a panel title and a "Reset all to
+     * defaults" button. Together they never fit one line at the sidebar's
+     * 240–340px width, so let the buttons drop to their own row instead of
+     * squeezing the title until the help icon clips it.
+     */
+    body.controls-step-3 .sidebar-panel-chrome,
+    body.controls-step-4 .sidebar-panel-chrome {
+      flex-wrap: wrap;
+      row-gap: 4px;
+    }
+    body.controls-step-3 .sidebar-panel-title-row,
+    body.controls-step-4 .sidebar-panel-title-row {
+      flex: 1 1 200px;
     }
     .sidebar-panel-primary-actions {
       display: flex;
@@ -1176,6 +1192,25 @@ body.bottom-tables-step34:not(.bottom-tables-docked-collapsed):not(.bottom-table
   border-color: #fca5a5;
   color: #b91c1c;
 }
+.bottom-tables-float-max {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #374151;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}
+.bottom-tables-float-max:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
 #bottom-tables-main.bottom-tables-main--floating {
   display: flex !important;
   flex-direction: column;
@@ -1190,6 +1225,35 @@ body.bottom-tables-step34:not(.bottom-tables-docked-collapsed):not(.bottom-table
 }
 #bottom-tables-main.bottom-tables-main--floating .bottom-tables-float-chrome {
   display: flex;
+}
+/* Eight-way resize grips; only active while the panel floats. Kept inside the
+   panel bounds because the floating container clips overflow. */
+.bottom-tables-resize-handle {
+  display: none;
+}
+#bottom-tables-main.bottom-tables-main--floating .bottom-tables-resize-handle {
+  display: block;
+  position: absolute;
+  z-index: 6;
+}
+.bottom-tables-resize-n { top: 0; left: 12px; right: 12px; height: 6px; cursor: ns-resize; }
+.bottom-tables-resize-s { bottom: 0; left: 12px; right: 12px; height: 6px; cursor: ns-resize; }
+.bottom-tables-resize-w { left: 0; top: 12px; bottom: 12px; width: 6px; cursor: ew-resize; }
+.bottom-tables-resize-e { right: 0; top: 12px; bottom: 12px; width: 6px; cursor: ew-resize; }
+.bottom-tables-resize-nw { top: 0; left: 0; width: 14px; height: 14px; cursor: nwse-resize; }
+.bottom-tables-resize-ne { top: 0; right: 0; width: 14px; height: 14px; cursor: nesw-resize; }
+.bottom-tables-resize-sw { bottom: 0; left: 0; width: 14px; height: 14px; cursor: nesw-resize; }
+.bottom-tables-resize-se { bottom: 0; right: 0; width: 18px; height: 18px; cursor: nwse-resize; }
+/* Visible grip so the corner reads as draggable. */
+#bottom-tables-main.bottom-tables-main--floating .bottom-tables-resize-se::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid #9ca3af;
+  border-bottom: 2px solid #9ca3af;
 }
 .bottom-tables-inner {
   display: flex;
@@ -1280,6 +1344,105 @@ body.bottom-tables-step34:not(.bottom-tables-docked-collapsed):not(.bottom-table
 }
 .bp-metric-toggle button.active { background: #dc2626; background-color: #dc2626; color: #fff; }
 .bp-metric-toggle button.active:hover { background: #dc2626; background-color: #dc2626; }
+
+/* ---- Results-table toolbar: clusters, icon buttons, dropdown menu ---- */
+/* Thin separator between the "view", "data", and "panel" control clusters. */
+.bp-divider {
+  width: 1px;
+  align-self: stretch;
+  min-height: 18px;
+  margin: 0 4px;
+  background: #d1d5db;
+}
+/* Square icon-only buttons (Export / Float / Hide). Full names live in the tooltip. */
+.bp-icon-btn {
+  padding: 3px 6px;
+  min-width: 26px;
+  font-size: 13px;
+  line-height: 1;
+}
+/* Only show the shared divider while the Float/Hide buttons are actually present. */
+.bp-tab-actions-shared .bp-divider { display: none; }
+body.bottom-tables-step34 .bp-tab-actions-shared .bp-divider { display: block; }
+body.bottom-tables-floating-open .bp-tab-actions-shared .bp-divider,
+body.bottom-tables-step34.bottom-tables-docked-collapsed .bp-tab-actions-shared .bp-divider {
+  display: none;
+}
+
+/* Columns dropdown */
+.bp-menu { position: relative; display: inline-flex; }
+.bp-menu-btn .bp-caret { margin-left: 5px; font-size: 9px; line-height: 1; }
+.bp-menu-btn[aria-expanded="true"] {
+  background: #f3f4f6;
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
+}
+.bp-menu-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 40;
+  min-width: 172px;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bp-menu-panel[hidden] { display: none; }
+.bp-menu-head {
+  padding: 4px 8px 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+.bp-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: #fff;
+  background-color: #fff;
+  color: #374151;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  transform: none;
+}
+.bp-menu-item:hover {
+  background: #f3f4f6;
+  background-color: #f3f4f6;
+  transform: none;
+}
+.bp-menu-item .bp-check {
+  flex: 0 0 14px;
+  width: 14px;
+  color: #2563eb;
+  font-size: 12px;
+  visibility: hidden;
+}
+.bp-menu-item.active .bp-check { visibility: visible; }
+/* Neutralize the legacy red "pill" styling when the toggle lives inside the menu. */
+.bp-menu-item.bp-impact-col-btn.active,
+.bp-menu-item.bp-impact-col-btn.active:hover {
+  background: #eff6ff;
+  background-color: #eff6ff;
+  border-color: transparent;
+  color: #1d4ed8;
+}
 
 /* Tab content areas */
 .bottom-tab-content {
@@ -5988,7 +6151,8 @@ body.bottom-tables-step34:not(.bottom-tables-docked-collapsed):not(.bottom-table
 
       <div id="bottom-tables-main" class="bottom-tables-main">
         <div id="bottomTablesFloatChrome" class="bottom-tables-float-chrome">
-          <div class="bottom-tables-float-drag" title="Drag to move">Results tables</div>
+          <div class="bottom-tables-float-drag" title="Drag to move · Double-click to fill the window · Drag any edge or corner to resize">Results tables</div>
+          <button type="button" id="bottomTablesFloatMaxBtn" class="bottom-tables-float-max" title="Fill the window" aria-label="Fill the window">⛶</button>
           <button type="button" id="bottomTablesFloatCloseBtn" class="bottom-tables-float-close" aria-label="Dock tables">×</button>
         </div>
         <div class="bottom-tables-inner">
@@ -6000,25 +6164,36 @@ body.bottom-tables-step34:not(.bottom-tables-docked-collapsed):not(.bottom-table
         <button class="bottom-panel-tab" data-bp-tab="impact-tab" type="button">Strategy Prioritization</button>
         <div class="bottom-panel-tab-actions">
           <span id="bp-actions-summary" class="bp-tab-actions">
-            <button id="exportSummaryCsvBtn" type="button" class="bp-action-btn" title="Export CSV">Export CSV</button>
+            <button id="exportSummaryCsvBtn" type="button" class="bp-action-btn bp-icon-btn" title="Export CSV" aria-label="Export CSV">⬇</button>
           </span>
           <span id="bp-actions-decision" class="bp-tab-actions" style="display:none;">
             <button id="bpDecisionClearFilters" type="button" class="bp-action-btn" title="Clear all filters">Clear filters</button>
-            <button id="exportDecisionResultsCsvBtn" type="button" class="bp-action-btn" title="Export CSV">Export CSV</button>
+            <button id="exportDecisionResultsCsvBtn" type="button" class="bp-action-btn bp-icon-btn" title="Export CSV" aria-label="Export CSV">⬇</button>
           </span>
           <span id="bp-actions-impact" class="bp-tab-actions" style="display:none;">
-            <button type="button" id="impact-col-strategy-group" class="bp-action-btn bp-impact-col-btn active" aria-pressed="true" title="Show or hide Strategy Group column">Show Strategy Group</button>
-            <button type="button" id="impact-col-project-type" class="bp-action-btn bp-impact-col-btn active" aria-pressed="true" title="Show or hide Project Type column">Show Project Type</button>
-            <span id="bpMetricToggle" class="bp-metric-toggle">
-              <button type="button" id="bpMetricValues" class="active" data-mode="values">Show values</button>
-              <button type="button" id="bpMetricScores" data-mode="scores">Show scores</button>
+            <!-- View cluster: what the table shows -->
+            <span class="bp-menu" id="bpColumnsMenu">
+              <button type="button" id="bpColumnsMenuBtn" class="bp-action-btn bp-menu-btn" aria-haspopup="true" aria-expanded="false" title="Show or hide table columns">Columns<span class="bp-caret" aria-hidden="true">▾</span></button>
+              <div class="bp-menu-panel" id="bpColumnsMenuPanel" role="menu" aria-label="Table columns" hidden>
+                <div class="bp-menu-head">Show columns</div>
+                <button type="button" id="impact-col-strategy-group" class="bp-menu-item bp-impact-col-btn active" role="menuitemcheckbox" aria-checked="true" title="Show or hide Strategy Group column"><span class="bp-check" aria-hidden="true">✓</span><span class="bp-menu-label">Strategy Group</span></button>
+                <button type="button" id="impact-col-project-type" class="bp-menu-item bp-impact-col-btn active" role="menuitemcheckbox" aria-checked="true" title="Show or hide Project Type column"><span class="bp-check" aria-hidden="true">✓</span><span class="bp-menu-label">Project Type</span></button>
+              </div>
             </span>
+            <span id="bpMetricToggle" class="bp-metric-toggle">
+              <button type="button" id="bpMetricValues" class="active" data-mode="values">Values</button>
+              <button type="button" id="bpMetricScores" data-mode="scores">Scores</button>
+            </span>
+            <span class="bp-divider"></span>
+            <!-- Data cluster: act on the data -->
             <button id="bpImpactClearFilters" type="button" class="bp-action-btn" title="Clear all filters">Clear filters</button>
-            <button id="exportImpactResultsCsvBtn" type="button" class="bp-action-btn" title="Export CSV">Export CSV</button>
+            <button id="exportImpactResultsCsvBtn" type="button" class="bp-action-btn bp-icon-btn" title="Export CSV" aria-label="Export CSV">⬇</button>
           </span>
           <span class="bp-tab-actions bp-tab-actions-shared">
-            <button type="button" id="bottomTablesPopoutBtn" class="bottom-tables-popout-btn bp-action-btn" title="Open results tables in a movable window">Pop out</button>
-            <button type="button" id="bottomTablesHideDockedBtn" class="bottom-tables-hide-docked-btn bp-action-btn" title="Collapse results tables to one row">Hide tables</button>
+            <!-- Panel cluster: window chrome -->
+            <span class="bp-divider"></span>
+            <button type="button" id="bottomTablesPopoutBtn" class="bottom-tables-popout-btn bp-action-btn bp-icon-btn" title="Float the results tables over the dashboard — drag the title bar to move, drag any edge or corner to resize" aria-label="Float results tables">⧉</button>
+            <button type="button" id="bottomTablesHideDockedBtn" class="bottom-tables-hide-docked-btn bp-action-btn bp-icon-btn" title="Collapse results tables to one row" aria-label="Hide tables">⌄</button>
           </span>
         </div>
       </div>
@@ -6397,6 +6572,40 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   }
+
+  // Columns dropdown (Strategy Prioritization tab). The menu items are the existing
+  // column-toggle buttons, so their click/active wiring is untouched — this only
+  // opens/closes the panel and mirrors the checked state onto aria-checked.
+  (function wireColumnsMenu() {
+    var btn = document.getElementById('bpColumnsMenuBtn');
+    var panel = document.getElementById('bpColumnsMenuPanel');
+    if (!btn || !panel) return;
+    function openMenu() { panel.hidden = false; btn.setAttribute('aria-expanded', 'true'); }
+    function closeMenu() { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); }
+    function syncChecked() {
+      panel.querySelectorAll('.bp-menu-item').forEach(function(item) {
+        item.setAttribute('aria-checked', item.classList.contains('active') ? 'true' : 'false');
+      });
+    }
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (panel.hidden) { openMenu(); } else { closeMenu(); }
+    });
+    // Keep the menu open while toggling so multiple columns can be changed at once.
+    panel.addEventListener('click', function(e) {
+      e.stopPropagation();
+      syncChecked();
+    });
+    document.addEventListener('click', function(e) {
+      if (panel.hidden) return;
+      if (btn.contains(e.target) || panel.contains(e.target)) return;
+      closeMenu();
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && !panel.hidden) { closeMenu(); btn.focus(); }
+    });
+    syncChecked();
+  })();
 
   activateTab('summary-tab');
 })();

@@ -772,6 +772,28 @@ document.addEventListener("DOMContentLoaded", () => {
         color: inherit;
         text-align: left;
       }
+      /*
+       * This is a bare row control, but the page's global button:hover paints
+       * it dark navy and nudges it up a pixel. Keep it flat and let the row
+       * supply a light hover tint instead.
+       */
+      .summary-group-toggle:hover,
+      .summary-group-toggle:active,
+      .summary-group-toggle:focus,
+      .summary-group-toggle:focus-visible {
+        background: transparent;
+        color: inherit;
+        transform: none;
+        box-shadow: none;
+      }
+      .summary-group-toggle:focus-visible {
+        outline: 2px solid #2563eb;
+        outline-offset: -2px;
+      }
+      .decision-panel-body tr.summary-group-row:hover,
+      tr.summary-group-row:hover {
+        background-color: #eceff4 !important;
+      }
       .summary-group-toggle .chev {
         display: inline-block;
         width: 14px;

@@ -17,8 +17,10 @@
   const UNITCOST_LIBRARY_CSV_PATH = _data("03 UnitCostLibrary.csv");
   const ROOM_SCHEDULE_CSV_PATH = _data("05 Jeffco Room Schedule.csv");
   const MAP_EXPORT_CSV_PATH = _data("09 Map_Export.csv");
+  /** 02.3 FCS survey: one comment per row (school leader / facility manager). */
+  const FCS_COMMENTS_CSV_PATH = _data("02.3_FCS_Explore_Projects.csv");
   // Bump this to force browsers to refetch CSV/JS.
-  const CACHE_BUST = "20260806_06";
+  const CACHE_BUST = "20260807_03";
   const UNKNOWN_ARTICULATION_LABEL = "No articulation area";
   /** Super-section banners in the assets / projects table (fixed display order). */
   const SELECTED_PROJECTS_SUPER_LABEL = "Selected Projects";
@@ -30,7 +32,6 @@
   const FOOD_NUTRITION_SUPER_LABEL = "Food And Nutrition Projects";
   const SAFETY_SECURITY_SUPER_LABEL = "Safety & Security Projects";
   const IT_PROJECTS_SUPER_LABEL = "Information Technology Projects";
-  const SCHOOL_LEADER_PRIORITIES_SUPER_LABEL = "School Leader Project Priorities";
   /**
    * Top-level sections after Project Calculator (not rolled into calculator totals).
    * Educational Adequacy has no banner — its categories render directly under Project Calculator.
@@ -40,7 +41,6 @@
     SAFETY_SECURITY_SUPER_LABEL,
     FOOD_NUTRITION_SUPER_LABEL,
     IT_PROJECTS_SUPER_LABEL,
-    SCHOOL_LEADER_PRIORITIES_SUPER_LABEL,
   ];
   const STANDALONE_SECTION_LABEL_SET = new Set(STANDALONE_SECTION_LABELS);
   const SUPER_GROUP_DISPLAY_ORDER = [
@@ -48,11 +48,10 @@
     PROJECT_CALC_SUPER_LABEL,
     ...STANDALONE_SECTION_LABELS,
   ];
-  /** Always-visible empty team / survey-style sections (no CSV rows yet). */
+  /** Always-visible empty team sections until their CSVs are filled (02.4 / 02.5 templates). */
   const EMPTY_TEMPLATE_SUPER_LABELS = new Set([
     FOOD_NUTRITION_SUPER_LABEL,
     IT_PROJECTS_SUPER_LABEL,
-    SCHOOL_LEADER_PRIORITIES_SUPER_LABEL,
   ]);
   const SAFETY_SECURITY_SYSTEM_CATEGORY = "02.1_SafetyandSecurityProjects";
   /** Unified modernization bucket in project list + `UnitCostLibrary.csv` (tier distinguished by AssetType). */
@@ -1866,7 +1865,7 @@
   }
 
   /** Group label cell: chevron + badge + text. Optional colspan lets label use empty columns to the right. */
-  function appendPivotGroupLabelCell(tr, { dim, label, collapsed, meta, colSpan }) {
+  function appendPivotGroupLabelCell(tr, { dim, label, collapsed, meta, colSpan, trailingEl }) {
     const td = document.createElement("td");
     td.className = `pivot-dim-cell pivot-group-label-cell pivot-dim-cell--${dim}`;
     if (colSpan > 1) td.colSpan = colSpan;
@@ -1910,6 +1909,8 @@
       metaEl.textContent = meta;
       inner.appendChild(metaEl);
     }
+
+    if (trailingEl) inner.appendChild(trailingEl);
 
     td.appendChild(inner);
     tr.appendChild(td);
@@ -2044,6 +2045,12 @@
   let strategyGroupCache = null;
   const collapsedSelectedStrategyGroups = new Set();
   const collapsedSelectedStrategySchools = new Set();
+  /** 02.3 FCS survey comments, indexed for per-school lookup. */
+  let fcsCommentsByUid = new Map();
+  let fcsCommentsByNameKey = new Map();
+  let fcsCommentsByFacilityId = new Map();
+  /** School keys whose "School leader priorities" dropdown is currently open. */
+  const expandedFcsCommentSchools = new Set();
 
   function getSchoolFromQuery() {
     const params = new URLSearchParams(window.location.search);
@@ -2188,6 +2195,125 @@
         };
       })
       .filter((r) => r.SchoolName && r.AssetType && (parseNumberMaybe(r.ReplacementCost) || 0) > 0);
+  }
+
+  /**
+   * 02.3 FCS survey rows → comment records.
+   * Rating is a 1–5 condition score where 1 is the worst, so it doubles as priority order.
+   */
+  function normalizeFcsCommentRows(rawRows) {
+    return (rawRows || [])
+      .map((r) => {
+        const ratingRaw = norm(r.Rating ?? r["Rating"]);
+        const rating = /^[1-5]$/.test(ratingRaw) ? ratingRaw : "";
+        // Some rows carry placeholder IDs ("0"); ignore anything that isn't a real UniqueID.
+        const uidRaw = norm(r["Unique ID"] ?? r.UniqueID);
+        return {
+          facilityId: norm(r["Jeffco Facility ID"] ?? r.JeffcoFacilityID ?? r.JeffCoFacilityID),
+          uid: /^CO-\d{4}-\d+$/i.test(uidRaw) ? uidRaw : "",
+          commentId: norm(r["Comment ID"] ?? r.CommentID),
+          schoolName: norm(r["School Name"] ?? r.SchoolName),
+          role: norm(r["Respondent Role"] ?? r.RespondentRole) || "Unspecified",
+          category: norm(r.Category ?? r["Category"]) || "Other",
+          rating,
+          comment: norm(r.Comment ?? r["Comment"]),
+        };
+      })
+      .filter((r) => r.comment);
+  }
+
+  function buildFcsCommentIndex(rows) {
+    fcsCommentsByUid = new Map();
+    fcsCommentsByNameKey = new Map();
+    fcsCommentsByFacilityId = new Map();
+    const push = (map, key, row) => {
+      if (!key) return;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(row);
+    };
+    (rows || []).forEach((row) => {
+      push(fcsCommentsByUid, normUid(row.uid), row);
+      push(fcsCommentsByFacilityId, row.facilityId, row);
+      const nameKey = normName(row.schoolName);
+      push(fcsCommentsByNameKey, nameKey, row);
+      // FCS uses short names ("Adams ES") while decision data uses long ones; index both spellings.
+      const alias = normName(displaySchoolName(row.schoolName));
+      if (alias && alias !== nameKey) push(fcsCommentsByNameKey, alias, row);
+    });
+  }
+
+  /** Stable key for the open/closed state of a school's comment dropdown. */
+  function fcsCommentKey(schoolLabel) {
+    return normName(displaySchoolName(schoolLabel)) || normName(schoolLabel);
+  }
+
+  function getFcsCommentsForSchool(schoolLabel, { uid, facilityId } = {}) {
+    const byUid = fcsCommentsByUid.get(normUid(uid));
+    if (byUid) return byUid;
+    const byFid = fcsCommentsByFacilityId.get(norm(facilityId));
+    if (byFid) return byFid;
+
+    const label = norm(schoolLabel);
+    const byName = fcsCommentsByNameKey.get(normName(label));
+    if (byName) return byName;
+
+    const decision = resolveDecisionForSchoolLabel(label);
+    if (decision) {
+      const decisionUid = fcsCommentsByUid.get(normUid(decision.UniqueID ?? decision["UniqueID"]));
+      if (decisionUid) return decisionUid;
+      const decisionFid = fcsCommentsByFacilityId.get(norm(decision.JeffCoFacilityID ?? decision["JeffCoFacilityID"]));
+      if (decisionFid) return decisionFid;
+      const decisionName = fcsCommentsByNameKey.get(normName(decision["Building Name"]));
+      if (decisionName) return decisionName;
+    }
+    return [];
+  }
+
+  const FCS_RATING_DESCRIPTIONS = {
+    "1": "Highest priority",
+    "2": "High priority",
+    "3": "Moderate priority",
+    "4": "Low priority",
+    "5": "Lowest priority",
+  };
+
+  function fcsRatingLabel(rating) {
+    if (!rating) return "Not rated";
+    return `Rating ${rating} · ${FCS_RATING_DESCRIPTIONS[rating] || "Priority"}`;
+  }
+
+  /** Rating → Category → Respondent role → comments. Unrated comments sort last. */
+  function groupFcsComments(rows) {
+    const byRating = new Map();
+    (rows || []).forEach((row) => {
+      if (!byRating.has(row.rating)) byRating.set(row.rating, new Map());
+      const byCategory = byRating.get(row.rating);
+      if (!byCategory.has(row.category)) byCategory.set(row.category, new Map());
+      const byRole = byCategory.get(row.category);
+      if (!byRole.has(row.role)) byRole.set(row.role, []);
+      byRole.get(row.role).push(row);
+    });
+
+    const ratingOrder = (r) => (r ? Number(r) : Number.POSITIVE_INFINITY);
+    return Array.from(byRating.keys())
+      .sort((a, b) => ratingOrder(a) - ratingOrder(b))
+      .map((rating) => {
+        const byCategory = byRating.get(rating);
+        const categories = Array.from(byCategory.keys())
+          .sort((a, b) => a.localeCompare(b))
+          .map((category) => {
+            const byRole = byCategory.get(category);
+            const roles = Array.from(byRole.keys())
+              .sort((a, b) => a.localeCompare(b))
+              .map((role) => ({ role, comments: byRole.get(role) }));
+            return { category, roles, count: roles.reduce((s, r) => s + r.comments.length, 0) };
+          });
+        return {
+          rating,
+          categories,
+          count: categories.reduce((s, c) => s + c.count, 0),
+        };
+      });
   }
 
   /** Index 02.2 line items for expandable detail under each FD asset type. */
@@ -4135,7 +4261,153 @@
     return td;
   }
 
-  function createBannerLabelCell(labelText, { trailingEl } = {}) {
+  /**
+   * Hover cloud for the school-comment triangle. Rendered on <body> because the
+   * pivot label cell clips overflow, which would cut off a CSS-only tooltip.
+   */
+  let fcsTipEl = null;
+  function showFcsTip(anchor, text) {
+    if (!fcsTipEl) {
+      fcsTipEl = document.createElement("div");
+      fcsTipEl.className = "fcs-tip";
+      document.body.appendChild(fcsTipEl);
+    }
+    fcsTipEl.textContent = text;
+    fcsTipEl.classList.add("is-visible");
+    const rect = anchor.getBoundingClientRect();
+    const tipRect = fcsTipEl.getBoundingClientRect();
+    let left = rect.left + rect.width / 2 - tipRect.width / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
+    let top = rect.top - tipRect.height - 10;
+    if (top < 8) top = rect.bottom + 10;
+    fcsTipEl.style.left = `${Math.round(left)}px`;
+    fcsTipEl.style.top = `${Math.round(top)}px`;
+  }
+  function hideFcsTip() {
+    if (fcsTipEl) fcsTipEl.classList.remove("is-visible");
+  }
+
+  function isFcsCommentsExpanded(key) {
+    return expandedFcsCommentSchools.has(key);
+  }
+
+  /**
+   * Triangle that opens the school's survey comments. Returns null when the
+   * school has no comments so rows without data stay uncluttered.
+   */
+  function createFcsCommentToggle(key, comments, onToggle) {
+    if (!comments || !comments.length) return null;
+    const open = isFcsCommentsExpanded(key);
+    const btn = document.createElement("span");
+    btn.className = "fcs-comment-toggle" + (open ? " is-open" : "");
+    btn.setAttribute("role", "button");
+    btn.setAttribute("tabindex", "0");
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+    btn.setAttribute("aria-label", `School leader priorities (${comments.length} comments)`);
+
+    const caret = document.createElement("span");
+    caret.className = "fcs-comment-caret";
+    btn.appendChild(caret);
+
+    const tipText = `School leader priorities · ${comments.length} comment${comments.length === 1 ? "" : "s"}`;
+    btn.addEventListener("mouseenter", () => showFcsTip(btn, tipText));
+    btn.addEventListener("mouseleave", hideFcsTip);
+    btn.addEventListener("focus", () => showFcsTip(btn, tipText));
+    btn.addEventListener("blur", hideFcsTip);
+
+    const activate = (ev) => {
+      ev.preventDefault();
+      // The whole row toggles collapse; keep that from firing.
+      ev.stopPropagation();
+      hideFcsTip();
+      if (expandedFcsCommentSchools.has(key)) expandedFcsCommentSchools.delete(key);
+      else expandedFcsCommentSchools.add(key);
+      onToggle();
+    };
+    btn.addEventListener("click", activate);
+    btn.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") activate(ev);
+    });
+    return btn;
+  }
+
+  function buildFcsCommentsPanel(schoolLabel, comments) {
+    const panel = document.createElement("div");
+    panel.className = "fcs-comments-panel";
+
+    const head = document.createElement("div");
+    head.className = "fcs-comments-head";
+    head.textContent = `School leader priorities · ${displaySchoolName(schoolLabel)} · ${comments.length} comment${comments.length === 1 ? "" : "s"}`;
+    panel.appendChild(head);
+
+    groupFcsComments(comments).forEach((ratingGroup) => {
+      const ratingEl = document.createElement("div");
+      ratingEl.className = "fcs-rating-group";
+
+      const ratingHead = document.createElement("div");
+      ratingHead.className = "fcs-rating-head";
+      const badge = document.createElement("span");
+      badge.className = `fcs-rating-badge fcs-rating-badge--${ratingGroup.rating || "na"}`;
+      badge.textContent = ratingGroup.rating || "–";
+      ratingHead.appendChild(badge);
+      const ratingText = document.createElement("span");
+      ratingText.className = "fcs-rating-text";
+      ratingText.textContent = fcsRatingLabel(ratingGroup.rating);
+      ratingHead.appendChild(ratingText);
+      const ratingCount = document.createElement("span");
+      ratingCount.className = "fcs-count";
+      ratingCount.textContent = `${ratingGroup.count} comment${ratingGroup.count === 1 ? "" : "s"}`;
+      ratingHead.appendChild(ratingCount);
+      ratingEl.appendChild(ratingHead);
+
+      ratingGroup.categories.forEach((categoryGroup) => {
+        const catEl = document.createElement("div");
+        catEl.className = "fcs-category-group";
+        const catHead = document.createElement("div");
+        catHead.className = "fcs-category-head";
+        catHead.textContent = categoryGroup.category;
+        catEl.appendChild(catHead);
+
+        categoryGroup.roles.forEach((roleGroup) => {
+          const roleEl = document.createElement("div");
+          roleEl.className = "fcs-role-group";
+          const roleHead = document.createElement("div");
+          roleHead.className = "fcs-role-head";
+          roleHead.textContent = roleGroup.role;
+          roleEl.appendChild(roleHead);
+
+          const list = document.createElement("ul");
+          list.className = "fcs-comment-list";
+          roleGroup.comments.forEach((c) => {
+            const li = document.createElement("li");
+            li.className = "fcs-comment";
+            li.textContent = c.comment;
+            list.appendChild(li);
+          });
+          roleEl.appendChild(list);
+          catEl.appendChild(roleEl);
+        });
+        ratingEl.appendChild(catEl);
+      });
+      panel.appendChild(ratingEl);
+    });
+    return panel;
+  }
+
+  /** Detail row holding the expanded comment panel; spans the full table width. */
+  function appendFcsCommentsRow(tbody, { schoolLabel, comments, colSpan, rowClass }) {
+    const tr = document.createElement("tr");
+    tr.className = `fcs-comments-row${rowClass ? ` ${rowClass}` : ""}`;
+    const td = document.createElement("td");
+    td.colSpan = Math.max(1, colSpan);
+    td.appendChild(buildFcsCommentsPanel(schoolLabel, comments));
+    tr.appendChild(td);
+    // Row clicks elsewhere collapse groups; comments should stay put while reading.
+    tr.addEventListener("click", (ev) => ev.stopPropagation());
+    tbody.appendChild(tr);
+  }
+
+  function createBannerLabelCell(labelText, { trailingEl, inlineEl } = {}) {
     const td = document.createElement("td");
     td.colSpan = tableLabelColumnSpan();
     td.className = "banner-label-cell";
@@ -4146,6 +4418,7 @@
     arrow.textContent = "▼";
     labelDiv.appendChild(arrow);
     labelDiv.appendChild(document.createTextNode(labelText));
+    if (inlineEl) labelDiv.appendChild(inlineEl);
     td.appendChild(labelDiv);
     if (trailingEl) td.appendChild(trailingEl);
     return td;
@@ -6297,9 +6570,6 @@
     if (sgKey === IT_PROJECTS_SUPER_LABEL) {
       return "Information Technology project data will be added in a future update.";
     }
-    if (sgKey === SCHOOL_LEADER_PRIORITIES_SUPER_LABEL) {
-      return "School leader project priorities will be added in a future update.";
-    }
     return "Data will be added in a future update.";
   }
 
@@ -6462,40 +6732,47 @@
     tbody.appendChild(sgTr);
     if (isCollapsed) return;
 
-    const multiSchool = selectedSchoolUids && selectedSchoolUids.size > 1;
-    if (multiSchool) {
-      buildSelectedProjectsSchoolIndexFromMirrorRows(mirrorRows).forEach((school) => {
-        const schoolByP = computeGroupByP(school.rows);
-        const schoolTotal = schoolByP["1"] + schoolByP["2"] + schoolByP["3"] + schoolByP["4"];
-        const schoolKey = selectedSchoolViewCollapseKey(school.uid);
-        const schoolCollapsed = collapsedSelectedStrategySchools.has(schoolKey);
-        const schoolTr = document.createElement("tr");
-        schoolTr.className = "group-row selected-projects-school" + (schoolCollapsed ? " collapsed" : "");
-        schoolTr.appendChild(createBannerToggleCell());
-        schoolTr.appendChild(createBannerLabelCell(
-          `${displaySchoolName(school.name)} · ${school.decisionOutcome || "Unknown"}`
-        ));
-        schoolTr.appendChild(createBannerSubtotalCell(schoolTotal, schoolByP));
-        schoolTr.addEventListener("click", (ev) => {
-          ev.stopPropagation();
-          closePivotGroupChevronMenu();
-          if (collapsedSelectedStrategySchools.has(schoolKey)) collapsedSelectedStrategySchools.delete(schoolKey);
-          else collapsedSelectedStrategySchools.add(schoolKey);
-          render();
-        });
-        wireSchoolViewCollapseMenu(schoolTr, {
-          levelLabel: "school",
-          onCollapseAll: () => setSchoolViewSelectedSchoolsCollapsed(true),
-          onExpandAll: () => setSchoolViewSelectedSchoolsCollapsed(false),
-        });
-        tbody.appendChild(schoolTr);
-        if (schoolCollapsed) return;
-        school.rows.forEach((r) => appendSelectedMirrorRow(tbody, r));
+    // Always banner by school, including a single selection, so the school name
+    // and its comment dropdown are present in every case.
+    buildSelectedProjectsSchoolIndexFromMirrorRows(mirrorRows).forEach((school) => {
+      const schoolByP = computeGroupByP(school.rows);
+      const schoolTotal = schoolByP["1"] + schoolByP["2"] + schoolByP["3"] + schoolByP["4"];
+      const schoolKey = selectedSchoolViewCollapseKey(school.uid);
+      const schoolCollapsed = collapsedSelectedStrategySchools.has(schoolKey);
+      const commentKey = `school||${fcsCommentKey(school.name)}`;
+      const comments = getFcsCommentsForSchool(school.name, { uid: school.uid });
+      const schoolTr = document.createElement("tr");
+      schoolTr.className = "group-row selected-projects-school" + (schoolCollapsed ? " collapsed" : "");
+      schoolTr.appendChild(createBannerToggleCell());
+      schoolTr.appendChild(createBannerLabelCell(
+        `${displaySchoolName(school.name)} · ${school.decisionOutcome || "Unknown"}`,
+        { inlineEl: createFcsCommentToggle(commentKey, comments, render) }
+      ));
+      schoolTr.appendChild(createBannerSubtotalCell(schoolTotal, schoolByP));
+      schoolTr.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        closePivotGroupChevronMenu();
+        if (collapsedSelectedStrategySchools.has(schoolKey)) collapsedSelectedStrategySchools.delete(schoolKey);
+        else collapsedSelectedStrategySchools.add(schoolKey);
+        render();
       });
-      return;
-    }
-
-    mirrorRows.forEach((r) => appendSelectedMirrorRow(tbody, r));
+      wireSchoolViewCollapseMenu(schoolTr, {
+        levelLabel: "school",
+        onCollapseAll: () => setSchoolViewSelectedSchoolsCollapsed(true),
+        onExpandAll: () => setSchoolViewSelectedSchoolsCollapsed(false),
+      });
+      tbody.appendChild(schoolTr);
+      if (comments.length && isFcsCommentsExpanded(commentKey)) {
+        appendFcsCommentsRow(tbody, {
+          schoolLabel: school.name,
+          comments,
+          colSpan: tableTotalColumnCount(),
+          rowClass: "fcs-comments-row--school",
+        });
+      }
+      if (schoolCollapsed) return;
+      school.rows.forEach((r) => appendSelectedMirrorRow(tbody, r));
+    });
   }
 
   function getExportPriorityFilterLabel() {
@@ -7410,6 +7687,12 @@
       (collapsed ? " is-collapsed" : "");
     tr.title = "Click to expand or collapse";
 
+    // A school can appear under several branches; key by node path so only the
+    // clicked row opens rather than every instance of that school.
+    const commentKey =
+      node.dim === "school" ? `pivot||${node.collapseKey || fcsCommentKey(node.label)}` : "";
+    const comments = node.dim === "school" ? getFcsCommentsForSchool(node.label) : [];
+
     hierarchy.forEach((dim, i) => {
       if (i < dimIndex) {
         appendEmptyPivotDimCell(tr, dim);
@@ -7421,6 +7704,7 @@
           meta: pivotGroupMetaLabel(node, { isDeepestGroup }),
           // Spill into empty dim columns to the right (headers still mark the start column).
           colSpan: Math.max(1, hierarchy.length - dimIndex),
+          trailingEl: createFcsCommentToggle(commentKey, comments, renderStrategyGroupView),
         });
       }
       // i > dimIndex: covered by colspan — do not add cells
@@ -7443,6 +7727,15 @@
       renderStrategyGroupView();
     });
     tbody.appendChild(tr);
+
+    if (commentKey && comments.length && isFcsCommentsExpanded(commentKey)) {
+      appendFcsCommentsRow(tbody, {
+        schoolLabel: node.label,
+        comments,
+        colSpan: getStrategyPivotColumns().length,
+        rowClass: "fcs-comments-row--pivot",
+      });
+    }
 
     if (collapsed) return;
 
@@ -9547,8 +9840,12 @@ ${additionBlock}
         console.warn("Map export CSV not loaded (articulation areas unavailable):", err);
         return [];
       }),
+      parseCsv(FCS_COMMENTS_CSV_PATH).catch((err) => {
+        console.warn("FCS survey comments CSV not loaded (school leader priorities unavailable):", err);
+        return [];
+      }),
     ])
-      .then(async ([_columnMap, decRows, assetRows, safetySecurityRows, facilitiesDeficiencyRows, unitCostLibRows, roomScheduleRows, mapExportRows]) => {
+      .then(async ([_columnMap, decRows, assetRows, safetySecurityRows, facilitiesDeficiencyRows, unitCostLibRows, roomScheduleRows, mapExportRows, fcsCommentRows]) => {
         decisionRows = decRows || [];
         if (typeof window.applyDecisionColumnMapToRows === "function") {
           window.applyDecisionColumnMapToRows(decRows);
@@ -9563,6 +9860,7 @@ ${additionBlock}
         unitCostIndex = buildUnitCostLibraryIndex(unitCostLibRows || []);
         roomScheduleSfByBucket = buildRoomScheduleSfTotals(roomScheduleRows || []);
         buildFacilitiesDeficiencyDetailIndex(facilitiesDeficiencyRows || []);
+        buildFcsCommentIndex(normalizeFcsCommentRows(fcsCommentRows || []));
 
         const safetyRows = normalizeSafetySecurityProjectRows(safetySecurityRows || []);
         // Keep line-item detail in the index; project list / strategy costing use compact rollups.

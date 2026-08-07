@@ -9670,7 +9670,7 @@ function startOnboardingWalkthrough(options = {}) {
       title: 'Focusing on: Show tables strip (bottom)',
       text:
         '<strong>Highlighted in yellow:</strong> the thin strip with the <strong>Show tables</strong> button (results are collapsed to give the map more room). ' +
-        'Click it to expand the tables again. Only this bottom area can <strong>Pop out</strong>; the controls column on the left does not.',
+        'Click it to expand the tables again. Only this bottom area can <strong>Float</strong>; the controls column on the left does not.',
       ensureProcessStep: 3,
       ensureMapView: true,
       ensureBottomTablesCollapsed: true
@@ -11692,7 +11692,7 @@ if (typeof window.switchToMap !== 'function') {
 // --- Process Steps stripe (Step 1–4) ---
 // Declarative mapping between process steps and UI panels.
 (function initProcessStepsStripe() {
-  /** Steps 3–4: entering from Step 1/2 defaults to collapsed (“Show tables”); 3↔4 preserves layout; “Pop out” → movable panel (~20vh). */
+  /** Steps 3–4: entering from Step 1/2 defaults to collapsed (“Show tables”); 3↔4 preserves layout; “Float” → movable, resizable overlay panel. */
   let prevBottomTablesStep = 2;
   function requestMapResize() {
     setTimeout(() => {
@@ -11710,39 +11710,154 @@ if (typeof window.switchToMap !== 'function') {
     return 12;
   }
 
+  const BOTTOM_TABLES_FLOAT_STATE_KEY = 'jeffco_bottom_tables_float_v1';
+  const BOTTOM_TABLES_FLOAT_MIN_W = 380;
+  const BOTTOM_TABLES_FLOAT_MIN_H = 160;
+  /** Sliver of the panel that must stay on screen so it can always be grabbed back. */
+  const BOTTOM_TABLES_FLOAT_KEEP_VISIBLE = 90;
+
+  function bottomTablesFloatMaxWidth() {
+    return Math.max(BOTTOM_TABLES_FLOAT_MIN_W, window.innerWidth - 8);
+  }
+
+  function bottomTablesFloatMaxHeight() {
+    return Math.max(BOTTOM_TABLES_FLOAT_MIN_H, window.innerHeight - getBrandBarHeight() - 12);
+  }
+
+  function readBottomTablesFloatState() {
+    try {
+      const raw = window.localStorage && window.localStorage.getItem(BOTTOM_TABLES_FLOAT_STATE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !Number.isFinite(parsed.width) || !Number.isFinite(parsed.height)) return null;
+      return parsed;
+    } catch {
+      return null;
+    }
+  }
+
+  function saveBottomTablesFloatState() {
+    const main = document.getElementById('bottom-tables-main');
+    if (!main || !main.classList.contains('bottom-tables-main--floating')) return;
+    const rect = main.getBoundingClientRect();
+    try {
+      window.localStorage && window.localStorage.setItem(
+        BOTTOM_TABLES_FLOAT_STATE_KEY,
+        JSON.stringify({
+          left: Math.round(rect.left),
+          top: Math.round(rect.top),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        })
+      );
+    } catch {}
+  }
+
   function placeBottomTablesFloatingPanel() {
     const main = document.getElementById('bottom-tables-main');
     if (!main) return;
-    const w = Math.min(Math.round(window.innerWidth * 0.92), 1400);
-    const h = Math.max(120, Math.round(window.innerHeight * 0.2));
-    const left = Math.round((window.innerWidth - w) / 2);
     const topBrand = getBrandBarHeight();
-    const bottomReserve = getProcessStepsHeight() + 12;
-    let top = Math.round(window.innerHeight - bottomReserve - h);
-    top = Math.max(topBrand + 6, top);
+    const saved = readBottomTablesFloatState();
+    let w;
+    let h;
+    let left;
+    let top;
+    if (saved) {
+      w = Math.min(Math.max(saved.width, BOTTOM_TABLES_FLOAT_MIN_W), bottomTablesFloatMaxWidth());
+      h = Math.min(Math.max(saved.height, BOTTOM_TABLES_FLOAT_MIN_H), bottomTablesFloatMaxHeight());
+      left = Number.isFinite(saved.left) ? saved.left : Math.round((window.innerWidth - w) / 2);
+      top = Number.isFinite(saved.top) ? saved.top : topBrand + 8;
+    } else {
+      w = Math.min(Math.round(window.innerWidth * 0.92), 1400);
+      h = Math.max(260, Math.round(window.innerHeight * 0.38));
+      left = Math.round((window.innerWidth - w) / 2);
+      top = Math.max(topBrand + 6, Math.round(window.innerHeight - getProcessStepsHeight() - 12 - h));
+    }
     main.style.width = `${w}px`;
     main.style.height = `${h}px`;
-    main.style.left = `${left}px`;
-    main.style.top = `${top}px`;
+    main.style.left = `${Math.round(left)}px`;
+    main.style.top = `${Math.round(top)}px`;
     main.style.right = 'auto';
     main.style.bottom = 'auto';
   }
 
+  /**
+   * Keep the panel reachable rather than trapped: it may hang off the left,
+   * right or bottom edge as long as a grabbable sliver and the drag bar remain
+   * on screen.
+   */
   function clampBottomTablesFloatingPanel() {
     const main = document.getElementById('bottom-tables-main');
     if (!main || !main.classList.contains('bottom-tables-main--floating')) return;
-    const margin = 6;
     const topBrand = getBrandBarHeight();
-    const bottomReserve = getProcessStepsHeight() + margin;
     const rect = main.getBoundingClientRect();
-    let left = parseFloat(main.style.left) || rect.left;
-    let top = parseFloat(main.style.top) || rect.top;
-    if (rect.left < margin) left += margin - rect.left;
-    if (rect.top < topBrand + margin) top += topBrand + margin - rect.top;
-    if (rect.right > window.innerWidth - margin) left -= rect.right - (window.innerWidth - margin);
-    if (rect.bottom > window.innerHeight - bottomReserve) top -= rect.bottom - (window.innerHeight - bottomReserve);
+    let left = parseFloat(main.style.left);
+    let top = parseFloat(main.style.top);
+    if (!Number.isFinite(left)) left = rect.left;
+    if (!Number.isFinite(top)) top = rect.top;
+    const keep = Math.min(BOTTOM_TABLES_FLOAT_KEEP_VISIBLE, rect.width);
+    const minLeft = -(rect.width - keep);
+    const maxLeft = window.innerWidth - keep;
+    const minTop = topBrand + 4;
+    const maxTop = Math.max(minTop, window.innerHeight - 44);
+    left = Math.min(Math.max(left, minLeft), maxLeft);
+    top = Math.min(Math.max(top, minTop), maxTop);
     main.style.left = `${Math.round(left)}px`;
     main.style.top = `${Math.round(top)}px`;
+  }
+
+  function isBottomTablesFloatMaximized() {
+    const main = document.getElementById('bottom-tables-main');
+    return !!(main && main.dataset.floatMaximized === '1');
+  }
+
+  function syncBottomTablesMaximizeBtn() {
+    const btn = document.getElementById('bottomTablesFloatMaxBtn');
+    if (!btn) return;
+    const max = isBottomTablesFloatMaximized();
+    btn.textContent = max ? '❐' : '⛶';
+    btn.title = max ? 'Restore previous size' : 'Fill the window';
+    btn.setAttribute('aria-label', btn.title);
+  }
+
+  function toggleBottomTablesFloatMaximized() {
+    const main = document.getElementById('bottom-tables-main');
+    if (!main || !main.classList.contains('bottom-tables-main--floating')) return;
+    if (isBottomTablesFloatMaximized()) {
+      let prev = null;
+      try {
+        prev = JSON.parse(main.dataset.floatPrevBox || 'null');
+      } catch {
+        prev = null;
+      }
+      main.dataset.floatMaximized = '';
+      if (prev) {
+        main.style.width = `${prev.width}px`;
+        main.style.height = `${prev.height}px`;
+        main.style.left = `${prev.left}px`;
+        main.style.top = `${prev.top}px`;
+      } else {
+        placeBottomTablesFloatingPanel();
+      }
+    } else {
+      const rect = main.getBoundingClientRect();
+      main.dataset.floatPrevBox = JSON.stringify({
+        left: Math.round(rect.left),
+        top: Math.round(rect.top),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      });
+      const topBrand = getBrandBarHeight();
+      main.dataset.floatMaximized = '1';
+      main.style.left = '8px';
+      main.style.top = `${topBrand + 8}px`;
+      main.style.width = `${window.innerWidth - 16}px`;
+      main.style.height = `${window.innerHeight - topBrand - 20}px`;
+    }
+    syncBottomTablesMaximizeBtn();
+    clampBottomTablesFloatingPanel();
+    saveBottomTablesFloatState();
+    requestMapResize();
   }
 
   function expandBottomTablesDocked() {
@@ -11757,12 +11872,34 @@ if (typeof window.switchToMap !== 'function') {
     requestMapResize();
   }
 
+  /** Maximized panels re-fill the viewport; everything else just stays reachable. */
+  function onBottomTablesWindowResize() {
+    const main = document.getElementById('bottom-tables-main');
+    if (!main || !main.classList.contains('bottom-tables-main--floating')) return;
+    if (isBottomTablesFloatMaximized()) {
+      const topBrand = getBrandBarHeight();
+      main.style.left = '8px';
+      main.style.top = `${topBrand + 8}px`;
+      main.style.width = `${window.innerWidth - 16}px`;
+      main.style.height = `${window.innerHeight - topBrand - 20}px`;
+      return;
+    }
+    const rect = main.getBoundingClientRect();
+    const w = Math.min(Math.max(rect.width, BOTTOM_TABLES_FLOAT_MIN_W), bottomTablesFloatMaxWidth());
+    const h = Math.min(Math.max(rect.height, BOTTOM_TABLES_FLOAT_MIN_H), bottomTablesFloatMaxHeight());
+    main.style.width = `${Math.round(w)}px`;
+    main.style.height = `${Math.round(h)}px`;
+    clampBottomTablesFloatingPanel();
+  }
+
   function hideBottomTablesFloating() {
     const main = document.getElementById('bottom-tables-main');
     document.body.classList.remove('bottom-tables-floating-open');
     document.body.classList.remove('bottom-tables-docked-collapsed');
     if (main) {
+      saveBottomTablesFloatState();
       main.classList.remove('bottom-tables-main--floating');
+      main.dataset.floatMaximized = '';
       main.style.width = '';
       main.style.height = '';
       main.style.left = '';
@@ -11771,7 +11908,7 @@ if (typeof window.switchToMap !== 'function') {
       main.style.bottom = '';
     }
     try {
-      window.removeEventListener('resize', clampBottomTablesFloatingPanel);
+      window.removeEventListener('resize', onBottomTablesWindowResize);
     } catch {}
     requestMapResize();
   }
@@ -11783,9 +11920,10 @@ if (typeof window.switchToMap !== 'function') {
     main.classList.add('bottom-tables-main--floating');
     document.body.classList.add('bottom-tables-floating-open');
     placeBottomTablesFloatingPanel();
+    syncBottomTablesMaximizeBtn();
     try {
-      window.removeEventListener('resize', clampBottomTablesFloatingPanel);
-      window.addEventListener('resize', clampBottomTablesFloatingPanel);
+      window.removeEventListener('resize', onBottomTablesWindowResize);
+      window.addEventListener('resize', onBottomTablesWindowResize);
     } catch {}
     requestMapResize();
     setTimeout(() => { try { clampBottomTablesFloatingPanel(); } catch {} }, 0);
@@ -11814,6 +11952,11 @@ if (typeof window.switchToMap !== 'function') {
       document.body.style.userSelect = 'none';
     });
 
+    handle.addEventListener('dblclick', (ev) => {
+      ev.preventDefault();
+      toggleBottomTablesFloatMaximized();
+    });
+
     document.addEventListener('mousemove', (ev) => {
       if (!dragging) return;
       const dx = ev.clientX - startX;
@@ -11827,6 +11970,83 @@ if (typeof window.switchToMap !== 'function') {
       if (!dragging) return;
       dragging = false;
       document.body.style.userSelect = '';
+      // Dragging away from a filled-window layout means it is no longer maximized.
+      if (isBottomTablesFloatMaximized()) {
+        main.dataset.floatMaximized = '';
+        syncBottomTablesMaximizeBtn();
+      }
+      saveBottomTablesFloatState();
+    });
+  }
+
+  const BOTTOM_TABLES_RESIZE_DIRS = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
+
+  /** Eight-way resize for the floating results tables panel. */
+  function initBottomTablesFloatingResize() {
+    const main = document.getElementById('bottom-tables-main');
+    if (!main || main.__bottomTablesResizeInit) return;
+    main.__bottomTablesResizeInit = true;
+
+    let active = null;
+
+    BOTTOM_TABLES_RESIZE_DIRS.forEach((dir) => {
+      const grip = document.createElement('div');
+      grip.className = `bottom-tables-resize-handle bottom-tables-resize-${dir}`;
+      grip.dataset.dir = dir;
+      main.appendChild(grip);
+      grip.addEventListener('mousedown', (ev) => {
+        if (ev.button !== 0) return;
+        if (!main.classList.contains('bottom-tables-main--floating')) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        const rect = main.getBoundingClientRect();
+        active = {
+          dir,
+          x: ev.clientX,
+          y: ev.clientY,
+          left: rect.left,
+          top: rect.top,
+          w: rect.width,
+          h: rect.height,
+        };
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = window.getComputedStyle(grip).cursor;
+      });
+    });
+
+    document.addEventListener('mousemove', (ev) => {
+      if (!active) return;
+      const dx = ev.clientX - active.x;
+      const dy = ev.clientY - active.y;
+      let w = active.w;
+      let h = active.h;
+      if (active.dir.includes('e')) w = active.w + dx;
+      if (active.dir.includes('w')) w = active.w - dx;
+      if (active.dir.includes('s')) h = active.h + dy;
+      if (active.dir.includes('n')) h = active.h - dy;
+      w = Math.min(Math.max(w, BOTTOM_TABLES_FLOAT_MIN_W), bottomTablesFloatMaxWidth());
+      h = Math.min(Math.max(h, BOTTOM_TABLES_FLOAT_MIN_H), bottomTablesFloatMaxHeight());
+      // Pulling a top/left edge keeps the opposite edge pinned in place.
+      const left = active.dir.includes('w') ? active.left + (active.w - w) : active.left;
+      const top = active.dir.includes('n') ? active.top + (active.h - h) : active.top;
+      main.style.width = `${Math.round(w)}px`;
+      main.style.height = `${Math.round(h)}px`;
+      main.style.left = `${Math.round(left)}px`;
+      main.style.top = `${Math.round(top)}px`;
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!active) return;
+      active = null;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      if (isBottomTablesFloatMaximized()) {
+        main.dataset.floatMaximized = '';
+        syncBottomTablesMaximizeBtn();
+      }
+      clampBottomTablesFloatingPanel();
+      saveBottomTablesFloatState();
+      requestMapResize();
     });
   }
 
@@ -11858,7 +12078,7 @@ if (typeof window.switchToMap !== 'function') {
         main.style.bottom = '';
       }
       try {
-        window.removeEventListener('resize', clampBottomTablesFloatingPanel);
+        window.removeEventListener('resize', onBottomTablesWindowResize);
       } catch {}
       if (wasOutside34) {
         document.body.classList.add('bottom-tables-docked-collapsed');
@@ -11866,9 +12086,10 @@ if (typeof window.switchToMap !== 'function') {
     } else {
       document.body.classList.add('bottom-tables-floating-open');
       placeBottomTablesFloatingPanel();
+      syncBottomTablesMaximizeBtn();
       try {
-        window.removeEventListener('resize', clampBottomTablesFloatingPanel);
-        window.addEventListener('resize', clampBottomTablesFloatingPanel);
+        window.removeEventListener('resize', onBottomTablesWindowResize);
+        window.addEventListener('resize', onBottomTablesWindowResize);
       } catch {}
     }
     prevBottomTablesStep = n;
@@ -12111,6 +12332,15 @@ if (typeof window.switchToMap !== 'function') {
 
   document.addEventListener('DOMContentLoaded', () => {
     initBottomTablesFloatingDrag();
+    initBottomTablesFloatingResize();
+    const maxBtn = document.getElementById('bottomTablesFloatMaxBtn');
+    if (maxBtn) {
+      maxBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        toggleBottomTablesFloatMaximized();
+      });
+      syncBottomTablesMaximizeBtn();
+    }
     const showTablesBtn = document.getElementById('bottomTablesShowTablesBtn');
     const dockBtn = document.getElementById('bottomTablesDockBtn');
     const hideDockedBtn = document.getElementById('bottomTablesHideDockedBtn');
