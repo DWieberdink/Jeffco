@@ -14,7 +14,7 @@ if (!DEBUG) {
 const mainDisplaySchoolName = window.formatSchoolDisplayName || ((name) => String(name ?? '').trim());
 
 // Cache-bust static data files when needed (bump when CSV/GeoJSON changes).
-const ASSET_VERSION = '2026-08-11-5';
+const ASSET_VERSION = '2026-08-11-7';
 
 const DASHBOARD_STEP_DEFS = {
   1: {
