@@ -89,8 +89,10 @@
       { label: "Map Filters", id: "filter-panel", keywords: "map filters symbology show hide schools articulation hamburger", parentStep: 2, openMapFilters: true },
       { label: "Symbology", id: "symbologySection", keywords: "symbology color map by school level composite building score fci strategic decision utilization", parentStep: 2, openMapFilters: true },
       { label: "Show/Hide Schools", id: "showHideSchoolsSection", keywords: "show hide schools school level enrollment range available seats", parentStep: 2, openMapFilters: true },
-      { label: "Articulation Areas", id: "articulationAreasSection", keywords: "articulation areas bond spending enrollment growth", parentStep: 2, openMapFilters: true },
+      { label: "Articulation Areas", id: "articulationAreasSection", keywords: "articulation areas bond spending enrollment growth compare categories", parentStep: 2, openMapFilters: true },
       { label: "School Matches", id: "schoolMatchesBlock", keywords: "school matches nearby distance welcoming overlapping grades", parentStep: 2, openMapFilters: true },
+      { label: "Compare Categories", id: "articulationCompareSection", keywords: "compare categories composite building score fci utilization articulation", parentStep: 2, openMapFilters: true },
+      { label: "FCI Systems for Comparison", id: "compareFciSystemsBlock", keywords: "fci systems comparison articulation area compare", parentStep: 2, openMapFilters: true },
       { label: "Map Legend", id: "map-legend", keywords: "map legend symbology colors filters", parentStep: 2 },
       { label: "Fit to all schools", id: "fitToSchoolsBtn", keywords: "fit extent zoom all schools map reset view", parentStep: 2 },
       { label: "Basemap Layers", id: "mapLayersFloating", keywords: "basemap layers map style labels offline", parentStep: 2, openMapLayers: true },
@@ -306,6 +308,11 @@
       var name = String(sys);
       addEntry("FCI System for Symbology: " + name, name + " fci symbology color map system", "FCI Systems", {
         type: "fciSymbology",
+        system: name,
+        parentStep: 2
+      });
+      addEntry("FCI Systems for Comparison: " + name, name + " fci compare articulation area comparison system", "FCI Systems", {
+        type: "fciCompare",
         system: name,
         parentStep: 2
       });
@@ -559,6 +566,31 @@
     }, 250);
   }
 
+  function selectFciCompare(system) {
+    goToStepOnIndex(2);
+    setTimeout(function () {
+      openMapFiltersPanel();
+      var fciCat = document.querySelector('#compareCategoryList input[data-compare-category="fci"]');
+      if (fciCat && !fciCat.checked) {
+        fciCat.checked = true;
+        fciCat.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      waitFor(function () {
+        return !!document.querySelector('input[data-compare-fci-system]');
+      }, function () {
+        var match = null;
+        document.querySelectorAll('input[data-compare-fci-system]').forEach(function (input) {
+          if (input.getAttribute("data-compare-fci-system") === system) match = input;
+        });
+        if (match) {
+          match.checked = true;
+          match.dispatchEvent(new Event("change", { bubbles: true }));
+          highlightElement(match);
+        }
+      });
+    }, 300);
+  }
+
   function executeAction(action) {
     switch (action.type) {
       case "nav":
@@ -719,6 +751,11 @@
         if (PAGE === "index") selectFciSymbology(action.system);
         else navigateToPage(hrefFromRoot("index.html") + "#gs-fci-sym=" + encodeURIComponent(action.system || ""));
         break;
+
+      case "fciCompare":
+        if (PAGE === "index") selectFciCompare(action.system);
+        else navigateToPage(hrefFromRoot("index.html") + "#gs-fci-cmp=" + encodeURIComponent(action.system || ""));
+        break;
     }
   }
 
@@ -863,6 +900,8 @@
       });
     } else if (params.indexOf("gs-fci-sym=") === 0) {
       executeAction({ type: "fciSymbology", system: decodeURIComponent(params.split("=")[1] || "") });
+    } else if (params.indexOf("gs-fci-cmp=") === 0) {
+      executeAction({ type: "fciCompare", system: decodeURIComponent(params.split("=")[1] || "") });
     }
   }
 
