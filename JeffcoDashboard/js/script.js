@@ -14,7 +14,7 @@ if (!DEBUG) {
 const mainDisplaySchoolName = window.formatSchoolDisplayName || ((name) => String(name ?? '').trim());
 
 // Cache-bust static data files when needed (bump when CSV/GeoJSON changes).
-const ASSET_VERSION = '2026-08-11-5';
+const ASSET_VERSION = '2026-08-11-6';
 
 const DASHBOARD_STEP_DEFS = {
   1: {
@@ -372,7 +372,6 @@ let fciSystemQuartiles = new Map(); // system -> { q1, q3 }
 let fciSelectedSystem = '';
 let buildingScoresById = new Map(); // id -> BuildingScore
 let buildingQuartiles = null; // { q1, q2, q3 }
-let compareFciSystem = [];
 
 function getFciStatusColorHex(status) {
   const key = (status || '').toString().trim().toLowerCase();
@@ -463,38 +462,6 @@ function getCompareBucketForFeature(categoryKey, feature) {
     return (util < low) ? 'low' : (util > high) ? 'high' : 'mid';
   }
   if (categoryKey === 'fci') {
-    const getSelectedCompareFciSystemsFromDom = () => {
-      const list = document.getElementById('compareFciSystemList');
-      if (!list) return [];
-      const selected = [];
-      list.querySelectorAll('input[data-compare-fci-system]').forEach((cb) => {
-        if (cb.checked) selected.push(cb.getAttribute('data-compare-fci-system'));
-      });
-      return selected;
-    };
-    const sysList = getSelectedCompareFciSystemsFromDom().length
-      ? getSelectedCompareFciSystemsFromDom()
-      : (Array.isArray(compareFciSystem) ? compareFciSystem : []);
-    if (sysList.length) {
-      // Average system statuses by mapping to numeric index (per-school, per-system)
-      const values = [];
-      const schoolId = normalizeId(feature?.properties?.["UniqueID"]);
-      const entry = schoolId ? fciBySchoolId.get(schoolId) : null;
-      sysList.forEach((sys) => {
-        const p1Value = entry?.bySystem?.get(sys)?.priorityAvgCostPerSf?.[1];
-        const quartiles = computeFciQuartilesForSystem(sys);
-        const status = getFciStatusFromValue(p1Value, quartiles, false);
-        const idx =
-          status === 'Good' ? 1 :
-          status === 'Fair' ? 2 :
-          status === 'Poor' ? 3 :
-          null;
-        if (idx) values.push(idx);
-      });
-      if (!values.length) return 'No Data';
-      const avg = values.reduce((a, b) => a + b, 0) / values.length;
-      return avg <= 1.5 ? 'Good' : (avg <= 2.5 ? 'Fair' : 'Poor');
-    }
     const overall = feature?.properties?.__fciOverall;
     return getFciStatusFromValue(overall, fciOverallQuartiles, true);
   }
@@ -513,24 +480,6 @@ function getCompareBucketForSchool(categoryKey, schoolId, feature) {
   if (categoryKey === 'fci') {
     const entry = schoolId ? fciBySchoolId.get(schoolId) : null;
     if (!entry) return 'No Data';
-    const sysList = (Array.isArray(compareFciSystem) && compareFciSystem.length) ? compareFciSystem : [];
-    if (sysList.length) {
-      const values = [];
-      sysList.forEach((sys) => {
-        const p1Value = entry?.bySystem?.get(sys)?.priorityAvgCostPerSf?.[1];
-        const quartiles = computeFciQuartilesForSystem(sys);
-        const status = getFciStatusFromValue(p1Value, quartiles, false);
-        const idx =
-          status === 'Good' ? 1 :
-          status === 'Fair' ? 2 :
-          status === 'Poor' ? 3 :
-          null;
-        if (idx) values.push(idx);
-      });
-      if (!values.length) return 'No Data';
-      const avg = values.reduce((a, b) => a + b, 0) / values.length;
-      return avg <= 1.5 ? 'Good' : (avg <= 2.5 ? 'Fair' : 'Poor');
-    }
     return getFciStatusFromValue(entry?.overallFci, fciOverallQuartiles, true);
   }
   if (feature) return getCompareBucketForFeature(categoryKey, feature);
@@ -864,24 +813,7 @@ function isArticulationDataColorModeActive() {
 }
 
 function updateArticulationCompareSectionVisibility() {
-  const aaCb = document.getElementById('toggleArticulationAreas');
-  const compareSection = document.getElementById('articulationCompareSection');
-  if (!compareSection) return;
-  const show = !!(aaCb && aaCb.checked);
-  compareSection.style.display = show ? 'flex' : 'none';
-  if (show) {
-    try { updateCompareFciSystemsVisibility(); } catch {}
-    try { updateArticulationAreaPickerVisibility(); } catch {}
-  } else {
-    try { updateArticulationAreaPickerVisibility(); } catch {}
-  }
-}
-
-function updateCompareFciSystemsVisibility() {
-  const block = document.getElementById('compareFciSystemsBlock');
-  const fciCategoryCb = document.querySelector('#compareCategoryList input[data-compare-category="fci"]');
-  if (!block) return;
-  block.style.display = (fciCategoryCb && fciCategoryCb.checked) ? 'flex' : 'none';
+  try { updateArticulationAreaPickerVisibility(); } catch {}
 }
 
 function shouldShowArticulationLegend() {
@@ -2185,12 +2117,10 @@ function updateArticulationAreaFciTable() {
 
     const fmtPct = (n) => (Number.isFinite(n) ? `${n.toFixed(1)}%` : '—');
 
-    const selectedCategories = Array.isArray(window.__compareCategories) && window.__compareCategories.length
-      ? window.__compareCategories.slice()
-      : Object.keys(COMPARE_CATEGORY_DEFS);
+    const selectedCategories = Object.keys(COMPARE_CATEGORY_DEFS);
 
     if (!selectedCategories.length) {
-      container.innerHTML = '<div style="font-size:12px; color:#6b7280;">Select categories to compare.</div>';
+      container.innerHTML = '<div style="font-size:12px; color:#6b7280;">No categories available.</div>';
       return;
     }
 
@@ -2215,7 +2145,7 @@ function updateArticulationAreaFciTable() {
 
     rows.sort((a, b) => a.area.localeCompare(b.area, undefined, { sensitivity: 'base', numeric: true }));
 
-    const headerNote = `<div style="font-size:11px; color:#6b7280; margin-bottom:6px;">Categories shown in articulation area popup (FCI uses selected compare systems if any)</div>`;
+    const headerNote = `<div style="font-size:11px; color:#6b7280; margin-bottom:6px;">Categories shown in articulation area popup</div>`;
     const categoryBuckets = {};
     selectedCategories.forEach((k) => {
       categoryBuckets[k] = getCompareBuckets(k) || [];
@@ -5447,11 +5377,6 @@ map.on('load', () => {
         fciOverallQuartiles = model.overallQuartiles;
         fciSelectedSystem = canonicalFciSystemName(fciSelectedSystem);
         if (fciSelectedSystem && !fciSystems.includes(fciSelectedSystem)) fciSelectedSystem = '';
-        compareFciSystem = [...new Set(
-          (Array.isArray(compareFciSystem) ? compareFciSystem : [])
-            .map(canonicalFciSystemName)
-            .filter((s) => fciSystems.includes(s))
-        )];
       } catch (e) {
         console.warn("⚠️ Failed to build FCI model:", e);
         fciBySchoolId = new Map();
@@ -5472,25 +5397,6 @@ map.on('load', () => {
           });
           fciSelect.value = fciSelectedSystem || '';
         }
-      } catch (e) {}
-      try {
-        const compareList = document.getElementById('compareFciSystemList');
-        if (compareList) {
-          compareList.innerHTML = '';
-          fciSystems.slice().sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })).forEach((sys) => {
-            const label = document.createElement('label');
-            const cb = document.createElement('input');
-            cb.type = 'checkbox';
-            cb.setAttribute('data-compare-fci-system', sys);
-            cb.checked = Array.isArray(compareFciSystem) && compareFciSystem.includes(sys);
-            const span = document.createElement('span');
-            span.textContent = sys;
-            label.appendChild(cb);
-            label.appendChild(span);
-            compareList.appendChild(label);
-          });
-        }
-        try { updateCompareFciSystemsVisibility(); } catch {}
       } catch (e) {}
 
       // Build articulation area -> school list index (for map popups)
@@ -6143,45 +6049,14 @@ map.on('load', () => {
             : allGroupKeys;
           const total = groupKeys.reduce((sum, k) => sum + ((groups[k] || []).length), 0);
 
-          const getSelectedCompareCategories = () => {
-            const list = document.getElementById('compareCategoryList');
-            if (list) {
-              const selected = [];
-              list.querySelectorAll('input[data-compare-category]').forEach((cb) => {
-                if (cb.checked) selected.push(cb.getAttribute('data-compare-category'));
-              });
-              if (selected.length) return selected;
-            }
-            if (Array.isArray(window.__compareCategories) && window.__compareCategories.length) {
-              return window.__compareCategories.slice();
-            }
-            return Object.keys(COMPARE_CATEGORY_DEFS);
-          };
-          const selectedCategories = getSelectedCompareCategories();
+          const selectedCategories = Object.keys(COMPARE_CATEGORY_DEFS);
 
           const getBucketColor = (catKey, bucketKey) => {
             const buckets = getCompareBuckets(catKey) || [];
             return (buckets.find(b => b.key === bucketKey)?.color) || '#cbd5e1';
           };
 
-          const getSelectedCompareSystemsFromDom = () => {
-            const list = document.getElementById('compareFciSystemList');
-            if (!list) return [];
-            const selected = [];
-            list.querySelectorAll('input[data-compare-fci-system]').forEach((cb) => {
-              if (cb.checked) selected.push(cb.getAttribute('data-compare-fci-system'));
-            });
-            return selected;
-          };
-          const selectedCompareSystems = (() => {
-            const fromDom = getSelectedCompareSystemsFromDom()
-              .map((s) => canonicalFciSystemName(s))
-              .filter(Boolean);
-            if (fromDom.length) return fromDom;
-            return (Array.isArray(compareFciSystem) ? compareFciSystem : [])
-              .map((s) => canonicalFciSystemName(s))
-              .filter(Boolean);
-          })();
+          const selectedCompareSystems = [];
           const fmtNum2 = (n) => (Number.isFinite(n) ? n.toFixed(2) : '—');
           const fmtCurrency = (n) => {
             if (!Number.isFinite(n)) return '$0.00';
@@ -7433,9 +7308,6 @@ map.on('load', () => {
   const colorByBuildingBtn = document.getElementById('colorByBuildingBtn');
   const fciSystemSelect = document.getElementById('fciSystemSelect');
   const fciSystemSymbologyRow = document.getElementById('fciSystemSymbologyRow');
-  const compareFciSystemSelect = document.getElementById('compareFciSystemSelect');
-  const compareCategoryList = document.getElementById('compareCategoryList');
-  const compareFciSystemList = document.getElementById('compareFciSystemList');
   let enrollmentRangeSynced = false;
   let utilSpritesAdded = false;
   // Disable restoring prior selections to avoid auto-selecting a school on load
@@ -8080,181 +7952,28 @@ map.on('load', () => {
   if (colorByBuildingBtn) colorByBuildingBtn.addEventListener('click', () => setMapColorMode('building'));
   setMapColorMode('level');
 
-  const getSelectedCompareCategoriesFromDom = () => {
-    const selected = [];
-    if (compareCategoryList) {
-      compareCategoryList.querySelectorAll('input[data-compare-category]').forEach((cb) => {
-        if (cb.checked) selected.push(cb.getAttribute('data-compare-category'));
-      });
-    }
-    return selected;
-  };
-  const getSelectedCompareSystemsFromDom = () => {
-    const selected = [];
-    if (compareFciSystemList) {
-      compareFciSystemList.querySelectorAll('input[data-compare-fci-system]').forEach((cb) => {
-        if (cb.checked) selected.push(cb.getAttribute('data-compare-fci-system'));
-      });
-    }
-    return selected;
-  };
-  const syncCompareCategories = () => {
-    const selected = getSelectedCompareCategoriesFromDom();
-    window.__compareCategories = selected;
-    updateCompareFciSystemsVisibility();
-    try { updateArticulationAreaFciTable(); } catch {}
-    const areaName = window.__aaPopupAreaName;
-    try {
-      if (window.__aaRefreshPopupNow) {
-        requestAnimationFrame(() => window.__aaRefreshPopupNow(areaName));
-      } else if (window.__aaRefreshPopup) {
-        window.__aaRefreshPopup();
-      }
-    } catch {}
-    try { window.__aaPopupDirty = true; } catch {}
-    try { window.dispatchEvent(new CustomEvent('aaPopupRefresh')); } catch {}
-  };
-  if (compareCategoryList) {
-    compareCategoryList.querySelectorAll('input[data-compare-category]').forEach((cb) => {
-      cb.addEventListener('change', syncCompareCategories);
-    });
-    // Fallback: capture bubbling changes at the container level
-    compareCategoryList.addEventListener('change', syncCompareCategories);
-  }
-  try { updateCompareFciSystemsVisibility(); } catch {}
-  // Global fallback: ensure checkbox changes always sync
-  document.addEventListener('change', (e) => {
-    if (e.target && e.target.matches && e.target.matches('input[data-compare-category]')) {
-      syncCompareCategories();
-    }
-    if (e.target && e.target.matches && e.target.matches('input[data-compare-fci-system]')) {
-      syncCompareFciSystems();
-    }
-  }, true);
-  document.addEventListener('input', (e) => {
-    if (e.target && e.target.matches && e.target.matches('input[data-compare-category]')) {
-      syncCompareCategories();
-    }
-    if (e.target && e.target.matches && e.target.matches('input[data-compare-fci-system]')) {
-      syncCompareFciSystems();
-    }
-  }, true);
-  const syncCompareFciSystems = () => {
-    if (!compareFciSystemList) return;
-    const selected = getSelectedCompareSystemsFromDom().map(canonicalFciSystemName);
-    compareFciSystem = selected;
-    try { updateArticulationAreaFciTable(); } catch {}
-    try {
-      if (window.__aaRefreshPopupNow) requestAnimationFrame(() => window.__aaRefreshPopupNow(window.__aaPopupAreaName));
-      else if (window.__aaRefreshPopup) window.__aaRefreshPopup();
-    } catch {}
-    try { window.__aaPopupDirty = true; } catch {}
-    try { window.dispatchEvent(new CustomEvent('aaPopupRefresh')); } catch {}
-  };
-  if (compareFciSystemList) {
-    compareFciSystemList.addEventListener('change', syncCompareFciSystems);
-  }
-  // Poll for compare selections in case events are swallowed
-  let lastCompareCategoriesKey = '';
-  let lastCompareSystemsKey = '';
-  const getCompareSelectionKey = () => {
-    const cats = getSelectedCompareCategoriesFromDom().sort().join('|');
-    const systems = getSelectedCompareSystemsFromDom().sort().join('|');
-    const fciSys = (fciSelectedSystem || '').toString().trim();
-    return `${cats}__${systems}__${fciSys}`;
-  };
-  const pollCompareSelections = () => {
-    const cats = getSelectedCompareCategoriesFromDom().sort().join('|');
-    const systems = getSelectedCompareSystemsFromDom().sort().join('|');
-    if (cats !== lastCompareCategoriesKey) {
-      lastCompareCategoriesKey = cats;
-      syncCompareCategories();
-    }
-    if (systems !== lastCompareSystemsKey) {
-      lastCompareSystemsKey = systems;
-      syncCompareFciSystems();
-    }
-  };
-  try { setInterval(pollCompareSelections, 300); } catch {}
-
-  // Mutation observer fallback: detect checkbox state changes
+  // Keep a shared popup refresh helper for articulation area panels.
   try {
-    const compareObserver = new MutationObserver(() => {
-      try {
-        syncCompareCategories();
-        syncCompareFciSystems();
-      } catch {}
-    });
-    if (compareCategoryList) {
-      compareObserver.observe(compareCategoryList, { attributes: true, subtree: true });
-    }
-    if (compareFciSystemList) {
-      compareObserver.observe(compareFciSystemList, { attributes: true, subtree: true });
-    }
-  } catch {}
-
-  // Final fallback: refresh popup when marked dirty
-  try {
-    if (!window.__aaPopupRefreshTimer) {
-      window.__aaPopupRefreshTimer = setInterval(() => {
-        if (window.__aaPopupDirty) {
-          window.__aaPopupDirty = false;
-          try {
-            if (window.__aaRefreshPopupNow) window.__aaRefreshPopupNow();
-            else if (window.__aaRefreshPopup) window.__aaRefreshPopup();
-          } catch {}
-        }
-      }, 400);
-    }
-  } catch {}
-
-  // Always refresh popup if compare selections changed while pinned
-  try {
-    if (!window.__aaPopupSelectionTimer) {
-      window.__aaLastSelectionKey = getCompareSelectionKey();
-      if (!window.__aaRefreshPopupNow) {
-        window.__aaRefreshPopupNow = () => {
-          try {
-            if (!window.__aaPopup || !window.__aaBuildPopupHtml || !window.__aaPopupAreaName) return;
-            window.__aaPopup.setHTML(window.__aaBuildPopupHtml(window.__aaPopupAreaName)).addTo(window.map);
-            try { window.__aaPositionPopupTopRight && window.__aaPositionPopupTopRight(); } catch {}
-            setTimeout(() => {
-              try { window.__aaEnhancePopupPanel && window.__aaEnhancePopupPanel(); } catch {}
-              try { window.__aaPositionPopupTopRight && window.__aaPositionPopupTopRight(); } catch {}
-            }, 0);
-          } catch {}
-        };
-      }
-      window.__aaPopupSelectionTimer = setInterval(() => {
+    if (!window.__aaRefreshPopupNow) {
+      window.__aaRefreshPopupNow = () => {
         try {
-          if (!window.__aaPopupAreaName) return;
-          const key = getCompareSelectionKey();
-          if (key !== window.__aaLastSelectionKey) {
-            window.__aaLastSelectionKey = key;
-            if (window.__aaRefreshPopupNow) {
-              window.__aaRefreshPopupNow();
-            } else if (window.__aaRefreshPopup) {
-              window.__aaRefreshPopup();
-            }
-          }
+          if (!window.__aaPopup || !window.__aaBuildPopupHtml || !window.__aaPopupAreaName) return;
+          window.__aaPopup.setHTML(window.__aaBuildPopupHtml(window.__aaPopupAreaName)).addTo(window.map);
+          try { window.__aaPositionPopupTopRight && window.__aaPositionPopupTopRight(); } catch {}
+          setTimeout(() => {
+            try { window.__aaEnhancePopupPanel && window.__aaEnhancePopupPanel(); } catch {}
+            try { window.__aaPositionPopupTopRight && window.__aaPositionPopupTopRight(); } catch {}
+          }, 0);
         } catch {}
-      }, 500);
+      };
     }
   } catch {}
-  syncCompareCategories();
-  syncCompareFciSystems();
 
   if (fciSystemSelect) {
     fciSystemSelect.addEventListener('change', () => {
       setFciSelectedSystem(fciSystemSelect.value);
       // Selecting a system implies FCI view
       setMapColorMode('fci');
-    });
-  }
-  if (compareFciSystemSelect) {
-    compareFciSystemSelect.addEventListener('change', () => {
-      compareFciSystem = compareFciSystemSelect.value;
-      try { updateArticulationAreaFciTable(); } catch {}
     });
   }
 
