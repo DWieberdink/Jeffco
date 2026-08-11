@@ -14,7 +14,7 @@ if (!DEBUG) {
 const mainDisplaySchoolName = window.formatSchoolDisplayName || ((name) => String(name ?? '').trim());
 
 // Cache-bust static data files when needed (bump when CSV/GeoJSON changes).
-const ASSET_VERSION = '2026-08-06-7';
+const ASSET_VERSION = '2026-08-11-5';
 
 const DASHBOARD_STEP_DEFS = {
   1: {
@@ -357,6 +357,12 @@ function getBondSpendingEntryByName(name) {
     if (k.toLowerCase() === nl) return v;
   }
   return null;
+}
+
+/** Display bond totals as "$18.8 million" (one digit after the millions place). */
+function formatBondSpendingMillions(n) {
+  if (!Number.isFinite(n)) return '—';
+  return `$${(n / 1e6).toFixed(1)} million`;
 }
 let projectListRowsForMap = [];
 let fciBySchoolId = new Map(); // id -> { squareFt, overallFci, bySystem: Map }
@@ -782,16 +788,16 @@ function getArticulationColorExpression() {
   return expr;
 }
 
-// Color scale: low % = light green, high % = dark green (0–15% of total bond spending)
+// Color scale: low % = light green, high % = dark green (0–12% of total bond spending).
 function getArticulationBondSpendingColorExpression() {
   return [
     'interpolate', ['linear'], ['coalesce', ['get', '__bondSpendingPct'], 0],
     0, '#dcfce7',      // 0% – very light green
-    3, '#86efac',
-    6, '#4ade80',
-    9, '#22c55e',
-    12, '#16a34a',
-    15, '#14532d'      // 15%+ – dark green
+    2.4, '#86efac',
+    4.8, '#4ade80',
+    7.2, '#22c55e',
+    9.6, '#16a34a',
+    12, '#14532d'      // 12%+ – dark green
   ];
 }
 
@@ -894,10 +900,10 @@ function buildArticulationLegendSectionHtml() {
         '<div class="legend-gradient-block">' +
           '<div class="legend-gradient-bar" style="background:linear-gradient(to right, #dcfce7 0%, #86efac 20%, #4ade80 40%, #22c55e 60%, #16a34a 80%, #14532d 100%);"></div>' +
           '<div class="legend-gradient-labels">' +
-            '<span>0%</span><span>3%</span><span>6%</span><span>9%</span><span>12%</span><span>15%+</span>' +
+            '<span>0%</span><span>2.4%</span><span>4.8%</span><span>7.2%</span><span>9.6%</span><span>12%+</span>' +
           '</div>' +
         '</div>' +
-        '<div class="legend-helper-text legend-helper-text--sm">Darker = higher share of total bond spending</div>' +
+        '<div class="legend-helper-text legend-helper-text--sm">Darker = higher share of total</div>' +
       '</div>'
     );
   }
@@ -2007,12 +2013,8 @@ function computeArticulationAreaHoverStats(areaName) {
 
 function buildArticulationHoverTooltipHtml(areaName) {
   const stats = computeArticulationAreaHoverStats(areaName);
-  const fmtCurrency = (n) => {
-    if (!Number.isFinite(n)) return '—';
-    return `$${n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
-  };
   const bondLine = Number.isFinite(stats.bondPct)
-    ? `${fmtCurrency(stats.bondSpending)} (${stats.bondPct.toFixed(1)}% of total)`
+    ? `${formatBondSpendingMillions(stats.bondSpending)} (${stats.bondPct.toFixed(1)}%)`
     : '—';
   const growthLine = Number.isFinite(stats.enrollmentGrowthPct)
     ? `${stats.enrollmentGrowthPct > 0 ? '+' : ''}${stats.enrollmentGrowthPct.toFixed(0)}%`
@@ -6548,7 +6550,7 @@ map.on('load', () => {
 
           const bondEntry = getBondSpendingEntryByName(areaName);
           const bondLine = bondEntry
-            ? `<div class="aa-popup-secondary">Historic bond spending: ${fmtCurrency(bondEntry.totalSpending)} (${bondEntry.pctOfTotal.toFixed(1)}% of total)</div>`
+            ? `<div class="aa-popup-secondary">Historic bond spending: ${formatBondSpendingMillions(bondEntry.totalSpending)} (${bondEntry.pctOfTotal.toFixed(1)}%)</div>`
             : '';
           const growthLine =
             bondEntry && Number.isFinite(bondEntry.enrollmentGrowthPct)
