@@ -9779,7 +9779,7 @@ function startOnboardingWalkthrough(options = {}) {
       title: 'School Project List (opens in a new tab)',
       text:
         '<strong>Highlighted in yellow:</strong> <strong>School Project List</strong> under <strong>Planning modules</strong>. ' +
-        'It opens a separate page with the full project list for a school: Project Calculator totals, Facility Deficiency, Safety &amp; Security, and the ' +
+        'It opens a separate page with the full project list for a school: Educational Adequacy (Project Calculator) totals, Facility Deficiency, Safety &amp; Security, and the ' +
         'Food and Nutrition / Information Technology sections. Switch between <strong>By school</strong> and <strong>Custom</strong> there to group and total the projects your own way.',
       openMenu: true,
       ensureProcessStep: 4

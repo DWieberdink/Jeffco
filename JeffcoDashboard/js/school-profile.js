@@ -17,15 +17,21 @@
   const UNITCOST_LIBRARY_CSV_PATH = _data("03 UnitCostLibrary.csv");
   const ROOM_SCHEDULE_CSV_PATH = _data("05 Jeffco Room Schedule.csv");
   const MAP_EXPORT_CSV_PATH = _data("09 Map_Export.csv");
+  /**
+   * Origin/destination distance matrix. Decision Data Export no longer ships a
+   * DistanceUnderutilizedschools column, so this file is the only source for the
+   * flowchart's "welcoming school nearby?" branch.
+   */
+  const SCHOOL_DISTANCES_CSV_PATH = _data("06 SchooltoSchoolDistances.csv");
   /** 02.3 FCS survey: one comment per row (school leader / facility manager). */
   const FCS_COMMENTS_CSV_PATH = _data("02.3_FCS_Explore_Projects.csv");
   // Bump this to force browsers to refetch CSV/JS.
-  const CACHE_BUST = "20260807_06";
+  const CACHE_BUST = "20260811_13";
   const UNKNOWN_ARTICULATION_LABEL = "No articulation area";
   /** Super-section banners in the assets / projects table (fixed display order). */
-  const SELECTED_PROJECTS_SUPER_LABEL = "Selected Projects";
+  const SELECTED_PROJECTS_SUPER_LABEL = "Priority Projects";
   /** Parent rollup over Educational Adequacy categories only (00–07). */
-  const PROJECT_CALC_SUPER_LABEL = "Project Calculator";
+  const PROJECT_CALC_SUPER_LABEL = "Educational Adequacy (Project Calculator)";
   /** Logical bucket for EA system categories — no banner; categories nest under Project Calculator. */
   const EDUCATIONAL_ADEQUACY_SUPER_LABEL = "Educational Adequacy Projects";
   const FACILITY_DEFICIENCY_SUPER_LABEL = "Facility Deficiency Projects";
@@ -179,10 +185,9 @@
 
   /**
    * Maps SystemCategory → super-group banner.
-   * 02.1_* → Safety & Security Projects (must check before generic 02_*).
-   * 00–07 → Educational Adequacy (categories nest under Project Calculator; no EA banner).
+   * 02.1 / 02.4 / 02.5 are their own teams and must be checked before the generic 02_* rule.
+   * 00–07 → Educational Adequacy (categories nest under the calculator parent; no EA banner).
    * 08 → Facility Deficiency Projects.
-   * Project Calculator rolls up Educational Adequacy only.
    */
   function isSafetySecurityProjectsCategory(systemCategory) {
     const g = norm(systemCategory).toLowerCase();
@@ -193,9 +198,28 @@
     );
   }
 
+  function isInformationTechnologyProjectsCategory(systemCategory) {
+    const g = norm(systemCategory).toLowerCase();
+    return g.startsWith("02.4") || g.includes("informationtechnologyprojects");
+  }
+
+  function isFoodAndNutritionProjectsCategory(systemCategory) {
+    const g = norm(systemCategory).toLowerCase();
+    return g.startsWith("02.5") || g.includes("foodandnutritionprojects");
+  }
+
+  /** Teams that own their own top-level section despite an 02.* prefix. */
+  function getNonCalculatorTeamSection(systemCategory) {
+    if (isSafetySecurityProjectsCategory(systemCategory)) return SAFETY_SECURITY_SUPER_LABEL;
+    if (isInformationTechnologyProjectsCategory(systemCategory)) return IT_PROJECTS_SUPER_LABEL;
+    if (isFoodAndNutritionProjectsCategory(systemCategory)) return FOOD_NUTRITION_SUPER_LABEL;
+    return null;
+  }
+
   function getSuperGroupKey(groupName) {
     const g = norm(groupName).toLowerCase();
-    if (isSafetySecurityProjectsCategory(groupName)) return SAFETY_SECURITY_SUPER_LABEL;
+    const teamSection = getNonCalculatorTeamSection(groupName);
+    if (teamSection) return teamSection;
     if (
       g.startsWith("00") ||
       g.startsWith("01") ||
@@ -219,6 +243,7 @@
 
   function isCalculatorSystemCategory(systemCategory) {
     const g = norm(systemCategory).toLowerCase();
+    if (getNonCalculatorTeamSection(systemCategory)) return false;
     return (
       g.startsWith("00") ||
       g.startsWith("01") ||
@@ -241,6 +266,9 @@
   let decisionRows = [];
   let decisionByUid = new Map();
   let decisionByNameKey = new Map();
+  /** Distance matrix rows grouped by origin UniqueID, mirroring window.schoolDistancesByOrigin. */
+  let schoolDistancesByOrigin = {};
+  let nearestUnderutilizedCache = { token: "", results: new Map() };
   let facilityIdByUid = new Map();
   let uidByFacilityId = new Map();
   let priorityOverrides = loadPriorityOverrides();
@@ -899,7 +927,68 @@
     return "";
   }
 
+  /**
+   * Nearest active, grade-overlapping school that is itself underutilized — the same
+   * "welcoming school" the dashboard flowchart measures against. Mirrors
+   * getNearestUnderutilizedOverlappingSchool in script.js; the two must stay in sync or
+   * the profile lands in a different flow than the flowchart.
+   */
+  function getNearestUnderutilizedDistanceMiles(row) {
+    const originId = normUid(row?.["UniqueID"] ?? row?.UniqueID);
+    if (!originId) return NaN;
+
+    const t = getActiveThresholds();
+    const low = Number.isFinite(t.utilization) ? t.utilization : 0.6;
+    // Utilization of the destination depends on the capacity source and PK toggles too.
+    const token = [
+      decisionRows.length,
+      Object.keys(schoolDistancesByOrigin).length,
+      low,
+      getCapacitySource(),
+      getIncludePKInEnrollment(),
+    ].join("|");
+    if (nearestUnderutilizedCache.token !== token) {
+      nearestUnderutilizedCache = { token, results: new Map() };
+    }
+    if (nearestUnderutilizedCache.results.has(originId)) {
+      return nearestUnderutilizedCache.results.get(originId);
+    }
+
+    let best = NaN;
+    (schoolDistancesByOrigin[originId] || []).forEach((d) => {
+      // The export writes text-guarded values ("'Yes" / "'No"); drop the guard quote.
+      const overlap = norm(d.gradeOverlap).replace(/^'+\s*/, "").toLowerCase();
+      if (!overlap || overlap === "no") return;
+      if (!d.destId || d.destId === originId) return;
+      const destRow = decisionByUid.get(d.destId) || decisionByNameKey.get(normName(d.destName));
+      if (!isActiveDistanceCandidate(destRow)) return;
+      const util = getEffectiveUtilization(destRow);
+      if (!Number.isFinite(util) || util >= low) return;
+      if (!Number.isFinite(d.distanceMiles)) return;
+      if (!Number.isFinite(best) || d.distanceMiles < best) best = d.distanceMiles;
+    });
+
+    nearestUnderutilizedCache.results.set(originId, best);
+    return best;
+  }
+
+  function isActiveDistanceCandidate(row) {
+    if (!row) return false;
+    if (norm(pickFirstNonEmpty(row, ["Status", "status"])).toLowerCase() !== "active") return false;
+    const name = norm(row["Building Name"] ?? row.BuildingName).toLowerCase();
+    if (!name || name.includes("central services") || name.includes("transition services")) return false;
+    return true;
+  }
+
   function getDistanceMilesFromRow(row) {
+    // Prefer the dashboard's resolver when this page is embedded alongside script.js.
+    if (typeof window.resolveDistanceToWelcomingSchool === "function") {
+      const d = window.resolveDistanceToWelcomingSchool(row);
+      if (Number.isFinite(d)) return d;
+    } else {
+      const nearest = getNearestUnderutilizedDistanceMiles(row);
+      if (Number.isFinite(nearest)) return nearest;
+    }
     const raw = pickFirstNonEmpty(row, [
       "DistanceUnderutilizedschools",
       "Distance Underutilized Schools",
@@ -2216,7 +2305,8 @@
 
   /**
    * 02.3 FCS survey rows → comment records.
-   * Rating is a 1–5 condition score where 1 is the worst, so it doubles as priority order.
+   * Rating is a 1–5 satisfaction score where 1 is the worst, so ascending order surfaces
+   * the most troubled categories first.
    */
   function normalizeFcsCommentRows(rawRows) {
     return (rawRows || [])
@@ -2286,17 +2376,18 @@
     return [];
   }
 
+  /** Survey answers are a 1–5 satisfaction rating (1 = worst condition, 5 = best). */
   const FCS_RATING_DESCRIPTIONS = {
-    "1": "Highest priority",
-    "2": "High priority",
-    "3": "Moderate priority",
-    "4": "Low priority",
-    "5": "Lowest priority",
+    "1": "Poor",
+    "2": "Fair",
+    "3": "Average",
+    "4": "Good",
+    "5": "Excellent",
   };
 
   function fcsRatingLabel(rating) {
     if (!rating) return "Not rated";
-    return `Rating ${rating} · ${FCS_RATING_DESCRIPTIONS[rating] || "Priority"}`;
+    return `${rating} of 5 · ${FCS_RATING_DESCRIPTIONS[rating] || "Rated"}`;
   }
 
   /** Rating → Category → Respondent role → comments. Unrated comments sort last. */
@@ -3853,6 +3944,31 @@
     return out;
   }
 
+  /** Group the school-to-school matrix by origin id, matching the dashboard's parsing. */
+  function buildSchoolDistanceIndex(rows) {
+    const grouped = {};
+    (rows || []).forEach((r) => {
+      const originId = normUid(
+        r["Origin CDE Prefix"] || r["Origin CDE Code"] || r["Origin CDE"] || ""
+      );
+      if (!originId) return;
+      if (!grouped[originId]) grouped[originId] = [];
+      const miles = parseFloat(
+        String(r["Network Distance (Miles)"] ?? r["Linear Distance (Miles)"] ?? "")
+          .replace(/,/g, "")
+          .trim()
+      );
+      grouped[originId].push({
+        destName: norm(r["Destination Facility Name"]),
+        destId: normUid(r["Destination CDE Prefix"] || r["Destination CDE Code"] || r["Destination CDE"] || ""),
+        gradeOverlap: r["Grade Overlap"],
+        distanceMiles: Number.isFinite(miles) ? miles : NaN,
+      });
+    });
+    schoolDistancesByOrigin = grouped;
+    nearestUnderutilizedCache = { token: "", results: new Map() };
+  }
+
   function buildDecisionIndexes(rows) {
     decisionByUid = new Map();
     decisionByNameKey = new Map();
@@ -4475,7 +4591,7 @@
     tbody.appendChild(tr);
   }
 
-  function createBannerLabelCell(labelText, { trailingEl, inlineEl } = {}) {
+  function createBannerLabelCell(labelText, { trailingEl, inlineEl, noteText } = {}) {
     const td = document.createElement("td");
     td.colSpan = tableLabelColumnSpan();
     td.className = "banner-label-cell";
@@ -4486,6 +4602,12 @@
     arrow.textContent = "▼";
     labelDiv.appendChild(arrow);
     labelDiv.appendChild(document.createTextNode(labelText));
+    if (noteText) {
+      const note = document.createElement("span");
+      note.className = "banner-label-note";
+      note.textContent = noteText;
+      labelDiv.appendChild(note);
+    }
     if (inlineEl) labelDiv.appendChild(inlineEl);
     td.appendChild(labelDiv);
     if (trailingEl) td.appendChild(trailingEl);
@@ -6368,11 +6490,10 @@
   function updateTotalReplacementCostDisplay() {
     if (!elTotalReplacementCost) return;
 
-    // Project Calculator header totals: Educational Adequacy only (00–07).
-    const filteredRows = getFilteredFlatRows().filter((r) =>
-      getSuperGroupKey(r?.SystemCategory) === EDUCATIONAL_ADEQUACY_SUPER_LABEL
-    );
-    const t = computeReplacementTotalsByPriority(filteredRows);
+    // Header totals cover every rendered section so they reconcile with the section
+    // subtotals. Priority Projects is a mirror of rows already counted here, so it is
+    // not added again.
+    const t = computeReplacementTotalsByPriority(getFilteredFlatRows());
 
     // Building Addition planner is informational only (not summed into priority totals).
     const included = getIncludedPriorities();
@@ -6778,34 +6899,98 @@
     return !isCollapsed;
   }
 
-  function appendSelectedProjectsSection(tbody) {
-    const mirrorRows = collectSelectedMirrorRows();
-    if (!mirrorRows.length) return;
+  /**
+   * Column header row shared by the standalone Priority Projects panel and the
+   * main project list, so the two tables line up column for column.
+   */
+  function createProjectsTableHead({ sortable = true } = {}) {
+    const thead = document.createElement("thead");
+    const trh = document.createElement("tr");
+
+    const thToggle = document.createElement("th");
+    thToggle.className = "col-include-toggle";
+    thToggle.textContent = "";
+    thToggle.title = "Include row in planning totals";
+    trh.appendChild(thToggle);
+
+    DISPLAY_COLS.forEach((col) => {
+      const th = document.createElement("th");
+      const displayName = COL_DISPLAY_NAMES[col] || col;
+      const label = document.createElement("span");
+      label.className = "th-label";
+      label.textContent = displayName;
+      th.appendChild(label);
+      if (sortable) {
+        th.className = "is-sortable";
+        if (sortState.key === col) th.classList.add("is-sorted");
+        const indicator = document.createElement("span");
+        indicator.className = "sort-indicator";
+        if (sortState.key === col) indicator.textContent = sortState.dir === "asc" ? "▲" : "▼";
+        th.appendChild(indicator);
+        th.title = "Sort by " + displayName;
+        th.addEventListener("click", () => {
+          if (sortState.key === col) {
+            sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
+          } else {
+            sortState.key = col;
+            sortState.dir = "desc";
+          }
+          applyFilters();
+          render();
+        });
+      }
+      trh.appendChild(th);
+    });
+
+    thead.appendChild(trh);
+    return thead;
+  }
+
+  /**
+   * Priority Projects is a rollup of rows that also appear in the list below, so it
+   * renders as its own table above the filter bar rather than as a section inside
+   * the main table. Its grand total moves up into the card heading.
+   */
+  function renderPriorityProjectsPanel() {
+    const block = document.getElementById("priorityProjectsBlock");
+    const mount = document.getElementById("priorityProjectsMount");
+    const totalWrap = document.getElementById("priorityProjectsTotalWrap");
+    const totalEl = document.getElementById("priorityProjectsHeadingTotal");
+    if (!mount) return;
+    mount.innerHTML = "";
+
+    const mirrorRows = listViewMode === "strategy" ? [] : collectSelectedMirrorRows();
+    if (!mirrorRows.length) {
+      if (block) block.hidden = true;
+      mount.hidden = true;
+      if (totalWrap) totalWrap.hidden = true;
+      if (totalEl) totalEl.textContent = "";
+      return;
+    }
+    if (block) block.hidden = false;
+    mount.hidden = false;
+
     const byP = computeGroupByP(mirrorRows);
     const total = byP["1"] + byP["2"] + byP["3"] + byP["4"];
-    const isCollapsed = collapsedSuperGroups.has(SELECTED_PROJECTS_SUPER_LABEL);
-    const sgTr = document.createElement("tr");
-    sgTr.className = superGroupRowClassName(SELECTED_PROJECTS_SUPER_LABEL, isCollapsed);
-    sgTr.appendChild(createBannerToggleCell());
-    sgTr.appendChild(createBannerLabelCell(SELECTED_PROJECTS_SUPER_LABEL));
-    sgTr.appendChild(createBannerSubtotalCell(total, byP));
-    sgTr.addEventListener("click", () => {
-      closePivotGroupChevronMenu();
-      if (collapsedSuperGroups.has(SELECTED_PROJECTS_SUPER_LABEL)) {
-        collapsedSuperGroups.delete(SELECTED_PROJECTS_SUPER_LABEL);
-      } else {
-        collapsedSuperGroups.add(SELECTED_PROJECTS_SUPER_LABEL);
-      }
-      render();
-    });
-    wireSchoolViewCollapseMenu(sgTr, {
-      levelLabel: "banner",
-      onCollapseAll: () => setSchoolViewTopBannersCollapsed(true),
-      onExpandAll: () => setSchoolViewTopBannersCollapsed(false),
-    });
-    tbody.appendChild(sgTr);
-    if (isCollapsed) return;
+    if (totalWrap) totalWrap.hidden = false;
+    if (totalEl) {
+      totalEl.textContent = formatLocaleUsdInteger(total);
+      totalEl.title = prioritySubtotalTitle(byP);
+    }
 
+    const table = document.createElement("table");
+    table.appendChild(createProjectsTableHead({ sortable: false }));
+    const tbody = document.createElement("tbody");
+    appendSelectedProjectsRows(tbody, mirrorRows);
+    table.appendChild(tbody);
+
+    const wrap = document.createElement("div");
+    wrap.className = "portfolio-table-wrap";
+    wrap.appendChild(table);
+    mount.appendChild(wrap);
+  }
+
+  function appendSelectedProjectsRows(tbody, mirrorRows) {
     // Always banner by school, including a single selection, so the school name
     // and its comment dropdown are present in every case.
     buildSelectedProjectsSchoolIndexFromMirrorRows(mirrorRows).forEach((school) => {
@@ -6819,7 +7004,7 @@
       schoolTr.className = "group-row selected-projects-school" + (schoolCollapsed ? " collapsed" : "");
       schoolTr.appendChild(createBannerToggleCell());
       schoolTr.appendChild(createBannerLabelCell(
-        `${displaySchoolName(school.name)} · ${school.decisionOutcome || "Unknown"}`,
+        displaySchoolName(school.name),
         { inlineEl: createFcsCommentToggle(commentKey, comments, render) }
       ));
       schoolTr.appendChild(createBannerSubtotalCell(schoolTotal, schoolByP));
@@ -6865,15 +7050,14 @@
     const sections = [];
     const projectCalcCollapsed = collapsedSuperGroups.has(PROJECT_CALC_SUPER_LABEL);
 
-    if (!collapsedSuperGroups.has(SELECTED_PROJECTS_SUPER_LABEL)) {
-      const mirrorRows = collectSelectedMirrorRows();
-      if (mirrorRows.length) {
-        sections.push({
-          groupKey: SELECTED_PROJECTS_SUPER_LABEL,
-          isFci: false,
-          rows: mirrorRows,
-        });
-      }
+    // The Priority Projects panel is always expanded, so it always exports.
+    const mirrorRows = collectSelectedMirrorRows();
+    if (mirrorRows.length) {
+      sections.push({
+        groupKey: SELECTED_PROJECTS_SUPER_LABEL,
+        isFci: false,
+        rows: mirrorRows,
+      });
     }
 
     const superGroupMap = new Map();
@@ -7070,8 +7254,22 @@
     elTableMount.querySelectorAll(".portfolio-table-wrap, .empty").forEach((n) => n.remove());
   }
 
+  /**
+   * The list-settings cog rides along with the filter row. When that row is hidden
+   * (strategy view) it falls back to the Project list heading so it stays reachable.
+   */
+  function placeAssetsSettings(inFilterRow) {
+    const wrap = document.querySelector(".assets-settings-wrap");
+    if (!wrap) return;
+    const slot = document.getElementById(
+      inFilterRow ? "assetsSettingsSlot" : "assetsSettingsHeadingSlot"
+    );
+    if (slot && wrap.parentElement !== slot) slot.appendChild(wrap);
+  }
+
   function mountTableFilterBar() {
     const controls = document.getElementById("tableFilterControls");
+    placeAssetsSettings(true);
     if (!controls || !elTableMount) return;
     let bar = document.getElementById("tableFilterBarMount");
     if (!bar) {
@@ -7203,6 +7401,7 @@
   function parkTableFilterBar() {
     const pool = document.getElementById("tableFilterPool");
     const controls = document.getElementById("tableFilterControls");
+    placeAssetsSettings(false);
     const bar = document.getElementById("tableFilterBarMount");
     if (bar && bar.parentElement) bar.remove();
     if (controls && pool && controls.parentElement !== pool) {
@@ -7701,10 +7900,8 @@
   }
 
   function setSchoolViewTopBannersCollapsed(collapsed) {
-    [SELECTED_PROJECTS_SUPER_LABEL, PROJECT_CALC_SUPER_LABEL].forEach((k) => {
-      if (collapsed) collapsedSuperGroups.add(k);
-      else collapsedSuperGroups.delete(k);
-    });
+    if (collapsed) collapsedSuperGroups.add(PROJECT_CALC_SUPER_LABEL);
+    else collapsedSuperGroups.delete(PROJECT_CALC_SUPER_LABEL);
     render();
   }
 
@@ -8158,6 +8355,7 @@
     // Strategy view uses per-column AutoFilters; hide the legacy search/filter bar.
     parkTableFilterBar();
     mountHierarchyLegend(true);
+    renderPriorityProjectsPanel();
     populateStrategyScopeFilters();
 
     const groupIndex = buildStrategyGroupIndex();
@@ -8315,6 +8513,7 @@
       clearTableMountContent();
       parkTableFilterBar();
       parkHierarchyLegend();
+      renderPriorityProjectsPanel();
       const empty = document.createElement("div");
       empty.className = "empty";
       empty.textContent = "No school selected.";
@@ -8331,6 +8530,7 @@
     clearTableMountContent();
     mountTableFilterBar();
     mountHierarchyLegend(false);
+    renderPriorityProjectsPanel();
 
     if (!viewRows.length) {
       const empty = document.createElement("div");
@@ -8343,44 +8543,7 @@
     }
 
     const table = document.createElement("table");
-    const thead = document.createElement("thead");
-    const trh = document.createElement("tr");
-
-    const thToggle = document.createElement("th");
-    thToggle.className = "col-include-toggle";
-    thToggle.textContent = "";
-    thToggle.title = "Include row in planning totals";
-    trh.appendChild(thToggle);
-
-    DISPLAY_COLS.forEach((col) => {
-      const th = document.createElement("th");
-      th.className = "is-sortable";
-      if (sortState.key === col) th.classList.add("is-sorted");
-      const displayName = COL_DISPLAY_NAMES[col] || col;
-      const label = document.createElement("span");
-      label.className = "th-label";
-      label.textContent = displayName;
-      th.appendChild(label);
-      const indicator = document.createElement("span");
-      indicator.className = "sort-indicator";
-      if (sortState.key === col) indicator.textContent = sortState.dir === "asc" ? "▲" : "▼";
-      th.appendChild(indicator);
-      th.title = "Sort by " + displayName;
-      th.addEventListener("click", () => {
-        if (sortState.key === col) {
-          sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
-        } else {
-          sortState.key = col;
-          sortState.dir = "desc";
-        }
-        applyFilters();
-        render();
-      });
-      trh.appendChild(th);
-    });
-
-    thead.appendChild(trh);
-    table.appendChild(thead);
+    table.appendChild(createProjectsTableHead({ sortable: true }));
 
     const tbody = document.createElement("tbody");
 
@@ -8392,12 +8555,9 @@
     });
 
     const orderedSuperKeys = [];
-    const hasSelectedProjects = collectSelectedMirrorRows().length > 0;
     SUPER_GROUP_DISPLAY_ORDER.forEach((k) => {
-      if (k === SELECTED_PROJECTS_SUPER_LABEL) {
-        if (hasSelectedProjects) orderedSuperKeys.push(k);
-        return;
-      }
+      // Priority Projects renders in its own panel above the filter bar.
+      if (k === SELECTED_PROJECTS_SUPER_LABEL) return;
       if (k === PROJECT_CALC_SUPER_LABEL) {
         // Parent always shown when the table has content (children include empty templates).
         orderedSuperKeys.push(k);
@@ -8409,11 +8569,6 @@
     });
 
     orderedSuperKeys.forEach((sgKey) => {
-      if (sgKey === SELECTED_PROJECTS_SUPER_LABEL) {
-        appendSelectedProjectsSection(tbody);
-        return;
-      }
-
       if (sgKey === PROJECT_CALC_SUPER_LABEL) {
         const calcExpanded = appendProjectCalculatorParentBanner(tbody);
         if (calcExpanded) {
@@ -9879,7 +10034,7 @@ ${meta ? `<p class="pdf-meta">${meta}</p>` : ""}
 <p class="pdf-filters"><strong>Facility selection:</strong> ${facLine}<br><strong>Table filters:</strong> ${filtBlock}</p>
 ${additionBlock}
 <table class="data"><thead>${thead}</thead><tbody>${tbody}</tbody></table>
-<p class="pdf-foot">Export lists only table rows visible with your current expand/collapse state (Selected Projects, Project Calculator, Facility Deficiency, and empty team sections). Grey text = excluded from totals unless the row still shows a dollar replacement amount (then body prints black). Shade structure and new outdoor classroom <strong>Yes</strong> rows print in black (reference cost).${pdfZoomPct < 99 ? ` Print zoom set to ${pdfZoomPct}% to target two pages (Chrome/Edge).` : ""} If a third page appears, reduce print margins slightly.</p>
+<p class="pdf-foot">Export lists only table rows visible with your current expand/collapse state (Priority Projects, Educational Adequacy, Facility Deficiency, and empty team sections). Grey text = excluded from totals unless the row still shows a dollar replacement amount (then body prints black). Shade structure and new outdoor classroom <strong>Yes</strong> rows print in black (reference cost).${pdfZoomPct < 99 ? ` Print zoom set to ${pdfZoomPct}% to target two pages (Chrome/Edge).` : ""} If a third page appears, reduce print margins slightly.</p>
 </body></html>`;
 
     const w = window.open("", "_blank");
@@ -9937,9 +10092,14 @@ ${additionBlock}
         console.warn("FCS survey comments CSV not loaded (school leader priorities unavailable):", err);
         return [];
       }),
+      parseCsv(SCHOOL_DISTANCES_CSV_PATH).catch((err) => {
+        console.warn("School-to-school distances CSV not loaded (flowchart distance branch unavailable):", err);
+        return [];
+      }),
     ])
-      .then(async ([_columnMap, decRows, assetRows, safetySecurityRows, facilitiesDeficiencyRows, unitCostLibRows, roomScheduleRows, mapExportRows, fcsCommentRows]) => {
+      .then(async ([_columnMap, decRows, assetRows, safetySecurityRows, facilitiesDeficiencyRows, unitCostLibRows, roomScheduleRows, mapExportRows, fcsCommentRows, schoolDistanceRows]) => {
         decisionRows = decRows || [];
+        buildSchoolDistanceIndex(schoolDistanceRows || []);
         if (typeof window.applyDecisionColumnMapToRows === "function") {
           window.applyDecisionColumnMapToRows(decRows);
         }
@@ -10790,7 +10950,12 @@ ${additionBlock}
             lastPriorityLiveSig = sig;
             invalidatePriorityScoreCache();
             if (listViewMode === "strategy") {
+              strategyGroupCache = null;
               renderStrategyGroupView();
+            } else {
+              // Threshold moves can change a school's flowchart outcome, which changes
+              // which projects are in scope, so rebuild rather than just re-render.
+              refreshSchoolDataAfterManualQtyEdit();
             }
           };
           lastPriorityLiveSig = readPriorityLiveSig();
@@ -10963,6 +11128,7 @@ ${additionBlock}
       if (btn) btn.setAttribute("aria-expanded", "false");
     }
 
+    placeAssetsSettings(false);
     const assetsSettingsBtn = document.getElementById("assetsSettingsBtn");
     const assetsSettingsDropdown = document.getElementById("assetsSettingsDropdown");
     if (assetsSettingsBtn && assetsSettingsDropdown) {

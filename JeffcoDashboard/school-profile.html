@@ -888,7 +888,7 @@
       user-select: none;
     }
     /* Keep column headers visible while scrolling the project list */
-    #tableMount table thead th {
+    .projects-table-mount table thead th {
       position: sticky;
       top: 0;
       z-index: 8;
@@ -1006,12 +1006,60 @@
       padding-left: 8px;
       font-variant-numeric: tabular-nums;
     }
-    .super-group-row.selected-projects td {
-      background: #c5ddd0;
-      border-top-color: #6b9b7f;
+    /* ---- Priority Projects standalone panel (above the filters) ---- */
+    /* The frame encloses the title, the total, and the table so the rollup reads
+       as one standalone block. */
+    .priority-projects-block {
+      border: 2px solid #2f6b4f;
+      border-radius: 3px;
+      padding: 10px 12px;
+      margin-bottom: 18px;
+      background: #fff;
     }
-    .super-group-row.selected-projects td .group-subtotal {
+    .priority-projects-block[hidden] {
+      display: none;
+    }
+    .priority-projects-heading {
+      margin-bottom: 8px;
+    }
+    #priorityProjectsMount[hidden] {
+      display: none;
+    }
+    #priorityProjectsMount .portfolio-table-wrap {
+      border: 1px solid #6b9b7f;
+      border-radius: 0;
+      overflow: hidden;
+    }
+    /* Green band wraps the repeated column headers for this panel only. */
+    #priorityProjectsMount table thead th {
+      background: #c5ddd0;
       color: #1e4d3a;
+      border-bottom: 2px solid #2f6b4f;
+      cursor: default;
+    }
+    .priority-projects-heading .section-title {
+      color: #1e4d3a !important;
+    }
+    .priority-projects-total-wrap {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .priority-projects-total-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #3f6b56;
+    }
+    .priority-projects-heading-total {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1e4d3a;
+      font-variant-numeric: tabular-nums;
+    }
+    .project-list-heading {
+      margin-top: 4px;
     }
     .super-group-row.project-calculator td {
       background: #c7d9e8;
@@ -1190,10 +1238,11 @@
       color: #fff;
       background: #6b7280;
     }
+    /* 1-5 satisfaction ramp: red (poor) through green (excellent). */
     .fcs-rating-badge--1 { background: #b91c1c; }
     .fcs-rating-badge--2 { background: #ea580c; }
     .fcs-rating-badge--3 { background: #ca8a04; }
-    .fcs-rating-badge--4 { background: #2563eb; }
+    .fcs-rating-badge--4 { background: #65a30d; }
     .fcs-rating-badge--5 { background: #16a34a; }
     .fcs-rating-badge--na { background: #94a3b8; }
     .fcs-rating-text {
@@ -1560,6 +1609,17 @@
     }
     .table-filter-reset {
       flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .assets-settings-slot {
+      display: inline-flex;
+      align-items: center;
+    }
+    .assets-settings-slot .btn-icon-assets-settings {
+      width: 34px;
+      height: 34px;
     }
     .table-filter-reset .btn-reset-filters {
       padding: 7px 12px;
@@ -2383,10 +2443,10 @@
       text-align: center;
       white-space: nowrap;
     }
-    #tableMount {
+    .projects-table-mount {
       overflow: visible;
     }
-    #tableMount table thead th {
+    .projects-table-mount table thead th {
       top: 0;
     }
     .list-view-toggle button.is-active {
@@ -2513,26 +2573,26 @@
     .muted {
       color: var(--muted);
     }
-    /* Project list (#tableMount): light grey when N/A / excluded; black otherwise; no bold in cells */
-    #tableMount table tbody td {
+    /* Project list (.projects-table-mount): light grey when N/A / excluded; black otherwise; no bold in cells */
+    .projects-table-mount table tbody td {
       font-weight: 400;
     }
-    #tableMount table tbody td.muted,
-    #tableMount table tbody td.score-na {
+    .projects-table-mount table tbody td.muted,
+    .projects-table-mount table tbody td.score-na {
       color: #cbd5e1;
     }
     /* Rows excluded from totals (e.g., non-relevant gut-reno levels) */
     .excluded-row td {
       color: #cbd5e1;
     }
-    #tableMount table tbody tr.excluded-row:not(.campus-yes-cost-row) td {
+    .projects-table-mount table tbody tr.excluded-row:not(.campus-yes-cost-row) td {
       color: #cbd5e1;
     }
     /* Include toggle off but row still shows a dollar replacement cost — keep body text readable */
-    #tableMount table tbody tr.excluded-but-has-rc:not(.campus-yes-cost-row) td {
+    .projects-table-mount table tbody tr.excluded-but-has-rc:not(.campus-yes-cost-row) td {
       color: var(--text);
     }
-    #tableMount table tbody tr.excluded-row.campus-yes-cost-row td {
+    .projects-table-mount table tbody tr.excluded-row.campus-yes-cost-row td {
       color: var(--text);
     }
     /* Include = binary 0/1: 0 = off (gray), 1 = on (teal), knob follows */
@@ -2627,19 +2687,19 @@
       color: rgba(255, 255, 255, 0.85);
     }
     th:nth-child(1), td:nth-child(1) { width: 58px; padding: 2px 4px; }
-    #tableMount table:not(.strategy-group-table) th:nth-child(2),
-    #tableMount table:not(.strategy-group-table) td:nth-child(2) { width: 7%; padding: 2px 4px; }
-    #tableMount table:not(.strategy-group-table) th:nth-child(3),
-    #tableMount table:not(.strategy-group-table) td:nth-child(3) { width: 33%; }
-    #tableMount table:not(.strategy-group-table) th:nth-child(4),
-    #tableMount table:not(.strategy-group-table) td:nth-child(4) { width: 12%; }
-    #tableMount table:not(.strategy-group-table) th:nth-child(5),
-    #tableMount table:not(.strategy-group-table) td:nth-child(5) { width: 14%; }
-    #tableMount table:not(.strategy-group-table) th:nth-child(6),
-    #tableMount table:not(.strategy-group-table) td:nth-child(6) { width: 14%; }
-    #tableMount table:not(.strategy-group-table) th:nth-child(7),
-    #tableMount table:not(.strategy-group-table) td:nth-child(7),
-    #tableMount table tbody td.banner-subtotal-cell {
+    .projects-table-mount table:not(.strategy-group-table) th:nth-child(2),
+    .projects-table-mount table:not(.strategy-group-table) td:nth-child(2) { width: 7%; padding: 2px 4px; }
+    .projects-table-mount table:not(.strategy-group-table) th:nth-child(3),
+    .projects-table-mount table:not(.strategy-group-table) td:nth-child(3) { width: 33%; }
+    .projects-table-mount table:not(.strategy-group-table) th:nth-child(4),
+    .projects-table-mount table:not(.strategy-group-table) td:nth-child(4) { width: 12%; }
+    .projects-table-mount table:not(.strategy-group-table) th:nth-child(5),
+    .projects-table-mount table:not(.strategy-group-table) td:nth-child(5) { width: 14%; }
+    .projects-table-mount table:not(.strategy-group-table) th:nth-child(6),
+    .projects-table-mount table:not(.strategy-group-table) td:nth-child(6) { width: 14%; }
+    .projects-table-mount table:not(.strategy-group-table) th:nth-child(7),
+    .projects-table-mount table:not(.strategy-group-table) td:nth-child(7),
+    .projects-table-mount table tbody td.banner-subtotal-cell {
       width: 20%;
       text-align: right;
       padding-right: 10px;
@@ -2673,14 +2733,14 @@
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
     }
-    #tableMount table tbody td.banner-label-cell {
+    .projects-table-mount table tbody td.banner-label-cell {
       width: auto;
     }
     /* User committed a planning SF/qty override — row reads as active (not schedule-only grey) */
-    #tableMount table tbody tr.planning-qty-committed-row td {
+    .projects-table-mount table tbody tr.planning-qty-committed-row td {
       color: var(--text);
     }
-    #tableMount table tbody tr.planning-qty-committed-row td.muted {
+    .projects-table-mount table tbody tr.planning-qty-committed-row td.muted {
       color: var(--text);
     }
     /* Campus Yes + reference $ (shade / outdoor classroom): applicable content stays black */
@@ -3003,7 +3063,21 @@
     </div>
 
     <div class="card">
-      <div class="assets-card-heading">
+      <div class="priority-projects-block" id="priorityProjectsBlock" hidden>
+        <div class="assets-card-heading priority-projects-heading">
+          <h2 class="section-title" style="font-size:14px;color:#64748b;font-weight:700;">Priority Projects</h2>
+          <div class="assets-heading-actions">
+            <span class="priority-projects-total-wrap" id="priorityProjectsTotalWrap" hidden>
+              <span class="priority-projects-total-label">Total Priority Project Cost</span>
+              <span class="priority-projects-heading-total" id="priorityProjectsHeadingTotal"></span>
+            </span>
+          </div>
+        </div>
+
+        <div id="priorityProjectsMount" class="projects-table-mount"></div>
+      </div>
+
+      <div class="assets-card-heading project-list-heading">
         <h2 class="section-title" style="font-size:14px;color:#64748b;font-weight:700;">Project list</h2>
         <div class="assets-heading-actions">
           <div id="strategyPivotToolbar" class="strategy-pivot-toolbar" hidden>
@@ -3013,6 +3087,11 @@
             </div>
             <button type="button" id="strategyResetOrderBtn" class="strategy-toolbar-btn" title="Restore default column order and show all columns">Reset order</button>
           </div>
+          <span id="assetsSettingsHeadingSlot" class="assets-settings-slot"></span>
+        </div>
+      </div>
+
+      <div id="assetsSettingsPool" hidden aria-hidden="true">
           <div class="assets-settings-wrap">
           <button type="button" id="assetsSettingsBtn" class="btn-icon-assets-settings" title="List settings" aria-expanded="false" aria-controls="assetsSettingsDropdown" aria-haspopup="true">
             <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -3052,7 +3131,6 @@
             </div>
           </div>
           </div>
-        </div>
       </div>
 
       <div id="tableFilterPool" hidden aria-hidden="true">
@@ -3106,11 +3184,12 @@
         </div>
         <div class="table-filter-reset">
           <button type="button" id="clearFiltersBtn" class="btn-reset-filters">Reset Filters</button>
+          <span id="assetsSettingsSlot" class="assets-settings-slot"></span>
         </div>
       </div>
       </div>
 
-      <div id="tableMount"></div>
+      <div id="tableMount" class="projects-table-mount"></div>
     </div>
   </div>
 
@@ -3118,7 +3197,7 @@
   <script src="js/school-name-display.js?v=20260630_1"></script>
   <script src="js/decision-export-fields.js?v=20260517_1" defer></script>
   <script src="js/dashboard-decision-column-map.js?v=20260517_1" defer></script>
-  <script src="js/school-profile.js?v=20260807_06" defer></script>
+  <script src="js/school-profile.js?v=20260811_13" defer></script>
   <script src="js/global-search.js" defer></script>
 </body>
 </html>
