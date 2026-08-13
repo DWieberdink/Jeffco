@@ -596,13 +596,16 @@ window.prioritizationUI = {
       ' data-type="' + type + '"' +
       ' title="' + title + '">' +
       '<span class="th-inner">' +
-      '<span class="th-label">' + label + "</span></span>" +
+      '<span class="th-label">' + label + "</span>" +
+      '<span class="th-controls">' +
+      '<span class="th-sort-caret" aria-hidden="true"></span>' +
       '<button type="button" class="filter-btn" aria-label="Filter column" title="Filter column">' +
       '<svg class="filter-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">' +
       '<path d="M2 2.5h12L9.5 9v4.5l-3-1.5V9L2 2.5z" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>' +
       "</svg></button>" +
+      "</span></span>" +
       '<button type="button" class="filter-clear-col" aria-label="Clear filter" title="Clear filter">×</button>' +
-      '<div class="ps-prioritized-filter-dropdown filter-dropdown" role="menu" aria-hidden="true"></div>' +
+      '<div class="ps-prioritized-filter-dropdown" role="menu" aria-hidden="true"></div>' +
       '<div class="column-resizer" data-col="' + colIndex + '"></div></th>'
     );
   },
@@ -990,13 +993,14 @@ window.prioritizationUI = {
     const showProjectTypeCol = self.impactTableShowProjectType !== false;
 
     // Build column width model (match Decision by School look: % or px)
+    // Widths leave room for the inline sort caret + filter button next to each header label.
     const colWidths = [];
-    colWidths.push("42px"); // Rank
+    colWidths.push("76px"); // Rank
     if (showStrategyCol) colWidths.push("12%");
     if (showProjectTypeCol) colWidths.push("14%");
     colWidths.push(showStrategyCol || showProjectTypeCol ? "18%" : "22%"); // School
-    colWidths.push("52px"); // Score
-    sliderConfigs.forEach(() => colWidths.push("86px")); // enabled metrics only
+    colWidths.push("80px"); // Score
+    sliderConfigs.forEach(() => colWidths.push("104px")); // enabled metrics only
 
     const buildColGroupHTML = function () {
       return (
@@ -1027,11 +1031,17 @@ window.prioritizationUI = {
       ".ps-prioritized-table .column-resizer:hover { background: rgba(0, 124, 191, 0.15); }" +
       ".ps-prioritized-table .column-resizer.dragging { background: rgba(0, 124, 191, 0.3); }" +
       /* Filter + Sort controls */
-      ".ps-prioritized-table .filterable-header .th-inner { display: block; width: 100%; min-width: 0; padding-right: 14px; padding-top: 14px; box-sizing: border-box; }" +
-      ".ps-prioritized-table .th-label { display: block; white-space: normal; font-weight: 600; line-height: 1.25; }" +
-      ".ps-prioritized-table .filter-btn { position: absolute; top: 2px; right: 8px; z-index: 2; display: inline-flex; width: 14px; height: 14px; padding: 0; border: none; border-radius: 2px; background: transparent; color: #9ca3af; cursor: pointer; align-items: center; justify-content: center; }" +
-      ".ps-prioritized-table .filter-btn:hover { background: #f3f4f6; color: #374151; }" +
-      ".ps-prioritized-table .filter-btn.filter-active { color: #dc2626; background: #fef2f2; }" +
+      // Label and controls share one flex row, so the controls sit beside the text
+      // (never above it) and wrapped metric labels can never run underneath them.
+      ".ps-prioritized-table .filterable-header .th-inner { display: flex; align-items: center; gap: 3px; width: 100%; min-width: 0; box-sizing: border-box; }" +
+      ".ps-prioritized-table .th-label { flex: 1 1 auto; min-width: 0; display: block; white-space: normal; font-weight: 600; line-height: 1.25; overflow-wrap: break-word; }" +
+      ".ps-prioritized-table .th-controls { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 3px; }" +
+      ".ps-prioritized-table th.text-center .th-label { text-align: center; }" +
+      ".ps-prioritized-table td.ps-num { text-align: center; }" +
+      ".ps-prioritized-table .filter-btn { flex: 0 0 auto; z-index: 2; display: inline-flex; width: 14px; height: 14px; padding: 0; border: none; border-radius: 3px; background: transparent; color: #9ca3af; cursor: pointer; align-items: center; justify-content: center; transition: color .12s ease, background-color .12s ease; }" +
+      ".ps-prioritized-table .filter-btn:hover { background: #fee2e2; color: #374151; }" +
+      // Header background is already #fef2f2, so the active chip needs a deeper tint to read as "on".
+      ".ps-prioritized-table .filter-btn.filter-active { color: #dc2626; background: #fecaca; }" +
       ".ps-prioritized-table .filter-clear-col { display: none; }" +
       ".ps-prioritized-table th.filterable-header { overflow: visible; }" +
       ".ps-prioritized-filter-dropdown { position: fixed; width: 220px; max-width: 280px; box-sizing: border-box; max-height: 320px; background: #fff; border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.18); padding: 8px 10px; overflow-y: auto; z-index: 100000; display: none; }" +
@@ -1058,10 +1068,13 @@ window.prioritizationUI = {
       ".ps-prioritized-filter-dropdown .filter-options { display: flex; flex-direction: column; gap: 0; }" +
       ".ps-prioritized-table tr.filter-hidden { display: none; }" +
       ".ps-prioritized-table th.sortable-header { cursor: pointer; }" +
-      ".ps-prioritized-table th.sortable-header:hover { background: #eef2f7; }" +
-      ".ps-prioritized-table th.sortable-header::after { content: ''; position: absolute; right: 3px; top: 50%; margin-top: -4px; border: 5px solid transparent; border-bottom-color: #9ca3af; border-top: none; opacity: 0.45; pointer-events: none; }" +
-      ".ps-prioritized-table th.sortable-header.sort-asc::after { border-bottom-color: #007cbf; border-top: none; opacity: 1; }" +
-      ".ps-prioritized-table th.sortable-header.sort-desc::after { border-top: 5px solid #007cbf; border-bottom: none; margin-top: -8px; opacity: 1; }" +
+      ".ps-prioritized-table th.sortable-header:hover { background: #fee2e2; }" +
+      // Suppress the panel-wide ::after caret from index.html; this table uses a real caret element.
+      ".ps-prioritized-table th.sortable-header::after, .ps-prioritized-table th.sort-asc::after, .ps-prioritized-table th.sort-desc::after { content: none; display: none; }" +
+      ".ps-prioritized-table .th-sort-caret { flex: 0 0 auto; display: inline-block; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 5px solid #9ca3af; opacity: 0.4; }" +
+      ".ps-prioritized-table th.sortable-header:hover .th-sort-caret { opacity: 0.7; }" +
+      ".ps-prioritized-table th.sortable-header.sort-asc .th-sort-caret { border-bottom-color: #007cbf; opacity: 1; }" +
+      ".ps-prioritized-table th.sortable-header.sort-desc .th-sort-caret { border-bottom: none; border-top: 5px solid #007cbf; opacity: 1; }" +
       "</style>";
 
     // Hidden buttons for tab-bar delegation (metric toggle + clear filters)
@@ -1201,7 +1214,7 @@ window.prioritizationUI = {
 
       let colIdx = 0;
       html += "<tr data-row>";
-      html += '<td data-filter="col-' + colIdx + '" data-sort-value="' + (index + 1) + '">' + (index + 1) + "</td>";
+      html += '<td class="ps-num" data-filter="col-' + colIdx + '" data-sort-value="' + (index + 1) + '">' + (index + 1) + "</td>";
       colIdx++;
 
       if (showStrategyCol) {
@@ -1236,7 +1249,7 @@ window.prioritizationUI = {
         "</a>" +
         "</td>";
       colIdx++;
-      html += '<td data-filter="col-' + colIdx + '" data-sort-value="' + school.priorityScore + '" style="font-weight:600;">' +
+      html += '<td class="ps-num" data-filter="col-' + colIdx + '" data-sort-value="' + school.priorityScore + '" style="font-weight:600;">' +
         school.priorityScore.toFixed(1) +
         "</td>";
       colIdx++;
@@ -1245,7 +1258,7 @@ window.prioritizationUI = {
       sliderConfigs.forEach(function (config) {
         const sortNum = self.getMetricNumericValue(config.key, school, displayMode);
         const sortAttr = isNaN(sortNum) ? "" : ' data-sort-value="' + sortNum + '"';
-        html += '<td data-filter="col-' + colIdx + '"' + sortAttr + ">" + formatValue(config.key, school) + "</td>";
+        html += '<td class="ps-num" data-filter="col-' + colIdx + '"' + sortAttr + ">" + formatValue(config.key, school) + "</td>";
         colIdx++;
       });
 

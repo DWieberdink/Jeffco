@@ -29,10 +29,10 @@
   <script src="js/dashboard-decision-column-map.js?v=20260518_1" defer></script>
   <script src="js/DecisionLogic.js?v=20260807_01" defer></script>
   <script src="js/PrioritizationLogic.js?v=20260806_06" defer></script>
-  <script src="js/PrioritizationUI.js?v=20260807_01" defer></script>
+  <script src="js/PrioritizationUI.js?v=20260813_06" defer></script>
   <script src="js/FlowchartLogic.js?v=20260806_06" defer></script>
   <script src="js/dashboard-year-labels.js?v=20260516_1" defer></script>
-  <script src="js/script.js?v=20260811_08" defer></script>
+  <script src="js/script.js?v=20260813_05" defer></script>
   <script src="js/global-search.js" defer></script>
   
 
@@ -5449,7 +5449,7 @@ body.bottom-tables-step34.bottom-tables-docked-collapsed .bp-tab-actions-shared 
         </summary>
         <div class="flow-content" style="margin-left: 24px; margin-top: 16px;">
           <label style="display: block; margin-bottom: 16px;"><span id="yl-attendance-area-slider-text">Attendance Area Enrollment (2024)</span>: <span id="attendanceAreaEnrollmentOut" class="slider-value">80</span>%
-            <input type="range" id="attendanceAreaEnrollmentSlider" min="60" max="100" step="1" value="80">
+            <input type="range" id="attendanceAreaEnrollmentSlider" min="0" max="100" step="1" value="80">
           </label>
           <label style="display: block; margin-bottom: 16px;">Composite Building Score: <span id="buildOut" class="slider-value">5</span>
             <input type="range" id="buildSlider" min="1" max="10" step="1" value="5">
@@ -5582,6 +5582,7 @@ body.bottom-tables-step34.bottom-tables-docked-collapsed .bp-tab-actions-shared 
               <h2 style="margin: 0; font-size: 16px; font-weight: 900; color:#111827;">School Portfolio Explore</h2>
               <div style="margin-top:2px; font-size: 12px; color:#4b5563;">
                 District summary and articulation area comparison; select a school for detailed indicators.
+                Enrollment, capacity, utilization, and seats do not include Charter School enrollments.
               </div>
             </div>
           </div>
@@ -6421,7 +6422,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <strong>Flow 2: Expansion</strong><br>
   <ul style="text-align:left; margin-left: 0.5em; padding-left: 1em;">
     <li><strong id="yl-help-attendance-area">Attendance Area Enrollment (2024)</strong><br>
-      Percentage threshold for attendance area enrollment (60-100%, default: 80%)</li>
+      Percentage threshold for attendance area enrollment (0-100%, default: 80%)</li>
     <li><strong>Composite Building Score</strong><br>
       Building condition score threshold (1-10 scale, default: 5)</li>
     <li><strong>Educational Adequacy</strong><br>

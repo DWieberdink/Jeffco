@@ -14,7 +14,7 @@ if (!DEBUG) {
 const mainDisplaySchoolName = window.formatSchoolDisplayName || ((name) => String(name ?? '').trim());
 
 // Cache-bust static data files when needed (bump when CSV/GeoJSON changes).
-const ASSET_VERSION = '2026-08-11-7';
+const ASSET_VERSION = '2026-08-13-5';
 
 const DASHBOARD_STEP_DEFS = {
   1: {
@@ -428,9 +428,9 @@ function getCompareBuckets(categoryKey) {
     const lowPct = Math.round(low * 100);
     const highPct = Math.round(high * 100);
     return [
-      { key: 'low', label: `Too low (< ${lowPct}%)`, color: UTILIZATION_PHASE_COLORS.low },
-      { key: 'mid', label: `In range (${lowPct}%–${highPct}%)`, color: UTILIZATION_PHASE_COLORS.mid },
-      { key: 'high', label: `Too high (> ${highPct}%)`, color: UTILIZATION_PHASE_COLORS.high }
+      { key: 'low', label: `Low (< ${lowPct}%)`, color: UTILIZATION_PHASE_COLORS.low },
+      { key: 'mid', label: `Normal (${lowPct}%–${highPct}%)`, color: UTILIZATION_PHASE_COLORS.mid },
+      { key: 'high', label: `High (> ${highPct}%)`, color: UTILIZATION_PHASE_COLORS.high }
     ];
   }
   if (categoryKey === 'fci') {
@@ -5022,9 +5022,9 @@ function updateLegend() {
 
       appendModeHeader('Utilization');
 
-      addLegendFilterRow('utilization', 'low', `Too low (< ${lowPct}%)`, UTILIZATION_PHASE_COLORS.low);
-      addLegendFilterRow('utilization', 'mid', `In range (${lowPct}%–${highPct}%)`, UTILIZATION_PHASE_COLORS.mid);
-      addLegendFilterRow('utilization', 'high', `Too high (> ${highPct}%)`, UTILIZATION_PHASE_COLORS.high);
+      addLegendFilterRow('utilization', 'low', `Low (< ${lowPct}%)`, UTILIZATION_PHASE_COLORS.low);
+      addLegendFilterRow('utilization', 'mid', `Normal (${lowPct}%–${highPct}%)`, UTILIZATION_PHASE_COLORS.mid);
+      addLegendFilterRow('utilization', 'high', `High (> ${highPct}%)`, UTILIZATION_PHASE_COLORS.high);
 
       appendInlineLegendHelper('Thresholds follow the utilization sliders in Strategic Sorting.');
 
@@ -7166,7 +7166,7 @@ map.on('load', () => {
           } else if (mode === 'utilization') {
             if (showUtilization && utilNorm !== null) {
               const { low, high } = getUtilizationThresholds();
-              const band = (utilNorm < low) ? 'Too low' : (utilNorm > high) ? 'Too high' : 'In range';
+              const band = (utilNorm < low) ? 'Low' : (utilNorm > high) ? 'High' : 'Normal';
               html += `<br><span>Utilization Band: ${band}</span>`;
             }
           } else if (mode === 'fci') {
@@ -12756,21 +12756,55 @@ if (typeof window.switchToMap !== 'function') {
     window.openStep1SchoolProjectList = openStep1SchoolProjectList;
   } catch (_) {}
 
+  /**
+   * View 1 (School Portfolio Explore) uses the original 122 district-operated sites —
+   * the same CDE-suffix universe as school-profile / articulation growth — not the
+   * flowchart Include_Flow_Chart filter (which nets to 123 with option addbacks).
+   */
+  function isOriginal122SchoolRow(row) {
+    const uid = getRowUniqueId(row);
+    return ARTICULATION_GROWTH_ORIGINAL_122_SUFFIXES.has(getUidSuffixFor122(uid));
+  }
+
+  /**
+   * DecisionLogic stamps "Articulation Area" onto its own schoolData only, so rows pulled
+   * straight from the full export need it backfilled from the Map_Export lookup or they
+   * collapse into "No Articulation Area" and drop out of the area table.
+   */
+  function ensureArticulationAreaOnRow(row) {
+    if (!row) return;
+    const existing = pickFirstNonEmpty(row, ['Articulation Area', 'ArticulationArea', 'Articulation']);
+    if (existing) return;
+    const lookup = window.articulationFromMapExport;
+    if (!lookup || typeof lookup !== 'object') return;
+    // Keys are the raw, trimmed Building Code / Building Name from Map_Export.csv.
+    const uid = (row.UniqueID || row['UniqueID'] || row['Unique Id'] || '').toString().trim();
+    const name = (row['Building Name'] || '').toString().trim();
+    const val = lookup[uid] ?? lookup[name] ?? '';
+    if (!val) return;
+    row['Articulation Area'] = val;
+    row.ArticulationArea = val;
+  }
+
   function getDecisionSchoolRows() {
-    const rows = window.decisionLogic && Array.isArray(window.decisionLogic.schoolData) ? window.decisionLogic.schoolData : [];
+    // Primary source keeps DecisionLogic's enrichment (articulation, normalized scores).
+    const primary =
+      window.decisionLogic && Array.isArray(window.decisionLogic.schoolData)
+        ? window.decisionLogic.schoolData
+        : [];
     const merged = [];
     const seen = new Set();
     const add = (row) => {
-      if (!row) return;
+      if (!row || !isOriginal122SchoolRow(row)) return;
       const key = getRowUniqueId(row) || `name:${norm(getSchoolName(row))}`;
       if (!key || seen.has(key)) return;
       seen.add(key);
+      ensureArticulationAreaOnRow(row);
       merged.push(row);
     };
-    rows.forEach(add);
-    (decisionAllRows || [])
-      .filter((row) => isOfficialOptionSchoolStep1(row))
-      .forEach(add);
+    primary.forEach(add);
+    // Sites in the 122 that the flowchart filter drops (Include_Flow_Chart = No).
+    (decisionAllRows || []).forEach(add);
     return merged;
   }
 
@@ -13195,6 +13229,9 @@ if (typeof window.switchToMap !== 'function') {
         <div class="step1-portfolio-kpi-section-actions step1-portfolio-kpi-section-actions--spacer" aria-hidden="true"></div>
       </div>
       <div class="step1-portfolio-kpi-grid">${buildStep1PortfolioKpisHtml(metrics)}</div>
+      <div class="step1-footnote" style="text-align:left;margin-top:6px;">
+        Numbers do not include Charter School enrollments.
+      </div>
     </div>`;
   }
 
@@ -14152,6 +14189,12 @@ if (typeof window.switchToMap !== 'function') {
         kpiTileHtml({ theme: 'green', label: yl.attendanceAreaKpi ? yl.attendanceAreaKpi() : 'Attendance Area Enrollment', value: attAreaStr }),
         kpiTileHtml({ theme: 'green', label: yl.futureGrowthCard ? yl.futureGrowthCard() : 'Future Enrollment Growth (2030)', value: growthStr, sub: growthSub })
       ].join('');
+    }
+    const enrollmentFootnote = document.getElementById('step1EnrollmentFootnote');
+    if (enrollmentFootnote) {
+      enrollmentFootnote.style.display = '';
+      enrollmentFootnote.style.textAlign = 'left';
+      enrollmentFootnote.textContent = 'Numbers do not include Charter School enrollments.';
     }
   }
 
