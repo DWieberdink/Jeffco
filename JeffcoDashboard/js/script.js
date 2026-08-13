@@ -14,7 +14,7 @@ if (!DEBUG) {
 const mainDisplaySchoolName = window.formatSchoolDisplayName || ((name) => String(name ?? '').trim());
 
 // Cache-bust static data files when needed (bump when CSV/GeoJSON changes).
-const ASSET_VERSION = '2026-08-13-5';
+const ASSET_VERSION = '2026-08-13-7';
 
 const DASHBOARD_STEP_DEFS = {
   1: {
@@ -13510,6 +13510,250 @@ if (typeof window.switchToMap !== 'function') {
     </tr>`;
   }
 
+  // ---- Articulation area row hover popup (schools + key stats) ----------------
+
+  const STEP1_AREA_HOVER_DELAY_MS = 90;
+  let step1AreaHoverTimer = null;
+  let step1AreaHoverKey = null;
+
+  function ensureStep1AreaHoverPopup() {
+    let el = document.getElementById('step1AreaHoverPopup');
+    if (el) return el;
+
+    if (!document.getElementById('step1AreaHoverPopupStyles')) {
+      const style = document.createElement('style');
+      style.id = 'step1AreaHoverPopupStyles';
+      style.textContent = `
+        #step1AreaHoverPopup {
+          position: fixed;
+          z-index: 100001;
+          display: none;
+          pointer-events: none;
+          max-width: 620px;
+          max-height: 60vh;
+          overflow: hidden;
+          background: #fff;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          box-shadow: 0 8px 28px rgba(15, 23, 42, 0.18);
+          padding: 8px 10px 6px;
+          font-size: 11px;
+          color: #111827;
+        }
+        #step1AreaHoverPopup .s1hp-title {
+          font-size: 12px;
+          font-weight: 700;
+          color: #1d4ed8;
+          margin-bottom: 6px;
+          white-space: nowrap;
+        }
+        #step1AreaHoverPopup table { border-collapse: collapse; width: 100%; }
+        #step1AreaHoverPopup th {
+          text-align: right;
+          font-size: 10px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: .02em;
+          color: #6b7280;
+          padding: 0 6px 4px;
+          border-bottom: 1px solid #e5e7eb;
+          white-space: nowrap;
+        }
+        #step1AreaHoverPopup th.s1hp-left, #step1AreaHoverPopup td.s1hp-left { text-align: left; }
+        #step1AreaHoverPopup td {
+          text-align: right;
+          padding: 2px 6px;
+          border-bottom: 1px solid #f3f4f6;
+          white-space: nowrap;
+        }
+        #step1AreaHoverPopup tbody tr:last-child td { border-bottom: none; }
+        #step1AreaHoverPopup td.s1hp-name { font-weight: 600; max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+        #step1AreaHoverPopup td.s1hp-lvl { color: #6b7280; }
+        #step1AreaHoverPopup tfoot td {
+          border-top: 1px solid #e5e7eb;
+          border-bottom: none;
+          font-weight: 700;
+          padding-top: 4px;
+        }
+        #step1AreaHoverPopup .s1hp-swatch {
+          display: inline-block;
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          margin-right: 4px;
+          vertical-align: middle;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    el = document.createElement('div');
+    el.id = 'step1AreaHoverPopup';
+    el.setAttribute('role', 'tooltip');
+    el.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function buildStep1AreaHoverPopupHtml(areaKey, label) {
+    const allRows = getDecisionSchoolRows();
+    const rows = schoolsInArticulationArea(allRows, areaKey)
+      .filter((r) => getSchoolName(r))
+      .sort((a, b) =>
+        getSchoolName(a).localeCompare(getSchoolName(b), undefined, { sensitivity: 'base', numeric: true })
+      );
+    if (!rows.length) return '';
+
+    const yl = window.yearLabels || {};
+    const utilLabel = yl.utilizationCard ? yl.utilizationCard() : 'Utilization';
+
+    let sumCap = 0;
+    let sumEnr = 0;
+    let sumSeats = 0;
+
+    const body = rows.map((row) => {
+      const name = mainDisplaySchoolName(getSchoolName(row));
+      const level = pickSchoolLevelFromRow(row) || '';
+      const capDetails = window.getEffectiveCapacityDetails ? window.getEffectiveCapacityDetails(row) : null;
+      const cap = capDetails && Number.isFinite(capDetails.value) ? capDetails.value : null;
+      const enr = window.getEffectiveEnrollment ? window.getEffectiveEnrollment(row) : null;
+      const util = window.getEffectiveUtilization ? window.getEffectiveUtilization(row) : null;
+      const seats = window.getEffectiveAvailableSeats ? window.getEffectiveAvailableSeats(row) : null;
+      const bScore = coerceBuildingScore0to10(pickFirstNonEmpty(row, ['BuildingScore', 'Building Score']));
+      const eduAdeq = parseNumber(pickFirstNonEmpty(row, ['EducationalAdequacy', 'Educational Adequacy']));
+      const eduPct = Number.isFinite(eduAdeq) ? clamp(eduAdeq <= 1.5 ? eduAdeq * 100 : eduAdeq, 0, 100) : null;
+      const utilPct = Number.isFinite(util) ? util * 100 : null;
+
+      if (Number.isFinite(cap) && cap > 0) sumCap += cap;
+      if (Number.isFinite(enr)) sumEnr += enr;
+      if (Number.isFinite(seats)) sumSeats += seats;
+
+      const utilDot = Number.isFinite(utilPct)
+        ? `<span class="s1hp-swatch" style="background:${step1PortfolioUtilColor(utilPct)}"></span>`
+        : '';
+
+      return `<tr>
+        <td class="s1hp-left s1hp-name" title="${htmlEscape(name)}">${htmlEscape(name)}</td>
+        <td class="s1hp-left s1hp-lvl">${htmlEscape(level)}</td>
+        <td>${Number.isFinite(cap) && cap > 0 ? fmtInt(cap) : '—'}</td>
+        <td>${Number.isFinite(enr) ? fmtInt(enr) : '—'}</td>
+        <td>${utilDot}${Number.isFinite(utilPct) ? fmtPct(utilPct) : '—'}</td>
+        <td>${Number.isFinite(seats) ? fmtInt(seats) : '—'}</td>
+        <td>${Number.isFinite(bScore) ? bScore.toFixed(1) : '—'}</td>
+        <td>${Number.isFinite(eduPct) ? fmtPct(eduPct) : '—'}</td>
+      </tr>`;
+    }).join('');
+
+    const totalUtilPct = sumCap > 0 ? (sumEnr / sumCap) * 100 : null;
+
+    return `<div class="s1hp-title">${htmlEscape(label)} — ${rows.length} school${rows.length === 1 ? '' : 's'}</div>
+      <table>
+        <thead>
+          <tr>
+            <th class="s1hp-left">School</th>
+            <th class="s1hp-left">Level</th>
+            <th>Capacity</th>
+            <th>Enrollment</th>
+            <th>${htmlEscape(utilLabel)}</th>
+            <th>Seats</th>
+            <th>Bldg</th>
+            <th>EA</th>
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+        <tfoot>
+          <tr>
+            <td class="s1hp-left">Total</td>
+            <td></td>
+            <td>${sumCap > 0 ? fmtInt(sumCap) : '—'}</td>
+            <td>${fmtInt(sumEnr)}</td>
+            <td>${Number.isFinite(totalUtilPct) ? fmtPct(totalUtilPct) : '—'}</td>
+            <td>${fmtInt(sumSeats)}</td>
+            <td></td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>`;
+  }
+
+  function positionStep1AreaHoverPopup(el, clientX, clientY) {
+    const margin = 12;
+    const rect = el.getBoundingClientRect();
+    let left = clientX + 16;
+    let top = clientY + 16;
+    if (left + rect.width > window.innerWidth - margin) left = clientX - rect.width - 16;
+    if (left < margin) left = margin;
+    if (top + rect.height > window.innerHeight - margin) top = window.innerHeight - rect.height - margin;
+    if (top < margin) top = margin;
+    el.style.left = `${Math.round(left)}px`;
+    el.style.top = `${Math.round(top)}px`;
+  }
+
+  function hideStep1AreaHoverPopup() {
+    if (step1AreaHoverTimer) {
+      clearTimeout(step1AreaHoverTimer);
+      step1AreaHoverTimer = null;
+    }
+    step1AreaHoverKey = null;
+    const el = document.getElementById('step1AreaHoverPopup');
+    if (el) {
+      el.style.display = 'none';
+      el.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  function showStep1AreaHoverPopup(tr, clientX, clientY) {
+    const areaKey = tr.getAttribute('data-area-key');
+    if (!areaKey) return;
+    const labelCell = tr.querySelector('td.col-area');
+    const label = labelCell ? labelCell.textContent.trim() : areaKey;
+    const el = ensureStep1AreaHoverPopup();
+    const html = buildStep1AreaHoverPopupHtml(areaKey, label);
+    if (!html) {
+      hideStep1AreaHoverPopup();
+      return;
+    }
+    el.innerHTML = html;
+    el.style.display = 'block';
+    el.setAttribute('aria-hidden', 'false');
+    positionStep1AreaHoverPopup(el, clientX, clientY);
+  }
+
+  function bindStep1AreaRowHoverPopup(tableBody) {
+    if (!tableBody) return;
+
+    tableBody.addEventListener('mousemove', (e) => {
+      const tr = e.target.closest && e.target.closest('tr[data-area-key]');
+      if (!tr) {
+        hideStep1AreaHoverPopup();
+        return;
+      }
+      const key = tr.getAttribute('data-area-key');
+      const el = document.getElementById('step1AreaHoverPopup');
+      const visible = el && el.style.display === 'block';
+
+      if (key === step1AreaHoverKey && visible) {
+        positionStep1AreaHoverPopup(el, e.clientX, e.clientY);
+        return;
+      }
+      if (key !== step1AreaHoverKey) {
+        if (step1AreaHoverTimer) clearTimeout(step1AreaHoverTimer);
+        step1AreaHoverKey = key;
+        const x = e.clientX;
+        const y = e.clientY;
+        step1AreaHoverTimer = setTimeout(() => {
+          step1AreaHoverTimer = null;
+          // Guard against the row being re-rendered or the cursor moving away.
+          if (step1AreaHoverKey === key && tr.isConnected) showStep1AreaHoverPopup(tr, x, y);
+        }, STEP1_AREA_HOVER_DELAY_MS);
+      }
+    });
+
+    tableBody.addEventListener('mouseleave', hideStep1AreaHoverPopup);
+    tableBody.addEventListener('click', hideStep1AreaHoverPopup);
+    window.addEventListener('scroll', hideStep1AreaHoverPopup, true);
+  }
+
   const STEP1_PORTFOLIO_PANEL_LS = 'step1PortfolioPanelWidth';
 
   function getStep1PortfolioSplitMetrics() {
@@ -13816,6 +14060,7 @@ if (typeof window.switchToMap !== 'function') {
         syncStep1FilterBarLabels();
         if (typeof onRerender === 'function') onRerender({ openPanel: step1DetailPanelShouldStayOpen() });
       });
+      bindStep1AreaRowHoverPopup(tableBody);
     }
     if (closeBtn) closeBtn.addEventListener('click', closeStep1AreaDetailPanel);
     if (popoutBtn) popoutBtn.addEventListener('click', toggleStep1PortfolioPanelFullWidth);
